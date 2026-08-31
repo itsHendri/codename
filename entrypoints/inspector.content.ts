@@ -15,13 +15,29 @@ export default defineContentScript({
   },
 });
 
-function toHex(cssColor: string): string | null {
+interface Rgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+function parseRgba(cssColor: string): Rgba | null {
   const m = cssColor.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.%]+))?\)/);
   if (!m) return null;
-  const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
-  if (alpha === 0) return null;
-  const hex = (n: string) => Math.round(parseFloat(n)).toString(16).padStart(2, '0');
-  return `#${hex(m[1]!)}${hex(m[2]!)}${hex(m[3]!)}`.toUpperCase();
+  const a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+  return { r: parseFloat(m[1]!), g: parseFloat(m[2]!), b: parseFloat(m[3]!), a };
+}
+
+function rgbToHexStr(r: number, g: number, b: number): string {
+  const h = (n: number) => Math.round(n).toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`.toUpperCase();
+}
+
+function toHex(cssColor: string): string | null {
+  const p = parseRgba(cssColor);
+  if (!p || p.a === 0) return null;
+  return rgbToHexStr(p.r, p.g, p.b);
 }
 
 function luminance(hex: string): number {
@@ -38,14 +54,28 @@ function contrast(fg: string | null, bg: string | null): number | null {
   return Math.round(((sorted[0]! + 0.05) / (sorted[1]! + 0.05)) * 10) / 10;
 }
 
-function opaqueBackground(el: Element): string | null {
+function opaqueBackground(el: Element): string {
+  // Composite translucent layers bottom-up over white.
+  const layers: Rgba[] = [];
   let node: Element | null = el;
   while (node) {
-    const hex = toHex(getComputedStyle(node).backgroundColor);
-    if (hex) return hex;
+    const p = parseRgba(getComputedStyle(node).backgroundColor);
+    if (p && p.a > 0) {
+      layers.push(p);
+      if (p.a >= 1) break;
+    }
     node = node.parentElement;
   }
-  return '#FFFFFF';
+  let r = 255;
+  let g = 255;
+  let b = 255;
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const l = layers[i]!;
+    r = l.r * l.a + r * (1 - l.a);
+    g = l.g * l.a + g * (1 - l.a);
+    b = l.b * l.a + b * (1 - l.a);
+  }
+  return rgbToHexStr(r, g, b);
 }
 
 function buildSelector(el: Element): string {

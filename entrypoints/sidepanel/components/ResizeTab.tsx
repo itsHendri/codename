@@ -11,20 +11,22 @@ interface Preset {
 
 const MIN_OUTER_WIDTH = 500;
 
-async function viewportOf(tabId: number): Promise<{ width: number; height: number } | null> {
+async function viewportOf(
+  tabId: number,
+): Promise<{ width: number; height: number; dpr: number } | null> {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => ({ width: innerWidth, height: innerHeight }),
+      func: () => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio }),
     });
-    return (result?.result as { width: number; height: number }) ?? null;
+    return (result?.result as { width: number; height: number; dpr: number }) ?? null;
   } catch {
     return null;
   }
 }
 
 export function ResizeTab({ tabId, restricted }: { tabId: number | null; restricted: boolean }) {
-  const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
+  const [viewport, setViewport] = useState<{ width: number; height: number; dpr: number } | null>(null);
   const [outer, setOuter] = useState<{ width: number; height: number } | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [customs, setCustoms] = useState<Preset[]>([]);
@@ -92,7 +94,7 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
         </span>
         <span className="text-[11px] text-gray-400">
           {outer ? `window ${outer.width} × ${outer.height}` : ''}
-          {typeof devicePixelRatio === 'number' ? ` · @${devicePixelRatio}x` : ''}
+          {viewport ? ` · @${viewport.dpr}x` : ''}
         </span>
       </div>
 

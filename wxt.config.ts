@@ -11,9 +11,9 @@ export default defineConfig({
     name: 'Codename',
     description:
       "Designer's toolkit: inspect fonts & colors, grab SVGs, resize the viewport, export a site's design tokens.",
-    permissions: ['activeTab', 'scripting', 'sidePanel', 'storage'],
+    permissions: ['activeTab', 'tabs', 'scripting', 'sidePanel', 'storage'],
     optional_host_permissions: ['<all_urls>'],
-    minimum_chrome_version: '114',
+    minimum_chrome_version: '116',
     action: {
       default_title: 'Open Codename',
     },

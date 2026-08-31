@@ -35,7 +35,7 @@ function scanPage(): ScanResult {
     colors: sampled.colors,
     gradients: sampled.gradients,
     contrastPairs: sampled.contrastPairs,
-    svgs: gatherSvgs(),
+    svgs: gatherSvgs(sampled.svgBgValues),
     customProps: extractCustomProps(css.text),
     cssText: css.text,
     unreadableSheets: css.unreadable,
@@ -138,13 +138,29 @@ function renderedFamily(stack: string): string {
 
 const MAX_ELEMENTS = 2500;
 
-function toHex(cssColor: string): string | null {
+interface Rgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+function parseRgba(cssColor: string): Rgba | null {
   const m = cssColor.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.%]+))?\)/);
   if (!m) return null;
-  const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
-  if (alpha === 0) return null;
-  const hex = (n: string) => Math.round(parseFloat(n)).toString(16).padStart(2, '0');
-  return `#${hex(m[1]!)}${hex(m[2]!)}${hex(m[3]!)}`.toUpperCase();
+  const a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+  return { r: parseFloat(m[1]!), g: parseFloat(m[2]!), b: parseFloat(m[3]!), a };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const h = (n: number) => Math.round(n).toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`.toUpperCase();
+}
+
+function toHex(cssColor: string): string | null {
+  const p = parseRgba(cssColor);
+  if (!p || p.a === 0) return null;
+  return rgbToHex(p.r, p.g, p.b);
 }
 
 function luminance(hex: string): number {
@@ -160,15 +176,27 @@ function contrastRatio(fg: string, bg: string): number {
   return (sorted[0]! + 0.05) / (sorted[1]! + 0.05);
 }
 
-function opaqueBackground(el: Element): string | null {
-  let node: Element | null = el;
-  while (node) {
-    const bg = getComputedStyle(node).backgroundColor;
-    const hex = toHex(bg);
-    if (hex) return hex;
-    node = node.parentElement;
+/** Effective background of an element: its own bg composited over its ancestors', memoized. */
+function resolvedBg(el: Element | null, cache: Map<Element, { r: number; g: number; b: number }>): {
+  r: number;
+  g: number;
+  b: number;
+} {
+  if (!el) return { r: 255, g: 255, b: 255 };
+  const hit = cache.get(el);
+  if (hit) return hit;
+  const parent = resolvedBg(el.parentElement, cache);
+  const own = parseRgba(getComputedStyle(el).backgroundColor);
+  let out = parent;
+  if (own && own.a > 0) {
+    out = {
+      r: own.r * own.a + parent.r * (1 - own.a),
+      g: own.g * own.a + parent.g * (1 - own.a),
+      b: own.b * own.a + parent.b * (1 - own.a),
+    };
   }
-  return '#FFFFFF';
+  cache.set(el, out);
+  return out;
 }
 
 function sampleComputedStyles() {
@@ -177,14 +205,26 @@ function sampleComputedStyles() {
   const gradientMap = new Map<string, number>();
   const pairMap = new Map<string, { fg: string; bg: string; ratio: number; count: number }>();
   const renderedCache = new Map<string, string>();
+  const bgCache = new Map<Element, { r: number; g: number; b: number }>();
+  const svgBgValues = new Set<string>();
 
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+  // The page's base backgrounds are design tokens too — the walker below starts inside <body>.
+  for (const rootEl of [document.documentElement, document.body]) {
+    const hex = toHex(getComputedStyle(rootEl).backgroundColor);
+    if (hex) addColor(colorMap, hex, 'background');
+  }
+
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (n) =>
+      /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test((n as Element).tagName)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  });
   let count = 0;
   let node = walker.nextNode();
   while (node && count < MAX_ELEMENTS) {
     const el = node as Element;
     node = walker.nextNode();
-    if (el.closest('script,style,noscript')) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
     count++;
@@ -216,8 +256,9 @@ function sampleComputedStyles() {
       const fg = toHex(cs.color);
       if (fg) {
         addColor(colorMap, fg, 'text');
-        const bg = opaqueBackground(el);
-        if (bg && parseFloat(cs.fontSize) >= 9) {
+        if (parseFloat(cs.fontSize) >= 9) {
+          const bgRgb = resolvedBg(el, bgCache);
+          const bg = rgbToHex(bgRgb.r, bgRgb.g, bgRgb.b);
           const pairKey = `${fg}/${bg}`;
           const pair = pairMap.get(pairKey) ?? { fg, bg, ratio: contrastRatio(fg, bg), count: 0 };
           pair.count++;
@@ -233,8 +274,13 @@ function sampleComputedStyles() {
       if (borderHex) addColor(colorMap, borderHex, 'border');
     }
     const bgImage = cs.backgroundImage;
-    if (bgImage.includes('gradient(')) {
-      gradientMap.set(bgImage, (gradientMap.get(bgImage) ?? 0) + 1);
+    if (bgImage && bgImage !== 'none') {
+      if (bgImage.includes('gradient(')) {
+        gradientMap.set(bgImage, (gradientMap.get(bgImage) ?? 0) + 1);
+      }
+      if (bgImage.includes('.svg') || bgImage.includes('data:image/svg+xml')) {
+        svgBgValues.add(bgImage);
+      }
     }
   }
 
@@ -263,7 +309,7 @@ function sampleComputedStyles() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 12);
 
-  return { fontUsage, colors, gradients, contrastPairs, count };
+  return { fontUsage, colors, gradients, contrastPairs, count, svgBgValues };
 }
 
 function addColor(
@@ -295,7 +341,17 @@ function hashString(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-function gatherSvgs(): SvgAsset[] {
+function decodeSvgDataUri(uri: string): string | null {
+  try {
+    return uri.includes('base64,')
+      ? atob(uri.split('base64,')[1]!)
+      : decodeURIComponent(uri.split(',').slice(1).join(','));
+  } catch {
+    return null;
+  }
+}
+
+function gatherSvgs(bgImageValues: Set<string>): SvgAsset[] {
   const assets = new Map<string, SvgAsset>();
   const serializer = new XMLSerializer();
 
@@ -322,23 +378,43 @@ function gatherSvgs(): SvgAsset[] {
     }
 
     for (const svg of Array.from(root.querySelectorAll('svg'))) {
-      const use = svg.querySelector('use');
-      if (use) {
-        const href = use.getAttribute('href') ?? use.getAttribute('xlink:href') ?? '';
+      const uses = Array.from(svg.querySelectorAll('use'));
+      const useHref = (u: Element) => u.getAttribute('href') ?? u.getAttribute('xlink:href') ?? '';
+
+      // Pure sprite instance (<svg><use .../></svg>): rebuild a standalone file from the symbol.
+      if (uses.length === 1 && svg.children.length === 1) {
+        const href = useHref(uses[0]!);
         if (href.startsWith('#')) {
-          const symbol = document.querySelector(href);
+          const symbol = document.getElementById(href.slice(1));
           if (symbol) {
             const viewBox = symbol.getAttribute('viewBox') ?? svg.getAttribute('viewBox') ?? '0 0 24 24';
-            const standalone = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${symbol.innerHTML}</svg>`;
-            addMarkup(standalone, 'sprite');
-            continue;
+            addMarkup(
+              `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${symbol.innerHTML}</svg>`,
+              'sprite',
+            );
           }
-        } else if (href) {
+          continue; // resolved, or unresolvable — either way a plain clone would be blank
+        }
+        if (href) {
           addUrl(href.split('#')[0]!, 'sprite');
           continue;
         }
       }
+
       const clone = svg.cloneNode(true) as SVGElement;
+      // Inline any locally referenced symbols so the standalone file still renders.
+      const localIds = [...new Set(uses.map(useHref).filter((h) => h.startsWith('#')).map((h) => h.slice(1)))];
+      if (localIds.length) {
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        let missing = false;
+        for (const id of localIds) {
+          const symbol = document.getElementById(id);
+          if (symbol) defs.appendChild(symbol.cloneNode(true));
+          else missing = true;
+        }
+        if (missing && svg.children.length === uses.length) continue; // would export blank
+        if (defs.childNodes.length) clone.insertBefore(defs, clone.firstChild);
+      }
       if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       addMarkup(serializer.serializeToString(clone), 'inline');
     }
@@ -346,38 +422,23 @@ function gatherSvgs(): SvgAsset[] {
     for (const img of Array.from(root.querySelectorAll<HTMLImageElement>('img'))) {
       const src = img.getAttribute('src') ?? '';
       if (src.startsWith('data:image/svg+xml')) {
-        try {
-          const markup = src.includes('base64,')
-            ? atob(src.split('base64,')[1]!)
-            : decodeURIComponent(src.split(',').slice(1).join(','));
-          addMarkup(markup, 'img');
-        } catch {
-          /* ignore undecodable data URIs */
-        }
+        const markup = decodeSvgDataUri(src);
+        if (markup) addMarkup(markup, 'img');
       } else if (/\.svg(\?|#|$)/i.test(src)) {
         addUrl(src, 'img');
       }
     }
+  }
 
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>('*')).slice(0, MAX_ELEMENTS)) {
-      const bg = getComputedStyle(el).backgroundImage;
-      if (!bg || bg === 'none') continue;
-      for (const m of bg.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
-        const target = m[1]!;
-        if (/\.svg(\?|#|$)/i.test(target) || target.startsWith('data:image/svg+xml')) {
-          if (target.startsWith('data:')) {
-            try {
-              const markup = target.includes('base64,')
-                ? atob(target.split('base64,')[1]!)
-                : decodeURIComponent(target.split(',').slice(1).join(','));
-              addMarkup(markup, 'css');
-            } catch {
-              /* ignore */
-            }
-          } else {
-            addUrl(target, 'css');
-          }
-        }
+  // CSS background SVGs, collected during the computed-style sampling pass.
+  for (const bg of bgImageValues) {
+    for (const m of bg.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
+      const target = m[1]!;
+      if (target.startsWith('data:image/svg+xml')) {
+        const markup = decodeSvgDataUri(target);
+        if (markup) addMarkup(markup, 'css');
+      } else if (/\.svg(\?|#|$)/i.test(target)) {
+        addUrl(target, 'css');
       }
     }
   }

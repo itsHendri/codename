@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PinnedElement, ScanResult } from '@/shared/types';
 import {
   getActiveTab,
@@ -37,6 +37,14 @@ const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'export', label: 'Export', Icon: ExportIcon },
 ];
 
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const [active, setActive] = useState<TabKey>('inspect');
   const [tabId, setTabId] = useState<number | null>(null);
@@ -46,23 +54,30 @@ export default function App() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [pinned, setPinned] = useState<PinnedElement | null>(null);
   const [inspecting, setInspecting] = useState(false);
+  const tabIdRef = useRef<number | null>(null);
 
   const restricted = isRestricted(tabUrl);
 
   const syncActiveTab = useCallback(async () => {
     const tab = await getActiveTab();
     if (!tab?.id) return;
+    tabIdRef.current = tab.id;
     setTabId(tab.id);
     setTabUrl(tab.url ?? '');
-    setScan(await loadScan<ScanResult>(tab.id));
+    // Drop a cached scan if the tab has since navigated to a different origin.
+    const stored = await loadScan<ScanResult>(tab.id);
+    setScan(stored && tab.url && sameOrigin(stored.url, tab.url) ? stored : null);
     setInspecting(false);
+    setScanning(false);
     setScanError(null);
+    setPinned(null);
   }, []);
 
   useEffect(() => {
     void syncActiveTab();
     const onActivated = () => void syncActiveTab();
-    const onUpdated = (_updatedTabId: number, info: { status?: string; url?: string }) => {
+    const onUpdated = (updatedTabId: number, info: { status?: string; url?: string }) => {
+      if (updatedTabId !== tabIdRef.current) return;
       if (info.status === 'complete' || info.url) void syncActiveTab();
     };
     chrome.tabs.onActivated.addListener(onActivated);
@@ -74,12 +89,17 @@ export default function App() {
   }, [syncActiveTab]);
 
   useEffect(() => {
-    const onMessage = (msg: { type?: string; data?: unknown; error?: string; active?: boolean }) => {
+    const onMessage = (
+      msg: { type?: string; data?: unknown; error?: string; active?: boolean },
+      sender: chrome.runtime.MessageSender,
+    ) => {
+      // Only accept messages from content scripts in the tab this panel is scoped to.
+      if (sender.tab?.id !== tabIdRef.current) return;
       if (msg?.type === 'scan-result') {
         const data = msg.data as ScanResult;
         setScan(data);
         setScanning(false);
-        if (tabId) void saveScan(tabId, data);
+        if (sender.tab?.id != null) void saveScan(sender.tab.id, data);
       } else if (msg?.type === 'scan-error') {
         setScanning(false);
         setScanError(msg.error ?? 'Scan failed');
@@ -92,7 +112,7 @@ export default function App() {
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
-  }, [tabId]);
+  }, []);
 
   const handleScan = useCallback(async () => {
     if (!tabId) return;
