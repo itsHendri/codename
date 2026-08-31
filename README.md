@@ -16,12 +16,12 @@ Requires Node 20+.
 ```sh
 npm install
 npm run dev        # dev build with hot reload
-npm run build      # production build → .output/chrome-mv3
+npm run build      # production build → dist/chrome-mv3
 npm run compile    # type check
 npm run zip        # store-ready zip
 ```
 
-To load in Chrome: `chrome://extensions` → enable Developer mode → **Load unpacked** → select `.output/chrome-mv3`.
+To load in Chrome: `chrome://extensions` → enable Developer mode → **Load unpacked** → select `dist/chrome-mv3`.
 
 Tip: click the Codename toolbar icon *while on the page you want to scan* — that grants the per-tab permission the scanner uses.
 
