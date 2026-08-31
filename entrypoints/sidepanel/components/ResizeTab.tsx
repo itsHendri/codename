@@ -33,7 +33,6 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
   const [adding, setAdding] = useState(false);
   const [customW, setCustomW] = useState('');
   const [customH, setCustomH] = useState('');
-  const [sizeViewport, setSizeViewport] = useState(true);
 
   const refresh = useCallback(async () => {
     const win = await chrome.windows.getCurrent();
@@ -49,9 +48,10 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
   const apply = async (preset: Preset) => {
     const win = await chrome.windows.getCurrent();
     if (win.id == null) return;
+    // Size the page's viewport to the preset: pad by the browser chrome delta when known.
     let width = preset.width;
     let height = preset.height;
-    if (sizeViewport && viewport && outer) {
+    if (viewport && outer) {
       width += outer.width - viewport.width;
       height += outer.height - viewport.height;
     }
@@ -87,23 +87,12 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
 
   return (
     <div className="flex flex-col gap-3 p-3.5">
-      <div className="flex flex-col items-center gap-0.5 rounded-lg border border-gray-300 py-3">
-        <span className="text-[10px] font-semibold tracking-wide text-gray-400">CURRENT VIEWPORT</span>
-        <span className="text-2xl font-semibold tabular-nums">
-          {viewport ? `${viewport.width} × ${viewport.height}` : '—'}
-        </span>
-        <span className="text-[11px] text-gray-400">
-          {outer ? `window ${outer.width} × ${outer.height}` : ''}
-          {viewport ? ` · @${viewport.dpr}x` : ''}
-        </span>
-      </div>
-
       <div className="flex items-baseline">
         <span className="font-medium">Presets</span>
-        <span className="ml-auto text-xs text-gray-400">click to resize</span>
+        <span className="ml-auto text-xs text-gray-400">click to resize the page to that size</span>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {presets.map((preset) => {
           const isActive = activePreset === preset.name;
           const tooNarrow = preset.width < MIN_OUTER_WIDTH;
@@ -111,37 +100,39 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
             <button
               key={preset.name}
               onClick={() => apply(preset)}
-              className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left ${
+              className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left ${
                 isActive ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-300 hover:border-gray-500'
               }`}
             >
-              <span className="text-sm">{preset.name}</span>
-              {preset.custom && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void removeCustom(preset.name);
-                  }}
-                  className="text-[10px] text-gray-400 hover:text-red-600"
-                >
-                  remove
-                </span>
-              )}
-              <span className={`ml-auto text-xs tabular-nums ${isActive ? '' : 'text-gray-400'}`}>
-                {preset.width} × {preset.height}
+              <span className="flex w-full items-center text-sm font-medium">
+                {preset.name}
+                {isActive && <span className="ml-auto text-[11px]">✓</span>}
+                {preset.custom && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void removeCustom(preset.name);
+                    }}
+                    className="ml-auto text-[10px] text-gray-400 hover:text-red-600"
+                  >
+                    ✕
+                  </span>
+                )}
               </span>
-              {tooNarrow && (
-                <span className="rounded-full border border-amber-600 px-1.5 text-[9px] text-amber-700">min-width!</span>
-              )}
-              {isActive && <span className="text-[11px]">✓</span>}
+              <span className={`flex items-center gap-1.5 text-xs tabular-nums ${isActive ? '' : 'text-gray-400'}`}>
+                {preset.width} × {preset.height}
+                {tooNarrow && (
+                  <span className="rounded-full border border-amber-600 px-1 text-[9px] text-amber-700">~500 min</span>
+                )}
+              </span>
             </button>
           );
         })}
 
         {adding ? (
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-400 px-3 py-2">
+          <div className="col-span-2 flex items-center gap-2 rounded-lg border border-dashed border-gray-400 px-3 py-2">
             <input
               value={customW}
               onChange={(e) => setCustomW(e.target.value)}
@@ -167,25 +158,30 @@ export function ResizeTab({ tabId, restricted }: { tabId: number | null; restric
         ) : (
           <button
             onClick={() => setAdding(true)}
-            className="rounded-lg border border-dashed border-gray-400 py-2 text-sm text-gray-500 hover:border-gray-600 hover:text-gray-700"
+            className="flex items-center justify-center rounded-lg border border-dashed border-gray-400 py-2.5 text-sm text-gray-500 hover:border-gray-600 hover:text-gray-700"
           >
-            + Add custom preset
+            + Custom
           </button>
         )}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-dashed border-gray-200 pt-2.5">
-        <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={sizeViewport} onChange={(e) => setSizeViewport(e.target.checked)} />
-          Size the viewport (not the window)
-        </label>
-        <div className="flex gap-2 rounded-lg border border-amber-600 px-2.5 py-2 text-[11px] text-amber-800">
-          <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            Chrome can&apos;t shrink a window below ~{MIN_OUTER_WIDTH}px. Phone presets get as close as possible — true
-            device emulation is planned for v2.
-          </span>
-        </div>
+      <div className="mt-1 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-500">
+        <span className="text-[10px] font-semibold tracking-wide text-gray-400">NOW</span>
+        <span className="tabular-nums text-gray-700">
+          {viewport ? `${viewport.width} × ${viewport.height}` : '— × —'}
+        </span>
+        <span className="ml-auto tabular-nums">
+          {outer ? `window ${outer.width} × ${outer.height}` : ''}
+          {viewport ? ` · @${viewport.dpr}x` : ''}
+        </span>
+      </div>
+
+      <div className="flex gap-2 rounded-lg border border-amber-600 px-2.5 py-2 text-[11px] text-amber-800">
+        <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Presets size the page area itself (the window grows to fit). Chrome can&apos;t shrink a window below ~
+          {MIN_OUTER_WIDTH}px, so phone presets get as close as possible — true device emulation is planned for v2.
+        </span>
       </div>
     </div>
   );

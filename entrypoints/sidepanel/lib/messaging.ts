@@ -12,6 +12,19 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
   return tab ?? null;
 }
 
+/**
+ * Ask for host access to the tab's site. Must be called synchronously from a
+ * user gesture (button click). Resolves true without a prompt when already granted.
+ */
+export async function ensureHostAccess(url: string): Promise<boolean> {
+  try {
+    const origin = new URL(url).origin + '/*';
+    return await chrome.permissions.request({ origins: [origin] });
+  } catch {
+    return false;
+  }
+}
+
 export async function runScan(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({
     target: { tabId },

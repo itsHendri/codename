@@ -24,6 +24,8 @@ export default defineContentScript({
 function scanPage(): ScanResult {
   const css = gatherCss();
   const sampled = sampleComputedStyles();
+  const customProps = extractCustomProps(css.text);
+  attachVarNames(sampled.colors, customProps);
 
   return {
     url: location.href,
@@ -36,7 +38,7 @@ function scanPage(): ScanResult {
     gradients: sampled.gradients,
     contrastPairs: sampled.contrastPairs,
     svgs: gatherSvgs(sampled.svgBgValues),
-    customProps: extractCustomProps(css.text),
+    customProps,
     cssText: css.text,
     unreadableSheets: css.unreadable,
     stats: { elementsSampled: sampled.count, styleSheets: document.styleSheets.length },
@@ -331,6 +333,32 @@ function extractCustomProps(cssText: string): CustomPropInfo[] {
     if (!map.has(m[1]!)) map.set(m[1]!, m[2]!.trim());
   }
   return Array.from(map, ([name, value]) => ({ name, value }));
+}
+
+/** Give extracted colors the site's own token names when a custom property resolves to them. */
+function attachVarNames(colors: ColorInfo[], props: CustomPropInfo[]) {
+  const byHex = new Map<string, string[]>();
+  for (const p of props) {
+    const hex = cssValueToHex(p.value);
+    if (!hex) continue;
+    const names = byHex.get(hex) ?? [];
+    if (names.length < 3) names.push(p.name);
+    byHex.set(hex, names);
+  }
+  for (const c of colors) c.varNames = byHex.get(c.hex) ?? [];
+}
+
+function cssValueToHex(value: string): string | null {
+  const v = value.trim().toLowerCase();
+  const m6 = v.match(/^#([0-9a-f]{6})\b/);
+  if (m6) return `#${m6[1]}`.toUpperCase();
+  const m3 = v.match(/^#([0-9a-f]{3})\b/);
+  if (m3) {
+    const [a, b, c] = m3[1]!;
+    return `#${a}${a}${b}${b}${c}${c}`.toUpperCase();
+  }
+  if (v.startsWith('rgb')) return toHex(v);
+  return null;
 }
 
 /* ---------------- SVGs ---------------- */

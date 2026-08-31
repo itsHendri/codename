@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PinnedElement, ScanResult } from '@/shared/types';
 import {
+  ensureHostAccess,
   getActiveTab,
   isRestricted,
   loadScan,
@@ -114,29 +115,46 @@ export default function App() {
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, []);
 
+  const friendlyError = (err: unknown): string => {
+    const s = String(err);
+    if (s.includes('Cannot access contents') || s.includes('cannot be scripted'))
+      return 'Codename needs access to this site — try again and choose "Allow".';
+    return s;
+  };
+
   const handleScan = useCallback(async () => {
     if (!tabId) return;
-    setScanning(true);
     setScanError(null);
+    if (!(await ensureHostAccess(tabUrl))) {
+      setScanError('Site access is needed to scan — click Scan again and allow it.');
+      return;
+    }
+    setScanning(true);
     try {
       await runScan(tabId);
     } catch (err) {
       setScanning(false);
-      setScanError(String(err));
+      setScanError(friendlyError(err));
     }
-  }, [tabId]);
+  }, [tabId, tabUrl]);
 
   const toggleInspector = useCallback(async () => {
     if (!tabId) return;
-    if (inspecting) await stopInspector(tabId);
-    else {
-      try {
-        await startInspector(tabId);
-      } catch (err) {
-        setScanError(String(err));
-      }
+    if (inspecting) {
+      await stopInspector(tabId);
+      return;
     }
-  }, [tabId, inspecting]);
+    setScanError(null);
+    if (!(await ensureHostAccess(tabUrl))) {
+      setScanError('Site access is needed for the hover tool — try again and allow it.');
+      return;
+    }
+    try {
+      await startInspector(tabId);
+    } catch (err) {
+      setScanError(friendlyError(err));
+    }
+  }, [tabId, tabUrl, inspecting]);
 
   const hostname = (() => {
     try {

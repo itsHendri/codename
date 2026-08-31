@@ -1,6 +1,31 @@
-import { converter, formatHsl, formatRgb, parse } from 'culori';
+import { colorsNamed, converter, differenceEuclidean, formatHsl, formatRgb, parse } from 'culori';
 
 const toOklch = converter('oklch');
+const oklabDistance = differenceEuclidean('oklab');
+
+let namedList: { name: string; hex: string }[] | null = null;
+
+/** Nearest CSS named color, e.g. "royalblue" — a human handle when the site has no token name. */
+export function nearestColorName(hex: string): string {
+  if (!namedList) {
+    namedList = Object.entries(colorsNamed).map(([name, num]) => ({
+      name,
+      hex: `#${num.toString(16).padStart(6, '0')}`,
+    }));
+  }
+  const target = parse(hex);
+  if (!target) return hex;
+  let best = '';
+  let bestDist = Infinity;
+  for (const entry of namedList) {
+    const dist = oklabDistance(target, entry.hex);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = entry.name;
+    }
+  }
+  return best;
+}
 
 export interface ColorFormats {
   hex: string;

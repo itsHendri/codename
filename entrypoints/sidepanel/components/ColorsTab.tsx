@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
-import { colorFormats, contrastBadge } from '../lib/color';
+import { colorFormats, contrastBadge, nearestColorName } from '../lib/color';
 import { EyeDropperIcon } from './icons';
 
 declare global {
@@ -15,16 +15,17 @@ function formatColor(hex: string, format: Format): string {
   return colorFormats(hex)[format];
 }
 
-function SwatchCard({ hex, label, format }: { hex: string; label?: string; format: Format }) {
+function SwatchCard({ hex, varName, format }: { hex: string; varName?: string; format: Format }) {
   const value = formatColor(hex, format);
+  const label = varName ?? nearestColorName(hex);
   return (
     <button
       onClick={() => navigator.clipboard.writeText(value)}
       className="group flex flex-col gap-0.5 text-left"
-      title={`Copy ${value}`}
+      title={varName ? `${varName} — copy ${value}` : `Copy ${value}`}
     >
       <span className="h-9 w-full rounded-md border border-gray-400" style={{ background: hex }} />
-      {label && <span className="truncate text-[11px]">{label}</span>}
+      <span className={`truncate text-[11px] ${varName ? 'font-medium text-blue-700' : ''}`}>{label}</span>
       <span className="truncate text-[10px] text-gray-400 group-hover:text-blue-600">
         {format === 'hex' ? hex : value}
       </span>
@@ -131,7 +132,7 @@ export function ColorsTab({ scan, onScan }: { scan: ScanResult | null; onScan: (
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {colors.slice(0, 6).map((c) => (
-                    <SwatchCard key={c.hex} hex={c.hex} format={format} label={c.varNames[0]} />
+                    <SwatchCard key={c.hex} hex={c.hex} format={format} varName={c.varNames[0]} />
                   ))}
                   {colors.length > 6 && (
                     <div className="flex h-9 items-center justify-center rounded-md border border-dashed border-gray-400 text-xs text-gray-400">
