@@ -41,18 +41,38 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
   const downloadZip = async () => {
     setZipping(true);
     setZipNote(null);
+
+    // Request any needed host permissions FIRST, while the click gesture is live.
+    const externalOrigins = [
+      ...new Set(
+        chosen
+          .filter((a) => !a.markup && a.url)
+          .map((a) => {
+            try {
+              return new URL(a.url!).origin + '/*';
+            } catch {
+              return null;
+            }
+          })
+          .filter((o): o is string => o !== null),
+      ),
+    ];
+    let granted = externalOrigins.length === 0;
+    if (externalOrigins.length) {
+      try {
+        granted = await chrome.permissions.request({ origins: externalOrigins });
+      } catch {
+        granted = false;
+      }
+    }
+
     const files: Record<string, Uint8Array> = {};
     let skipped = 0;
     let index = 1;
     for (const asset of chosen) {
       let markup = asset.markup ?? null;
-      if (!markup && asset.url) {
-        try {
-          const granted = await chrome.permissions.request({ origins: [new URL(asset.url).origin + '/*'] });
-          markup = granted ? await fetchViaBackground(asset.url) : null;
-        } catch {
-          markup = null;
-        }
+      if (!markup && asset.url && granted) {
+        markup = await fetchViaBackground(asset.url);
       }
       if (markup) files[`codename-svg-${index++}.svg`] = strToU8(markup);
       else skipped++;
