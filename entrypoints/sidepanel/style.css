@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+
+body {
+  @apply bg-white text-gray-800 antialiased;
+}
+
+.checkerboard {
+  background-image: repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%);
+  background-size: 12px 12px;
+}
