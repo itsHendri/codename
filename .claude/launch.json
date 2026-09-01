@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "studio-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve@14", "dist/chrome-mv3", "-l", "5310"],
+      "port": 5310
+    }
+  ]
+}

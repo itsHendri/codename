@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
+import { seedBrandFromScan } from '@/studio/seedFromScan';
+import { saveBrand } from '@/studio/storage';
 import {
   buildBrandMd,
   buildTokensJson,
@@ -37,6 +39,14 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
   const flash = (what: string) => {
     setCopied(what);
     setTimeout(() => setCopied(null), 1500);
+  };
+
+  const forge = async () => {
+    const brand = seedBrandFromScan(scan);
+    await saveBrand(brand);
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL(`studio.html?brand=${encodeURIComponent(brand.meta.slug)}`),
+    });
   };
 
   const brandMd = () => buildBrandMd(scan, effectiveSections);
@@ -105,6 +115,32 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
             ))}
           </div>
         )}
+      </div>
+
+      {/* Forge: the scan becomes an actual system, not just a document about one. */}
+      <div className="rounded-lg border border-blue-600 bg-blue-50 p-3">
+        <div className="flex gap-2.5">
+          <svg className="mt-0.5 h-6 w-6 shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M12 2 L21 12 L12 22 L3 12 Z" />
+            <path d="M12 7 L17 12 L12 17 L7 12 Z" fill="currentColor" stroke="none" />
+          </svg>
+          <div className="flex flex-col gap-1.5">
+            <div className="font-medium text-blue-700">Forge a system from this scan</div>
+            <p className="text-xs text-gray-600">
+              Turn these colours into OKLCH ramps and semantic tokens in Studio, measured for contrast and
+              previewed on real UI.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={forge}
+                className="rounded-md border border-blue-600 bg-white px-3.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+              >
+                Open Studio →
+              </button>
+              <span className="text-[11px] text-gray-500">opens in a new tab</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {(preset === 'ai' || preset === 'full' || preset === 'custom') && (

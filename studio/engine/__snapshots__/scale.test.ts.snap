@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateScale > golden: Hendri's brand ramp 1`] = `
+[
+  "#f7f8ff",
+  "#edefff",
+  "#dce0ff",
+  "#c7cdff",
+  "#acb4ff",
+  "#8e97ff",
+  "#6f74ff",
+  "#574cff",
+  "#423dc9",
+  "#323397",
+  "#1c1f5c",
+]
+`;

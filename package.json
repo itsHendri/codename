@@ -17,6 +17,7 @@
   "dependencies": {
     "@projectwallace/css-analyzer": "^9.9.3",
     "@projectwallace/css-design-tokens": "^0.11.11",
+    "apca-w3": "^0.1.9",
     "culori": "^4.0.2",
     "fflate": "^0.8.3",
     "react": "^19.2.4",
@@ -31,6 +32,7 @@
     "@wxt-dev/module-react": "^1.1.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
     "web-ext": "^10.5.0",
     "wxt": "^0.21.3"
   }
