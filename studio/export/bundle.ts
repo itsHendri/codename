@@ -8,6 +8,7 @@ import type { ResolvedTokens } from "../engine/types"
 import { toTokensCss } from "./css"
 import { estimateTokens, toDesignSystemMd } from "./designSystemMd"
 import { toDtcgJson } from "./dtcg"
+import { toPreviewHtml } from "./previewHtml"
 import { toSkillMd } from "./skillMd"
 
 export interface ExportFile {
@@ -52,6 +53,11 @@ export function buildExport(resolved: ResolvedTokens): ExportFile[] {
             path: "tokens.json",
             content: toDtcgJson(resolved),
             note: "W3C DTCG format, for Figma / Tokens Studio / Style Dictionary.",
+        },
+        {
+            path: "preview.html",
+            content: toPreviewHtml(resolved),
+            note: "A readable style guide — open it in a browser, send it to anyone.",
         },
         {
             path: "brand.json",

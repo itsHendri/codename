@@ -3,7 +3,7 @@ import type { ResolvedTokens } from '@/studio/engine/types';
 import { buildExport, DOC_BUDGET, exportBudget, type ExportFile } from '@/studio/export/bundle';
 import { download, downloadBundle } from '@/studio/download';
 
-type Audience = 'agent' | 'codebase' | 'humans';
+type Audience = 'agent' | 'codebase' | 'humans' | 'everything';
 
 const AUDIENCES: { key: Audience; title: string; blurb: string; match: (path: string) => boolean }[] = [
   {
@@ -20,8 +20,14 @@ const AUDIENCES: { key: Audience; title: string; blurb: string; match: (path: st
   },
   {
     key: 'humans',
+    title: 'Humans',
+    blurb: 'A readable style guide page with swatches and specimens — no build step.',
+    match: (p) => p === 'preview.html' || p.endsWith('DESIGN_SYSTEM.md') || p === 'brand.json',
+  },
+  {
+    key: 'everything',
     title: 'Everything',
-    blurb: 'The full tree — skill, tokens, reference docs and the source brand.',
+    blurb: 'The full tree — skill, tokens, style guide and the source brand.',
     match: () => true,
   },
 ];
@@ -78,7 +84,7 @@ export function ExportDialog({
 
         <div className="border-b border-dashed border-gray-200 px-5 py-3.5">
           <div className="mb-2 text-xs text-gray-500">WHO IS THIS FOR</div>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-4 gap-2.5">
             {AUDIENCES.map((a) => (
               <button
                 key={a.key}

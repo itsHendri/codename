@@ -14,12 +14,13 @@ const fileAt2 = (tokens: typeof resolved, suffix: string) =>
     buildExport(tokens).find((f) => f.path.endsWith(suffix))!.content
 
 describe("the export bundle", () => {
-    it("writes the skill folder, the stylesheet, the tokens and the source", () => {
+    it("writes the skill folder, the stylesheet, the tokens, the style guide and the source", () => {
         expect(files.map((f) => f.path)).toEqual([
             "skill/SKILL.md",
             "skill/references/DESIGN_SYSTEM.md",
             "tokens.css",
             "tokens.json",
+            "preview.html",
             "brand.json",
         ])
     })
@@ -1061,5 +1062,54 @@ describe("what run 12 found by reviewing instead of building", () => {
         expect(section).not.toContain("and nothing else")
         expect(section).toContain("An out-of-scope list")
         expect(section).toContain("outside its scope rather than passing them in silence")
+    })
+})
+
+describe("the style guide page", () => {
+    const page = fileAt("preview.html")
+
+    it("is a whole document, not a fragment", () => {
+        expect(page.startsWith("<!doctype html>")).toBe(true)
+        expect(page).toContain("</html>")
+    })
+
+    it("carries the token declarations inline, so it opens with no build and no network", () => {
+        // Same serialization as every other artifact — the point of the rule.
+        for (const [name, value] of resolved.declarations.light.slice(0, 12)) {
+            expect(page).toContain(`${name}: ${value}`)
+        }
+        expect(page).not.toMatch(/<link[^>]+stylesheet/)
+        expect(page).not.toMatch(/<script[^>]+src=/)
+    })
+
+    it("ships both modes, so the toggle has something to switch to", () => {
+        expect(page).toContain('[data-theme="dark"]')
+        expect(page).toContain('data-theme="light"')
+    })
+
+    it("names every semantic token and its description", () => {
+        for (const token of resolved.semantics.slice(0, 20)) {
+            expect(page).toContain(`--${token.name}`)
+        }
+    })
+
+    it("marks where each seed landed on its ramp", () => {
+        // The anchor is the one step a reader needs to find: it is the colour
+        // that was typed, and the rest of the ramp is derived from it.
+        expect(page.match(/class="chip anchor"/g)?.length).toBe(SCALE_ROLES.length)
+    })
+
+    it("reports the audit rather than quietly shipping a clean-looking page", () => {
+        const warned = resolveTokens(hendriPreset).warnings
+        if (warned.length) expect(page).toMatch(/Fails|Review/)
+        else expect(page).toContain("clears its bar")
+    })
+
+    it("escapes brand text instead of pasting it into markup", () => {
+        const spicy = structuredClone(hendriPreset)
+        spicy.meta.name = 'Acme <script>alert("x")</script>'
+        const hostile = fileAt2(resolveTokens(spicy), "preview.html")
+        expect(hostile).not.toContain("<script>alert")
+        expect(hostile).toContain("&lt;script&gt;")
     })
 })
