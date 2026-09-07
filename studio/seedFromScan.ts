@@ -1,26 +1,53 @@
 /**
- * Scan → brand. Turns what the side panel found on a page into a starting
- * BrandConfig, so "forge a system from this scan" is one click.
+ * Scan → brand. Turns what the panel found on a page into a BrandConfig.
  *
- * Only the seven seeds are inferred. Everything downstream (ramps, semantics,
- * contrast) is the engine's job, and the point of the seeds/semantics split is
- * that a human then edits colour in exactly one place.
+ * The rule this file exists to obey: **every value here comes from the page, or
+ * from the engine's neutral defaults — never from somebody's brand.** An earlier
+ * version spread a personal preset and overrode three fields, so a scan of any
+ * site produced that person's type scale, radii, ramp names and even their
+ * tone-of-voice adjectives, recoloured. The values below are observations, and
+ * the exported docs say so.
+ *
+ * Seeds only for colour: the seven primitives are what a human edits, and the
+ * ramps and semantics are the engine's job downstream.
  */
 
 import { converter, differenceEuclidean, parse } from 'culori';
-import type { ScanResult } from '@/shared/types';
-import type { BrandConfig, ScaleConfig, ScaleRole } from './engine/types';
-import { hendriPreset } from './presets/hendri';
+import type { ScanResult, ValueTally } from '@/shared/types';
+import type {
+  BrandConfig,
+  ScaleConfig,
+  ScaleRole,
+  ShadowLevel,
+  TypeRole,
+} from './engine/types';
+import {
+  DEFAULT_BREAKPOINTS,
+  DEFAULT_CONTAINERS,
+  DEFAULT_FLUID_RANGE,
+  DEFAULT_MOTION,
+  DEFAULT_OPACITY,
+  DEFAULT_POLISH,
+  DEFAULT_SHADOWS,
+  DEFAULT_SHELL,
+  DEFAULT_SPACING,
+  DEFAULT_TYPE_ROLES,
+  DEFAULT_Z_LAYERS,
+} from './engine/defaults';
 import { slugify } from './storage';
 
 const toOklch = converter('oklch');
 const distance = differenceEuclidean('oklab');
+
+/* ---------------- colour ---------------- */
 
 interface Candidate {
   hex: string;
   chroma: number;
   lightness: number;
   count: number;
+  usage: ScanResult['colors'][number]['usage'];
+  varNames: string[];
 }
 
 function candidates(scan: ScanResult): Candidate[] {
@@ -35,66 +62,304 @@ function candidates(scan: ScanResult): Candidate[] {
       chroma: ok.c ?? 0,
       lightness: ok.l,
       count: color.count,
+      usage: color.usage,
+      varNames: color.varNames,
     });
   }
   return out;
 }
 
-/** Nearest candidate to a target hue, used to seed the status ramps from the page when it has them. */
-function nearestTo(target: string, pool: Candidate[], minChroma = 0.08): string | null {
+/** Nearest candidate to a target hue — used to keep a page's own status colours. */
+function nearestTo(target: string, pool: Candidate[], minChroma = 0.08): Candidate | null {
   const parsed = parse(target);
   if (!parsed) return null;
-  let best: { hex: string; d: number } | null = null;
+  let best: { c: Candidate; d: number } | null = null;
   for (const c of pool) {
     if (c.chroma < minChroma) continue;
     const d = distance(parsed, c.hex);
-    if (!best || d < best.d) best = { hex: c.hex, d };
+    if (!best || d < best.d) best = { c, d };
   }
-  // Beyond this the page's colour is a different hue entirely and the preset's
-  // status colour is the better answer than a wrong one.
-  return best && best.d < 0.13 ? best.hex : null;
+  // Beyond this it is a different hue entirely, and a neutral default beats a
+  // wrong answer dressed up as an observation.
+  return best && best.d < 0.13 ? best.c : null;
 }
 
-export function seedBrandFromScan(scan: ScanResult): BrandConfig {
+/**
+ * What the site calls this colour. A page that ships `--brand-primary` has
+ * already named its own system; echoing that name back is more useful than any
+ * label we could invent.
+ */
+function nameFor(candidate: Candidate | null | undefined, fallback: string): string {
+  const varName = candidate?.varNames.find((n) => n.length <= 40);
+  if (!varName) return fallback;
+  const words = varName
+    .replace(/^--/, '')
+    .split(/[-_]/)
+    .filter((w) => w && !/^\d+$/.test(w) && !/^(color|colour|c)$/i.test(w));
+  if (!words.length) return fallback;
+  return words
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+    .slice(0, 24);
+}
+
+const STATUS_HUES: Record<'success' | 'warning' | 'danger' | 'info', string> = {
+  success: '#16a34a',
+  warning: '#d97706',
+  danger: '#dc2626',
+  info: '#0284c7',
+};
+
+function buildScales(scan: ScanResult): ScaleConfig[] {
   const pool = candidates(scan);
   const chromatic = pool
     .filter((c) => c.chroma >= 0.05 && c.lightness > 0.15 && c.lightness < 0.92)
     .sort((a, b) => b.chroma * Math.log1p(b.count) - a.chroma * Math.log1p(a.count));
+
+  // Prefer a neutral the page actually sets text in — that is the ink of the
+  // site, and it carries the warm/cool cast the rest of the system should share.
   const neutrals = pool
     .filter((c) => c.chroma < 0.05 && c.lightness < 0.55)
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => {
+      const textish = (x: Candidate) => (x.usage.includes('text') ? 1 : 0);
+      return textish(b) - textish(a) || b.count - a.count;
+    });
 
-  const primary = chromatic[0]?.hex;
-  // Second seed must be a genuinely different hue, not a shade of the first.
+  const primary = chromatic[0];
   const secondary = chromatic.find(
-    (c) => c.hex !== primary && (!primary || distance(primary, c.hex) > 0.15),
-  )?.hex;
-  const neutral = neutrals[0]?.hex ?? chromatic.find((c) => c.lightness < 0.4)?.hex;
+    (c) => c.hex !== primary?.hex && (!primary || distance(primary.hex, c.hex) > 0.15),
+  );
+  const neutral = neutrals[0] ?? chromatic.find((c) => c.lightness < 0.4);
 
-  const preset = (role: ScaleRole) =>
-    hendriPreset.color.scales.find((s) => s.role === role)!;
+  const scales: ScaleConfig[] = [
+    { role: 'primary', name: nameFor(primary, 'Primary'), seed: primary?.hex ?? '#2563EB' },
+    { role: 'secondary', name: nameFor(secondary, 'Accent'), seed: secondary?.hex ?? '#7C3AED' },
+    {
+      role: 'neutral',
+      name: nameFor(neutral, 'Neutral'),
+      seed: neutral?.hex ?? '#1F2937',
+      // A neutral seeded from a real page is often slightly tinted; hold that
+      // cast but keep it from reading as a colour.
+      tuning: {
+        light: { maxChroma: 0.03 },
+        dark: { maxChroma: 0.035 },
+      },
+    },
+  ];
 
-  const scales: ScaleConfig[] = hendriPreset.color.scales.map((scale) => {
-    switch (scale.role) {
-      case 'primary':
-        return primary ? { ...scale, seed: primary } : scale;
-      case 'secondary':
-        return secondary ? { ...scale, seed: secondary } : scale;
-      case 'neutral':
-        return neutral ? { ...scale, seed: neutral } : scale;
-      case 'success':
-      case 'warning':
-      case 'danger':
-      case 'info': {
-        // Keep the page's own status colour when it plainly has one.
-        const found = nearestTo(preset(scale.role).seed, chromatic);
-        return found ? { ...scale, seed: found } : scale;
-      }
-      default:
-        return scale;
-    }
+  for (const role of ['success', 'warning', 'danger', 'info'] as const) {
+    const found = nearestTo(STATUS_HUES[role], chromatic);
+    scales.push({
+      role: role as ScaleRole,
+      name: nameFor(found, role.charAt(0).toUpperCase() + role.slice(1)),
+      seed: found?.hex ?? STATUS_HUES[role],
+    });
+  }
+  return scales;
+}
+
+/* ---------------- type ---------------- */
+
+const ROLE_ORDER = [
+  'display',
+  'heading-lg',
+  'heading',
+  'heading-sm',
+  'body-lg',
+  'body',
+  'body-sm',
+  'label',
+] as const;
+
+const px = (value: string): number => parseFloat(value) || 0;
+
+/**
+ * The page's real type scale. `fontUsage[].variants` already carries every
+ * size/weight/line-height combination with a frequency count, so the ladder is
+ * observed rather than assumed — including whether this site even has a display
+ * size, which most don't.
+ */
+function buildTypeRoles(scan: ScanResult): TypeRole[] {
+  const bodyFamily = scan.fontUsage.find((f) => f.roles.includes('body'));
+  const headingFamily = scan.fontUsage.find((f) => f.roles.includes('headings'));
+  const codeFamily = scan.fontUsage.find((f) => f.roles.includes('code'));
+
+  const variants = scan.fontUsage
+    .filter((f) => !f.roles.includes('code'))
+    .flatMap((f) => f.variants.map((v) => ({ ...v, headings: f.roles.includes('headings') })))
+    .filter((v) => px(v.size) >= 9 && px(v.size) <= 200);
+  if (!variants.length) return DEFAULT_TYPE_ROLES;
+
+  // The most-used size is the body size; everything above it is a heading step,
+  // everything below is fine print.
+  const byCount = [...variants].sort((a, b) => b.count - a.count);
+  const bodySize = px(byCount[0]!.size);
+
+  const distinct = new Map<number, (typeof variants)[number]>();
+  for (const v of variants) {
+    const size = Math.round(px(v.size));
+    const existing = distinct.get(size);
+    if (!existing || v.count > existing.count) distinct.set(size, v);
+  }
+  const above = Array.from(distinct.entries())
+    .filter(([size]) => size > bodySize)
+    .sort((a, b) => b[0] - a[0]);
+  const below = Array.from(distinct.entries())
+    .filter(([size]) => size < bodySize)
+    .sort((a, b) => b[0] - a[0]);
+
+  const rem = (value: number) => Math.round((value / 16) * 1000) / 1000;
+  const familyFor = (isHeading: boolean) =>
+    isHeading && headingFamily && headingFamily !== bodyFamily ? 'display' : 'sans';
+
+  const roles: TypeRole[] = [];
+  const push = (
+    role: TypeRole['role'],
+    entry: (typeof variants)[number] | undefined,
+    fallbackSize: number,
+  ) => {
+    const size = entry ? px(entry.size) : fallbackSize;
+    const weight = entry ? parseInt(entry.weight, 10) || 400 : 400;
+    const lineHeight = entry ? px(entry.lineHeight) / size : 1.5;
+    roles.push({
+      role,
+      family: familyFor(size > bodySize),
+      sizeRem: rem(size),
+      lineHeight: Number.isFinite(lineHeight) && lineHeight > 0.8 ? Math.round(lineHeight * 100) / 100 : 1.4,
+      weight,
+    });
+  };
+
+  // Up to four heading steps, largest first, then body, then two small steps.
+  const headingSlots = ROLE_ORDER.slice(0, 4);
+  headingSlots.forEach((role, i) => {
+    const entry = above[i]?.[1];
+    if (entry || i < 2) push(role, entry, bodySize * [2.2, 1.6, 1.3, 1.15][i]!);
   });
+  push('body-lg', distinct.get(Math.round(bodySize * 1.125)), bodySize * 1.125);
+  push('body', byCount[0], bodySize);
+  push('body-sm', below[0]?.[1], bodySize * 0.875);
+  push('label', below[1]?.[1] ?? below[0]?.[1], bodySize * 0.8125);
 
+  if (codeFamily) {
+    const codeVariant = codeFamily.variants[0];
+    roles.push({
+      role: 'code',
+      family: 'mono',
+      sizeRem: rem(codeVariant ? px(codeVariant.size) : bodySize * 0.875),
+      lineHeight: 1.5,
+      weight: 400,
+    });
+  }
+  return roles;
+}
+
+/** Only load what the page actually loads, and only from a real webfont host. */
+function buildFontLinks(scan: ScanResult): string[] {
+  const links = new Set<string>();
+  for (const face of scan.fontFaces) {
+    if (face.service === 'google') {
+      const family = face.family.replace(/\s+/g, '+');
+      const weights = face.weights.map((w) => parseInt(w, 10)).filter(Number.isFinite);
+      const axis = weights.length ? `:wght@${[...new Set(weights)].sort((a, b) => a - b).join(';')}` : '';
+      links.add(`https://fonts.googleapis.com/css2?family=${family}${axis}&display=swap`);
+    }
+  }
+  return Array.from(links).slice(0, 4);
+}
+
+/* ---------------- shape & rhythm ---------------- */
+
+const lengths = (tallies: ValueTally[]): number[] =>
+  tallies.map((t) => parseFloat(t.value)).filter((n) => Number.isFinite(n) && n > 0);
+
+/**
+ * The grid the page is really on.
+ *
+ * Not a GCD: one off-grid value ruins it. Real stripe.com data — 16, 8, 32, 24,
+ * 4, 12, 6, 64, 10, 40 — has a GCD of 2 because of the 6px and 10px, which
+ * would claim a 2px grid nobody designed on. Instead take the coarsest base
+ * that explains most of the observed weight, so a genuine 8px site reports 8
+ * and a mostly-4px site with a couple of strays reports 4.
+ */
+function spacingBase(tallies: ValueTally[]): number {
+  const observed = tallies
+    .map((t) => ({ px: parseFloat(t.value), count: t.count }))
+    .filter((o) => Number.isFinite(o.px) && o.px > 0);
+  const total = observed.reduce((sum, o) => sum + o.count, 0);
+  if (!total) return 4;
+
+  for (const base of [8, 4, 2]) {
+    const explained = observed
+      .filter((o) => o.px % base === 0)
+      .reduce((sum, o) => sum + o.count, 0);
+    if (explained / total >= 0.85) return base;
+  }
+  return 4;
+}
+
+function buildSpacing(scan: ScanResult): BrandConfig['spacing'] {
+  const values = lengths(scan.shape.spacing);
+  if (values.length < 3) return DEFAULT_SPACING;
+  const basePx = spacingBase(scan.shape.spacing);
+  // Off-grid strays are dropped: they are accidents in the page, not steps.
+  const blessed = [...new Set(values.filter((n) => n % basePx === 0))]
+    .sort((a, b) => a - b)
+    .slice(0, 10);
+  return blessed.length >= 3 ? { basePx, blessed } : DEFAULT_SPACING;
+}
+
+function buildRadius(scan: ScanResult): BrandConfig['radius'] {
+  // A pill (9999px) is a shape decision, not a step on the radius scale.
+  const values = lengths(scan.shape.radii).filter((n) => n <= 64);
+  if (!values.length) return { basePx: 0, concentric: false };
+  const basePx = Math.round(values[0]!);
+  return { basePx, concentric: basePx > 0 };
+}
+
+function buildShadows(scan: ScanResult): BrandConfig['shadows'] {
+  const observed = scan.shape.shadows
+    .map((s) => s.value)
+    .filter((v) => v && v !== 'none' && v.length < 220);
+  if (observed.length < 2) return DEFAULT_SHADOWS;
+
+  // Shallowest to deepest by blur radius, mapped onto the three levels the
+  // engine names. A page with one shadow keeps the defaults for the rest.
+  const blur = (v: string) => {
+    const nums = v.match(/-?\d+(\.\d+)?px/g)?.map(parseFloat) ?? [];
+    return nums[2] ?? nums[1] ?? 0;
+  };
+  const sorted = [...observed].sort((a, b) => blur(a) - blur(b));
+  const pick = (i: number) => sorted[Math.min(i, sorted.length - 1)]!;
+  const levels: ShadowLevel[] = [
+    { name: 'sm', layers: [pick(0)] },
+    { name: 'raised', layers: [pick(Math.floor(sorted.length / 2))] },
+    { name: 'overlay', layers: [pick(sorted.length - 1)] },
+  ];
+  return { levels };
+}
+
+/* ---------------- the logo ---------------- */
+
+/**
+ * The best logo candidate: an inline SVG with real drawing in it, from the top
+ * of the document. Favicons and single-path icons are usually not the mark.
+ */
+function findLogo(scan: ScanResult): string | undefined {
+  const candidate = scan.svgs.find(
+    (s) =>
+      s.markup &&
+      s.source === 'inline' &&
+      s.markup.length > 220 &&
+      s.markup.length < 12000 &&
+      !/^<svg[^>]*>\s*<(circle|rect)\b[^>]*\/?>\s*<\/svg>$/i.test(s.markup),
+  );
+  return candidate?.markup;
+}
+
+/* ---------------- assembly ---------------- */
+
+export function seedBrandFromScan(scan: ScanResult): BrandConfig {
   const host = (() => {
     try {
       return new URL(scan.url).hostname.replace(/^www\./, '');
@@ -103,38 +368,61 @@ export function seedBrandFromScan(scan: ScanResult): BrandConfig {
     }
   })();
 
-  const families = { ...hendriPreset.typography.families };
   const heading = scan.fontUsage.find((f) => f.roles.includes('headings'));
   const body = scan.fontUsage.find((f) => f.roles.includes('body'));
   const mono = scan.fontUsage.find((f) => f.roles.includes('code'));
-  if (body?.family) families.sans = `"${body.family}", ${hendriPreset.typography.families.sans}`;
+  const stack = (family: string | undefined, fallback: string) =>
+    family ? `"${family}", ${fallback}` : fallback;
+
+  const families: BrandConfig['typography']['families'] = {
+    sans: stack(body?.family ?? heading?.family, 'system-ui, sans-serif'),
+    mono: stack(mono?.family, 'ui-monospace, SFMono-Regular, Menlo, monospace'),
+  };
   if (heading?.family && heading.family !== body?.family) {
-    families.display = `"${heading.family}", ${families.sans}`;
+    families.display = stack(heading.family, families.sans);
   }
-  if (mono?.family) families.mono = `"${mono.family}", ${hendriPreset.typography.families.mono}`;
+
+  const scannedAt = new Date(scan.scannedAt).toISOString().slice(0, 10);
 
   return {
-    ...hendriPreset,
+    $schemaVersion: 1,
     meta: {
-      ...hendriPreset.meta,
-      id: `scan-${Date.now()}`,
+      id: `scan-${scan.scannedAt}`,
       name: host,
       slug: slugify(host),
       domain: host,
-      // The one thing a scan genuinely knows that a preset cannot: where this
-      // came from, and that the values are observations rather than decisions.
+      logoSvg: findLogo(scan),
+      // Voice is a human decision about a brand. A scan cannot see it, so it
+      // stays empty rather than borrowing somebody else's adjectives.
+      voice: [],
       deviations: [
-        `Seeded from a scan of ${scan.url} at ${scan.viewport.width}×${scan.viewport.height}. Every value below is a starting point taken from that page, not a decision anyone made — review the seeds before shipping.`,
+        `Seeded from a scan of ${scan.url} on ${scannedAt} at ${scan.viewport.width}×${scan.viewport.height}. Every value here is an observation of that page, not a decision anyone made — review it before building on it.`,
         ...(scan.unreadableSheets.length
           ? [
-              `${scan.unreadableSheets.length} cross-origin stylesheet(s) could not be read during that scan, so the palette may be incomplete.`,
+              `${scan.unreadableSheets.length} cross-origin stylesheet(s) could not be read during that scan, so the palette and type scale may be incomplete.`,
             ]
           : []),
       ],
-      logoSvg: undefined,
-      logoFile: undefined,
     },
-    color: { scales, semanticOverrides: [] },
-    typography: { ...hendriPreset.typography, families, fontLinks: [], fontFiles: [] },
+    color: { scales: buildScales(scan), semanticOverrides: [] },
+    typography: {
+      families,
+      fluidRange: DEFAULT_FLUID_RANGE,
+      fontLinks: buildFontLinks(scan),
+      fontFiles: [],
+      roles: buildTypeRoles(scan),
+    },
+    layout: {
+      breakpoints: DEFAULT_BREAKPOINTS,
+      containers: DEFAULT_CONTAINERS,
+      zLayers: DEFAULT_Z_LAYERS,
+      shell: DEFAULT_SHELL,
+    },
+    spacing: buildSpacing(scan),
+    opacity: DEFAULT_OPACITY,
+    radius: buildRadius(scan),
+    shadows: buildShadows(scan),
+    motion: DEFAULT_MOTION,
+    rules: { polish: DEFAULT_POLISH },
   };
 }

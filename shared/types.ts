@@ -50,6 +50,26 @@ export interface CustomPropInfo {
   value: string;
 }
 
+/** A CSS value observed on the page, with how often it was seen. */
+export interface ValueTally {
+  value: string;
+  count: number;
+}
+
+/**
+ * Shape and rhythm as the page actually renders them. Colour and type were
+ * always sampled; these were not, which is why a scanned system used to inherit
+ * its radii, spacing and elevation from whatever preset happened to be default.
+ */
+export interface ShapeUsage {
+  /** border-radius values, e.g. "4px", "9999px". Excludes "0px". */
+  radii: ValueTally[];
+  /** box-shadow values verbatim, ordered by frequency. Excludes "none". */
+  shadows: ValueTally[];
+  /** padding/margin/gap lengths in px, deduped and counted. */
+  spacing: ValueTally[];
+}
+
 export interface ScanResult {
   url: string;
   title: string;
@@ -62,6 +82,7 @@ export interface ScanResult {
   contrastPairs: ContrastPair[];
   svgs: SvgAsset[];
   customProps: CustomPropInfo[];
+  shape: ShapeUsage;
   /** Full CSS text gathered from same-origin sheets and <style> tags */
   cssText: string;
   /** hrefs of cross-origin sheets that could not be read in-page */

@@ -3,6 +3,7 @@ import type { ScanResult } from '@/shared/types';
 import { seedBrandFromScan } from './seedFromScan';
 import { resolveTokens } from './engine/resolve';
 import { hendriPreset } from './presets/hendri';
+import { DEFAULT_TYPE_ROLES } from './engine/defaults';
 
 function scan(overrides: Partial<ScanResult> = {}): ScanResult {
   return {
@@ -17,6 +18,7 @@ function scan(overrides: Partial<ScanResult> = {}): ScanResult {
     contrastPairs: [],
     svgs: [],
     customProps: [],
+    shape: { radii: [], shadows: [], spacing: [] },
     cssText: '',
     unreadableSheets: [],
     stats: { elementsSampled: 0, styleSheets: 0 },
@@ -48,11 +50,12 @@ describe('seedBrandFromScan', () => {
     expect(secondary).toBe('#F1760F');
   });
 
-  it('falls back to the preset when a page has no usable colour', () => {
+  it('falls back to a neutral default, never to somebody else\'s brand', () => {
     const brand = seedBrandFromScan(scan({ colors: [color('#FFFFFF', 100)] }));
-    expect(brand.color.scales.find((s) => s.role === 'primary')!.seed).toBe(
-      hendriPreset.color.scales.find((s) => s.role === 'primary')!.seed,
-    );
+    const primary = brand.color.scales.find((s) => s.role === 'primary')!;
+    const hendriPrimary = hendriPreset.color.scales.find((s) => s.role === 'primary')!;
+    expect(primary.seed).not.toBe(hendriPrimary.seed);
+    expect(primary.name).toBe('Primary');
   });
 
   it('keeps a status seed only when the page really has that hue', () => {
@@ -73,7 +76,7 @@ describe('seedBrandFromScan', () => {
     expect(brand.meta.deviations[1]).toContain('cross-origin');
   });
 
-  it('carries the page fonts into the family stacks with a fallback behind them', () => {
+  it('carries the page fonts into the family stacks over a generic fallback', () => {
     const brand = seedBrandFromScan(
       scan({
         fontUsage: [
@@ -84,8 +87,10 @@ describe('seedBrandFromScan', () => {
     );
     expect(brand.typography.families.sans).toContain('Source Serif 4');
     expect(brand.typography.families.display).toContain('Söhne');
-    // The preset's stack stays behind it — a scanned family name is not a guarantee it loads.
-    expect(brand.typography.families.sans).toContain(hendriPreset.typography.families.sans);
+    // A scanned family name is no guarantee it loads, so a generic stack sits
+    // behind it — but it must be a generic, not a personal typeface.
+    expect(brand.typography.families.sans).toContain('system-ui');
+    expect(brand.typography.families.sans).not.toContain('Space Grotesk');
   });
 
   it('produces a config the engine can resolve', () => {
@@ -96,5 +101,139 @@ describe('seedBrandFromScan', () => {
     expect(resolved.semantics.length).toBeGreaterThan(0);
     expect(resolved.declarations.light.length).toBeGreaterThan(0);
     expect(resolved.warnings.filter((w) => w.level === 'fail')).toHaveLength(0);
+  });
+});
+
+/**
+ * The regression this whole rewrite exists to prevent: a scan used to spread a
+ * personal preset, so every scanned site inherited that person's type scale,
+ * radii, ramp names and tone of voice, recoloured.
+ */
+describe('a scanned brand belongs to the scanned site', () => {
+  const richScan = scan({
+    url: 'https://example.com',
+    colors: [
+      { hex: '#0F62FE', usage: ['background'], count: 60, varNames: ['--brand-primary'] },
+      { hex: '#DA1E28', usage: ['text'], count: 12, varNames: [] },
+      { hex: '#21272A', usage: ['text'], count: 400, varNames: ['--text-ink'] },
+    ],
+    fontUsage: [
+      {
+        family: 'IBM Plex Sans',
+        elementCount: 300,
+        roles: ['body'],
+        variants: [
+          { size: '14px', weight: '400', lineHeight: '20px', count: 200 },
+          { size: '32px', weight: '600', lineHeight: '40px', count: 12 },
+          { size: '20px', weight: '600', lineHeight: '28px', count: 30 },
+          { size: '12px', weight: '400', lineHeight: '16px', count: 40 },
+        ],
+      },
+    ],
+    shape: {
+      radii: [{ value: '4px', count: 80 }, { value: '2px', count: 10 }],
+      shadows: [
+        { value: 'rgba(0,0,0,0.1) 0px 1px 2px 0px', count: 20 },
+        { value: 'rgba(0,0,0,0.2) 0px 8px 24px 0px', count: 4 },
+      ],
+      spacing: [
+        { value: '8px', count: 200 },
+        { value: '16px', count: 150 },
+        { value: '24px', count: 60 },
+        { value: '32px', count: 20 },
+      ],
+    },
+  });
+
+  const brand = seedBrandFromScan(richScan);
+  const json = JSON.stringify(brand);
+
+  it('carries none of the preset\'s ramp names', () => {
+    for (const name of hendriPreset.color.scales.map((s) => s.name)) {
+      expect(json).not.toContain(`"${name}"`);
+    }
+  });
+
+  it('leaves voice empty, because a scan cannot see a brand\'s tone', () => {
+    expect(brand.meta.voice).toEqual([]);
+    for (const adjective of hendriPreset.meta.voice) {
+      expect(json).not.toContain(adjective);
+    }
+  });
+
+  it('names a ramp what the site calls it', () => {
+    expect(brand.color.scales.find((s) => s.role === 'primary')!.name).toBe('Brand Primary');
+  });
+
+  it('takes the radius from the page, not from a default', () => {
+    expect(brand.radius.basePx).toBe(4);
+  });
+
+  it('takes the spacing grid from the page', () => {
+    expect(brand.spacing.basePx).toBe(8);
+    expect(brand.spacing.blessed).toEqual([8, 16, 24, 32]);
+  });
+
+  it('takes elevation from the page, shallowest first', () => {
+    const layers = brand.shadows.levels.map((l) => l.layers[0]);
+    expect(layers[0]).toContain('1px 2px');
+    expect(layers[2]).toContain('8px 24px');
+  });
+
+  it('builds the type scale from what the page actually renders', () => {
+    const body = brand.typography.roles.find((r) => r.role === 'body')!;
+    // 14px body, not the default 16px ladder.
+    expect(body.sizeRem).toBeCloseTo(0.875, 3);
+    expect(body.lineHeight).toBeCloseTo(1.43, 1);
+
+    const sizes = brand.typography.roles.map((r) => r.sizeRem);
+    const defaults = DEFAULT_TYPE_ROLES.map((r) => r.sizeRem);
+    expect(sizes).not.toEqual(defaults);
+  });
+
+  it('describes itself as an observation, with the source and the date', () => {
+    expect(brand.meta.deviations[0]).toContain('https://example.com');
+    expect(brand.meta.deviations[0]).toMatch(/not a decision anyone made/);
+  });
+
+  it('still resolves, and without contrast failures', () => {
+    const resolvedBrand = resolveTokens(brand);
+    expect(resolvedBrand.warnings.filter((w) => w.level === 'fail')).toHaveLength(0);
+  });
+});
+
+describe('the spacing grid', () => {
+  const withSpacing = (spacing: { value: string; count: number }[]) =>
+    seedBrandFromScan(scan({ shape: { radii: [], shadows: [], spacing } })).spacing;
+
+  it('reports the real grid when a couple of values sit off it', () => {
+    // Measured on stripe.com. A GCD would answer 2 because of the 6px and 10px,
+    // claiming a grid nobody designed on.
+    const observed = withSpacing([
+      { value: '16px', count: 171 },
+      { value: '8px', count: 144 },
+      { value: '32px', count: 76 },
+      { value: '24px', count: 71 },
+      { value: '4px', count: 55 },
+      { value: '12px', count: 44 },
+      { value: '6px', count: 39 },
+      { value: '64px', count: 36 },
+      { value: '10px', count: 23 },
+      { value: '40px', count: 23 },
+    ]);
+    expect(observed.basePx).toBe(4);
+    expect(observed.blessed).not.toContain(6);
+    expect(observed.blessed).not.toContain(10);
+  });
+
+  it('reports 8 for a site actually on an 8px grid', () => {
+    expect(
+      withSpacing([
+        { value: '8px', count: 100 },
+        { value: '16px', count: 80 },
+        { value: '24px', count: 40 },
+        { value: '48px', count: 10 },
+      ]).basePx,
+    ).toBe(8);
   });
 });

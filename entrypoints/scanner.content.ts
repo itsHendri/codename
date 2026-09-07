@@ -6,7 +6,9 @@ import type {
   FontUsage,
   GradientInfo,
   ScanResult,
+  ShapeUsage,
   SvgAsset,
+  ValueTally,
 } from '@/shared/types';
 
 export default defineContentScript({
@@ -39,6 +41,7 @@ function scanPage(): ScanResult {
     contrastPairs: sampled.contrastPairs,
     svgs: gatherSvgs(sampled.svgBgValues),
     customProps,
+    shape: sampled.shape,
     cssText: css.text,
     unreadableSheets: css.unreadable,
     stats: { elementsSampled: sampled.count, styleSheets: document.styleSheets.length },
@@ -209,6 +212,9 @@ function sampleComputedStyles() {
   const renderedCache = new Map<string, string>();
   const bgCache = new Map<Element, { r: number; g: number; b: number }>();
   const svgBgValues = new Set<string>();
+  const radiusMap = new Map<string, number>();
+  const shadowMap = new Map<string, number>();
+  const spacingMap = new Map<string, number>();
 
   // The page's base backgrounds are design tokens too — the walker below starts inside <body>.
   for (const rootEl of [document.documentElement, document.body]) {
@@ -284,6 +290,28 @@ function sampleComputedStyles() {
         svgBgValues.add(bgImage);
       }
     }
+
+    // Shape and rhythm. Same walk — a second pass over 2500 elements would
+    // double the cost of a scan for data the first pass already has in hand.
+    const radius = cs.borderRadius;
+    if (radius && radius !== '0px') bump(radiusMap, radius);
+
+    const shadow = cs.boxShadow;
+    if (shadow && shadow !== 'none') bump(shadowMap, shadow);
+
+    // Only the sides that are actually set: a computed padding of 0px on three
+    // sides is the absence of a decision, not a 0 in the spacing scale.
+    for (const value of [
+      cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft,
+      cs.marginTop, cs.marginBottom,
+      cs.rowGap, cs.columnGap,
+    ]) {
+      const px = parseFloat(value);
+      // Sub-pixel and huge values are layout accidents, not scale steps.
+      if (Number.isFinite(px) && px >= 2 && px <= 160 && Number.isInteger(px)) {
+        bump(spacingMap, `${px}px`);
+      }
+    }
   }
 
   const fontUsage: FontUsage[] = Array.from(fontMap, ([family, e]) => ({
@@ -311,7 +339,24 @@ function sampleComputedStyles() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 12);
 
-  return { fontUsage, colors, gradients, contrastPairs, count, svgBgValues };
+  const shape: ShapeUsage = {
+    radii: rank(radiusMap),
+    shadows: rank(shadowMap),
+    spacing: rank(spacingMap),
+  };
+
+  return { fontUsage, colors, gradients, contrastPairs, count, svgBgValues, shape };
+}
+
+function bump(map: Map<string, number>, value: string) {
+  map.set(value, (map.get(value) ?? 0) + 1);
+}
+
+/** Most-used first, capped — the long tail of one-off values is noise. */
+function rank(map: Map<string, number>, limit = 24): ValueTally[] {
+  return Array.from(map, ([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 }
 
 function addColor(
