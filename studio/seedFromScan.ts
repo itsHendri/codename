@@ -69,19 +69,45 @@ function candidates(scan: ScanResult): Candidate[] {
   return out;
 }
 
-/** Nearest candidate to a target hue — used to keep a page's own status colours. */
-function nearestTo(target: string, pool: Candidate[], minChroma = 0.08): Candidate | null {
-  const parsed = parse(target);
-  if (!parsed) return null;
-  let best: { c: Candidate; d: number } | null = null;
-  for (const c of pool) {
-    if (c.chroma < minChroma) continue;
-    const d = distance(parsed, c.hex);
-    if (!best || d < best.d) best = { c, d };
+/**
+ * Assign the four status ramps from the page's own palette — exclusively.
+ *
+ * Matching each role independently lets one colour win several: stripe.com has
+ * a single orange that is the nearest candidate to both the warning and the
+ * danger target, which would ship an error badge indistinguishable from a
+ * warning. So all (role, candidate) pairs are scored and taken best-first, and
+ * a colour already claimed cannot be claimed again. A role with no match near
+ * enough keeps a neutral default rather than a wrong answer dressed up as an
+ * observation.
+ */
+function assignStatusColours(
+  pool: Candidate[],
+): Record<StatusRole, Candidate | null> {
+  const MAX_DISTANCE = 0.13;
+  const scored: { role: StatusRole; candidate: Candidate; d: number }[] = [];
+
+  for (const role of STATUS_ROLES) {
+    const target = parse(STATUS_HUES[role]);
+    if (!target) continue;
+    for (const candidate of pool) {
+      if (candidate.chroma < 0.08) continue;
+      const d = distance(target, candidate.hex);
+      if (d < MAX_DISTANCE) scored.push({ role, candidate, d });
+    }
   }
-  // Beyond this it is a different hue entirely, and a neutral default beats a
-  // wrong answer dressed up as an observation.
-  return best && best.d < 0.13 ? best.c : null;
+  scored.sort((a, b) => a.d - b.d);
+
+  const taken = new Set<string>();
+  const out = { success: null, warning: null, danger: null, info: null } as Record<
+    StatusRole,
+    Candidate | null
+  >;
+  for (const { role, candidate, d: _d } of scored) {
+    if (out[role] || taken.has(candidate.hex)) continue;
+    out[role] = candidate;
+    taken.add(candidate.hex);
+  }
+  return out;
 }
 
 /**
@@ -103,7 +129,10 @@ function nameFor(candidate: Candidate | null | undefined, fallback: string): str
     .slice(0, 24);
 }
 
-const STATUS_HUES: Record<'success' | 'warning' | 'danger' | 'info', string> = {
+type StatusRole = 'success' | 'warning' | 'danger' | 'info';
+const STATUS_ROLES: StatusRole[] = ['success', 'warning', 'danger', 'info'];
+
+const STATUS_HUES: Record<StatusRole, string> = {
   success: '#16a34a',
   warning: '#d97706',
   danger: '#dc2626',
@@ -147,8 +176,9 @@ function buildScales(scan: ScanResult): ScaleConfig[] {
     },
   ];
 
-  for (const role of ['success', 'warning', 'danger', 'info'] as const) {
-    const found = nearestTo(STATUS_HUES[role], chromatic);
+  const status = assignStatusColours(chromatic);
+  for (const role of STATUS_ROLES) {
+    const found = status[role];
     scales.push({
       role: role as ScaleRole,
       name: nameFor(found, role.charAt(0).toUpperCase() + role.slice(1)),

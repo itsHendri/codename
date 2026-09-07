@@ -237,3 +237,37 @@ describe('the spacing grid', () => {
     ).toBe(8);
   });
 });
+
+describe('status colours', () => {
+  it('never gives two status roles the same colour', () => {
+    // stripe.com ships one orange (#FF6118) that is the nearest candidate to
+    // both the warning and the danger target. Matching roles independently
+    // handed it to both, so an error badge and a warning badge came out
+    // identical.
+    const brand = seedBrandFromScan(
+      scan({ colors: [color('#FF6118', 8), color('#533AFD', 52), color('#50617A', 160)] }),
+    );
+    const seeds = (['success', 'warning', 'danger', 'info'] as const).map(
+      (role) => brand.color.scales.find((s) => s.role === role)!.seed.toUpperCase(),
+    );
+    expect(new Set(seeds).size).toBe(seeds.length);
+    expect(seeds.filter((s) => s === '#FF6118')).toHaveLength(1);
+  });
+
+  it('gives each role its own best match when the page has several', () => {
+    const brand = seedBrandFromScan(
+      scan({
+        colors: [
+          color('#16A34A', 20), // green -> success
+          color('#DC2626', 20), // red -> danger
+          color('#0284C7', 20), // blue -> info
+        ],
+      }),
+    );
+    const seed = (role: 'success' | 'danger' | 'info') =>
+      brand.color.scales.find((s) => s.role === role)!.seed.toUpperCase();
+    expect(seed('success')).toBe('#16A34A');
+    expect(seed('danger')).toBe('#DC2626');
+    expect(seed('info')).toBe('#0284C7');
+  });
+});
