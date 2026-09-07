@@ -26,3 +26,6 @@ web-ext.config.ts
 *.sw?
 
 dist
+
+# Local-only harness that renders the panel outside the extension
+.harness

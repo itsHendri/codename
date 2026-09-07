@@ -39,7 +39,7 @@ export function ScanningState() {
   );
 }
 
-export function RestrictedState({ url, onOpenResize }: { url: string; onOpenResize: () => void }) {
+export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenInspect: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
       <svg className="h-12 w-12 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -55,15 +55,15 @@ export function RestrictedState({ url, onOpenResize }: { url: string; onOpenResi
       <div className="flex items-start gap-2 border-t border-dashed border-gray-200 pt-3 text-[11px] text-gray-500">
         <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
         <span>
-          Still available: <b className="text-gray-700">Resize</b> works everywhere · the{' '}
-          <b className="text-gray-700">color picker</b> can sample your whole screen
+          Still available: the <b className="text-gray-700">colour picker</b> samples your whole
+          screen, and <b className="text-gray-700">resize</b> in the header works anywhere
         </span>
       </div>
       <button
-        onClick={onOpenResize}
+        onClick={onOpenInspect}
         className="rounded-lg border border-gray-800 px-5 py-1.5 text-gray-800 hover:bg-gray-50"
       >
-        Open Resize
+        Open Inspect
       </button>
     </div>
   );

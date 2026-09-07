@@ -37,6 +37,15 @@ export function ColorsIcon({ className = base }: IconProps) {
   );
 }
 
+export function DesignIcon({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 2.5 V13.5 M2.5 8 H13.5" />
+    </svg>
+  );
+}
+
 export function SvgsIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

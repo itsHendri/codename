@@ -1,6 +1,7 @@
 import type { PinnedElement } from '@/shared/types';
 import { contrastBadge } from '../lib/color';
 import { InspectIcon } from './icons';
+import { EyeDropperButton } from './EyeDropperButton';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -63,6 +64,10 @@ export function InspectTab({
           {inspecting ? 'Hover any element on the page · click to pin it here · Esc to exit' : 'Turn on, then hover the page'}
         </p>
         {error && <p className="text-center text-[11px] text-amber-700">{error}</p>}
+      </div>
+
+      <div className="border-t border-dashed border-gray-200 pt-3">
+        <EyeDropperButton />
       </div>
 
       {pinned ? (

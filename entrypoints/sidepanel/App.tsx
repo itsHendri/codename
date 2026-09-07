@@ -11,30 +11,30 @@ import {
   stopInspector,
 } from './lib/messaging';
 import {
-  ColorsIcon,
+  DesignIcon,
   ExportIcon,
-  FontsIcon,
   InspectIcon,
   LogoIcon,
-  ResizeIcon,
   SvgsIcon,
 } from './components/icons';
 import { InspectTab } from './components/InspectTab';
-import { FontsTab } from './components/FontsTab';
-import { ColorsTab } from './components/ColorsTab';
+import { DesignTab } from './components/DesignTab';
 import { SvgsTab } from './components/SvgsTab';
-import { ResizeTab } from './components/ResizeTab';
 import { ExportTab } from './components/ExportTab';
+import { ViewportControl } from './components/ViewportControl';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'inspect' | 'fonts' | 'colors' | 'svgs' | 'resize' | 'export';
+type TabKey = 'inspect' | 'design' | 'assets' | 'export';
 
+/**
+ * Four, not six. Fonts and Colors were one job split in half — the page's design
+ * language — and Resize was never a view at all; it is a viewport setting and
+ * now lives in the header. At 360px six tabs left 60px each.
+ */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'inspect', label: 'Inspect', Icon: InspectIcon },
-  { key: 'fonts', label: 'Fonts', Icon: FontsIcon },
-  { key: 'colors', label: 'Colors', Icon: ColorsIcon },
-  { key: 'svgs', label: 'SVGs', Icon: SvgsIcon },
-  { key: 'resize', label: 'Resize', Icon: ResizeIcon },
+  { key: 'design', label: 'Design', Icon: DesignIcon },
+  { key: 'assets', label: 'Assets', Icon: SvgsIcon },
   { key: 'export', label: 'Export', Icon: ExportIcon },
 ];
 
@@ -164,13 +164,13 @@ export default function App() {
     }
   })();
 
-  const needsScan = active !== 'resize';
+  const needsScan = active !== 'inspect';
   let content: React.ReactNode;
-  if (restricted && active !== 'resize' && active !== 'colors') {
-    content = <RestrictedState url={tabUrl} onOpenResize={() => setActive('resize')} />;
+  if (restricted && active !== 'inspect') {
+    content = <RestrictedState url={tabUrl} onOpenInspect={() => setActive('inspect')} />;
   } else if (scanning && needsScan) {
     content = <ScanningState />;
-  } else if (!scan && needsScan && active !== 'inspect' && active !== 'colors') {
+  } else if (!scan && needsScan) {
     content = <EmptyState onScan={handleScan} error={scanError} />;
   } else {
     switch (active) {
@@ -185,17 +185,11 @@ export default function App() {
           />
         );
         break;
-      case 'fonts':
-        content = <FontsTab scan={scan!} />;
+      case 'design':
+        content = <DesignTab scan={scan!} />;
         break;
-      case 'colors':
-        content = <ColorsTab scan={scan} onScan={handleScan} />;
-        break;
-      case 'svgs':
+      case 'assets':
         content = <SvgsTab scan={scan!} />;
-        break;
-      case 'resize':
-        content = <ResizeTab tabId={tabId} restricted={restricted} />;
         break;
       case 'export':
         content = <ExportTab scan={scan!} hostname={hostname} />;
@@ -208,12 +202,13 @@ export default function App() {
       <header className="flex items-center gap-2 border-b border-gray-200 px-3.5 py-2.5">
         <LogoIcon className="h-5 w-5 text-gray-900" />
         <span className="text-base font-semibold tracking-tight">Codename</span>
-        <span className="ml-auto max-w-[45%] truncate rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-600">
+        <span className="ml-auto max-w-[38%] truncate rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-600">
           {hostname}
         </span>
+        <ViewportControl tabId={tabId} restricted={restricted} />
       </header>
 
-      <nav className="grid grid-cols-6 border-b border-gray-200">
+      <nav className="grid grid-cols-4 border-b border-gray-200">
         {TABS.map(({ key, label, Icon }) => (
           <button
             key={key}
