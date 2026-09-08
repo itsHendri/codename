@@ -176,27 +176,37 @@ reads as "you cannot change this". Changes and notes moved out of the
 selection and into their own tab, which is also the hand-off review, so the
 overlay went too.
 
+**W6. The Design tab earns its name (M).** Done. The type ladder is editable
+per role (size, weight, line-height) and the spacing grid and base radius are
+too, all with the same drag-scrub the element panel uses. A failing contrast
+token carries a **fix** button that applies the re-pointing the engine had
+already worked out and never offered.
+
+Length edits reach the page the way colour does, through the page's own
+variables, matched by value with the variable's name as a tiebreak. They stop
+there on purpose: a hex is unambiguous, a bare `16px` is not, and rewriting
+every one in a stylesheet would break layouts to fix a grid. Where a page
+holds none of its scale in variables — forfontsake holds none at all — the
+decision travels as a `system` entry in the `ChangeSet` instead, so the agent
+still hears about it.
+
 ## Still to build
 
 In order.
 
-1. **Finish the Design tab (M).** Type and Space are read-only observations;
-   the tab is a third of what its name promises. Make the type ladder and the
-   spacing grid editable and repaint live, the way seeds already do. Add the
-   one-click APCA fix — `Warning.fix` exists in the data model with no button.
-2. **Annotations, to Agentation parity (M).** Today a note is pinned to one
+1. **Annotations, to Agentation parity (M).** Today a note is pinned to one
    element. Add a region note (drag a box, including empty space), a note on
    a text range inside an element, and multi-select. Freeze CSS, JS and video
    animation so a specific state can be captured and described.
-3. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
+2. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
    drag-to-reorder. The tree is also the answer to "select something with no
    distinctive selector", which the positional-selector warning currently
    just reports.
-4. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
+3. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
    trigger-first interaction editor (hover, press, focus, appear, loop,
    scroll) with a shared easing curve. The largest remaining chunk, and the
    one that needs the most new engine surface.
-5. **A `critique` tool over the scan (S).** Impeccable's contribution: the
+4. **A `critique` tool over the scan (S).** Impeccable's contribution: the
    agent asks the panel what is wrong with the page and gets the APCA
    failures, the off-grid spacing, the near-duplicate colours and the type
    scale strays it already computes.

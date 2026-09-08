@@ -1,19 +1,28 @@
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, ResolvedTokens } from '@/studio/engine/types';
+import { NumberField } from '../inspect/NumberField';
 
 /**
- * Spacing, radius and elevation as the page renders them. The off-grid note is
- * deliberate: a page with a 4px grid and a stray 6px is normal, and saying which
- * values were dropped is more useful than silently rounding them in.
+ * Spacing, radius and elevation as the page renders them, and editable from
+ * there. The off-grid note is deliberate: a page with a 4px grid and a stray
+ * 6px is normal, and saying which values were dropped is more useful than
+ * silently rounding them in.
+ *
+ * Moving the grid rescales the steps the page actually uses rather than
+ * generating a fresh ladder, so a page that skips a step keeps skipping it.
  */
 export function SpaceSection({
   scan,
   config,
   resolved,
+  onSpacingBase,
+  onRadiusBase,
 }: {
   scan: ScanResult;
   config: BrandConfig;
   resolved: ResolvedTokens;
+  onSpacingBase: (px: number) => void;
+  onRadiusBase: (px: number) => void;
 }) {
   const { basePx, blessed } = config.spacing;
   const offGrid = scan.shape.spacing
@@ -24,9 +33,18 @@ export function SpaceSection({
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
           <span className="text-2xs tracking-wide text-ink-muted">SPACING</span>
-          <span className="ml-auto text-2xs text-ink-muted">{basePx}px grid</span>
+          <span className="ml-auto text-2xs text-ink-muted">grid</span>
+          <NumberField
+            value={`${basePx}px`}
+            ariaLabel="Spacing grid step"
+            className="w-14 shrink-0"
+            onChange={(v) => {
+              const px = parseFloat(v);
+              if (Number.isFinite(px) && px >= 1 && px <= 32) onSpacingBase(px);
+            }}
+          />
         </div>
         <div className="flex items-end gap-1.5">
           {blessed.slice(0, 8).map((px) => (
@@ -48,8 +66,16 @@ export function SpaceSection({
 
       <div className="flex flex-col gap-2 border-t border-dashed border-line-subtle pt-3">
         <div className="flex items-center gap-2">
-          <span className="w-18 shrink-0 text-2xs tracking-wide text-ink-muted">RADIUS</span>
-          <span className="text-xs tabular-nums">{config.radius.basePx}px</span>
+          <span className="w-14 shrink-0 text-2xs tracking-wide text-ink-muted">RADIUS</span>
+          <NumberField
+            value={`${config.radius.basePx}px`}
+            ariaLabel="Radius base"
+            className="w-14 shrink-0"
+            onChange={(v) => {
+              const px = parseFloat(v);
+              if (Number.isFinite(px) && px >= 0 && px <= 64) onRadiusBase(px);
+            }}
+          />
           <span className="ml-auto flex items-center gap-1.5">
             {(['sm', 'md', 'lg'] as const).map((step) => (
               <span
@@ -63,7 +89,7 @@ export function SpaceSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-18 shrink-0 text-2xs tracking-wide text-ink-muted">ELEVATION</span>
+          <span className="w-14 shrink-0 text-2xs tracking-wide text-ink-muted">ELEVATION</span>
           <span className="text-2xs text-ink-muted">
             {scan.shape.shadows.length ? `${config.shadows.levels.length} from the page` : 'defaults'}
           </span>

@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { Override } from '@/studio/reskin';
-import { buildChangeSet, isEmpty, toJson, toPrompt, type ScanLike } from '@/studio/commit';
-import { active } from '@/studio/changes';
+import { isEmpty, toJson, toPrompt } from '@/studio/commit';
+import type { ChangeSet } from '@/studio/commit';
+import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { pendingNotes } from '../lib/comments';
 import { sendToAgent, useBridge } from '../lib/bridge';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
@@ -18,26 +17,12 @@ import { CommentList } from './inspect/Comments';
  * A change is a change whether it came from a seed, an element or a note, so
  * they queue together and leave together.
  */
-export function ChangesTab({
-  scan,
-  overrides,
-  colorMap,
-  ctl,
-}: {
-  scan: ScanLike;
-  overrides: Override[];
-  colorMap: Record<string, string>;
-  ctl: InspectController;
-}) {
+export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectController }) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status } = useBridge();
   const { handoff, log, comments } = useSession();
   const connected = status === 'connected';
 
-  const set = useMemo(
-    () => buildChangeSet(scan, overrides, colorMap, active(log), pendingNotes(comments)),
-    [scan, overrides, colorMap, log, comments],
-  );
   const prompt = useMemo(() => toPrompt(set), [set]);
   const empty = isEmpty(set);
 
@@ -48,7 +33,7 @@ export function ChangesTab({
 
   if (empty && log.entries.length === 0 && comments.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+      <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
         <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
         <p className="max-w-60 text-sm text-ink-muted">
           Change a seed in Design, edit an element, or pin a note. Whatever you do collects here as one
@@ -71,9 +56,14 @@ export function ChangesTab({
               <div key={t.name} className="rounded-control border border-line-subtle px-2 py-1.5">
                 <div className="flex items-center gap-1.5">
                   <code className="min-w-0 flex-1 truncate text-xs">{t.name}</code>
-                  <Swatch color={t.from} />
-                  <span className="text-2xs text-ink-muted">→</span>
-                  <Swatch color={t.to} />
+                  {/* A spacing or type token has no colour to show. */}
+                  {hexOf(t.from) && hexOf(t.to) && (
+                    <>
+                      <Swatch color={t.from} />
+                      <span className="text-2xs text-ink-muted">→</span>
+                      <Swatch color={t.to} />
+                    </>
+                  )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-muted">
                   <span className="tabular-nums">
@@ -105,6 +95,28 @@ export function ChangesTab({
                 <Swatch color={c.to} />
                 <span className="text-2xs tabular-nums">{c.to}</span>
                 <span className="ml-auto text-2xs text-ink-muted">{c.uses}×</span>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {set.system.length > 0 && (
+          <section className="flex flex-col gap-1.5">
+            <SectionHead title="Scale changes" count={set.system.length} />
+            <p className="text-2xs text-ink-muted">
+              Decisions about the system. Any the page holds in a variable are in the list above; the
+              rest are written somewhere in source.
+            </p>
+            {set.system.map((c) => (
+              <div
+                key={`${c.area} ${c.label}`}
+                className="flex items-center gap-1.5 rounded-control border border-line-subtle px-2 py-1.5"
+              >
+                <span className="text-2xs text-ink-muted">{c.area}</span>
+                <span className="min-w-0 flex-1 truncate text-xs">{c.label}</span>
+                <span className="shrink-0 font-mono text-2xs tabular-nums text-ink-secondary">
+                  {c.from} → {c.to}
+                </span>
               </div>
             ))}
           </section>

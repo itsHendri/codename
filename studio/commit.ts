@@ -19,6 +19,7 @@
 import type { ScanResult } from '@/shared/types';
 import type { Override } from './reskin';
 import type { ElementChange } from './changes';
+import type { SystemChange } from './systemDiff';
 
 export interface TokenChange {
   name: string;
@@ -73,6 +74,8 @@ export interface ChangeSet {
   local: boolean;
   tokens: TokenChange[];
   colors: ColorChange[];
+  /** Scale decisions with no variable behind them; source is the only handle. */
+  system: SystemChange[];
   elements: ElementEdit[];
   /** Pending notes; resolved and dismissed ones stay out of the brief. */
   comments: CommentNote[];
@@ -133,6 +136,7 @@ export function buildChangeSet(
   colorMap: Record<string, string>,
   elements: ElementChange[] = [],
   comments: CommentNote[] = [],
+  system: SystemChange[] = [],
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
@@ -163,6 +167,7 @@ export function buildChangeSet(
     local: isLocal(scan.url),
     tokens,
     colors,
+    system,
     elements: summariseElements(elements),
     comments,
     unreadable: scan.unreadableSheets,
@@ -171,7 +176,11 @@ export function buildChangeSet(
 
 export function isEmpty(set: ChangeSet): boolean {
   return (
-    set.tokens.length === 0 && set.colors.length === 0 && set.elements.length === 0 && set.comments.length === 0
+    set.tokens.length === 0 &&
+    set.colors.length === 0 &&
+    set.system.length === 0 &&
+    set.elements.length === 0 &&
+    set.comments.length === 0
   );
 }
 
@@ -204,7 +213,10 @@ export function toPrompt(set: ChangeSet): string {
       const detail = [
         t.uses ? `${t.uses} ${t.uses === 1 ? 'usage' : 'usages'}` : null,
         t.source ? `loaded from ${t.source}` : null,
-        t.reason === 'family' ? 'followed the brand hue' : null,
+        t.reason === 'family' ? 'followed the brand hue'
+          : t.reason === 'grid' ? 'a step on the spacing or radius scale'
+            : t.reason === 'scale' ? 'a size on the type scale'
+              : null,
       ]
         .filter(Boolean)
         .join('; ');
@@ -226,6 +238,19 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(
         `- \`${c.from}\` → \`${c.to}\`  (${c.uses} ${c.uses === 1 ? 'occurrence' : 'occurrences'} in the stylesheets I could read)`,
       );
+    }
+    lines.push('');
+  }
+
+  if (set.system.length) {
+    lines.push(`## Scale changes — ${set.system.length}`);
+    lines.push('');
+    lines.push(
+      'Decisions about the system rather than about one colour. Where this page holds them in a variable, that variable is in the list above and is the thing to edit; where it does not, these values are written somewhere in source and this is what they should become.',
+    );
+    lines.push('');
+    for (const c of set.system) {
+      lines.push(`- ${c.area} · ${c.label}: \`${c.from}\` → \`${c.to}\``);
     }
     lines.push('');
   }

@@ -52,7 +52,119 @@ export interface Override {
   name: string;
   from: string;
   to: string;
-  reason: 'exact' | 'family';
+  /**
+   * How the value was matched. `exact` and `family` are colour; `grid` is a
+   * spacing or radius step; `scale` is a size on the type ladder.
+   */
+  reason: 'exact' | 'family' | 'grid' | 'scale';
+}
+
+/* ---------------- lengths ---------------- */
+
+export type LengthKind = 'space' | 'type' | 'radius';
+
+/**
+ * What a variable's own name says it holds. Only consulted for variables whose
+ * value is already a length, so `--text-primary: #15171B` never reaches here
+ * and cannot be mistaken for a font size.
+ */
+export function lengthKind(name: string): LengthKind | null {
+  if (/radius|rounded|corner/i.test(name)) return 'radius';
+  if (/font-?size|text-(xs|sm|base|lg|xl|\d)|leading|line-height|type-scale/i.test(name)) return 'type';
+  if (/spac|gap|gutter|inset|pad|margin|size-\d/i.test(name)) return 'space';
+  return null;
+}
+
+/** A length in px, with rem resolved against the page's own root size. */
+export function lengthPx(value: string, rootFontSize = 16): number | null {
+  const m = /^(-?\d*\.?\d+)(px|rem)$/.exec(value.trim());
+  if (!m) return null;
+  const n = parseFloat(m[1]!);
+  return m[2] === 'rem' ? n * rootFontSize : n;
+}
+
+/** Round-trips a new px value back into whatever unit the page was written in. */
+function inOriginalUnit(value: string, px: number, rootFontSize: number): string {
+  const rem = /rem$/.test(value.trim());
+  const n = rem ? px / rootFontSize : px;
+  return `${Math.round(n * 1000) / 1000}${rem ? 'rem' : 'px'}`;
+}
+
+/** before px → after px, per family, for every length the system names. */
+function lengthMaps(before: ResolvedTokens, after: ResolvedTokens): Record<LengthKind, Map<number, number>> {
+  const space = new Map<number, number>();
+  const bBlessed = before.config.spacing.blessed;
+  const aBlessed = after.config.spacing.blessed;
+  bBlessed.forEach((from, i) => {
+    const to = aBlessed[i];
+    if (to != null && to !== from) space.set(from, to);
+  });
+
+  const radius = new Map<number, number>();
+  // `full` is a pill, a shape decision rather than a step, so it is left alone.
+  for (const step of ['sm', 'md', 'lg', 'xl'] as const) {
+    const from = before.radius[step];
+    const to = after.radius[step];
+    if (from != null && to != null && to !== from) radius.set(from, to);
+  }
+
+  const type = new Map<number, number>();
+  const afterRoles = new Map(after.config.typography.roles.map((r) => [r.role, r]));
+  for (const role of before.config.typography.roles) {
+    const to = afterRoles.get(role.role);
+    if (!to) continue;
+    const fromPx = Math.round(role.sizeRem * 16 * 100) / 100;
+    const toPx = Math.round(to.sizeRem * 16 * 100) / 100;
+    if (fromPx !== toPx) type.set(fromPx, toPx);
+  }
+
+  return { space, radius, type };
+}
+
+/**
+ * Page variables holding a length the system moved.
+ *
+ * Only variables, never hardcoded declarations: a hex says what it is, but a
+ * bare `16px` in a stylesheet could be a gap, a width or a font size, and
+ * rewriting every one of them would break layouts to fix a grid. A page that
+ * hardcodes its spacing gets the change in the brief and no live repaint,
+ * which is the honest answer rather than a confident wrong one.
+ */
+export function buildLengthReskin(
+  customProps: CustomPropInfo[],
+  before: ResolvedTokens,
+  after: ResolvedTokens,
+  rootFontSize = 16,
+): Override[] {
+  const maps = lengthMaps(before, after);
+  const overrides: Override[] = [];
+  const seen = new Set<string>();
+
+  for (const prop of customProps) {
+    if (seen.has(prop.name)) continue;
+    const px = lengthPx(prop.value, rootFontSize);
+    if (px === null) continue;
+
+    const kind = lengthKind(prop.name);
+    const consulted: LengthKind[] = kind ? [kind] : ['space', 'radius', 'type'];
+    // With no hint in the name, every family has to agree: a 16 that is both a
+    // spacing step and a body size, moving to two different values, is left
+    // alone rather than guessed at.
+    const proposals = new Set(
+      consulted.map((k) => maps[k].get(px)).filter((v): v is number => v != null),
+    );
+    if (proposals.size !== 1) continue;
+
+    const to = [...proposals][0]!;
+    overrides.push({
+      name: prop.name,
+      from: prop.value.trim(),
+      to: inOriginalUnit(prop.value, to, rootFontSize),
+      reason: kind === 'type' ? 'scale' : 'grid',
+    });
+    seen.add(prop.name);
+  }
+  return overrides;
 }
 
 export function hexOf(value: string): string | null {

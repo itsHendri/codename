@@ -16,11 +16,13 @@ to your agent — which can be connected, so you never paste.
 - **Design** — the system this page runs, editable.
   - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
     ramps, and the semantic tokens with light/dark values and an APCA audit.
-    Change a seed and the page repaints.
+    Change a seed and the page repaints; a token that fails the audit carries
+    a **fix** button that re-points it at the step the engine says will pass.
   - **Type** — the families the page really renders and the size/weight/
-    line-height ladder it renders them at.
+    line-height ladder it renders them at. Drag any number to change it.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
-    from the page, with off-grid strays named rather than rounded in.
+    from the page, with off-grid strays named rather than rounded in. Moving
+    the grid rescales the steps the page uses rather than inventing a ladder.
 - **Changes** — everything queued for the agent, wherever it came from: token
   definitions, element edits with undo, redo and per-change revert, and your
   notes. Hold **View original** to see the page without any of it. The
@@ -45,11 +47,20 @@ makes every dev server open without asking.
 
 ## Hand to agent
 
-Anything you change — a seed, an element, a note — collects into one brief.
+Anything you change — a seed, the type scale, the grid, an element, a note —
+collects into one brief.
 It is written at token level: `--mark: #BE3A22 → #1C7F5C (34 usages)` tells an
 agent to edit one definition, where a rendered stylesheet would invite it to
 stamp a hex across forty components. Element edits are one line per selector
 and property, before and after. Notes name the element they are about.
+
+Colour edits reach the page through its own variables, or by rewriting the
+rules that hold a literal. Type and spacing edits move variables only: a hex
+in a stylesheet says what it is, but a bare `16px` could be a gap, a width or
+a font size, and rewriting every one of them would break layouts to fix a
+scale. Where a page holds none of it in variables, the change still travels
+as a **scale change** in the brief, which is an instruction the agent can act
+on in source.
 
 **Copy** it, download it as JSON, or **send** it, all from the Changes tab.
 

@@ -1,5 +1,6 @@
 import type { ScanResult } from '@/shared/types';
-import type { BrandConfig } from '@/studio/engine/types';
+import type { BrandConfig, TypeRole, TypeRoleName } from '@/studio/engine/types';
+import { NumberField } from '../inspect/NumberField';
 
 const SERVICE_LABELS: Record<string, string> = {
   google: 'Google Fonts',
@@ -11,11 +12,21 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 /**
- * The families the page renders and the scale it renders them at. Both are
- * observations — `fontUsage[].variants` carries every size/weight/line-height
- * with a frequency count, so "body" is the size used most, not an assumption.
+ * The families the page renders and the scale it renders them at. Both start
+ * as observations — `fontUsage[].variants` carries every size/weight/line-height
+ * with a frequency count, so "body" is the size used most, not an assumption —
+ * and the ladder is editable from there. Drag a size and the page follows,
+ * wherever it holds that size in a variable.
  */
-export function TypeSection({ scan, config }: { scan: ScanResult; config: BrandConfig }) {
+export function TypeSection({
+  scan,
+  config,
+  onRoleChange,
+}: {
+  scan: ScanResult;
+  config: BrandConfig;
+  onRoleChange: (role: TypeRoleName, patch: Partial<TypeRole>) => void;
+}) {
   const { families } = config.typography;
   const stacks = [
     { key: 'sans', label: 'sans', stack: families.sans },
@@ -68,21 +79,45 @@ export function TypeSection({ scan, config }: { scan: ScanResult; config: BrandC
       <div className="flex flex-col gap-1 border-t border-dashed border-line-subtle pt-3">
         <div className="flex items-baseline gap-2">
           <span className="text-base">Scale</span>
-          <span className="ml-auto text-2xs text-ink-muted">size · weight · line-height</span>
+          <span className="ml-auto text-2xs text-ink-muted">px · weight · line-height</span>
         </div>
         {config.typography.roles.map((role) => (
           <div
             key={role.role}
-            className="flex items-center gap-2 border-b border-dotted border-line-subtle py-1"
+            className="flex items-center gap-1 border-b border-dotted border-line-subtle py-1"
           >
-            <span className="w-18 shrink-0 truncate text-xs">{role.role}</span>
-            <span className="w-8 shrink-0 text-xs tabular-nums">
-              {Math.round(role.sizeRem * 16)}
+            <span className="w-16 shrink-0 truncate text-2xs" title={role.role}>
+              {role.role}
             </span>
-            <span className="w-7 shrink-0 text-2xs tabular-nums text-ink-muted">{role.weight}</span>
-            <span className="w-7 shrink-0 text-2xs tabular-nums text-ink-muted">
-              {role.lineHeight}
-            </span>
+            <NumberField
+              value={`${Math.round(role.sizeRem * 16)}px`}
+              ariaLabel={`${role.role} size`}
+              className="w-14 shrink-0"
+              onChange={(v) => {
+                const px = parseFloat(v);
+                if (Number.isFinite(px) && px > 0) onRoleChange(role.role, { sizeRem: px / 16 });
+              }}
+            />
+            <NumberField
+              value={String(role.weight)}
+              ariaLabel={`${role.role} weight`}
+              className="w-12 shrink-0"
+              step={100}
+              onChange={(v) => {
+                const w = parseFloat(v);
+                if (Number.isFinite(w)) onRoleChange(role.role, { weight: Math.min(1000, Math.max(100, w)) });
+              }}
+            />
+            <NumberField
+              value={String(role.lineHeight)}
+              ariaLabel={`${role.role} line height`}
+              className="w-12 shrink-0"
+              step={0.1}
+              onChange={(v) => {
+                const lh = parseFloat(v);
+                if (Number.isFinite(lh) && lh > 0) onRoleChange(role.role, { lineHeight: lh });
+              }}
+            />
             <span
               className="ml-auto min-w-0 shrink truncate text-right"
               style={{
@@ -100,7 +135,9 @@ export function TypeSection({ scan, config }: { scan: ScanResult; config: BrandC
             </span>
           </div>
         ))}
-        <div className="pt-1 text-2xs text-ink-muted">body = the size this page uses most</div>
+        <div className="pt-1 text-2xs text-ink-muted">
+          body = the size this page uses most · drag a number to change it
+        </div>
       </div>
     </div>
   );

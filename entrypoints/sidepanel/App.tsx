@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import {
   attachBar,
@@ -13,6 +13,7 @@ import { getSession, loadSession, setConfig, setPinned, setScan, updateSession, 
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
+import { buildChangeSet } from '@/studio/commit';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
@@ -60,10 +61,32 @@ export default function App() {
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
-  // What is queued for the agent, from any tab: a seed edit, element edits, notes.
+  const scanLike = useMemo(
+    () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
+    [scan, tabUrl],
+  );
+
+  // Built once, here: the badge and the Changes tab must never disagree about
+  // whether anything is pending. An edit that reaches nothing on the page —
+  // a grid change on a site with no length variables — counts as nothing.
+  const changeSet = useMemo(
+    () =>
+      buildChangeSet(
+        scanLike,
+        model?.overrides ?? [],
+        model?.colorMap ?? {},
+        activeChanges(session.log),
+        pendingNotes(session.comments),
+        model?.system ?? [],
+      ),
+    [scanLike, model, session.log, session.comments],
+  );
   const pendingCount =
-    (model?.edited ? 1 : 0) + activeChanges(session.log).length + pendingNotes(session.comments).length;
-  const scanLike = scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] };
+    changeSet.tokens.length +
+    changeSet.colors.length +
+    changeSet.system.length +
+    changeSet.elements.length +
+    changeSet.comments.length;
   const ctl = useInspect(tabId, tabUrl, session, focusedComment);
   const ctlRef = useRef(ctl);
   ctlRef.current = ctl;
@@ -256,7 +279,7 @@ export default function App() {
         );
         break;
       case 'changes':
-        content = <ChangesTab scan={scanLike} overrides={model?.overrides ?? []} colorMap={model?.colorMap ?? {}} ctl={ctl} />;
+        content = <ChangesTab set={changeSet} ctl={ctl} />;
         break;
       case 'design':
         content = (

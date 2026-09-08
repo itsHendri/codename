@@ -1,6 +1,13 @@
 import { useCallback, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
-import type { BrandConfig, Mode, ScaleRole } from '@/studio/engine/types';
+import type {
+  BrandConfig,
+  Mode,
+  ResolvedTokens,
+  ScaleRole,
+  TypeRole,
+  TypeRoleName,
+} from '@/studio/engine/types';
 import type { DesignModel } from '../lib/designModel';
 import type { ReskinResult } from '../lib/messaging';
 import { Section } from './design/Section';
@@ -52,6 +59,58 @@ export function DesignTab({
       return next;
     });
 
+  /** One place that writes a new config, so every editor reads the same brand. */
+  const patch = useCallback(
+    (next: Partial<BrandConfig>) => onConfigChange({ ...brand, ...next }),
+    [brand, onConfigChange],
+  );
+
+  const setRole = useCallback(
+    (role: TypeRoleName, changes: Partial<TypeRole>) =>
+      patch({
+        typography: {
+          ...brand.typography,
+          roles: brand.typography.roles.map((r) => (r.role === role ? { ...r, ...changes } : r)),
+        },
+      }),
+    [brand, patch],
+  );
+
+  /**
+   * Moving the grid rescales the steps the page uses, keeping their shape: a
+   * page on 4px that uses 4, 8, 24 becomes 6, 12, 36 rather than a fresh ladder.
+   */
+  const setSpacingBase = useCallback(
+    (basePx: number) => {
+      const old = brand.spacing.basePx || 1;
+      const blessed = [
+        ...new Set(brand.spacing.blessed.map((v) => Math.max(basePx, Math.round(v / old) * basePx))),
+      ].sort((a, b) => a - b);
+      patch({ spacing: { basePx, blessed } });
+    },
+    [brand, patch],
+  );
+
+  const setRadiusBase = useCallback(
+    (basePx: number) => patch({ radius: { ...brand.radius, basePx, concentric: basePx > 0 } }),
+    [brand, patch],
+  );
+
+  /** Re-point one semantic token at the step the engine says would pass. */
+  const fixWarning = useCallback(
+    (fix: NonNullable<ResolvedTokens['warnings'][number]['fix']>) => {
+      const rest = brand.color.semanticOverrides.filter((o) => o.name !== fix.token);
+      const current = brand.color.semanticOverrides.find((o) => o.name === fix.token);
+      patch({
+        color: {
+          ...brand.color,
+          semanticOverrides: [...rest, { ...current, name: fix.token, [fix.mode]: fix.ref }],
+        },
+      });
+    },
+    [brand, patch],
+  );
+
   const setSeed = useCallback(
     (role: ScaleRole, seed: string) => {
       onConfigChange({
@@ -93,7 +152,7 @@ export function DesignTab({
               : result === null
               ? 'edited'
               : result.vars + result.rules === 0
-                ? "this page's colours can't be reached"
+                ? "this page holds none of this in variables — export or hand it over instead"
                 : result.vars > 0
                   ? `${result.vars} ${result.vars === 1 ? 'variable' : 'variables'} live on the page`
                   : `${result.rules} ${result.rules === 1 ? 'rule' : 'rules'} live on the page`}
@@ -130,7 +189,13 @@ export function DesignTab({
         open={open.has('colour')}
         onToggle={() => toggle('colour')}
       >
-        <ColourSection config={brand} resolved={resolved} mode={mode} onSeedChange={setSeed} />
+        <ColourSection
+          config={brand}
+          resolved={resolved}
+          mode={mode}
+          onSeedChange={setSeed}
+          onFixWarning={fixWarning}
+        />
       </Section>
 
       <Section
@@ -139,7 +204,7 @@ export function DesignTab({
         open={open.has('type')}
         onToggle={() => toggle('type')}
       >
-        <TypeSection scan={scan} config={brand} />
+        <TypeSection scan={scan} config={brand} onRoleChange={setRole} />
       </Section>
 
       <Section
@@ -148,7 +213,13 @@ export function DesignTab({
         open={open.has('space')}
         onToggle={() => toggle('space')}
       >
-        <SpaceSection scan={scan} config={brand} resolved={resolved} />
+        <SpaceSection
+          scan={scan}
+          config={brand}
+          resolved={resolved}
+          onSpacingBase={setSpacingBase}
+          onRadiusBase={setRadiusBase}
+        />
       </Section>
 
     </div>

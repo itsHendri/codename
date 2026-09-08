@@ -179,6 +179,22 @@ describe('element changes', () => {
   });
 });
 
+describe('scale changes', () => {
+  it('reaches the brief even when no variable carries them', () => {
+    const set = buildChangeSet(scanOf(), [], {}, [], [], [
+      { area: 'type', label: 'body size', from: '15px', to: '18px' },
+      { area: 'spacing', label: 'grid step', from: '8px', to: '6px' },
+    ]);
+    expect(isEmpty(set)).toBe(false);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('## Scale changes — 2');
+    expect(prompt).toContain('- type · body size: `15px` → `18px`');
+    expect(prompt).toContain('- spacing · grid step: `8px` → `6px`');
+    // Still an instruction, never a stylesheet.
+    expect(prompt).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+});
+
 describe('comments', () => {
   it('lists pending notes by element and counts towards emptiness', () => {
     const set = buildChangeSet(scanOf(), [], {}, [], [

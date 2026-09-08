@@ -17,11 +17,13 @@ export function ColourSection({
   resolved,
   mode,
   onSeedChange,
+  onFixWarning,
 }: {
   config: BrandConfig;
   resolved: ResolvedTokens;
   mode: Mode;
   onSeedChange: (role: ScaleRole, seed: string) => void;
+  onFixWarning: (fix: NonNullable<ResolvedTokens['warnings'][number]['fix']>) => void;
 }) {
   const [openRamp, setOpenRamp] = useState<ScaleRole>('primary');
   const [showAllTokens, setShowAllTokens] = useState(false);
@@ -133,6 +135,17 @@ export function ColourSection({
                   <span className="text-ink-muted">—</span>
                 )}
               </span>
+              {/* The engine already worked out which step would clear the
+                  threshold; this is the button it never had. */}
+              {failing && warning?.fix && (
+                <button
+                  onClick={() => onFixWarning(warning.fix!)}
+                  title={`Re-point --${warning.fix.token} at ${warning.fix.ref.scale} ${warning.fix.ref.step} in ${warning.fix.mode}`}
+                  className="shrink-0 rounded-full border border-warn px-1.5 text-2xs text-warn-ink hover:bg-warn hover:text-surface-app"
+                >
+                  fix
+                </button>
+              )}
             </div>
           );
         })}

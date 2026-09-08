@@ -10,10 +10,15 @@ export function stepValue(value: string, delta: number): string {
   return `${next}${m[2]}`;
 }
 
+// `margin-top` rather than `width`: negative lengths are legal for tracking
+// and margins, and `width` rejects them, which flagged every letter-spacing.
 const isValid = (v: string) =>
-  CSS.supports('width', v) || /^-?\d*\.?\d+$/.test(v) || /^(normal|auto|none|inherit|initial|unset)$/.test(v);
+  CSS.supports('margin-top', v) ||
+  /^-?\d*\.?\d+$/.test(v) ||
+  /^(normal|auto|none|inherit|initial|unset)$/.test(v);
 
-const stepFor = (e: { shiftKey: boolean; altKey: boolean }) => (e.shiftKey ? 10 : e.altKey ? 0.1 : 1);
+const stepFor = (e: { shiftKey: boolean; altKey: boolean }, step: number) =>
+  step * (e.shiftKey ? 10 : e.altKey ? 0.1 : 1);
 
 /**
  * A length that can be typed, nudged or scrubbed. The grip on the left is the
@@ -25,12 +30,15 @@ export function NumberField({
   label,
   ariaLabel,
   className = '',
+  step = 1,
 }: {
   value: string;
   onChange: (next: string) => void;
   label?: string;
   ariaLabel: string;
   className?: string;
+  /** How much one px of drag, or one arrow press, is worth. */
+  step?: number;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
@@ -53,7 +61,7 @@ export function NumberField({
     if (!drag.current) return;
     const dx = e.clientX - drag.current.x;
     if (dx === 0) return;
-    onChange(stepValue(drag.current.start, dx * stepFor(e)));
+    onChange(stepValue(drag.current.start, dx * stepFor(e, step)));
   };
   const onPointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
     drag.current = null;
@@ -80,7 +88,7 @@ export function NumberField({
           if (e.key === 'Enter') commit();
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
-            onChange(stepValue(base, e.key === 'ArrowUp' ? stepFor(e) : -stepFor(e)));
+            onChange(stepValue(base, e.key === 'ArrowUp' ? stepFor(e, step) : -stepFor(e, step)));
           }
         }}
         spellCheck={false}

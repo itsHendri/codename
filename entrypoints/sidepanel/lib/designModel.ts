@@ -9,7 +9,8 @@ import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ResolvedTokens } from '@/studio/engine/types';
 import { resolveTokens } from '@/studio/engine/resolve';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
-import { buildColorMap, buildReskin, type Override } from '@/studio/reskin';
+import { buildColorMap, buildLengthReskin, buildReskin, type Override } from '@/studio/reskin';
+import { diffSystem, type SystemChange } from '@/studio/systemDiff';
 import { applyReskin, type ReskinResult } from './messaging';
 
 export interface DesignModel {
@@ -24,6 +25,8 @@ export interface DesignModel {
   overrides: Override[];
   /** old hex → new hex, for pages with no variables to override. */
   colorMap: Record<string, string>;
+  /** Scale decisions, which may have no variable behind them at all. */
+  system: SystemChange[];
 }
 
 export function useDesignModel(
@@ -44,8 +47,14 @@ export function useDesignModel(
       resolved,
       baseline,
       edited,
-      overrides: edited ? buildReskin(scan.customProps, baseline, resolved, mode) : [],
+      overrides: edited
+        ? [
+            ...buildReskin(scan.customProps, baseline, resolved, mode),
+            ...buildLengthReskin(scan.customProps, baseline, resolved, scan.rootFontSize),
+          ]
+        : [],
       colorMap: edited ? buildColorMap(scan.colors, baseline, resolved, mode) : {},
+      system: edited ? diffSystem(seeded, brand) : [],
     };
   }, [scan, config, mode]);
 }
