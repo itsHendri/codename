@@ -1,26 +1,74 @@
 # Codename
 
-A designer's toolkit in the browser side panel: read the design system a page is
-actually running, edit it, and take it with you.
+A designer's toolkit in the browser side panel: read the design system a page
+is actually running, edit it, watch the real page repaint, and hand the change
+to your agent — which can be connected, so you never paste.
 
 ## The four tabs
 
-- **Inspect** — the live probes. Hover any element for its font, colours, box
-  model and contrast; click to pin it and copy clean CSS. Plus a screen-wide
-  eyedropper with history. Both work without scanning anything.
+- **Inspect** — hover any element for its font, colours, box model and
+  contrast; click to select it. A selection stays: walk the tree with the
+  arrow keys, measure it against whatever the cursor is over, edit its
+  spacing, size, type, colours, radius, border, shadow and text, and pin a
+  note to it for the agent. Every edit lands in a changes list with undo, redo
+  and per-change revert. When a value matches one of the page's own variables
+  the panel offers `var(--x)` instead of a literal. Plus a screen-wide
+  eyedropper with history.
 - **Design** — the system this page runs, editable.
   - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
-    ramps, and 88 semantic tokens with light/dark values and an APCA audit.
-  - **Type** — the families the page really renders (measured, not read off the
-    CSS stack) and the size/weight/line-height ladder it renders them at.
+    ramps, and the semantic tokens with light/dark values and an APCA audit.
+    Change a seed and the page repaints.
+  - **Type** — the families the page really renders and the size/weight/
+    line-height ladder it renders them at.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
-    from the page and with off-grid strays named rather than rounded in.
+    from the page, with off-grid strays named rather than rounded in.
 - **Assets** — every SVG on the page (inline, `<img>`, CSS backgrounds, sprite
-  `<use>`, favicons), previewed with copy and ZIP export.
-- **Export** — `brand.md` for agent context and `tokens.json` in W3C DTCG
-  format, plus a consistency report.
+  `<use>`, favicons), previewed with copy, per-file download and ZIP export.
+- **Export** — `brand.md` for agent context, `tokens.json` in W3C DTCG format,
+  and for the edited system `tokens.css`, a `SKILL.md` with its
+  `DESIGN_SYSTEM.md` reference, a standalone style-guide page, or all of it as
+  a ZIP.
 
-Viewport presets live in the header, next to the site name.
+Viewport presets and the site name live in the header. The wordmark opens the
+menu: theme (dark by default, light, or follow the system) and the agent
+bridge.
+
+## Hand to agent
+
+Anything you change — a seed, an element, a note — collects into one brief.
+It is written at token level: `--mark: #BE3A22 → #1C7F5C (34 usages)` tells an
+agent to edit one definition, where a rendered stylesheet would invite it to
+stamp a hex across forty components. Element edits are one line per selector
+and property, before and after. Notes name the element they are about.
+
+**Copy** it, download it as JSON, or **send** it.
+
+### Connect your agent
+
+```sh
+npx codename-bridge
+```
+
+The bridge prints a pairing code; enter it in the panel menu. It runs on your
+machine only: an MCP server on standard input and output for your agent, a
+WebSocket on `127.0.0.1` for the panel. Register it once:
+
+```sh
+claude mcp add codename -- npx codename-bridge
+```
+
+or, for Cursor, in `mcp.json`:
+
+```json
+{ "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
+```
+
+The agent then has `get_changes`, a blocking `watch` it can loop on,
+`get_selection`, `get_comments` with `set_status` and `reply`,
+`get_screenshot`, and — once you tick *Agent may change this page* —
+`apply_css` to paint a preview on the tab. Nothing is written to source
+through the bridge; that stays the agent's job in your repository, under
+your review. See `PRIVACY.md`.
 
 ## The rule the extraction obeys
 
@@ -35,6 +83,10 @@ the values are observations, not decisions anyone made.
 Where the page gives no usable answer, a neutral default is used and the fact is
 visible — a wrong answer dressed up as an observation is worse than no answer.
 
+The same rule holds for persistence: the decisions you make against a site
+(which seeds you moved) are stored as deltas and laid back over each fresh
+scan, so a rescan improves the reading without undoing the decision.
+
 ## Development
 
 Requires Node 20+.
@@ -44,8 +96,9 @@ npm install
 npm run dev        # dev build with hot reload
 npm run build      # production build → dist/chrome-mv3
 npm run compile    # type check
-npx vitest run     # engine + extraction tests
+npx vitest run     # engine, extraction, panel and bridge tests
 npm run zip        # store-ready zip
+npm run build -w codename-bridge   # the companion, → packages/bridge/dist/cli.js
 ```
 
 To load in Chrome/Brave: `chrome://extensions` (or `brave://extensions`) →
@@ -64,33 +117,51 @@ install-and-reload loop:
 node node_modules/vite/bin/vite.js --config .harness/vite.config.ts
 ```
 
+Add `?theme=light` or `?theme=dark` to pick a palette. To try the bridge from
+the harness, start it with `CODENAME_DEV_ORIGINS=http://localhost:5320`, or
+run `packages/bridge/scripts/e2e.mjs`, which spawns the bridge as an agent
+would and drives every tool once a panel pairs.
+
 ## Architecture
 
-- **WXT + React + TypeScript + Tailwind**, Manifest V3. Side panel only — there
-  is no options page and no full-tab UI, because the live site is the canvas.
-- `entrypoints/sidepanel/` — the panel. `components/design/` holds the Design
-  tab's sections.
-- `entrypoints/scanner.content.ts` and `inspector.content.ts` — runtime
-  registered, injected via `chrome.scripting` on demand. The scanner does one
-  element walk and samples fonts, colours, contrast pairs, gradients, radii,
-  shadows and spacing from it.
+- **WXT + React + TypeScript + Tailwind v4**, Manifest V3. Side panel only —
+  there is no options page and no full-tab UI, because the live site is the
+  canvas.
+- `entrypoints/sidepanel/` — the panel. Its own design tokens live in
+  `style.css` (dark default, light override, exposed to Tailwind through
+  `@theme inline`); `theme.test.ts` runs the engine's APCA audit against them.
+  `lib/session.ts` holds everything about the current tab outside any one
+  tab's component tree; `lib/inspect.ts` is the Inspect tab's controller;
+  `lib/bridge.ts` owns the WebSocket to the companion.
+- `entrypoints/scanner.content.ts`, `inspector.content.ts`,
+  `reskin.content.ts` — runtime registered, injected via `chrome.scripting` on
+  demand. The scanner does one element walk. The inspector is a persistent
+  overlay in a closed shadow root: selection, hover, measurements, pins. The
+  re-skin script owns three managed sheets: token overrides, element edits,
+  and the agent's preview.
 - `studio/engine/` — pure functions, no DOM, no React: OKLCH scale generation,
   the semantic layer solved by measuring APCA against real fills, and
   `resolveTokens()`. `studio/export/` turns that one serialization into
   `tokens.css`, DTCG JSON, a style guide page and an agent skill.
-  Salvaged from Brand Forge and covered by its test suite.
-- `studio/seedFromScan.ts` — the bridge: a `ScanResult` becomes a `BrandConfig`.
+- `studio/seedFromScan.ts` — the bridge from a `ScanResult` to a `BrandConfig`.
+  `studio/reskin.ts` decides what a seed change does to the page;
+  `studio/commit.ts` describes a change for an agent; `studio/changes.ts`,
+  `selector.ts`, `measure.ts`, `tokenMatch.ts` and `edits.ts` are the pure
+  halves of element editing and persistence.
+- `packages/bridge/` — `codename-bridge`, the companion process.
+  `shared/protocol.ts` is the one contract between it and the panel.
 - Permissions stay minimal: `activeTab`, `tabs`, `scripting`, `sidePanel`,
   `storage`. Broad host access is optional and requested per-site at the moment
   it is needed.
 
 ## Status
 
-Working: extraction, the four-tab panel, the Design tab with live re-skin of
-the real page, asset export, file export, and the hand-off brief for your
-agent (copy or JSON). Next: the local agent bridge, a dark panel on its own
-design tokens, and selected-element editing. See `PLAN.md`.
+Working: extraction, the four-tab panel on its own dark design system, live
+re-skin, element selection and editing with a changes list, notes, the
+hand-off brief, the local bridge with its MCP tools, and the exports. See
+`PLAN.md` for what is next and what was deliberately left out.
 
 ## License
 
-MIT
+MIT. Geist and Geist Mono are bundled under the SIL Open Font License; see
+`public/fonts/LICENSE-Geist-OFL.txt`.

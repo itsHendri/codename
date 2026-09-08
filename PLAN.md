@@ -42,6 +42,17 @@ and a light-only panel with no design tokens of its own.
 
 ## Done
 
+- **The four workstreams below, September 2026.** Panel design system with
+  dark mode (`style.css`, `theme.test.ts`); the local bridge
+  (`packages/bridge`, `shared/protocol.ts`, `lib/bridge.ts`); element
+  selection and editing with a changes list, undo and token preference
+  (`inspector.content.ts`, `lib/inspect.ts`, `studio/changes.ts`,
+  `studio/selector.ts`, `studio/measure.ts`, `studio/tokenMatch.ts`); notes
+  pinned to elements; per-site persistence of decisions (`studio/edits.ts`);
+  the export bundle wired into the Export tab; `PRIVACY.md`. 366 tests.
+  Verified in the harness and against a live bridge driven over stdio MCP;
+  the in-page inspector and screenshots still want a pass in a real Chrome
+  with the extension loaded.
 - **Honest extraction.** `seedFromScan` builds a `BrandConfig` from the page:
   ramp names from the site's own CSS variables, type scale from observed usage,
   radius/spacing/elevation from a scanner pass, fonts that actually load,
@@ -51,7 +62,8 @@ and a light-only panel with no design tokens of its own.
   a header control and the full-tab Studio deleted.
 - **Live re-skin** (both mechanisms, below) and the **hand-off brief**
   (`studio/commit.ts`), delivered by copy or JSON.
-- 277 tests. `.harness/` renders the panel outside the extension.
+- `.harness/` renders the panel outside the extension; `?theme=` picks the
+  palette and `chrome.__emit` fakes a content-script message.
 
 ## Live re-skin
 
@@ -113,7 +125,9 @@ hint.
 
 ## Roadmap
 
-Four workstreams, in dependency order. Sizes are rough.
+The four workstreams below shipped in September 2026 (see Done). They are
+kept here as the record of what was decided and why; the Deferred list is
+what is next.
 
 **0. Foundations (S+M).** vitest config (today tests pass only because every
 `@/` import in `studio/` is type-only); a per-tab session store so a Design
