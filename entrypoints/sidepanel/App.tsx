@@ -4,12 +4,12 @@ import {
   ensureHostAccess,
   getActiveTab,
   isRestricted,
-  loadScan,
   runScan,
-  saveScan,
   startInspector,
   stopInspector,
 } from './lib/messaging';
+import { loadSession, setScan, updateSession, useSession } from './lib/session';
+import { useDesignModel, useLiveReskin } from './lib/designModel';
 import {
   DesignIcon,
   ExportIcon,
@@ -38,24 +38,21 @@ const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'export', label: 'Export', Icon: ExportIcon },
 ];
 
-function sameOrigin(a: string, b: string): boolean {
-  try {
-    return new URL(a).origin === new URL(b).origin;
-  } catch {
-    return false;
-  }
-}
-
 export default function App() {
   const [active, setActive] = useState<TabKey>('inspect');
   const [tabId, setTabId] = useState<number | null>(null);
   const [tabUrl, setTabUrl] = useState<string>('');
-  const [scan, setScan] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [pinned, setPinned] = useState<PinnedElement | null>(null);
   const [inspecting, setInspecting] = useState(false);
   const tabIdRef = useRef<number | null>(null);
+
+  // The session outlives whichever tab is showing: an edit made in Design is
+  // still there, and still painted on the page, after a detour through Inspect.
+  const { scan, config, mode, live, pinned } = useSession();
+  const model = useDesignModel(scan, config, mode);
+  const reskin = useLiveReskin(tabId, live, model);
+  const setPinned = (p: PinnedElement | null) => updateSession({ pinned: p });
 
   const restricted = isRestricted(tabUrl);
 
@@ -65,13 +62,11 @@ export default function App() {
     tabIdRef.current = tab.id;
     setTabId(tab.id);
     setTabUrl(tab.url ?? '');
-    // Drop a cached scan if the tab has since navigated to a different origin.
-    const stored = await loadScan<ScanResult>(tab.id);
-    setScan(stored && tab.url && sameOrigin(stored.url, tab.url) ? stored : null);
+    // A stored session is kept only while the tab is still on that origin.
+    await loadSession(tab.id, tab.url ?? '');
     setInspecting(false);
     setScanning(false);
     setScanError(null);
-    setPinned(null);
   }, []);
 
   useEffect(() => {
@@ -97,10 +92,8 @@ export default function App() {
       // Only accept messages from content scripts in the tab this panel is scoped to.
       if (sender.tab?.id !== tabIdRef.current) return;
       if (msg?.type === 'scan-result') {
-        const data = msg.data as ScanResult;
-        setScan(data);
+        setScan(msg.data as ScanResult);
         setScanning(false);
-        if (sender.tab?.id != null) void saveScan(sender.tab.id, data);
       } else if (msg?.type === 'scan-error') {
         setScanning(false);
         setScanError(msg.error ?? 'Scan failed');
@@ -186,7 +179,18 @@ export default function App() {
         );
         break;
       case 'design':
-        content = <DesignTab scan={scan!} tabId={tabId} />;
+        content = (
+          <DesignTab
+            scan={scan!}
+            model={model!}
+            mode={mode}
+            live={live}
+            reskin={reskin}
+            onModeChange={(m) => updateSession({ mode: m })}
+            onLiveChange={(v) => updateSession({ live: v })}
+            onConfigChange={(c) => updateSession({ config: c })}
+          />
+        );
         break;
       case 'assets':
         content = <SvgsTab scan={scan!} />;

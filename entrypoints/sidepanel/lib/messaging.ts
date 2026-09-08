@@ -47,15 +47,6 @@ export async function stopInspector(tabId: number): Promise<void> {
   }
 }
 
-export async function saveScan(tabId: number, data: unknown): Promise<void> {
-  await chrome.storage.session.set({ [`scan:${tabId}`]: data });
-}
-
-export async function loadScan<T>(tabId: number): Promise<T | null> {
-  const entry = await chrome.storage.session.get(`scan:${tabId}`);
-  return (entry[`scan:${tabId}`] as T) ?? null;
-}
-
 /* ---------------- live re-skin ---------------- */
 
 interface ReskinOverride {

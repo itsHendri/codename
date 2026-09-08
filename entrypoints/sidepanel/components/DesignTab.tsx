@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ScaleRole } from '@/studio/engine/types';
-import { resolveTokens } from '@/studio/engine/resolve';
-import { seedBrandFromScan } from '@/studio/seedFromScan';
-import { buildColorMap, buildReskin } from '@/studio/reskin';
-import { applyReskin, clearReskin } from '../lib/messaging';
+import type { DesignModel } from '../lib/designModel';
+import type { ReskinResult } from '../lib/messaging';
 import { Section } from './design/Section';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
@@ -20,61 +18,33 @@ type SectionKey = 'colour' | 'type' | 'space';
  * your head across two of them; they are one thing seen from two angles, and
  * this is that thing. It also absorbs what the full-tab Studio did, minus the
  * synthetic preview — in an extension the live site is the preview.
+ *
+ * The edit itself lives in the session store, not here: leaving this tab must
+ * not discard it or un-paint the page.
  */
-export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | null }) {
-  // The brand is derived from the scan and then edited in place. A fresh scan
-  // discards edits, which is correct: it is a different reading of the page.
-  const [config, setConfig] = useState<BrandConfig | null>(null);
-  const [mode, setMode] = useState<Mode>('light');
+export function DesignTab({
+  scan,
+  model,
+  mode,
+  live,
+  reskin,
+  onModeChange,
+  onLiveChange,
+  onConfigChange,
+}: {
+  scan: ScanResult;
+  model: DesignModel;
+  mode: Mode;
+  live: boolean;
+  reskin: ReskinResult | null;
+  onModeChange: (mode: Mode) => void;
+  onLiveChange: (live: boolean) => void;
+  onConfigChange: (config: BrandConfig | null) => void;
+}) {
   const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour']));
-  // On by default: the page is the canvas, so an edit you cannot see is not an
-  // edit. Overrides last the session and die with the document.
-  const [live, setLive] = useState(true);
-  const [result, setResult] = useState<{ vars: number; rules: number } | null>(null);
   const [handingOff, setHandingOff] = useState(false);
-
-  // Both hooks run unconditionally — `config ?? useMemo(...)` short-circuits and
-  // would make the hook call conditional.
-  const seeded = useMemo(() => seedBrandFromScan(scan), [scan]);
-  const brand = config ?? seeded;
-  const resolved = useMemo(() => resolveTokens(brand), [brand]);
-  const baseline = useMemo(() => resolveTokens(seeded), [seeded]);
-
-  // What the page's own variables become under the edited system.
-  const overrides = useMemo(
-    () => (config ? buildReskin(scan.customProps, baseline, resolved, mode) : []),
-    [config, scan.customProps, baseline, resolved, mode],
-  );
-  // For pages with no variables to override, the colours themselves are the
-  // handle: the page's own rules get re-emitted with the new values.
-  const colorMap = useMemo(
-    () => (config ? buildColorMap(scan.colors, baseline, resolved, mode) : {}),
-    [config, scan.colors, baseline, resolved, mode],
-  );
-
-  // Push to the page whenever the result changes. Cleared on unmount so leaving
-  // the tab does not leave the site repainted behind you.
-  const lastSent = useRef<string>('');
-  useEffect(() => {
-    if (!tabId) return;
-    if (!live) {
-      if (lastSent.current !== '') {
-        lastSent.current = '';
-        void clearReskin(tabId).then(() => setResult(null));
-      }
-      return;
-    }
-    const key = JSON.stringify([overrides, colorMap]);
-    if (key === lastSent.current) return;
-    lastSent.current = key;
-    void applyReskin(tabId, overrides, colorMap).then(setResult);
-  }, [tabId, live, overrides, colorMap]);
-
-  useEffect(() => {
-    return () => {
-      if (tabId) void clearReskin(tabId);
-    };
-  }, [tabId]);
+  const { brand, resolved, edited, overrides, colorMap } = model;
+  const result = reskin;
 
   const toggle = (key: SectionKey) =>
     setOpen((prev) => {
@@ -86,7 +56,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
 
   const setSeed = useCallback(
     (role: ScaleRole, seed: string) => {
-      setConfig({
+      onConfigChange({
         ...brand,
         color: {
           ...brand.color,
@@ -94,10 +64,9 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
         },
       });
     },
-    [brand],
+    [brand, onConfigChange],
   );
 
-  const edited = config !== null;
   const failing = resolved.warnings.filter((w) => w.level === 'fail').length;
 
   return (
@@ -109,7 +78,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
         }`}
       >
         <button
-          onClick={() => setLive((v) => !v)}
+          onClick={() => onLiveChange(!live)}
           className={`flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 ${
             live ? 'justify-end border-blue-600 bg-blue-600' : 'justify-start border-gray-400 bg-gray-200'
           }`}
@@ -133,7 +102,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
         </span>
         {edited && (
           <button
-            onClick={() => setConfig(null)}
+            onClick={() => onConfigChange(null)}
             className="text-blue-600 hover:underline"
             title="Go back to what the page actually uses"
           >
@@ -152,7 +121,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
           {(['light', 'dark'] as const).map((m) => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              onClick={() => onModeChange(m)}
               className={`rounded px-2 py-0.5 text-[10px] capitalize ${
                 mode === m ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'
               }`}
