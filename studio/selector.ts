@@ -34,10 +34,10 @@ export function isStableClass(name: string): boolean {
   return !UNSTABLE_CLASS.some((re) => re.test(name));
 }
 
-/** CSS.escape when available, else a safe fallback that backslash-escapes anything outside [A-Za-z0-9_-] and a leading digit. */
+/** CSS.escape when available, else a safe fallback that backslash-escapes anything outside [A-Za-z0-9_-] and non-ASCII up to U+FFFD (never U+FFFF: Chrome will not inject a file containing a noncharacter), plus a leading digit. */
 export function escapeIdent(s: string): string {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(s);
-  return s.replace(/^(\d)/, (d) => `\\3${d} `).replace(/[^\w -￿-]/g, (c) => `\\${c}`);
+  return s.replace(/^(\d)/, (d) => `\\3${d} `).replace(/[^\w\u00a0-\ufffd-]/g, (c) => `\\${c}`);
 }
 
 /** `tag#id` or null when the element has no id, the id contains whitespace, or it is not unique in root. */

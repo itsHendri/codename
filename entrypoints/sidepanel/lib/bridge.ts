@@ -138,7 +138,15 @@ async function handle(req: BridgeRequest): Promise<unknown> {
     case 'screenshot': {
       const win = await chrome.windows.getCurrent();
       if (win.id == null) throw new Error('no window');
-      return captureVisible(win.id);
+      try {
+        return await captureVisible(win.id);
+      } catch (err) {
+        // captureVisibleTab needs activeTab, which only a click on the toolbar
+        // icon grants — and a navigation takes it away again.
+        if (String(err).includes('activeTab'))
+          throw new Error('Chrome allows a screenshot only after the Codename icon was clicked on this tab; ask the user to click it and try again');
+        throw err;
+      }
     }
     case 'apply_css': {
       if (!session.agentMayWrite) throw new Error('the user has not allowed the agent to change this page');

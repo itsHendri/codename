@@ -15,7 +15,8 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "postbuild": "node scripts/check-content-scripts.mjs"
   },
   "dependencies": {
     "@projectwallace/css-analyzer": "^9.9.3",

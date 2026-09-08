@@ -312,7 +312,8 @@ function activate() {
       dot.className = `pin${pin.done ? ' done' : ''}`;
       dot.textContent = pin.label;
       dot.title = pin.selector;
-      Object.assign(dot.style, { left: `${r.left + 10}px`, top: `${r.top - 4}px` });
+      // Top-right corner, clear of the hover tag that sits at the top-left.
+      Object.assign(dot.style, { left: `${r.right - 10}px`, top: `${r.top - 4}px` });
       dot.addEventListener('click', (e) => {
         e.stopPropagation();
         send({ type: 'pin-clicked', id: pin.id });
