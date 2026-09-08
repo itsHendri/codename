@@ -16,7 +16,7 @@ actually running, edit it, and take it with you.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
     from the page and with off-grid strays named rather than rounded in.
 - **Assets** — every SVG on the page (inline, `<img>`, CSS backgrounds, sprite
-  `<use>`, favicons), previewed with copy, per-file download and ZIP export.
+  `<use>`, favicons), previewed with copy and ZIP export.
 - **Export** — `brand.md` for agent context and `tokens.json` in W3C DTCG
   format, plus a consistency report.
 
@@ -86,9 +86,10 @@ node node_modules/vite/bin/vite.js --config .harness/vite.config.ts
 
 ## Status
 
-Working: extraction, the four-tab panel, the Design tab, asset export, file
-export. Not built yet: applying edits to the live page, and the agent link that
-turns those edits into a commit in your own repo. See `PLAN.md`.
+Working: extraction, the four-tab panel, the Design tab with live re-skin of
+the real page, asset export, file export, and the hand-off brief for your
+agent (copy or JSON). Next: the local agent bridge, a dark panel on its own
+design tokens, and selected-element editing. See `PLAN.md`.
 
 ## License
 
