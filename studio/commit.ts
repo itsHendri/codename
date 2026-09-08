@@ -58,6 +58,14 @@ export interface ElementEdit {
   token?: string;
 }
 
+/** A note the user pinned to an element, in the form the agent works from. */
+export interface CommentNote {
+  id: string;
+  selector: string;
+  matches: number;
+  text: string;
+}
+
 export interface ChangeSet {
   site: string;
   editedAt: string;
@@ -66,6 +74,8 @@ export interface ChangeSet {
   tokens: TokenChange[];
   colors: ColorChange[];
   elements: ElementEdit[];
+  /** Pending notes; resolved and dismissed ones stay out of the brief. */
+  comments: CommentNote[];
   /** Stylesheets that could not be read, so the count may be short. */
   unreadable: string[];
 }
@@ -114,11 +124,15 @@ export function isLocal(url: string): boolean {
   }
 }
 
+/** The little a hand-off needs to know about the page; a full scan has all of it. */
+export type ScanLike = Pick<ScanResult, 'url' | 'cssText' | 'customProps' | 'unreadableSheets'>;
+
 export function buildChangeSet(
-  scan: ScanResult,
+  scan: ScanLike,
   overrides: Override[],
   colorMap: Record<string, string>,
   elements: ElementChange[] = [],
+  comments: CommentNote[] = [],
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
@@ -150,12 +164,15 @@ export function buildChangeSet(
     tokens,
     colors,
     elements: summariseElements(elements),
+    comments,
     unreadable: scan.unreadableSheets,
   };
 }
 
 export function isEmpty(set: ChangeSet): boolean {
-  return set.tokens.length === 0 && set.colors.length === 0 && set.elements.length === 0;
+  return (
+    set.tokens.length === 0 && set.colors.length === 0 && set.elements.length === 0 && set.comments.length === 0
+  );
 }
 
 /**
@@ -235,6 +252,18 @@ export function toPrompt(set: ChangeSet): string {
         );
       }
     }
+    lines.push('');
+  }
+
+  if (set.comments.length) {
+    lines.push(`## Comments — ${set.comments.length}`);
+    lines.push('');
+    lines.push('Notes I pinned to elements on the page. Each names the element it is about.');
+    lines.push('');
+    set.comments.forEach((c, i) => {
+      lines.push(`${i + 1}. \`${c.selector}\`${c.matches > 1 ? ` (${c.matches} elements)` : ''} — ${c.id}`);
+      lines.push(`   ${c.text.replace(/\n/g, '\n   ')}`);
+    });
     lines.push('');
   }
 

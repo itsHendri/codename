@@ -143,6 +143,31 @@ export function setPinned(pinned: PinnedElement | null) {
   bumpRevision({ pinned });
 }
 
+const commentId = () => `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+export function addComment(selector: string, matches: number, url: string, text: string): Comment {
+  const comment: Comment = {
+    id: commentId(),
+    url: pageKey(url),
+    selector,
+    matches,
+    text,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    replies: [],
+  };
+  bumpRevision({ comments: [...state.comments, comment] });
+  return comment;
+}
+
+export function editComment(id: string, text: string) {
+  bumpRevision({ comments: state.comments.map((c) => (c.id === id ? { ...c, text } : c)) });
+}
+
+export function removeComment(id: string) {
+  bumpRevision({ comments: state.comments.filter((c) => c.id !== id) });
+}
+
 export function setCommentStatus(id: string, status: CommentStatus) {
   bumpRevision({
     comments: state.comments.map((c) => (c.id === id ? { ...c, status } : c)),

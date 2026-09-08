@@ -18,6 +18,7 @@ import {
 } from '@/shared/protocol';
 import { buildChangeSet, isEmpty, isLocal, toPrompt } from '@/studio/commit';
 import { active } from '@/studio/changes';
+import { pendingNotes } from './comments';
 import type { DesignModel } from './designModel';
 import { applyAgentPreview, captureVisible, clearAgentPreview } from './messaging';
 import {
@@ -254,9 +255,15 @@ export function useBridgeSync(
   tabIdForRequests = tabId;
   const changes = useMemo(() => {
     if (!session.scan) return null;
-    const set = buildChangeSet(session.scan, model?.overrides ?? [], model?.colorMap ?? {}, active(session.log));
+    const set = buildChangeSet(
+      session.scan,
+      model?.overrides ?? [],
+      model?.colorMap ?? {},
+      active(session.log),
+      pendingNotes(session.comments),
+    );
     return isEmpty(set) ? null : set;
-  }, [model, session.scan, session.log]);
+  }, [model, session.scan, session.log, session.comments]);
   const state = useMemo<SessionState | null>(() => {
     if (tabId == null) return null;
     let origin = '';

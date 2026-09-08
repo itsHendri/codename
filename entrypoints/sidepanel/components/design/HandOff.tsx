@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { ScanResult } from '@/shared/types';
 import type { Override } from '@/studio/reskin';
-import { buildChangeSet, isEmpty, toJson, toPrompt } from '@/studio/commit';
+import { buildChangeSet, isEmpty, toJson, toPrompt, type ScanLike } from '@/studio/commit';
 import { active } from '@/studio/changes';
+import { pendingNotes } from '../../lib/comments';
 import { download } from '../../lib/exporters';
 import { sendToAgent, useBridge } from '../../lib/bridge';
 import { useSession } from '../../lib/session';
@@ -21,18 +21,18 @@ export function HandOff({
   colorMap,
   onClose,
 }: {
-  scan: ScanResult;
+  scan: ScanLike;
   overrides: Override[];
   colorMap: Record<string, string>;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status } = useBridge();
-  const { handoff, log } = useSession();
+  const { handoff, log, comments } = useSession();
   const connected = status === 'connected';
   const set = useMemo(
-    () => buildChangeSet(scan, overrides, colorMap, active(log)),
-    [scan, overrides, colorMap, log],
+    () => buildChangeSet(scan, overrides, colorMap, active(log), pendingNotes(comments)),
+    [scan, overrides, colorMap, log, comments],
   );
   const prompt = useMemo(() => toPrompt(set), [set]);
 
@@ -170,6 +170,24 @@ export function HandOff({
                       </span>
                       {e.token && <span className="ml-auto text-accent">{e.token}</span>}
                     </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {set.comments.length > 0 && (
+              <section className="flex flex-col gap-1.5">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-base">Comments</span>
+                  <span className="ml-auto text-2xs text-ink-muted">{set.comments.length}</span>
+                </div>
+                {set.comments.map((c, i) => (
+                  <div key={c.id} className="rounded-control border border-line-subtle px-2 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-2xs text-ink-muted">{i + 1}</span>
+                      <code className="min-w-0 flex-1 truncate text-xs">{c.selector}</code>
+                    </div>
+                    <p className="mt-0.5 text-2xs text-ink-secondary">{c.text}</p>
                   </div>
                 ))}
               </section>

@@ -49,7 +49,7 @@ describe('MCP tools', () => {
 
     expect(textOf(await client.callTool({ name: 'get_changes', arguments: {} }))).toMatch(/has not sent any state/);
 
-    const changes = { site: 'http://localhost:3000', editedAt: 'now', local: true, tokens: [], colors: [], elements: [], unreadable: [] };
+    const changes = { site: 'http://localhost:3000', editedAt: 'now', local: true, tokens: [], colors: [], elements: [], comments: [], unreadable: [] };
     sessions.update('s1', makeState('s1', 1, { changes, prompt: 'live prompt', comments: [{ id: 'c1', url: '', selector: 'h1', matches: 1, text: 'bigger', status: 'pending', createdAt: '', replies: [] }] }));
     expect(JSON.parse(textOf(await client.callTool({ name: 'get_changes', arguments: {} })))).toEqual({ source: 'live', changes, prompt: 'live prompt' });
 

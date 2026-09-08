@@ -11,6 +11,9 @@ import {
 import { loadSession, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
+import { HandOff } from './components/design/HandOff';
+import { active as activeChanges } from '@/studio/changes';
+import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
 import { DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
@@ -53,7 +56,13 @@ export default function App() {
   const reskin = useLiveReskin(tabId, live, model);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
-  const ctl = useInspect(tabId, session);
+  const [focusedComment, setFocusedComment] = useState<string | null>(null);
+  const [handingOff, setHandingOff] = useState(false);
+  // A hand-off can carry a seed edit, element edits or notes, from any tab.
+  const hasChanges =
+    !!model?.edited || activeChanges(session.log).length > 0 || pendingNotes(session.comments).length > 0;
+  const scanLike = scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] };
+  const ctl = useInspect(tabId, tabUrl, session, focusedComment);
   const ctlRef = useRef(ctl);
   ctlRef.current = ctl;
 
@@ -105,6 +114,9 @@ export default function App() {
         if (msg.data) setActive('inspect');
       } else if (msg?.type === 'hover-toggled') {
         setInspecting(Boolean(msg.active));
+      } else if (msg?.type === 'pin-clicked') {
+        setFocusedComment((msg as { id?: string }).id ?? null);
+        setActive('inspect');
       } else if (msg?.type === 'inspector-shortcut') {
         // Cmd+Z pressed on the page while an element is selected.
         if ((msg as { action?: string }).action === 'redo') ctlRef.current.redo();
@@ -227,6 +239,8 @@ export default function App() {
             onModeChange={(m) => updateSession({ mode: m })}
             onLiveChange={(v) => updateSession({ live: v })}
             onConfigChange={(c) => updateSession({ config: c })}
+            hasChanges={hasChanges}
+            onHandOff={() => setHandingOff(true)}
           />
         );
         break;
@@ -272,8 +286,16 @@ export default function App() {
         ))}
       </nav>
 
-      <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="flex-1 overflow-y-auto">
+      <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="relative flex-1 overflow-y-auto">
         {content}
+        {handingOff && (
+          <HandOff
+            scan={scanLike}
+            overrides={model?.overrides ?? []}
+            colorMap={model?.colorMap ?? {}}
+            onClose={() => setHandingOff(false)}
+          />
+        )}
       </main>
 
       <footer className="flex items-center gap-2 border-t border-line-subtle px-3.5 py-2 text-sm text-ink-muted">
@@ -287,10 +309,18 @@ export default function App() {
         ) : (
           <span className="truncate">{restricted ? "Can't scan this page" : 'Not scanned yet'}</span>
         )}
+        {hasChanges && !handingOff && (
+          <button
+            onClick={() => setHandingOff(true)}
+            className="ml-auto shrink-0 rounded-control border border-accent bg-accent-soft px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent hover:text-accent-ink"
+          >
+            Hand to agent →
+          </button>
+        )}
         <button
           onClick={handleScan}
           disabled={restricted || scanning || !tabId}
-          className="ml-auto rounded-control border border-line px-2.5 py-0.5 text-ink-secondary hover:bg-surface-recessed disabled:opacity-40"
+          className={`${hasChanges ? '' : 'ml-auto '}rounded-control border border-line px-2.5 py-0.5 text-ink-secondary hover:bg-surface-recessed disabled:opacity-40`}
         >
           {scanning ? 'Scanning…' : scan ? 'Rescan' : 'Scan'}
         </button>

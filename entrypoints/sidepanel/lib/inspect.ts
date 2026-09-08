@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps } from '@/shared/types';
+import type { Comment, CommentStatus } from '@/shared/protocol';
 import {
   canRedo,
   canUndo,
@@ -21,7 +22,15 @@ import {
   type ChangeLog,
 } from '@/studio/changes';
 import { applyElementRules, sendInspector } from './messaging';
-import { setPinned, updateSession, type TabSession } from './session';
+import {
+  addComment as addCommentToSession,
+  removeComment as removeCommentFromSession,
+  setCommentStatus as setStatusInSession,
+  setPinned,
+  updateSession,
+  type TabSession,
+} from './session';
+import { pinsOf } from './comments';
 
 export type Scope = 'element' | 'all';
 
@@ -46,6 +55,15 @@ export interface InspectController {
   measure(on: boolean): void;
   measuring: boolean;
   clear(): void;
+  /** Notes pinned to elements on this page. */
+  comments: Comment[];
+  /** The note whose pin was last clicked on the page. */
+  focusedComment: string | null;
+  addComment(text: string): void;
+  removeComment(id: string): void;
+  setCommentStatus(id: string, status: CommentStatus): void;
+  /** Select the element a note is about. */
+  selectComment(comment: Comment): void;
 }
 
 /** The current value of a longhand, as the element reports it. */
@@ -82,12 +100,22 @@ export function readValue(el: ElementProps, property: string): string {
 
 export function useInspect(
   tabId: number | null,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation'>,
+  tabUrl: string,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments'>,
+  focusedComment: string | null,
 ): InspectController {
-  const { pinned: element, log, generation } = session;
+  const { pinned: element, log, generation, comments } = session;
   const [scope, setScope] = useState<Scope>('element');
   const [measuring, setMeasuring] = useState(false);
   const [holding, setHolding] = useState(false);
+
+  // Pins follow the notes; pushed again after a reload, like the rules.
+  const pinsKey = JSON.stringify(pinsOf(comments));
+  useEffect(() => {
+    if (tabId == null || (!comments.length && generation === 0)) return;
+    void sendInspector(tabId, { cmd: 'pins', pins: pinsOf(comments) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId, pinsKey, generation]);
 
   const setLog = useCallback((next: ChangeLog | ((l: ChangeLog) => ChangeLog)) => {
     updateSession((s) => ({ log: typeof next === 'function' ? next(s.log) : next }));
@@ -192,5 +220,15 @@ export function useInspect(
       send({ cmd: 'deselect' });
       setPinned(null);
     },
+    comments,
+    focusedComment,
+    addComment: (text) => {
+      if (!element) return;
+      const wide = scope === 'all' && element.intent.matches > 1;
+      addCommentToSession(wide ? element.intent.selector : element.selector, wide ? element.intent.matches : 1, tabUrl, text);
+    },
+    removeComment: removeCommentFromSession,
+    setCommentStatus: setStatusInSession,
+    selectComment: (c) => send({ cmd: 'select', selector: c.selector }),
   };
 }

@@ -179,6 +179,21 @@ describe('element changes', () => {
   });
 });
 
+describe('comments', () => {
+  it('lists pending notes by element and counts towards emptiness', () => {
+    const set = buildChangeSet(scanOf(), [], {}, [], [
+      { id: 'n1', selector: '.hero h1', matches: 1, text: 'Too loud.\nTry the secondary weight.' },
+      { id: 'n2', selector: 'a.btn', matches: 3, text: 'These should all be the same height.' },
+    ]);
+    expect(isEmpty(set)).toBe(false);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('## Comments — 2');
+    expect(prompt).toContain('1. `.hero h1` — n1');
+    expect(prompt).toContain('   Too loud.\n   Try the secondary weight.');
+    expect(prompt).toContain('2. `a.btn` (3 elements) — n2');
+  });
+});
+
 describe('toJson', () => {
   it('round-trips', () => {
     const set = buildChangeSet(scanOf(), [markOverride], {});

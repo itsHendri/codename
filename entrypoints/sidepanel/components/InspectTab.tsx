@@ -8,6 +8,7 @@ import { EyeDropperButton } from './EyeDropperButton';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { ChangesList } from './inspect/ChangesList';
 import { PropertyPanel } from './inspect/PropertyPanel';
+import { CommentComposer, CommentList } from './inspect/Comments';
 
 /** Inspect works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -72,6 +73,9 @@ export function InspectTab({
             onChange={ctl.change}
             onText={ctl.setText}
           />
+          <div className="border-t border-dashed border-line-subtle pt-2.5">
+            <CommentComposer element={el} onAdd={ctl.addComment} />
+          </div>
           {ctl.log.entries.length > 0 && (
             <div className="border-t border-dashed border-line-subtle pt-2.5">
               <ChangesList
@@ -89,6 +93,14 @@ export function InspectTab({
           Pin an element to see its font, colors, box model and contrast here.
         </p>
       )}
+
+      <CommentList
+        comments={ctl.comments}
+        focusId={ctl.focusedComment}
+        onSelect={ctl.selectComment}
+        onStatus={ctl.setCommentStatus}
+        onRemove={ctl.removeComment}
+      />
     </div>
   );
 }

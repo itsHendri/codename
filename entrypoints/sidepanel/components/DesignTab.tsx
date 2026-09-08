@@ -7,7 +7,6 @@ import { Section } from './design/Section';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
-import { HandOff } from './design/HandOff';
 
 type SectionKey = 'colour' | 'type' | 'space';
 
@@ -31,6 +30,8 @@ export function DesignTab({
   onModeChange,
   onLiveChange,
   onConfigChange,
+  hasChanges,
+  onHandOff,
 }: {
   scan: ScanResult;
   model: DesignModel;
@@ -40,10 +41,12 @@ export function DesignTab({
   onModeChange: (mode: Mode) => void;
   onLiveChange: (live: boolean) => void;
   onConfigChange: (config: BrandConfig | null) => void;
+  /** Anything to hand off, from any tab. */
+  hasChanges: boolean;
+  onHandOff: () => void;
 }) {
   const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour']));
-  const [handingOff, setHandingOff] = useState(false);
-  const { brand, resolved, edited, overrides, colorMap } = model;
+  const { brand, resolved, edited } = model;
   const result = reskin;
 
   const toggle = (key: SectionKey) =>
@@ -109,9 +112,9 @@ export function DesignTab({
             revert
           </button>
         )}
-        {edited && (
+        {hasChanges && (
           <button
-            onClick={() => setHandingOff(true)}
+            onClick={onHandOff}
             className="ml-auto shrink-0 rounded-control border border-accent bg-surface-panel px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
           >
             Hand to agent →
@@ -161,14 +164,6 @@ export function DesignTab({
         <SpaceSection scan={scan} config={brand} resolved={resolved} />
       </Section>
 
-      {handingOff && (
-        <HandOff
-          scan={scan}
-          overrides={overrides}
-          colorMap={colorMap}
-          onClose={() => setHandingOff(false)}
-        />
-      )}
     </div>
   );
 }
