@@ -29,9 +29,11 @@ to your agent — which can be connected, so you never paste.
   `DESIGN_SYSTEM.md` reference, a standalone style-guide page, or all of it as
   a ZIP.
 
-Viewport presets and the site name live in the header. The wordmark opens the
-menu: theme (dark by default, light, or follow the system) and the agent
-bridge.
+While the panel is open on a site, a thin bar sits across the top of the
+page: the Codename mark, the host, the live viewport size with the device
+presets behind it, and the Inspect switch. Click the mark to fold it to a
+pill. The panel's wordmark opens the menu: theme (dark by default, light, or
+follow the system) and the agent bridge.
 
 ## Hand to agent
 

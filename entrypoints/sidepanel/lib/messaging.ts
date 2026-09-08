@@ -35,27 +35,63 @@ export async function runScan(tabId: number): Promise<void> {
 }
 
 /**
- * Talk to the inspector, injecting it the first time. Injection is idempotent
- * and does not turn hover mode on by itself; the command does.
+ * Send to a content script, injecting it when nobody answers.
+ *
+ * "Nobody answers" has two shapes. With no script in the tab the send rejects.
+ * With *another* of our scripts in the tab — the inspector stays injected now
+ * — its listener returns false for a message it does not own and the send
+ * resolves with `undefined`. Both mean inject and try once more; injection is
+ * idempotent, so a second copy is never started.
  */
-export async function sendInspector<T = unknown>(tabId: number, command: InspectorCommand): Promise<T | null> {
-  const msg = { type: 'inspector', ...command };
-  const send = () => chrome.tabs.sendMessage(tabId, msg) as Promise<T | undefined>;
+async function sendOrInject<T>(tabId: number, file: string, message: unknown): Promise<T | null> {
+  const send = () => chrome.tabs.sendMessage(tabId, message) as Promise<T | undefined>;
   try {
+    const first = await send();
+    if (first !== undefined) return first;
+  } catch {
+    /* not injected */
+  }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
     return (await send()) ?? null;
   } catch {
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files: ['content-scripts/inspector.js'] });
-      return (await send()) ?? null;
-    } catch {
-      return null;
-    }
+    return null;
+  }
+}
+
+/** Talk to the inspector. Injection does not turn hover mode on by itself; the command does. */
+export function sendInspector<T = unknown>(tabId: number, command: InspectorCommand): Promise<T | null> {
+  return sendOrInject<T>(tabId, 'content-scripts/inspector.js', { type: 'inspector', ...command });
+}
+
+let barPort: chrome.runtime.Port | null = null;
+let barTab: number | null = null;
+
+/**
+ * Show the in-page bar and hold a port open to it, so the page knows the
+ * moment the panel closes and can take the bar and hover mode down with it.
+ */
+export async function attachBar(tabId: number): Promise<void> {
+  if (barTab === tabId && barPort) return;
+  barPort?.disconnect();
+  barPort = null;
+  barTab = tabId;
+  const shown = await sendInspector(tabId, { cmd: 'bar', on: true });
+  if (!shown) return;
+  try {
+    barPort = chrome.tabs.connect(tabId, { name: 'codename-panel' });
+    barPort.onDisconnect.addListener(() => {
+      if (barTab === tabId) barPort = null;
+    });
+  } catch {
+    barPort = null;
   }
 }
 
 export async function startInspector(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({ target: { tabId }, files: ['content-scripts/inspector.js'] });
   await sendInspector(tabId, { cmd: 'hover', on: true });
+  await attachBar(tabId);
 }
 
 export async function stopInspector(tabId: number): Promise<void> {
@@ -82,7 +118,7 @@ export interface ReskinResult {
   rules: number;
 }
 
-async function sendReskin(
+function sendReskin(
   tabId: number,
   message: {
     type: string;
@@ -92,20 +128,7 @@ async function sendReskin(
     rules?: { selector: string; property: string; value: string }[];
   },
 ): Promise<ReskinResult | null> {
-  const send = () => chrome.tabs.sendMessage(tabId, message) as Promise<ReskinResult | undefined>;
-  try {
-    return (await send()) ?? null;
-  } catch {
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['content-scripts/reskin.js'],
-      });
-      return (await send()) ?? null;
-    } catch {
-      return null;
-    }
-  }
+  return sendOrInject<ReskinResult>(tabId, 'content-scripts/reskin.js', message);
 }
 
 export function applyReskin(

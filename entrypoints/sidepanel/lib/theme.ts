@@ -15,6 +15,8 @@ export type ResolvedTheme = 'dark' | 'light';
 
 const KEY = 'theme';
 const PREFS: ThemePref[] = ['system', 'dark', 'light'];
+/** Dark is the panel's default; following the OS is a choice, not the fallback. */
+const DEFAULT: ThemePref = 'dark';
 
 const isPref = (v: unknown): v is ThemePref => PREFS.includes(v as ThemePref);
 
@@ -27,16 +29,16 @@ export function applyTheme(pref: ThemePref) {
 export function readCachedPref(): ThemePref {
   try {
     const v = localStorage.getItem(KEY);
-    return isPref(v) ? v : 'system';
+    return isPref(v) ? v : DEFAULT;
   } catch {
-    return 'system';
+    return DEFAULT;
   }
 }
 
 async function readStoredPref(): Promise<ThemePref> {
   try {
     const got = await chrome.storage.sync.get(KEY);
-    return isPref(got[KEY]) ? got[KEY] : 'system';
+    return isPref(got[KEY]) ? got[KEY] : DEFAULT;
   } catch {
     return readCachedPref();
   }

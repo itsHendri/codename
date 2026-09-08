@@ -160,6 +160,7 @@ export type InspectorCommand =
   | { cmd: 'text'; selector: string; text: string }
   | { cmd: 'pins'; pins: { id: string; selector: string; label: string; done?: boolean }[] }
   | { cmd: 'measure'; on: boolean }
+  | { cmd: 'bar'; on: boolean }
   | { cmd: 'off' };
 
 export type RuntimeMessage =
@@ -168,6 +169,7 @@ export type RuntimeMessage =
   | { type: 'hover-toggled'; active: boolean }
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }
+  | { type: 'resize-window'; width: number; height: number }
   | { type: 'text-edited'; selector: string; from: string; to: string }
   | { type: 'fetch-text'; url: string };
 

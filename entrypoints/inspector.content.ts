@@ -13,6 +13,7 @@ import type { ElementProps, InspectorCommand } from '@/shared/types';
 import { OVERLAY } from '@/shared/theme';
 import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
+import { DEVICE_PRESETS } from '@/shared/types';
 
 declare global {
   interface Window {
@@ -184,6 +185,8 @@ function find(selector: string | undefined): Element | null {
 
 function activate() {
   const c = OVERLAY[matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'];
+  // The bar is the tool's chrome, not part of the page: dark like the panel, always.
+  const d = OVERLAY.dark;
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
   const host = document.createElement(HOST_TAG.toLowerCase());
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
@@ -210,8 +213,36 @@ function activate() {
       .dist { position: fixed; pointer-events: none; transform: translate(-50%, -50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 10px/1.5 ${font}; padding: 0 5px; border-radius: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .pin { position: fixed; pointer-events: auto; cursor: pointer; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 10px 10px 10px 2px; background: ${c.accent}; color: ${c.cardBg}; font: 600 11px/20px ${font}; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
       .pin.done { opacity: 0.45; }
+      .bar { position: fixed; top: 0; left: 0; right: 0; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
+      .bar.collapsed > :not(.mark) { display: none; }
+      .bar .mark { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; letter-spacing: -0.01em; }
+      .bar .mark svg { width: 14px; height: 14px; }
+      .bar .host { color: ${d.cardMuted}; }
+      .bar .size { position: relative; cursor: pointer; padding: 3px 7px; border-radius: 4px; border: 1px solid ${d.cardLine}; color: ${d.cardInk}; background: transparent; font: inherit; }
+      .bar .size:hover { border-color: ${d.accent}; }
+      .bar .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 150px; padding: 4px; background: ${d.cardBg}; border: 1px solid ${d.cardLine}; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; }
+      .bar .menu button { text-align: left; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; display: flex; gap: 8px; }
+      .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
+      .bar .menu button:hover { background: ${d.accentWash}; }
+      .bar .spacer { flex: 1; }
+      .bar .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+      .bar .toggle .track { width: 26px; height: 14px; border-radius: 7px; background: ${d.cardLine}; position: relative; transition: background 150ms; }
+      .bar .toggle .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 5px; background: ${d.cardInk}; transition: transform 150ms; }
+      .bar .toggle.on .track { background: ${d.accent}; }
+      .bar .toggle.on .track::after { transform: translateX(12px); background: ${d.cardBg}; }
+      .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
+      .bar .fold:hover { color: ${d.cardInk}; }
       .hidden { display: none; }
     </style>
+    <div class="bar hidden">
+      <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" fill="${d.accent}" stroke="none"/></svg><span>Codename</span></div>
+      <span class="host"></span>
+      <button class="size" title="Viewport presets"></button>
+      <span class="spacer"></span>
+      <label class="toggle"><span>Inspect</span><span class="track"></span></label>
+      <span class="fold" title="Collapse">‹</span>
+    </div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="tag hidden"></div>
@@ -226,6 +257,10 @@ function activate() {
   const card = shadow.querySelector<HTMLElement>('.card')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
+  const bar = shadow.querySelector<HTMLElement>('.bar')!;
+  const barHost = bar.querySelector<HTMLElement>('.host')!;
+  const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
+  const barToggle = bar.querySelector<HTMLElement>('.toggle')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -400,7 +435,79 @@ function activate() {
       drawMeasure();
     }
     send({ type: 'hover-toggled', active: on });
+    if (barOn) renderBar();
   };
+
+  /* ----- the bar ----- */
+
+  let barOn = false;
+  let menu: HTMLElement | null = null;
+
+  const renderBar = () => {
+    barHost.textContent = location.host;
+    barSize.textContent = `${innerWidth} × ${innerHeight}`;
+    barToggle.classList.toggle('on', hoverOn);
+  };
+
+  const closeMenu = () => {
+    menu?.remove();
+    menu = null;
+  };
+
+  const openMenu = () => {
+    if (menu) return closeMenu();
+    menu = document.createElement('div');
+    menu.className = 'menu';
+    // The page knows its own chrome delta, so it can ask for an outer size directly.
+    const dw = outerWidth - innerWidth;
+    const dh = outerHeight - innerHeight;
+    for (const p of DEVICE_PRESETS) {
+      const b = document.createElement('button');
+      b.innerHTML = `${p.name}<span>${p.width} × ${p.height}</span>`;
+      b.addEventListener('click', () => {
+        send({ type: 'resize-window', width: p.width + dw, height: p.height + dh });
+        closeMenu();
+      });
+      menu.appendChild(b);
+    }
+    barSize.appendChild(menu);
+  };
+
+  const showBar = (on: boolean) => {
+    barOn = on;
+    bar.classList.toggle('hidden', !on);
+    if (on) renderBar();
+    else closeMenu();
+  };
+
+  barSize.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openMenu();
+  });
+  barToggle.addEventListener('click', () => setHover(!hoverOn));
+  // The mark folds the bar down to a pill and opens it again; the chevron only folds.
+  bar.querySelector('.mark')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    bar.classList.toggle('collapsed');
+  });
+  bar.querySelector('.fold')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    bar.classList.add('collapsed');
+  });
+  addEventListener('resize', () => barOn && renderBar());
+  addEventListener('click', () => closeMenu(), true);
+
+  // The panel holds a port open while it is showing this tab; when it goes,
+  // the bar and hover mode go with it. The selection stays for its return.
+  const onConnect = (port: chrome.runtime.Port) => {
+    if (port.name !== 'codename-panel') return;
+    showBar(true);
+    port.onDisconnect.addListener(() => {
+      showBar(false);
+      setHover(false);
+    });
+  };
+  chrome.runtime.onConnect.addListener(onConnect);
 
   /* ----- keyboard ----- */
 
@@ -487,6 +594,9 @@ function activate() {
         if (measuring && !hoverOn) setHover(true);
         drawMeasure();
         break;
+      case 'bar':
+        showBar(!!msg.on);
+        break;
       case 'off':
         deactivate();
         break;
@@ -504,6 +614,7 @@ function activate() {
     removeEventListener('resize', layout);
     observer.disconnect();
     chrome.runtime.onMessage.removeListener(onMessage);
+    chrome.runtime.onConnect.removeListener(onConnect);
     host.remove();
     delete window.__codenameInspector;
   }

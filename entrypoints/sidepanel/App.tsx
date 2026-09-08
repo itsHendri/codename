@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import {
+  attachBar,
   ensureHostAccess,
   getActiveTab,
   isRestricted,
@@ -125,6 +126,12 @@ export default function App() {
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, []);
+
+  // The in-page bar appears as soon as the site is reachable: a scan means
+  // access was granted. It goes when the panel does, through its port.
+  useEffect(() => {
+    if (tabId != null && scan && !restricted) void attachBar(tabId);
+  }, [tabId, scan, restricted]);
 
   // Undo and redo from the panel itself, unless the user is typing.
   useEffect(() => {
