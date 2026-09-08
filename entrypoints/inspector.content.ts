@@ -13,7 +13,7 @@ import type { ElementProps, InspectorCommand } from '@/shared/types';
 import { OVERLAY } from '@/shared/theme';
 import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
-import type { CommentTarget, Pin } from '@/studio/annotations';
+import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
 import { DEVICE_PRESETS } from '@/shared/types';
 
@@ -101,6 +101,9 @@ function opaqueBackground(el: Element): string {
 
 const HOST_TAG = 'CODENAME-INSPECTOR';
 const FREEZE_ID = 'codename-freeze';
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function isOurs(el: Element | null): boolean {
   return !!el && (el.tagName === HOST_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
@@ -286,7 +289,6 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .note-hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 10px; font: 500 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
       .bar { position: fixed; top: 0; left: 0; right: 0; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
       .bar.collapsed > :not(.mark) { display: none; }
@@ -300,11 +302,29 @@ function activate() {
       .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
       .bar .menu button:hover { background: ${d.accentWash}; }
       .bar .spacer { flex: 1; }
-      .bar .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
-      .bar .toggle .track { width: 26px; height: 14px; border-radius: 7px; background: ${d.cardLine}; position: relative; transition: background 150ms; }
-      .bar .toggle .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 5px; background: ${d.cardInk}; transition: transform 150ms; }
-      .bar .toggle.on .track { background: ${d.accent}; }
-      .bar .toggle.on .track::after { transform: translateX(12px); background: ${d.cardBg}; }
+      .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.cardLine}33; border: 1px solid ${d.cardLine}; }
+      .bar .mode { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
+      .bar .mode svg { width: 13px; height: 13px; }
+      .bar .mode:hover { color: ${d.cardInk}; }
+      .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
+      .bar .pause { display: flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid ${d.cardLine}; border-radius: 6px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
+      .bar .pause svg { width: 12px; height: 12px; }
+      .bar .pause:hover { color: ${d.cardInk}; }
+      .bar .pause.on { background: ${d.accent}; color: ${d.cardBg}; border-color: ${d.accent}; }
+      .hint { position: fixed; top: 34px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
+      .hint.fading { opacity: 0; }
+      .hint b { font-weight: 600; }
+      .composer { position: fixed; pointer-events: auto; width: 280px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); padding: 8px; font: 400 12px/1.4 ${font}; }
+      .composer .about { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; color: ${d.cardMuted}; font-size: 10px; }
+      .composer .about b { color: ${d.accent}; font-weight: 600; }
+      .composer textarea { width: 100%; box-sizing: border-box; resize: none; border: 1px solid ${d.cardLine}; border-radius: 5px; background: transparent; color: ${d.cardInk}; font: inherit; padding: 5px 6px; }
+      .composer textarea:focus { outline: none; border-color: ${d.accent}; }
+      .composer .keys { margin-top: 6px; font-size: 10px; color: ${d.cardMuted}; }
+      .composer .row { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+      .composer button { border: 0; border-radius: 5px; padding: 5px 11px; font: 600 11px/1 ${font}; cursor: pointer; white-space: nowrap; }
+      .composer .save { background: ${d.accent}; color: ${d.cardBg}; }
+      .composer .save:disabled { opacity: 0.4; cursor: default; }
+      .composer .cancel { background: transparent; color: ${d.cardMuted}; }
       .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
       .bar .fold:hover { color: ${d.cardInk}; }
       .hidden { display: none; }
@@ -314,11 +334,21 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <label class="toggle inspect"><span>Inspect</span><span class="track"></span></label>
-      <label class="toggle note"><span>Note</span><span class="track"></span></label>
-      <label class="toggle freeze"><span>Freeze</span><span class="track"></span></label>
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button class="mode select" role="radio" aria-checked="false">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg>Select
+        </button>
+        <button class="mode comment" role="radio" aria-checked="false">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg>Comment
+        </button>
+      </div>
+      <button class="pause" aria-pressed="false" title="Hold every animation, transition and video still">
+        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg>Pause
+      </button>
       <span class="fold" title="Collapse">‹</span>
     </div>
+    <div class="hint hidden"></div>
+    <div class="composer hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="tag hidden"></div>
@@ -327,7 +357,7 @@ function activate() {
     <div class="pins"></div>
     <div class="marquee hidden"></div>
     <div class="picks"></div>
-    <div class="note-hint hidden"></div>`;
+`;
   document.documentElement.appendChild(host);
 
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
@@ -338,13 +368,15 @@ function activate() {
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
   const pickLayer = shadow.querySelector<HTMLElement>('.picks')!;
-  const noteHint = shadow.querySelector<HTMLElement>('.note-hint')!;
+
   const bar = shadow.querySelector<HTMLElement>('.bar')!;
   const barHost = bar.querySelector<HTMLElement>('.host')!;
   const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
-  const barToggle = bar.querySelector<HTMLElement>('.toggle.inspect')!;
-  const barNote = bar.querySelector<HTMLElement>('.toggle.note')!;
-  const barFreeze = bar.querySelector<HTMLElement>('.toggle.freeze')!;
+  const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
+  const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
+  const barPause = bar.querySelector<HTMLButtonElement>('.pause')!;
+  const hint = shadow.querySelector<HTMLElement>('.hint')!;
+  const composer = shadow.querySelector<HTMLElement>('.composer')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -551,7 +583,14 @@ function activate() {
       drawMeasure();
     }
     send({ type: 'hover-toggled', active: on });
-    if (barOn) renderBar();
+    if (barOn) {
+      renderBar();
+      showHint(
+        on
+          ? '<b>Select</b> — hover for font, colour and contrast; click to pick an element. Arrow keys walk the tree, Esc lets go.'
+          : null,
+      );
+    }
   };
 
   /* ----- notes: what a note is about ----- */
@@ -573,10 +612,81 @@ function activate() {
     }
   };
 
-  const emitTarget = (target: CommentTarget) => {
+  let composing: CommentTarget | null = null;
+
+  const closeComposer = () => {
+    composing = null;
+    composer.classList.add('hidden');
+    composer.replaceChildren();
+  };
+
+  /**
+   * A note is written where it is about. Sending you to a panel to type
+   * breaks eye contact with the thing you were pointing at.
+   */
+  const openComposer = (target: CommentTarget, anchor: Rect) => {
+    composing = target;
+    composer.replaceChildren();
+
+    const about = document.createElement('div');
+    about.className = 'about';
+    about.innerHTML = `<b>${targetKindLabel(target)}</b> ${escapeHtml(describeTarget(target))}`;
+    const field = document.createElement('textarea');
+    field.rows = 3;
+    field.placeholder = 'What should change here?';
+    const keys = document.createElement('div');
+    keys.className = 'keys';
+    keys.textContent = '⌘↩ to pin · Esc to drop';
+    const row = document.createElement('div');
+    row.className = 'row';
+    const cancel = document.createElement('button');
+    cancel.className = 'cancel';
+    cancel.textContent = 'Cancel';
+    const save = document.createElement('button');
+    save.className = 'save';
+    save.textContent = 'Pin note';
+    save.disabled = true;
+
+    const submit = () => {
+      const text = field.value.trim();
+      if (!text || !composing) return;
+      send({ type: 'note-created', target: composing, text });
+      closeComposer();
+    };
+    field.addEventListener('input', () => {
+      save.disabled = !field.value.trim();
+    });
+    field.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+      if (e.key === 'Escape') closeComposer();
+    });
+    cancel.addEventListener('click', closeComposer);
+    save.addEventListener('click', submit);
+
+    row.append(cancel, save);
+    composer.append(about, field, keys, row);
+    composer.classList.remove('hidden');
+
+    // Below what it is about, not under the cursor: a box that covers the
+    // thing you just pointed at makes you move it before you can describe it.
+    const w = 280;
+    const h = composer.offsetHeight || 140;
+    const below = anchor.y + anchor.height + 8;
+    const top = below + h <= innerHeight - 8 ? below : Math.max(36, anchor.y - h - 8);
+    Object.assign(composer.style, {
+      left: `${Math.min(Math.max(8, anchor.x), innerWidth - w - 8)}px`,
+      top: `${Math.min(Math.max(36, top), innerHeight - h - 8)}px`,
+    });
+    field.focus();
+  };
+
+  const emitTarget = (target: CommentTarget, anchor: Rect) => {
     picked = [];
     drawPicks();
+    // The panel hears about it either way, so its list stays in step.
     send({ type: 'note-target', target });
+    openComposer(target, anchor);
   };
 
   /** A run of text the user has selected inside `el`, if there is one. */
@@ -593,6 +703,12 @@ function activate() {
 
   const onNoteDown = (e: MouseEvent) => {
     if (e.composedPath().includes(host)) return;
+    if (composing) {
+      // A click elsewhere puts the half-written note away rather than
+      // silently starting another one on top of it.
+      closeComposer();
+      return;
+    }
     drag = { x: e.clientX, y: e.clientY };
   };
 
@@ -627,11 +743,10 @@ function activate() {
       const y = Math.min(start.y, e.clientY);
       const centre = document.elementFromPoint(x + w / 2, y + h / 2);
       const within = centre && !isOurs(centre) ? buildSelector(centre).intent.selector : undefined;
-      emitTarget({
-        kind: 'region',
-        rect: { x: x + scrollX, y: y + scrollY, width: w, height: h },
-        within,
-      });
+      emitTarget(
+        { kind: 'region', rect: { x: x + scrollX, y: y + scrollY, width: w, height: h }, within },
+        { x, y, width: w, height: h },
+      );
       return;
     }
 
@@ -647,7 +762,10 @@ function activate() {
 
     if (picked.length) {
       const all = picked.includes(el) ? picked : [...picked, el];
-      emitTarget({ kind: 'elements', selectors: all.map((p) => buildSelector(p).selector) });
+      emitTarget(
+        { kind: 'elements', selectors: all.map((p) => buildSelector(p).selector) },
+        rectOf(el),
+      );
       return;
     }
 
@@ -657,6 +775,7 @@ function activate() {
       quote
         ? { kind: 'text', selector: sel.selector, quote }
         : { kind: 'element', selector: sel.selector, matches: sel.matches },
+      rectOf(el),
     );
   };
 
@@ -680,14 +799,16 @@ function activate() {
       addEventListener('mousemove', onNoteMove, true);
       addEventListener('mouseup', onNoteUp, true);
       addEventListener('click', onNoteClick, true);
-      noteHint.classList.remove('hidden');
-      noteHint.textContent = 'Click an element, drag a box, shift-click several, or select text';
+      showHint(
+        '<b>Comment</b> — click an element, drag a box over anything, shift-click several, or select text. Type the note where it lands.',
+      );
     } else {
       removeEventListener('mousedown', onNoteDown, true);
       removeEventListener('mousemove', onNoteMove, true);
       removeEventListener('mouseup', onNoteUp, true);
       removeEventListener('click', onNoteClick, true);
-      noteHint.classList.add('hidden');
+      showHint(null);
+      closeComposer();
       marquee.classList.add('hidden');
       picked = [];
       drag = null;
@@ -725,7 +846,10 @@ function activate() {
       }
     }
     send({ type: 'freeze-toggled', active: on });
-    if (barOn) renderBar();
+    if (barOn) {
+      renderBar();
+      showHint(on ? '<b>Paused</b> — animations, transitions and video are held still.' : null);
+    }
   };
 
   /* ----- the bar ----- */
@@ -735,9 +859,35 @@ function activate() {
   const renderBar = () => {
     barHost.textContent = location.host;
     barSize.textContent = `${innerWidth} × ${innerHeight}`;
-    barToggle.classList.toggle('on', hoverOn);
-    barNote.classList.toggle('on', noteOn);
-    barFreeze.classList.toggle('on', frozen);
+    barSelect.classList.toggle('on', hoverOn);
+    barSelect.setAttribute('aria-checked', String(hoverOn));
+    barComment.classList.toggle('on', noteOn);
+    barComment.setAttribute('aria-checked', String(noteOn));
+    barPause.classList.toggle('on', frozen);
+    barPause.setAttribute('aria-pressed', String(frozen));
+  };
+
+  /**
+   * What the mode you just chose actually does, for a few seconds.
+   * Permanent would be clutter; never is how you end up with three switches
+   * nobody can explain.
+   */
+  let hintTimer = 0;
+  const showHint = (html: string | null) => {
+    window.clearTimeout(hintTimer);
+    if (!html) {
+      hint.classList.add('hidden');
+      return;
+    }
+    hint.innerHTML = html;
+    hint.classList.remove('hidden', 'fading');
+    // Under the mode buttons, which is what it is explaining.
+    const box = bar.getBoundingClientRect();
+    hint.style.right = `${Math.max(8, innerWidth - box.right + 30)}px`;
+    hintTimer = window.setTimeout(() => {
+      hint.classList.add('fading');
+      hintTimer = window.setTimeout(() => hint.classList.add('hidden'), 300);
+    }, 4200);
   };
 
   const closeMenu = () => {
@@ -775,9 +925,9 @@ function activate() {
     e.stopPropagation();
     openMenu();
   });
-  barToggle.addEventListener('click', () => setHover(!hoverOn));
-  barNote.addEventListener('click', () => setNote(!noteOn));
-  barFreeze.addEventListener('click', () => setFreeze(!frozen));
+  barSelect.addEventListener('click', () => setHover(!hoverOn));
+  barComment.addEventListener('click', () => setNote(!noteOn));
+  barPause.addEventListener('click', () => setFreeze(!frozen));
   // The mark folds the bar down to a pill and opens it again; the chevron only folds.
   bar.querySelector('.mark')!.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -806,17 +956,23 @@ function activate() {
 
   /* ----- keyboard ----- */
 
-  const typing = (t: EventTarget | null) => {
-    const el = t as HTMLElement | null;
-    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  /**
+   * The real target, not the shadow host. A window listener sees our own host
+   * for anything inside the overlay, so `e.target` would say "not typing"
+   * while the composer has the caret.
+   */
+  const typing = (e: Event) => {
+    const el = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
+    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ''));
   };
 
   const onKey = (e: KeyboardEvent) => {
-    if (typing(e.target)) return;
+    if (typing(e)) return;
     if (e.key === 'Escape') {
       // One level at a time: a half-made note, then note mode, then hover,
       // then the selection.
-      if (picked.length) {
+      if (composing) closeComposer();
+      else if (picked.length) {
         picked = [];
         drawPicks();
       } else if (noteOn) setNote(false);

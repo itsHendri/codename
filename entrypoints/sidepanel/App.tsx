@@ -62,7 +62,7 @@ export default function App() {
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
-  // A target drawn on the page, waiting for words.
+  // A target drawn on the page, waiting for words in the Element tab's composer.
   const [pendingTarget, setPendingTarget] = useState<CommentTarget | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
@@ -158,9 +158,10 @@ export default function App() {
         if (msg.data) setActive('element');
       } else if (msg?.type === 'hover-toggled') {
         setInspecting(Boolean(msg.active));
-      } else if (msg?.type === 'note-target') {
-        setPendingTarget((msg as { target: CommentTarget }).target);
-        setActive('changes');
+      } else if (msg?.type === 'note-created') {
+        // Written on the page, in the composer that opened where you pointed.
+        const note = msg as unknown as { target: CommentTarget; text: string };
+        ctlRef.current.addComment(note.text, note.target);
       } else if (msg?.type === 'note-toggled') {
         ctlRef.current.setNotingFromPage(Boolean(msg.active));
       } else if (msg?.type === 'freeze-toggled') {

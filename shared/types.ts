@@ -181,6 +181,7 @@ export type RuntimeMessage =
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-target'; target: CommentTarget }
+  | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
   | { type: 'freeze-toggled'; active: boolean }
   | { type: 'resize-window'; width: number; height: number }

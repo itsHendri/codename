@@ -65,7 +65,8 @@ export function ElementTab({
     return (
       <div className="flex flex-col gap-3 p-3.5">
         <p className="text-xs text-ink-muted">
-          Pick a layer below, or turn on Inspect and click the page.
+          Pick a layer below, or turn on <b className="font-medium text-ink-secondary">Select</b> on
+          the bar and click the page.
           {!inspecting && (
             <button onClick={onToggle} className="ml-1.5 text-accent hover:underline">
               turn it on

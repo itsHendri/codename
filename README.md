@@ -20,9 +20,10 @@ to your agent — which can be connected, so you never paste.
   instead of a literal. Plus a screen-wide eyedropper with history.
 - **Design** — the system this page runs, editable.
   - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
-    ramps, and the semantic tokens with light/dark values and an APCA audit.
-    Change a seed and the page repaints; a token that fails the audit carries
-    a **fix** button that re-points it at the step the engine says will pass.
+    ramps, and the semantic tokens. Each token shows the ramp step it points
+    at, and clicking that opens a picker to re-point it by hand. Change a seed
+    and the page repaints; a token that fails the APCA audit carries a **fix**
+    button that re-points it at the step the engine says will pass.
   - **Type** — the families the page really renders and the size/weight/
     line-height ladder it renders them at. Drag any number to change it.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
@@ -43,11 +44,13 @@ to your agent — which can be connected, so you never paste.
 
 While the panel is open on a site, a thin bar sits across the top of the
 page: the Codename mark, the host, the live viewport size with the device
-presets behind it, and three switches. **Inspect** hovers and selects.
-**Note** marks something up: click an element, drag a box over anything
-including empty space, shift-click several, or select a run of text.
-**Freeze** holds every animation, transition and video still so you can mark
-up a moment. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
+presets behind it, and the modes. **Select** hovers for font, colour and
+contrast and clicks to pick an element. **Comment** marks something up: click
+an element, drag a box over anything including empty space, shift-click
+several, or select a run of text, then type the note in a composer that opens
+where it lands. **Pause** holds every animation, transition and video still so
+you can mark up a moment. Each mode says what it does as you enter it. Click
+the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
 light, or follow the system), site access, and the agent bridge.
 
 Reading the page is automatic wherever Chrome already lets the extension in:

@@ -5,6 +5,7 @@ import type {
   Mode,
   ResolvedTokens,
   ScaleRole,
+  SemanticRef,
   TypeRole,
   TypeRoleName,
 } from '@/studio/engine/types';
@@ -47,7 +48,11 @@ export function DesignTab({
   onLiveChange: (live: boolean) => void;
   onConfigChange: (config: BrandConfig | null) => void;
 }) {
-  const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour']));
+  // All three open. A collapsed section with a summary reads as a fact rather
+  // than a door, which is exactly how the editable type ladder went unnoticed.
+  const [open, setOpen] = useState<Set<SectionKey>>(
+    new Set<SectionKey>(['colour', 'type', 'space']),
+  );
   const { brand, resolved, edited } = model;
   const result = reskin;
 
@@ -93,6 +98,21 @@ export function DesignTab({
 
   const setRadiusBase = useCallback(
     (basePx: number) => patch({ radius: { ...brand.radius, basePx, concentric: basePx > 0 } }),
+    [brand, patch],
+  );
+
+  /** Re-point one semantic token by hand, at whatever step you pick. */
+  const repoint = useCallback(
+    (token: string, forMode: Mode, ref: SemanticRef) => {
+      const rest = brand.color.semanticOverrides.filter((o) => o.name !== token);
+      const current = brand.color.semanticOverrides.find((o) => o.name === token);
+      patch({
+        color: {
+          ...brand.color,
+          semanticOverrides: [...rest, { ...current, name: token, [forMode]: ref }],
+        },
+      });
+    },
     [brand, patch],
   );
 
@@ -195,12 +215,13 @@ export function DesignTab({
           mode={mode}
           onSeedChange={setSeed}
           onFixWarning={fixWarning}
+          onRepoint={repoint}
         />
       </Section>
 
       <Section
         title="Type"
-        summary={`${scan.fontUsage[0]?.family ?? 'none'} · ${brand.typography.roles.length} steps`}
+        summary={`${scan.fontUsage[0]?.family ?? 'none'} · ${brand.typography.roles.length} steps · editable`}
         open={open.has('type')}
         onToggle={() => toggle('type')}
       >
@@ -209,7 +230,7 @@ export function DesignTab({
 
       <Section
         title="Space & shape"
-        summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx} · ${brand.shadows.levels.length} shadows`}
+        summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx} · editable`}
         open={open.has('space')}
         onToggle={() => toggle('space')}
       >
