@@ -13,6 +13,7 @@ import type { ElementProps, InspectorCommand } from '@/shared/types';
 import { OVERLAY } from '@/shared/theme';
 import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
+import type { CommentTarget, Pin } from '@/studio/annotations';
 import { DEVICE_PRESETS } from '@/shared/types';
 
 declare global {
@@ -98,6 +99,7 @@ function opaqueBackground(el: Element): string {
 /* ---------------- reading an element ---------------- */
 
 const HOST_TAG = 'CODENAME-INSPECTOR';
+const FREEZE_ID = 'codename-freeze';
 
 function isOurs(el: Element | null): boolean {
   return !!el && (el.tagName === HOST_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
@@ -213,6 +215,9 @@ function activate() {
       .dist { position: fixed; pointer-events: none; transform: translate(-50%, -50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 10px/1.5 ${font}; padding: 0 5px; border-radius: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .pin { position: fixed; pointer-events: auto; cursor: pointer; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 10px 10px 10px 2px; background: ${c.accent}; color: ${c.cardBg}; font: 600 11px/20px ${font}; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
       .pin.done { opacity: 0.45; }
+      .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
+      .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
+      .note-hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 10px; font: 500 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
       .bar { position: fixed; top: 0; left: 0; right: 0; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
       .bar.collapsed > :not(.mark) { display: none; }
@@ -240,7 +245,9 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <label class="toggle"><span>Inspect</span><span class="track"></span></label>
+      <label class="toggle inspect"><span>Inspect</span><span class="track"></span></label>
+      <label class="toggle note"><span>Note</span><span class="track"></span></label>
+      <label class="toggle freeze"><span>Freeze</span><span class="track"></span></label>
       <span class="fold" title="Collapse">‹</span>
     </div>
     <div class="box sel hidden"></div>
@@ -248,7 +255,10 @@ function activate() {
     <div class="tag hidden"></div>
     <div class="card hidden"></div>
     <div class="measure"></div>
-    <div class="pins"></div>`;
+    <div class="pins"></div>
+    <div class="marquee hidden"></div>
+    <div class="picks"></div>
+    <div class="note-hint hidden"></div>`;
   document.documentElement.appendChild(host);
 
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
@@ -257,17 +267,28 @@ function activate() {
   const card = shadow.querySelector<HTMLElement>('.card')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
+  const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
+  const pickLayer = shadow.querySelector<HTMLElement>('.picks')!;
+  const noteHint = shadow.querySelector<HTMLElement>('.note-hint')!;
   const bar = shadow.querySelector<HTMLElement>('.bar')!;
   const barHost = bar.querySelector<HTMLElement>('.host')!;
   const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
-  const barToggle = bar.querySelector<HTMLElement>('.toggle')!;
+  const barToggle = bar.querySelector<HTMLElement>('.toggle.inspect')!;
+  const barNote = bar.querySelector<HTMLElement>('.toggle.note')!;
+  const barFreeze = bar.querySelector<HTMLElement>('.toggle.freeze')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
   let hoverOn = false;
   let measuring = false;
-  let pins: { id: string; selector: string; label: string; done?: boolean }[] = [];
+  let pins: Pin[] = [];
   let barOn = false;
+  let noteOn = false;
+  let frozen = false;
+  let freezeSheet: HTMLStyleElement | null = null;
+  /** Elements shift-clicked in note mode, in the order they were picked. */
+  let picked: Element[] = [];
+  let drag: { x: number; y: number } | null = null;
 
   const place = (box: HTMLElement, r: Rect) => {
     Object.assign(box.style, {
@@ -341,15 +362,25 @@ function activate() {
   const drawPins = () => {
     pinLayer.replaceChildren();
     for (const pin of pins) {
-      const el = find(pin.selector);
-      if (!el) continue;
-      const r = el.getBoundingClientRect();
+      let left: number;
+      let top: number;
+      if (pin.rect) {
+        // Page coordinates, so a region stays where it was drawn when you scroll.
+        left = pin.rect.x - scrollX + pin.rect.width - 10;
+        top = pin.rect.y - scrollY - 4;
+      } else {
+        const el = find(pin.selector);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        left = r.right - 10;
+        top = r.top - 4;
+      }
       const dot = document.createElement('div');
       dot.className = `pin${pin.done ? ' done' : ''}`;
       dot.textContent = pin.label;
-      dot.title = pin.selector;
+      dot.title = pin.selector ?? 'region';
       // Top-right corner, clear of the hover tag that sits at the top-left.
-      Object.assign(dot.style, { left: `${r.right - 10}px`, top: `${r.top - 4}px` });
+      Object.assign(dot.style, { left: `${left}px`, top: `${top}px` });
       dot.addEventListener('click', (e) => {
         e.stopPropagation();
         send({ type: 'pin-clicked', id: pin.id });
@@ -376,6 +407,7 @@ function activate() {
       }
       drawMeasure();
       drawPins();
+      drawPicks();
     });
   };
 
@@ -440,6 +472,7 @@ function activate() {
     if (on === hoverOn) return;
     hoverOn = on;
     if (on) {
+      if (noteOn) setNote(false);
       addEventListener('mousemove', onMove, true);
       addEventListener('click', onClick, true);
     } else {
@@ -452,6 +485,180 @@ function activate() {
     if (barOn) renderBar();
   };
 
+  /* ----- notes: what a note is about ----- */
+
+  const drawPicks = () => {
+    pickLayer.replaceChildren();
+    for (const el of picked) {
+      if (!el.isConnected) continue;
+      const r = rectOf(el);
+      const box = document.createElement('div');
+      box.className = 'picked';
+      Object.assign(box.style, {
+        left: `${r.x}px`,
+        top: `${r.y}px`,
+        width: `${r.width}px`,
+        height: `${r.height}px`,
+      });
+      pickLayer.appendChild(box);
+    }
+  };
+
+  const emitTarget = (target: CommentTarget) => {
+    picked = [];
+    drawPicks();
+    send({ type: 'note-target', target });
+  };
+
+  /** A run of text the user has selected inside `el`, if there is one. */
+  const selectedTextIn = (el: Element): string | null => {
+    const sel = getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    const quote = range.toString().trim();
+    if (!quote || quote.length > 300) return null;
+    const anchor = range.commonAncestorContainer;
+    const node = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
+    return node && (node === el || el.contains(node) || node.contains(el)) ? quote : null;
+  };
+
+  const onNoteDown = (e: MouseEvent) => {
+    if (e.composedPath().includes(host)) return;
+    drag = { x: e.clientX, y: e.clientY };
+  };
+
+  const onNoteMove = (e: MouseEvent) => {
+    if (!drag) return;
+    const w = Math.abs(e.clientX - drag.x);
+    const h = Math.abs(e.clientY - drag.y);
+    if (w < 6 && h < 6) return;
+    marquee.classList.remove('hidden');
+    Object.assign(marquee.style, {
+      left: `${Math.min(drag.x, e.clientX)}px`,
+      top: `${Math.min(drag.y, e.clientY)}px`,
+      width: `${w}px`,
+      height: `${h}px`,
+    });
+  };
+
+  const onNoteUp = (e: MouseEvent) => {
+    const start = drag;
+    drag = null;
+    marquee.classList.add('hidden');
+    if (!start || e.composedPath().includes(host)) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const w = Math.abs(e.clientX - start.x);
+    const h = Math.abs(e.clientY - start.y);
+
+    // A drag is a region: it can cover empty space that no element owns.
+    if (w >= 6 || h >= 6) {
+      const x = Math.min(start.x, e.clientX);
+      const y = Math.min(start.y, e.clientY);
+      const centre = document.elementFromPoint(x + w / 2, y + h / 2);
+      const within = centre && !isOurs(centre) ? buildSelector(centre).intent.selector : undefined;
+      emitTarget({
+        kind: 'region',
+        rect: { x: x + scrollX, y: y + scrollY, width: w, height: h },
+        within,
+      });
+      return;
+    }
+
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isOurs(el) || el === document.documentElement) return;
+
+    // Shift keeps adding: "these three should line up" is one note, not three.
+    if (e.shiftKey) {
+      picked = picked.includes(el) ? picked.filter((p) => p !== el) : [...picked, el];
+      drawPicks();
+      return;
+    }
+
+    if (picked.length) {
+      const all = picked.includes(el) ? picked : [...picked, el];
+      emitTarget({ kind: 'elements', selectors: all.map((p) => buildSelector(p).selector) });
+      return;
+    }
+
+    const quote = selectedTextIn(el);
+    const sel = buildSelector(el);
+    emitTarget(
+      quote
+        ? { kind: 'text', selector: sel.selector, quote }
+        : { kind: 'element', selector: sel.selector, matches: sel.matches },
+    );
+  };
+
+  /**
+   * Marking something up must not also press it. mousedown is left alone so a
+   * text selection can still be dragged out; the click that follows is what
+   * would have activated the button, and that is what gets swallowed.
+   */
+  const onNoteClick = (e: MouseEvent) => {
+    if (e.composedPath().includes(host)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const setNote = (on: boolean) => {
+    if (on === noteOn) return;
+    noteOn = on;
+    if (on) {
+      setHover(false);
+      addEventListener('mousedown', onNoteDown, true);
+      addEventListener('mousemove', onNoteMove, true);
+      addEventListener('mouseup', onNoteUp, true);
+      addEventListener('click', onNoteClick, true);
+      noteHint.classList.remove('hidden');
+      noteHint.textContent = 'Click an element, drag a box, shift-click several, or select text';
+    } else {
+      removeEventListener('mousedown', onNoteDown, true);
+      removeEventListener('mousemove', onNoteMove, true);
+      removeEventListener('mouseup', onNoteUp, true);
+      removeEventListener('click', onNoteClick, true);
+      noteHint.classList.add('hidden');
+      marquee.classList.add('hidden');
+      picked = [];
+      drag = null;
+      drawPicks();
+    }
+    send({ type: 'note-toggled', active: on });
+    if (barOn) renderBar();
+  };
+
+  /* ----- freeze: hold the page still ----- */
+
+  const setFreeze = (on: boolean) => {
+    if (on === frozen) return;
+    frozen = on;
+    if (on) {
+      freezeSheet = document.createElement('style');
+      freezeSheet.id = FREEZE_ID;
+      freezeSheet.textContent =
+        '*, *::before, *::after { animation-play-state: paused !important; transition: none !important; }';
+      document.head.appendChild(freezeSheet);
+      // CSS alone stops neither a Web Animation nor a playing video.
+      try {
+        for (const a of document.getAnimations()) a.pause();
+      } catch {
+        /* not supported here */
+      }
+      for (const v of document.querySelectorAll('video')) v.pause();
+    } else {
+      freezeSheet?.remove();
+      freezeSheet = null;
+      try {
+        for (const a of document.getAnimations()) a.play();
+      } catch {
+        /* not supported here */
+      }
+    }
+    send({ type: 'freeze-toggled', active: on });
+    if (barOn) renderBar();
+  };
+
   /* ----- the bar ----- */
 
   let menu: HTMLElement | null = null;
@@ -460,6 +667,8 @@ function activate() {
     barHost.textContent = location.host;
     barSize.textContent = `${innerWidth} × ${innerHeight}`;
     barToggle.classList.toggle('on', hoverOn);
+    barNote.classList.toggle('on', noteOn);
+    barFreeze.classList.toggle('on', frozen);
   };
 
   const closeMenu = () => {
@@ -498,6 +707,8 @@ function activate() {
     openMenu();
   });
   barToggle.addEventListener('click', () => setHover(!hoverOn));
+  barNote.addEventListener('click', () => setNote(!noteOn));
+  barFreeze.addEventListener('click', () => setFreeze(!frozen));
   // The mark folds the bar down to a pill and opens it again; the chevron only folds.
   bar.querySelector('.mark')!.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -518,6 +729,8 @@ function activate() {
     port.onDisconnect.addListener(() => {
       showBar(false);
       setHover(false);
+      setNote(false);
+      setFreeze(false);
     });
   };
   chrome.runtime.onConnect.addListener(onConnect);
@@ -532,8 +745,13 @@ function activate() {
   const onKey = (e: KeyboardEvent) => {
     if (typing(e.target)) return;
     if (e.key === 'Escape') {
-      // One level at a time: hover off first, then the selection.
-      if (hoverOn) setHover(false);
+      // One level at a time: a half-made note, then note mode, then hover,
+      // then the selection.
+      if (picked.length) {
+        picked = [];
+        drawPicks();
+      } else if (noteOn) setNote(false);
+      else if (hoverOn) setHover(false);
       else if (selected) select(null);
       else return;
       e.preventDefault();
@@ -610,6 +828,12 @@ function activate() {
       case 'bar':
         showBar(!!msg.on);
         break;
+      case 'note':
+        setNote(!!msg.on);
+        break;
+      case 'freeze':
+        setFreeze(!!msg.on);
+        break;
       case 'off':
         deactivate();
         break;
@@ -622,6 +846,8 @@ function activate() {
 
   function deactivate() {
     setHover(false);
+    setNote(false);
+    setFreeze(false);
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);

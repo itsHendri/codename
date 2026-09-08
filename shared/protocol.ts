@@ -10,6 +10,7 @@
  */
 
 import type { ChangeSet } from '@/studio/commit';
+import type { CommentTarget } from '@/studio/annotations';
 
 export const PROTOCOL_VERSION = 1 as const;
 export const DEFAULT_PORT = 9612;
@@ -56,8 +57,8 @@ export interface CommentReply {
 export interface Comment {
   id: string;
   url: string;
-  selector: string;
-  matches: number;
+  /** An element, a set of them, a region of the page, or a run of text. */
+  target: CommentTarget;
   text: string;
   status: CommentStatus;
   createdAt: string;

@@ -190,23 +190,31 @@ holds none of its scale in variables — forfontsake holds none at all — the
 decision travels as a `system` entry in the `ChangeSet` instead, so the agent
 still hears about it.
 
+**W7. Annotations (M).** Done. A note's target is a shape rather than a
+selector: one element, a set of them, a region in page coordinates, or a
+quoted run of text. Note mode on the bar is how you say which — click, drag a
+box over anything including empty space, shift-click to build a set, or
+select text and click it. Freeze holds CSS animations, Web Animations and
+video still so a moment can be marked up.
+
+The quote, not an offset, is what a text note carries: an offset goes stale
+the moment a word changes, and the quote is the thing an agent can search
+for. Note mode swallows the click it rides on, so marking a button up does
+not also press it.
+
 ## Still to build
 
 In order.
 
-1. **Annotations, to Agentation parity (M).** Today a note is pinned to one
-   element. Add a region note (drag a box, including empty space), a note on
-   a text range inside an element, and multi-select. Freeze CSS, JS and video
-   animation so a specific state can be captured and described.
-2. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
+1. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
    drag-to-reorder. The tree is also the answer to "select something with no
    distinctive selector", which the positional-selector warning currently
    just reports.
-3. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
+2. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
    trigger-first interaction editor (hover, press, focus, appear, loop,
    scroll) with a shared easing curve. The largest remaining chunk, and the
    one that needs the most new engine surface.
-4. **A `critique` tool over the scan (S).** Impeccable's contribution: the
+3. **A `critique` tool over the scan (S).** Impeccable's contribution: the
    agent asks the panel what is wrong with the page and gets the APCA
    failures, the off-grid spacing, the near-duplicate colours and the type
    scale strays it already computes.

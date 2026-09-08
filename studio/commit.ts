@@ -59,11 +59,13 @@ export interface ElementEdit {
   token?: string;
 }
 
-/** A note the user pinned to an element, in the form the agent works from. */
+/** A note the user pinned, in the form the agent works from. */
 export interface CommentNote {
   id: string;
-  selector: string;
-  matches: number;
+  /** The target in words: a selector, a set, a region, or a quote. */
+  about: string;
+  /** Selectors the note names, when it names any. */
+  selectors: string[];
   text: string;
 }
 
@@ -283,10 +285,15 @@ export function toPrompt(set: ChangeSet): string {
   if (set.comments.length) {
     lines.push(`## Comments — ${set.comments.length}`);
     lines.push('');
-    lines.push('Notes I pinned to elements on the page. Each names the element it is about.');
+    lines.push(
+      'Notes I pinned on the page. Each says what it is about: an element, a set of them, a region given in page coordinates, or a quoted run of text.',
+    );
     lines.push('');
     set.comments.forEach((c, i) => {
-      lines.push(`${i + 1}. \`${c.selector}\`${c.matches > 1 ? ` (${c.matches} elements)` : ''} — ${c.id}`);
+      const positional = c.selectors.some((s) => s.includes(':nth-of-type'))
+        ? ' — positional selectors, find these by their content'
+        : '';
+      lines.push(`${i + 1}. ${c.about} — ${c.id}${positional}`);
       lines.push(`   ${c.text.replace(/\n/g, '\n   ')}`);
     });
     lines.push('');

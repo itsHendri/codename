@@ -1,3 +1,5 @@
+import type { CommentTarget, Pin } from '@/studio/annotations';
+
 export interface FontFaceInfo {
   family: string;
   weights: string[];
@@ -158,7 +160,11 @@ export type InspectorCommand =
   | { cmd: 'ancestor'; depth: number }
   | { cmd: 'read' }
   | { cmd: 'text'; selector: string; text: string }
-  | { cmd: 'pins'; pins: { id: string; selector: string; label: string; done?: boolean }[] }
+  | { cmd: 'pins'; pins: Pin[] }
+  /** Draw-a-box / click / shift-click to say what a note is about. */
+  | { cmd: 'note'; on: boolean }
+  /** Hold every animation, transition and video still. */
+  | { cmd: 'freeze'; on: boolean }
   | { cmd: 'measure'; on: boolean }
   | { cmd: 'bar'; on: boolean }
   | { cmd: 'off' };
@@ -169,6 +175,9 @@ export type RuntimeMessage =
   | { type: 'hover-toggled'; active: boolean }
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }
+  | { type: 'note-target'; target: CommentTarget }
+  | { type: 'note-toggled'; active: boolean }
+  | { type: 'freeze-toggled'; active: boolean }
   | { type: 'resize-window'; width: number; height: number }
   | { type: 'text-edited'; selector: string; from: string; to: string }
   | { type: 'fetch-text'; url: string };

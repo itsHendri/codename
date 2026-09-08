@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
-import type { InspectController } from '../lib/inspect';
+import type { InspectController, Scope } from '../lib/inspect';
+import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
 import { EyeDropperButton } from './EyeDropperButton';
 import { Breadcrumb } from './inspect/Breadcrumb';
@@ -79,7 +80,7 @@ export function ElementTab({
         onChange={ctl.change}
         onText={ctl.setText}
       />
-      <Note element={el} onAdd={ctl.addComment} />
+      <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
       <div className="border-t border-dashed border-line-subtle pt-2.5">
         <EyeDropperButton />
       </div>
@@ -88,13 +89,26 @@ export function ElementTab({
 }
 
 /** Folded away until you want it: most selections are edits, not notes. */
-function Note({ element, onAdd }: { element: ElementProps; onAdd: (text: string) => void }) {
+function Note({
+  element,
+  scope,
+  onAdd,
+}: {
+  element: ElementProps;
+  scope: Scope;
+  onAdd: (text: string) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const wide = scope === 'all' && element.intent.matches > 1;
+  const target: CommentTarget = wide
+    ? { kind: 'element', selector: element.intent.selector, matches: element.intent.matches }
+    : { kind: 'element', selector: element.selector, matches: element.matches };
   return (
     <div className="border-t border-dashed border-line-subtle pt-2.5">
       {open ? (
         <CommentComposer
-          element={element}
+          target={target}
+          onCancel={() => setOpen(false)}
           onAdd={(text) => {
             onAdd(text);
             setOpen(false);

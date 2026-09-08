@@ -13,6 +13,7 @@
 import { useSyncExternalStore } from 'react';
 import type { PinnedElement, ScanResult } from '@/shared/types';
 import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
+import type { CommentTarget } from '@/studio/annotations';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
@@ -148,12 +149,11 @@ export function setPinned(pinned: PinnedElement | null) {
 
 const commentId = () => `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-export function addComment(selector: string, matches: number, url: string, text: string): Comment {
+export function addComment(target: CommentTarget, url: string, text: string): Comment {
   const comment: Comment = {
     id: commentId(),
     url: pageKey(url),
-    selector,
-    matches,
+    target,
     text,
     status: 'pending',
     createdAt: new Date().toISOString(),

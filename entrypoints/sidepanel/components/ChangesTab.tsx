@@ -7,7 +7,8 @@ import type { InspectController } from '../lib/inspect';
 import { sendToAgent, useBridge } from '../lib/bridge';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
-import { CommentList } from './inspect/Comments';
+import { CommentComposer, CommentList } from './inspect/Comments';
+import type { CommentTarget } from '@/studio/annotations';
 
 /**
  * Everything waiting to go to the agent, in one place.
@@ -17,7 +18,18 @@ import { CommentList } from './inspect/Comments';
  * A change is a change whether it came from a seed, an element or a note, so
  * they queue together and leave together.
  */
-export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectController }) {
+export function ChangesTab({
+  set,
+  ctl,
+  pendingTarget,
+  onClearTarget,
+}: {
+  set: ChangeSet;
+  ctl: InspectController;
+  /** Drawn on the page in note mode, waiting for words. */
+  pendingTarget: CommentTarget | null;
+  onClearTarget: () => void;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status } = useBridge();
   const { handoff, log, comments } = useSession();
@@ -31,20 +43,37 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
     setTimeout(() => setCopied(null), 1600);
   };
 
+  const composer = pendingTarget && (
+    <div className="border-b border-line bg-surface-recessed px-3.5 py-2.5">
+      <CommentComposer
+        target={pendingTarget}
+        onCancel={onClearTarget}
+        onAdd={(text) => {
+          ctl.addComment(text, pendingTarget);
+          onClearTarget();
+        }}
+      />
+    </div>
+  );
+
   if (empty && log.entries.length === 0 && comments.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
-        <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
-        <p className="max-w-60 text-sm text-ink-muted">
-          Change a seed in Design, edit an element, or pin a note. Whatever you do collects here as one
-          brief for your agent.
-        </p>
+      <div className="flex flex-col">
+        {composer}
+        <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
+          <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
+          <p className="max-w-60 text-sm text-ink-muted">
+            Change a seed in Design, edit an element, or turn on Note across the page and mark
+            something. Whatever you do collects here as one brief for your agent.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col">
+      {composer}
       <div className="flex flex-col gap-4 p-3.5">
         {set.tokens.length > 0 && (
           <section className="flex flex-col gap-1.5">

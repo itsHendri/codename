@@ -24,8 +24,10 @@ to your agent — which can be connected, so you never paste.
     from the page, with off-grid strays named rather than rounded in. Moving
     the grid rescales the steps the page uses rather than inventing a ladder.
 - **Changes** — everything queued for the agent, wherever it came from: token
-  definitions, element edits with undo, redo and per-change revert, and your
-  notes. Hold **View original** to see the page without any of it. The
+  definitions, scale changes, element edits with undo, redo and per-change
+  revert, and your notes. A note says what it is about — an element, a set of
+  them, a region in page coordinates, or a quoted run of text — and carries a
+  numbered pin on the page. Hold **View original** to see the page without any of it. The
   actions to copy, send or download the brief live at the bottom.
 - **Assets** — every SVG on the page (inline, `<img>`, CSS backgrounds, sprite
   `<use>`, favicons), previewed with copy, per-file download and ZIP export.
@@ -36,8 +38,11 @@ to your agent — which can be connected, so you never paste.
 
 While the panel is open on a site, a thin bar sits across the top of the
 page: the Codename mark, the host, the live viewport size with the device
-presets behind it, and the Inspect switch. Click the mark to fold it to a
-pill. The mark in the panel's footer opens the menu: theme (dark by default,
+presets behind it, and three switches. **Inspect** hovers and selects.
+**Note** marks something up: click an element, drag a box over anything
+including empty space, shift-click several, or select a run of text.
+**Freeze** holds every animation, transition and video still so you can mark
+up a moment. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
 light, or follow the system), site access, and the agent bridge.
 
 Reading the page is automatic wherever Chrome already lets the extension in:

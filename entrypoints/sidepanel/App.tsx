@@ -14,6 +14,7 @@ import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
 import { buildChangeSet } from '@/studio/commit';
+import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
@@ -61,6 +62,8 @@ export default function App() {
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
+  // A target drawn on the page, waiting for words.
+  const [pendingTarget, setPendingTarget] = useState<CommentTarget | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
     [scan, tabUrl],
@@ -155,6 +158,13 @@ export default function App() {
         if (msg.data) setActive('element');
       } else if (msg?.type === 'hover-toggled') {
         setInspecting(Boolean(msg.active));
+      } else if (msg?.type === 'note-target') {
+        setPendingTarget((msg as { target: CommentTarget }).target);
+        setActive('changes');
+      } else if (msg?.type === 'note-toggled') {
+        ctlRef.current.setNotingFromPage(Boolean(msg.active));
+      } else if (msg?.type === 'freeze-toggled') {
+        ctlRef.current.setFrozenFromPage(Boolean(msg.active));
       } else if (msg?.type === 'pin-clicked') {
         setFocusedComment((msg as { id?: string }).id ?? null);
         setActive('changes');
@@ -279,7 +289,14 @@ export default function App() {
         );
         break;
       case 'changes':
-        content = <ChangesTab set={changeSet} ctl={ctl} />;
+        content = (
+          <ChangesTab
+            set={changeSet}
+            ctl={ctl}
+            pendingTarget={pendingTarget}
+            onClearTarget={() => setPendingTarget(null)}
+          />
+        );
         break;
       case 'design':
         content = (

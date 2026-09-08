@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Comment, CommentStatus } from '@/shared/protocol';
-import type { ElementProps } from '@/shared/types';
+import { describeTarget, targetKindLabel, type CommentTarget } from '@/studio/annotations';
 
 const STATUS_LABEL: Record<CommentStatus, string> = {
   pending: 'pending',
@@ -10,11 +10,19 @@ const STATUS_LABEL: Record<CommentStatus, string> = {
 };
 
 /**
- * Notes for the agent, pinned to elements. A note lives on the thing it is
- * about: the composer sits under the selected element and the pin on the
- * page carries the same number as the row here.
+ * Notes for the agent. A note lives on the thing it is about, whether that is
+ * an element, a set of them, a region of the page or a run of text, and the
+ * pin on the page carries the same number as the row here.
  */
-export function CommentComposer({ element, onAdd }: { element: ElementProps; onAdd: (text: string) => void }) {
+export function CommentComposer({
+  target,
+  onAdd,
+  onCancel,
+}: {
+  target: CommentTarget;
+  onAdd: (text: string) => void;
+  onCancel?: () => void;
+}) {
   const [text, setText] = useState('');
   const submit = () => {
     const t = text.trim();
@@ -24,18 +32,32 @@ export function CommentComposer({ element, onAdd }: { element: ElementProps; onA
   };
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-2xs tracking-wide text-ink-muted uppercase" htmlFor="comment-composer">
-        Note for the agent
-      </label>
+      <div className="flex items-center gap-1.5">
+        <span className="text-2xs tracking-wide text-ink-muted uppercase">Note for the agent</span>
+        <span className="rounded-full border border-line px-1.5 text-2xs text-ink-muted">
+          {targetKindLabel(target)}
+        </span>
+        {onCancel && (
+          <button onClick={onCancel} className="ml-auto text-2xs text-ink-muted hover:text-ink">
+            cancel
+          </button>
+        )}
+      </div>
+      <div className="truncate font-mono text-2xs text-ink-secondary" title={describeTarget(target)}>
+        {describeTarget(target)}
+      </div>
       <textarea
         id="comment-composer"
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+          if (e.key === 'Escape' && onCancel) onCancel();
         }}
         rows={2}
-        placeholder={`About ${element.intent.selector}…`}
+        placeholder="What should change here?"
         className="w-full resize-none rounded-control border border-line bg-surface-panel px-2 py-1 text-xs"
       />
       <div className="flex items-center gap-2">
@@ -101,9 +123,9 @@ export function CommentList({
               <button
                 onClick={() => onSelect(c)}
                 className="min-w-0 flex-1 truncate text-left font-mono text-xs hover:text-accent"
-                title="Select this element on the page"
+                title="Show this on the page"
               >
-                {c.selector}
+                {describeTarget(c.target)}
               </button>
               <span
                 className={`shrink-0 rounded-full border px-1.5 text-2xs ${

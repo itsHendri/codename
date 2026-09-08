@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
+import type { CommentTarget } from '@/studio/annotations';
 import {
   canRedo,
   canUndo,
@@ -30,7 +31,7 @@ import {
   updateSession,
   type TabSession,
 } from './session';
-import { pinsOf } from './comments';
+import { firstSelector, pinsOf } from './comments';
 
 export type Scope = 'element' | 'all';
 
@@ -59,11 +60,21 @@ export interface InspectController {
   comments: Comment[];
   /** The note whose pin was last clicked on the page. */
   focusedComment: string | null;
-  addComment(text: string): void;
+  /** Pin a note. Without a target it is about the current selection. */
+  addComment(text: string, target?: CommentTarget): void;
   removeComment(id: string): void;
   setCommentStatus(id: string, status: CommentStatus): void;
   /** Select the element a note is about. */
   selectComment(comment: Comment): void;
+  /** Note mode: draw a box, click, shift-click, or select text on the page. */
+  noting: boolean;
+  setNoting(on: boolean): void;
+  /** Hold every animation, transition and video still. */
+  frozen: boolean;
+  setFrozen(on: boolean): void;
+  /** The page flipped its own switch; take the state without echoing it back. */
+  setNotingFromPage(on: boolean): void;
+  setFrozenFromPage(on: boolean): void;
 }
 
 /** The current value of a longhand, as the element reports it. */
@@ -107,6 +118,8 @@ export function useInspect(
   const { pinned: element, log, generation, comments } = session;
   const [scope, setScope] = useState<Scope>('element');
   const [measuring, setMeasuring] = useState(false);
+  const [noting, setNoting] = useState(false);
+  const [frozen, setFrozen] = useState(false);
   const [holding, setHolding] = useState(false);
 
   // Pins follow the notes; pushed again after a reload, like the rules.
@@ -191,6 +204,15 @@ export function useInspect(
     [element, setLog],
   );
 
+  /** The selected element, as a note target, honouring the scope switch. */
+  const targetForSelection = useCallback((): CommentTarget | null => {
+    if (!element) return null;
+    const wide = scope === 'all' && element.intent.matches > 1;
+    return wide
+      ? { kind: 'element', selector: element.intent.selector, matches: element.intent.matches }
+      : { kind: 'element', selector: element.selector, matches: element.matches };
+  }, [element, scope]);
+
   const send = useCallback(
     (cmd: Parameters<typeof sendInspector>[1]) => {
       if (tabId != null) void sendInspector(tabId, cmd);
@@ -222,13 +244,28 @@ export function useInspect(
     },
     comments,
     focusedComment,
-    addComment: (text) => {
-      if (!element) return;
-      const wide = scope === 'all' && element.intent.matches > 1;
-      addCommentToSession(wide ? element.intent.selector : element.selector, wide ? element.intent.matches : 1, tabUrl, text);
+    addComment: (text, target) => {
+      const about = target ?? targetForSelection();
+      if (!about) return;
+      addCommentToSession(about, tabUrl, text);
     },
     removeComment: removeCommentFromSession,
     setCommentStatus: setStatusInSession,
-    selectComment: (c) => send({ cmd: 'select', selector: c.selector }),
+    selectComment: (c) => {
+      const selector = firstSelector(c.target);
+      if (selector) send({ cmd: 'select', selector });
+    },
+    noting,
+    setNoting: (on) => {
+      setNoting(on);
+      send({ cmd: 'note', on });
+    },
+    frozen,
+    setFrozen: (on) => {
+      setFrozen(on);
+      send({ cmd: 'freeze', on });
+    },
+    setNotingFromPage: setNoting,
+    setFrozenFromPage: setFrozen,
   };
 }
