@@ -101,27 +101,74 @@ export interface ScanResult {
   stats: { elementsSampled: number; styleSheets: number };
 }
 
-export interface PinnedElement {
+/** One element, read from the page: enough to show, edit and describe it. */
+export interface ElementProps {
+  /** Matches exactly this element; see `stable`. */
   selector: string;
+  matches: number;
+  /** false when :nth-of-type was needed, so a reorder breaks it. */
+  stable: boolean;
+  /** The class-level selector a designer means ("all buttons like this"). */
+  intent: { selector: string; matches: number };
   tag: string;
-  fontFamily: string;
-  fontSize: string;
-  fontWeight: string;
-  lineHeight: string;
-  color: string;
-  backgroundColor: string;
-  borderRadius: string;
-  padding: string;
-  margin: string;
-  width: number;
-  height: number;
+  /** From body down to the element itself. */
+  breadcrumb: { tag: string; selector: string }[];
+  rect: { x: number; y: number; width: number; height: number };
+  box: {
+    marginTop: string;
+    marginRight: string;
+    marginBottom: string;
+    marginLeft: string;
+    paddingTop: string;
+    paddingRight: string;
+    paddingBottom: string;
+    paddingLeft: string;
+    width: string;
+    height: string;
+    boxSizing: string;
+    display: string;
+    gap: string;
+  };
+  type: {
+    fontFamily: string;
+    fontSize: string;
+    fontWeight: string;
+    lineHeight: string;
+    letterSpacing: string;
+    textAlign: string;
+  };
+  color: { text: string; background: string; border: string };
+  radius: string;
+  border: { width: string; style: string; color: string };
+  shadow: string;
+  /** Present only when the element's own children are text. */
+  text: string | null;
   contrastRatio: number | null;
 }
 
+/** Kept for the pinned card until it is rebuilt on ElementProps. */
+export type PinnedElement = ElementProps;
+
+/** Panel → inspector. */
+export type InspectorCommand =
+  | { cmd: 'hover'; on: boolean }
+  | { cmd: 'select'; selector: string }
+  | { cmd: 'deselect' }
+  | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
+  | { cmd: 'ancestor'; depth: number }
+  | { cmd: 'read' }
+  | { cmd: 'text'; selector: string; text: string }
+  | { cmd: 'pins'; pins: { id: string; selector: string; label: string; done?: boolean }[] }
+  | { cmd: 'measure'; on: boolean }
+  | { cmd: 'off' };
+
 export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
-  | { type: 'pinned-element'; data: PinnedElement }
+  | { type: 'element-selected'; data: ElementProps | null }
   | { type: 'hover-toggled'; active: boolean }
+  | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
+  | { type: 'pin-clicked'; id: string }
+  | { type: 'text-edited'; selector: string; from: string; to: string }
   | { type: 'fetch-text'; url: string };
 
 export const DEVICE_PRESETS = [

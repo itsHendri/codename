@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { Override } from '@/studio/reskin';
 import { buildChangeSet, isEmpty, toJson, toPrompt } from '@/studio/commit';
+import { active } from '@/studio/changes';
 import { download } from '../../lib/exporters';
 import { sendToAgent, useBridge } from '../../lib/bridge';
 import { useSession } from '../../lib/session';
@@ -27,11 +28,11 @@ export function HandOff({
 }) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status } = useBridge();
-  const { handoff } = useSession();
+  const { handoff, log } = useSession();
   const connected = status === 'connected';
   const set = useMemo(
-    () => buildChangeSet(scan, overrides, colorMap),
-    [scan, overrides, colorMap],
+    () => buildChangeSet(scan, overrides, colorMap, active(log)),
+    [scan, overrides, colorMap, log],
   );
   const prompt = useMemo(() => toPrompt(set), [set]);
 
@@ -70,7 +71,7 @@ export function HandOff({
       <div className="flex-1 overflow-y-auto px-3.5 py-3">
         {isEmpty(set) ? (
           <p className="text-sm text-ink-muted">
-            Nothing to hand over yet — change a seed and the edits will appear here.
+            Nothing to hand over yet — change a seed, or edit an element in Inspect, and it will appear here.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
@@ -146,6 +147,34 @@ export function HandOff({
               </section>
             )}
 
+            {set.elements.length > 0 && (
+              <section className="flex flex-col gap-1.5">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-base">Element changes</span>
+                  <span className="ml-auto text-2xs text-ink-muted">{set.elements.length}</span>
+                </div>
+                <p className="text-2xs text-ink-muted">
+                  One property on one selector, before and after. The agent applies the intent in source.
+                </p>
+                {set.elements.map((e) => (
+                  <div key={`${e.selector} ${e.property}`} className="rounded-control border border-line-subtle px-2 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <code className="min-w-0 flex-1 truncate text-xs">{e.selector}</code>
+                      {e.matches > 1 && <span className="text-2xs text-ink-muted">×{e.matches}</span>}
+                      {!e.stable && <span className="text-2xs text-warn-ink">positional</span>}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-ink-muted">
+                      <code>{e.property}</code>
+                      <span className="tabular-nums truncate">
+                        {e.from} → {e.to}
+                      </span>
+                      {e.token && <span className="ml-auto text-accent">{e.token}</span>}
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
             {set.unreadable.length > 0 && (
               <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">
                 {set.unreadable.length} stylesheet(s) couldn&apos;t be read, so there may be
@@ -176,7 +205,7 @@ export function HandOff({
             title={connected ? 'Hand this to the connected agent' : 'Start `npx codename-bridge` and pair in the menu'}
             className="flex-1 rounded-control border border-accent bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
           >
-            {copied === 'sent' || handoff ? 'Sent — your agent will pick it up' : 'Send to agent'}
+            {copied === 'sent' ? 'Sent — your agent will pick it up' : handoff ? 'Sent · send again' : 'Send to agent'}
           </button>
         </div>
         <div className="flex gap-2">

@@ -16,7 +16,8 @@ import {
   type Envelope,
   type SessionState,
 } from '@/shared/protocol';
-import { buildChangeSet, isLocal, toPrompt } from '@/studio/commit';
+import { buildChangeSet, isEmpty, isLocal, toPrompt } from '@/studio/commit';
+import { active } from '@/studio/changes';
 import type { DesignModel } from './designModel';
 import { applyAgentPreview, captureVisible, clearAgentPreview } from './messaging';
 import {
@@ -251,10 +252,11 @@ export function useBridgeSync(
   model: DesignModel | null,
 ) {
   tabIdForRequests = tabId;
-  const changes = useMemo(
-    () => (model?.edited && session.scan ? buildChangeSet(session.scan, model.overrides, model.colorMap) : null),
-    [model, session.scan],
-  );
+  const changes = useMemo(() => {
+    if (!session.scan) return null;
+    const set = buildChangeSet(session.scan, model?.overrides ?? [], model?.colorMap ?? {}, active(session.log));
+    return isEmpty(set) ? null : set;
+  }, [model, session.scan, session.log]);
   const state = useMemo<SessionState | null>(() => {
     if (tabId == null) return null;
     let origin = '';
@@ -282,16 +284,18 @@ export function useBridgeSync(
       selection: pinned
         ? {
             selector: pinned.selector,
-            matches: 1,
+            matches: pinned.matches,
             tag: pinned.tag,
-            rect: { x: 0, y: 0, width: pinned.width, height: pinned.height },
+            text: pinned.text ?? undefined,
+            rect: pinned.rect,
             computed: {
-              font: `${pinned.fontWeight} ${pinned.fontSize}/${pinned.lineHeight} ${pinned.fontFamily}`,
-              color: pinned.color,
-              backgroundColor: pinned.backgroundColor,
-              padding: pinned.padding,
-              margin: pinned.margin,
-              borderRadius: pinned.borderRadius,
+              font: `${pinned.type.fontWeight} ${pinned.type.fontSize}/${pinned.type.lineHeight} ${pinned.type.fontFamily}`,
+              color: pinned.color.text,
+              backgroundColor: pinned.color.background,
+              padding: `${pinned.box.paddingTop} ${pinned.box.paddingRight} ${pinned.box.paddingBottom} ${pinned.box.paddingLeft}`,
+              margin: `${pinned.box.marginTop} ${pinned.box.marginRight} ${pinned.box.marginBottom} ${pinned.box.marginLeft}`,
+              borderRadius: pinned.radius,
+              boxShadow: pinned.shadow,
             },
           }
         : null,

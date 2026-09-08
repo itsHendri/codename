@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PinnedElement, ScanResult } from '@/shared/types';
+import type { ElementProps, ScanResult } from '@/shared/types';
 import {
   ensureHostAccess,
   getActiveTab,
@@ -10,6 +10,7 @@ import {
 } from './lib/messaging';
 import { loadSession, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
+import { useInspect } from './lib/inspect';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
 import { DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
@@ -47,11 +48,14 @@ export default function App() {
   // The session outlives whichever tab is showing: an edit made in Design is
   // still there, and still painted on the page, after a detour through Inspect.
   const session = useSession();
-  const { scan, config, mode, live, pinned } = session;
+  const { scan, config, mode, live } = session;
   const model = useDesignModel(scan, config, mode);
   const reskin = useLiveReskin(tabId, live, model);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
+  const ctl = useInspect(tabId, session);
+  const ctlRef = useRef(ctl);
+  ctlRef.current = ctl;
 
   const restricted = isRestricted(tabUrl);
 
@@ -96,15 +100,33 @@ export default function App() {
       } else if (msg?.type === 'scan-error') {
         setScanning(false);
         setScanError(msg.error ?? 'Scan failed');
-      } else if (msg?.type === 'pinned-element') {
-        setPinned(msg.data as PinnedElement);
-        setActive('inspect');
+      } else if (msg?.type === 'element-selected') {
+        setPinned((msg.data as ElementProps | null) ?? null);
+        if (msg.data) setActive('inspect');
       } else if (msg?.type === 'hover-toggled') {
         setInspecting(Boolean(msg.active));
+      } else if (msg?.type === 'inspector-shortcut') {
+        // Cmd+Z pressed on the page while an element is selected.
+        if ((msg as { action?: string }).action === 'redo') ctlRef.current.redo();
+        else ctlRef.current.undo();
       }
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, []);
+
+  // Undo and redo from the panel itself, unless the user is typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      if (e.shiftKey) ctlRef.current.redo();
+      else ctlRef.current.undo();
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
   }, []);
 
   const friendlyError = (err: unknown): string => {
@@ -186,9 +208,11 @@ export default function App() {
           <InspectTab
             inspecting={inspecting}
             onToggle={toggleInspector}
-            pinned={pinned}
-            onClear={() => setPinned(null)}
             error={scanError}
+            ctl={ctl}
+            scan={scan}
+            resolved={model?.resolved ?? null}
+            mode={mode}
           />
         );
         break;

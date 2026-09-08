@@ -1,50 +1,40 @@
-import type { PinnedElement } from '@/shared/types';
+import { useState } from 'react';
+import type { ElementProps, ScanResult } from '@/shared/types';
+import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
-import { InspectIcon } from './icons';
+import type { InspectController } from '../lib/inspect';
+import { CopyIcon, InspectIcon } from './icons';
 import { EyeDropperButton } from './EyeDropperButton';
+import { Breadcrumb } from './inspect/Breadcrumb';
+import { ChangesList } from './inspect/ChangesList';
+import { PropertyPanel } from './inspect/PropertyPanel';
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-18 shrink-0 text-sm text-ink-muted">{label}</span>
-      <span className="flex min-w-0 items-center gap-2">{children}</span>
-    </div>
-  );
-}
-
-function Swatch({ color }: { color: string }) {
-  return <span className="inline-block h-3.5 w-3.5 shrink-0 rounded border border-line" style={{ background: color }} />;
-}
-
-async function copy(text: string) {
-  await navigator.clipboard.writeText(text);
-}
+/** Inspect works before a scan; without one there are simply no token chips. */
+const NO_SCAN = { customProps: [], rootFontSize: 16 };
 
 export function InspectTab({
   inspecting,
   onToggle,
-  pinned,
-  onClear,
   error,
+  ctl,
+  scan,
+  resolved,
+  mode,
 }: {
   inspecting: boolean;
   onToggle: () => void;
-  pinned: PinnedElement | null;
-  onClear: () => void;
   error: string | null;
+  ctl: InspectController;
+  scan: ScanResult | null;
+  resolved: ResolvedTokens | null;
+  mode: Mode;
 }) {
-  const badge = pinned?.contrastRatio ? contrastBadge(pinned.contrastRatio) : null;
-  const cssSnippet = pinned
-    ? [
-        `${pinned.selector} {`,
-        `  font: ${pinned.fontWeight} ${pinned.fontSize}/${pinned.lineHeight} ${pinned.fontFamily};`,
-        `  color: ${pinned.color};`,
-        `  background-color: ${pinned.backgroundColor};`,
-        `  padding: ${pinned.padding};`,
-        `  border-radius: ${pinned.borderRadius};`,
-        `}`,
-      ].join('\n')
-    : '';
+  const el = ctl.element;
+  const caption = el
+    ? '↑↓←→ walk the tree · Esc to deselect'
+    : inspecting
+      ? 'Hover any element on the page · click to pin it here · Esc to exit'
+      : 'Turn on, then hover the page';
 
   return (
     <div className="flex flex-col gap-3.5 p-3.5">
@@ -60,9 +50,7 @@ export function InspectTab({
           <InspectIcon />
           Hover inspect: {inspecting ? 'ON' : 'OFF'}
         </button>
-        <p className="text-center text-sm text-ink-muted">
-          {inspecting ? 'Hover any element on the page · click to pin it here · Esc to exit' : 'Turn on, then hover the page'}
-        </p>
+        <p className="text-center text-sm text-ink-muted">{caption}</p>
         {error && <p className="text-center text-xs text-warn-ink">{error}</p>}
       </div>
 
@@ -70,82 +58,152 @@ export function InspectTab({
         <EyeDropperButton />
       </div>
 
-      {pinned ? (
+      {el ? (
         <div className="flex flex-col gap-2.5 rounded-card border border-line p-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xs font-semibold tracking-wide text-ink-muted">PINNED</span>
-            <code className="truncate rounded border border-line bg-surface-recessed px-2 text-sm">{pinned.selector}</code>
-            <button onClick={onClear} className="ml-auto text-ink-muted hover:text-ink-secondary" aria-label="Clear pinned element">
-              ✕
-            </button>
-          </div>
-
-          <div className="flex justify-center py-1">
-            <div className="relative border border-dashed border-line px-6 py-3.5">
-              <span className="absolute left-1 top-0 text-2xs text-ink-muted">margin {pinned.margin}</span>
-              <div className="relative border border-line-strong bg-surface-control px-4 py-2.5">
-                <span className="absolute left-1 top-0 text-2xs text-ink-muted">pad {pinned.padding}</span>
-                <div className="border border-accent px-3 py-1 text-sm text-accent">
-                  {pinned.width} × {pinned.height}
-                </div>
-              </div>
+          <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
+          <Header element={el} ctl={ctl} />
+          <BoxModel element={el} />
+          <Contrast element={el} />
+          <PropertyPanel
+            element={el}
+            scan={scan ?? NO_SCAN}
+            resolved={resolved}
+            mode={mode}
+            onChange={ctl.change}
+            onText={ctl.setText}
+          />
+          {ctl.log.entries.length > 0 && (
+            <div className="border-t border-dashed border-line-subtle pt-2.5">
+              <ChangesList
+                log={ctl.log}
+                onUndo={ctl.undo}
+                onRedo={ctl.redo}
+                onRevert={ctl.revert}
+                onViewOriginal={ctl.viewOriginal}
+              />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Row label="Font">
-              <span className="truncate">
-                {(pinned.fontFamily.split(',')[0] ?? '').replace(/["']/g, '')} · {pinned.fontWeight} · {pinned.fontSize}/
-                {pinned.lineHeight}
-              </span>
-            </Row>
-            <Row label="Text">
-              <Swatch color={pinned.color} />
-              <button onClick={() => copy(pinned.color)} className="hover:text-accent" title="Copy">
-                {pinned.color}
-              </button>
-            </Row>
-            <Row label="Background">
-              <Swatch color={pinned.backgroundColor} />
-              <button onClick={() => copy(pinned.backgroundColor)} className="hover:text-accent" title="Copy">
-                {pinned.backgroundColor}
-              </button>
-            </Row>
-            <Row label="Radius">{pinned.borderRadius}</Row>
-            {pinned.contrastRatio && badge && (
-              <Row label="Contrast">
-                {pinned.contrastRatio} : 1
-                <span
-                  className={`rounded-full border px-2 text-2xs ${
-                    badge.pass ? 'border-line-strong bg-surface-control text-ink-secondary' : 'border-warn text-warn-ink'
-                  }`}
-                >
-                  {badge.label}
-                </span>
-              </Row>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => copy(cssSnippet)}
-              className="flex-1 rounded-control border border-line-strong bg-surface-control py-1.5 text-sm font-medium hover:bg-surface-control"
-            >
-              Copy CSS
-            </button>
-            <button
-              onClick={() => copy(pinned.selector)}
-              className="flex-1 rounded-control border border-line py-1.5 text-sm hover:bg-surface-recessed"
-            >
-              Copy selector
-            </button>
-          </div>
+          )}
         </div>
       ) : (
         <p className="border-t border-dashed border-line-subtle pt-3 text-sm text-ink-muted">
           Pin an element to see its font, colors, box model and contrast here.
         </p>
       )}
+    </div>
+  );
+}
+
+function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
+  const [copied, setCopied] = useState(false);
+  const many = el.intent.matches > 1;
+  // What the edits will target: this one element, or everything its class selector matches.
+  const selector = ctl.scope === 'all' && many ? el.intent.selector : el.selector;
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(selector);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <code className="min-w-0 flex-1 truncate rounded-control border border-line bg-surface-recessed px-1.5 font-mono text-xs" title={selector}>
+          {selector}
+        </code>
+        {many && (
+          <span className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary">
+            ×{el.intent.matches}
+          </span>
+        )}
+        {!el.stable && (
+          <span className="shrink-0 rounded-full border border-warn px-1.5 text-2xs text-warn-ink" title="Uses :nth-of-type — a reorder breaks it">
+            positional
+          </span>
+        )}
+        <button onClick={copy} className="shrink-0 text-ink-muted hover:text-accent" aria-label="Copy selector" title={copied ? 'Copied' : 'Copy selector'}>
+          {copied ? <span className="text-2xs text-accent">✓</span> : <CopyIcon />}
+        </button>
+        <button onClick={ctl.clear} className="shrink-0 text-ink-muted hover:text-ink-secondary" aria-label="Deselect element">
+          ✕
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {many && (
+          <div role="radiogroup" aria-label="Edit scope" className="flex overflow-hidden rounded-control border border-line text-2xs">
+            {(
+              [
+                ['element', 'this element'],
+                ['all', `all ${el.intent.matches}`],
+              ] as const
+            ).map(([scope, label]) => (
+              <button
+                key={scope}
+                role="radio"
+                aria-checked={ctl.scope === scope}
+                onClick={() => ctl.setScope(scope)}
+                className={`px-2 py-0.5 ${
+                  ctl.scope === scope ? 'bg-accent text-accent-ink' : 'text-ink-secondary hover:bg-surface-recessed'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => ctl.measure(!ctl.measuring)}
+          aria-pressed={ctl.measuring}
+          className={`ml-auto rounded-control border px-2 py-0.5 text-2xs ${
+            ctl.measuring ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-secondary hover:bg-surface-recessed'
+          }`}
+        >
+          measure
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const px = (v: string) => (v === '0px' ? '0' : v.replace(/px$/, ''));
+
+function BoxModel({ element: { box } }: { element: ElementProps }) {
+  const edge = 'absolute font-mono text-2xs text-ink-muted';
+  return (
+    <div className="relative border border-dashed border-line px-8 py-4 text-2xs">
+      <span className="absolute left-1 top-0 text-2xs text-ink-faint">margin</span>
+      <span className={`${edge} left-1/2 top-0 -translate-x-1/2`}>{px(box.marginTop)}</span>
+      <span className={`${edge} bottom-0 left-1/2 -translate-x-1/2`}>{px(box.marginBottom)}</span>
+      <span className={`${edge} left-1 top-1/2 -translate-y-1/2`}>{px(box.marginLeft)}</span>
+      <span className={`${edge} right-1 top-1/2 -translate-y-1/2`}>{px(box.marginRight)}</span>
+      <div className="relative border border-line-strong bg-surface-control px-8 py-4">
+        <span className="absolute left-1 top-0 text-2xs text-ink-faint">padding</span>
+        <span className={`${edge} left-1/2 top-0 -translate-x-1/2`}>{px(box.paddingTop)}</span>
+        <span className={`${edge} bottom-0 left-1/2 -translate-x-1/2`}>{px(box.paddingBottom)}</span>
+        <span className={`${edge} left-1 top-1/2 -translate-y-1/2`}>{px(box.paddingLeft)}</span>
+        <span className={`${edge} right-1 top-1/2 -translate-y-1/2`}>{px(box.paddingRight)}</span>
+        <div className="border border-accent px-2 py-1 text-center font-mono text-sm text-accent" title={`${box.boxSizing} · ${box.display}`}>
+          {px(box.width)} × {px(box.height)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Contrast({ element }: { element: ElementProps }) {
+  if (element.contrastRatio === null) return null;
+  const badge = contrastBadge(element.contrastRatio);
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="w-14 shrink-0 text-2xs text-ink-muted">contrast</span>
+      <span className="font-mono text-xs">{element.contrastRatio.toFixed(2)} : 1</span>
+      <span
+        className={`rounded-full border px-2 text-2xs ${
+          badge.pass ? 'border-line-strong bg-surface-control text-ink-secondary' : 'border-warn text-warn-ink'
+        }`}
+      >
+        {badge.label}
+      </span>
     </div>
   );
 }

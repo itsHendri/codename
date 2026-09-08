@@ -1,3 +1,5 @@
+import type { InspectorCommand } from '@/shared/types';
+
 const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
 
 export function isRestricted(url: string | undefined): boolean {
@@ -32,19 +34,32 @@ export async function runScan(tabId: number): Promise<void> {
   });
 }
 
+/**
+ * Talk to the inspector, injecting it the first time. Injection is idempotent
+ * and does not turn hover mode on by itself; the command does.
+ */
+export async function sendInspector<T = unknown>(tabId: number, command: InspectorCommand): Promise<T | null> {
+  const msg = { type: 'inspector', ...command };
+  const send = () => chrome.tabs.sendMessage(tabId, msg) as Promise<T | undefined>;
+  try {
+    return (await send()) ?? null;
+  } catch {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ['content-scripts/inspector.js'] });
+      return (await send()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export async function startInspector(tabId: number): Promise<void> {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ['content-scripts/inspector.js'],
-  });
+  await chrome.scripting.executeScript({ target: { tabId }, files: ['content-scripts/inspector.js'] });
+  await sendInspector(tabId, { cmd: 'hover', on: true });
 }
 
 export async function stopInspector(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: 'inspector-off' });
-  } catch {
-    // Inspector not injected — nothing to stop.
-  }
+  await sendInspector(tabId, { cmd: 'hover', on: false });
 }
 
 /* ---------------- live re-skin ---------------- */
@@ -69,7 +84,13 @@ export interface ReskinResult {
 
 async function sendReskin(
   tabId: number,
-  message: { type: string; overrides?: ReskinOverride[]; colorMap?: Record<string, string>; css?: string },
+  message: {
+    type: string;
+    overrides?: ReskinOverride[];
+    colorMap?: Record<string, string>;
+    css?: string;
+    rules?: { selector: string; property: string; value: string }[];
+  },
 ): Promise<ReskinResult | null> {
   const send = () => chrome.tabs.sendMessage(tabId, message) as Promise<ReskinResult | undefined>;
   try {
@@ -107,6 +128,15 @@ export function applyAgentPreview(tabId: number, css: string): Promise<ReskinRes
 
 export function clearAgentPreview(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-preview-clear' });
+}
+
+/* ---------------- element edits ---------------- */
+
+export function applyElementRules(
+  tabId: number,
+  rules: { selector: string; property: string; value: string }[],
+): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'elements-set', rules });
 }
 
 /** PNG of the visible tab in a window, as base64 without the data-URL prefix. */

@@ -18,6 +18,7 @@
 
 import type { ScanResult } from '@/shared/types';
 import type { Override } from './reskin';
+import type { ElementChange } from './changes';
 
 export interface TokenChange {
   name: string;
@@ -38,6 +39,25 @@ export interface ColorChange {
   uses: number;
 }
 
+/**
+ * One property on one selector, as the agent should apply it: the value the
+ * page had before any edit and the value it has now. A scrub that went
+ * through twenty values is one line.
+ */
+export interface ElementEdit {
+  selector: string;
+  /** How many elements the selector matched. */
+  matches: number;
+  /** false when the selector is positional and will not survive a reorder. */
+  stable: boolean;
+  /** A CSS longhand, or 'text'. */
+  property: string;
+  from: string;
+  /** `var(--x)` when a token was chosen. */
+  to: string;
+  token?: string;
+}
+
 export interface ChangeSet {
   site: string;
   editedAt: string;
@@ -45,8 +65,34 @@ export interface ChangeSet {
   local: boolean;
   tokens: TokenChange[];
   colors: ColorChange[];
+  elements: ElementEdit[];
   /** Stylesheets that could not be read, so the count may be short. */
   unreadable: string[];
+}
+
+/** Collapse a log into one edit per selector and property, in first-touched order. */
+export function summariseElements(entries: ElementChange[]): ElementEdit[] {
+  const byKey = new Map<string, ElementEdit>();
+  for (const e of entries) {
+    const key = `${e.selector}\u0000${e.property}`;
+    const prev = byKey.get(key);
+    if (prev) {
+      prev.to = e.to;
+      prev.token = e.token;
+    } else {
+      byKey.set(key, {
+        selector: e.selector,
+        matches: e.matches,
+        stable: e.stable,
+        property: e.property,
+        from: e.from,
+        to: e.to,
+        token: e.token,
+      });
+    }
+  }
+  // An edit that ended where it started is not an edit.
+  return Array.from(byKey.values()).filter((e) => e.from !== e.to);
 }
 
 const countLiteral = (css: string, hex: string): number => {
@@ -72,6 +118,7 @@ export function buildChangeSet(
   scan: ScanResult,
   overrides: Override[],
   colorMap: Record<string, string>,
+  elements: ElementChange[] = [],
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
@@ -102,12 +149,13 @@ export function buildChangeSet(
     local: isLocal(scan.url),
     tokens,
     colors,
+    elements: summariseElements(elements),
     unreadable: scan.unreadableSheets,
   };
 }
 
 export function isEmpty(set: ChangeSet): boolean {
-  return set.tokens.length === 0 && set.colors.length === 0;
+  return set.tokens.length === 0 && set.colors.length === 0 && set.elements.length === 0;
 }
 
 /**
@@ -161,6 +209,31 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(
         `- \`${c.from}\` → \`${c.to}\`  (${c.uses} ${c.uses === 1 ? 'occurrence' : 'occurrences'} in the stylesheets I could read)`,
       );
+    }
+    lines.push('');
+  }
+
+  if (set.elements.length) {
+    lines.push(`## Element changes — ${set.elements.length}`);
+    lines.push('');
+    lines.push(
+      'Each line is one property on one selector, read from the rendered page: the value before I touched it and the value I settled on. Apply the same intent in source at whatever specificity the rule already has; where the new value is `var(--x)`, use that token.',
+    );
+    lines.push('');
+    const bySelector = new Map<string, ElementEdit[]>();
+    for (const e of set.elements) bySelector.set(e.selector, [...(bySelector.get(e.selector) ?? []), e]);
+    for (const [selector, edits] of bySelector) {
+      const first = edits[0]!;
+      const scope = first.matches > 1 ? ` (${first.matches} elements)` : '';
+      const positional = first.stable ? '' : ' — positional selector, find the element by its content';
+      lines.push(`- \`${selector}\`${scope}${positional}`);
+      for (const e of edits) {
+        lines.push(
+          e.property === 'text'
+            ? `  - text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
+            : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : ''}`,
+        );
+      }
     }
     lines.push('');
   }

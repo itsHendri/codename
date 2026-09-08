@@ -31,6 +31,8 @@ interface ApplyMessage {
   colorMap?: Record<string, string>;
   /** A stylesheet the connected agent wants to try on the page. */
   css?: string;
+  /** Per-element edits from the Inspect tab. */
+  rules?: { selector: string; property: string; value: string }[];
 }
 
 declare global {
@@ -45,7 +47,14 @@ const STYLE_ID = 'codename-reskin';
  * from the re-skin so either can be cleared without the other.
  */
 const PREVIEW_ID = 'codename-agent-preview';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID]);
+/**
+ * Element edits. These use `!important` where the re-skin does not: the
+ * re-skin shadows the page's own selectors at their own specificity, but an
+ * element edit invents a selector and cannot know what it is up against.
+ * It is preview-only and never handed off, so the cost is nil.
+ */
+const ELEMENTS_ID = 'codename-elements';
+const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID]);
 /** A pathological page shouldn't hang the panel; stop well before that. */
 const MAX_RULES = 20000;
 
@@ -58,6 +67,7 @@ export default defineContentScript({
     const root = document.documentElement;
     let sheet: HTMLStyleElement | null = null;
     let preview: HTMLStyleElement | null = null;
+    let elements: HTMLStyleElement | null = null;
     let ruleCount = 0;
 
     /* -------- hardcoded colours -------- */
@@ -190,6 +200,22 @@ export default defineContentScript({
       sheet = null;
     };
 
+    const setElements = (rules: NonNullable<ApplyMessage['rules']>) => {
+      elements?.remove();
+      elements = null;
+      if (!rules.length) return;
+      const bySelector = new Map<string, string[]>();
+      for (const r of rules) {
+        const list = bySelector.get(r.selector) ?? [];
+        list.push(`${r.property}:${r.value} !important`);
+        bySelector.set(r.selector, list);
+      }
+      elements = document.createElement('style');
+      elements.id = ELEMENTS_ID;
+      elements.textContent = Array.from(bySelector, ([sel, decls]) => `${sel}{${decls.join(';')}}`).join('\n');
+      document.head.appendChild(elements);
+    };
+
     const setPreview = (css: string) => {
       preview?.remove();
       preview = null;
@@ -223,6 +249,16 @@ export default defineContentScript({
       }
       if (msg?.type === 'reskin-preview-clear') {
         setPreview('');
+        sendResponse({ ok: true, vars: applied.size, rules: 0 });
+        return true;
+      }
+      if (msg?.type === 'elements-set') {
+        setElements(msg.rules ?? []);
+        sendResponse({ ok: true, vars: applied.size, rules: msg.rules?.length ?? 0 });
+        return true;
+      }
+      if (msg?.type === 'elements-clear') {
+        setElements([]);
         sendResponse({ ok: true, vars: applied.size, rules: 0 });
         return true;
       }

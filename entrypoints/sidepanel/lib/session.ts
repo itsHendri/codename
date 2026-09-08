@@ -15,6 +15,7 @@ import type { PinnedElement, ScanResult } from '@/shared/types';
 import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
+import { emptyLog, type ChangeLog } from '@/studio/changes';
 
 export interface TabSession {
   scan: ScanResult | null;
@@ -34,10 +35,15 @@ export interface TabSession {
   /** Whether the agent may paint on this page. Defaults on for localhost. */
   agentMayWrite: boolean;
   comments: Comment[];
+  /** Element edits, kept per page (url without hash). */
+  log: ChangeLog;
+  logUrl: string;
+  /** Bumps when the page reloads, so managed sheets are pushed again. Not persisted. */
+  generation: number;
 }
 
 /** The part of a session that is worth keeping across a panel reopen. */
-type Persisted = Omit<TabSession, 'pinned'>;
+type Persisted = Omit<TabSession, 'pinned' | 'generation'>;
 
 const EMPTY: TabSession = {
   scan: null,
@@ -49,7 +55,12 @@ const EMPTY: TabSession = {
   handoff: null,
   agentMayWrite: false,
   comments: [],
+  log: emptyLog(),
+  logUrl: '',
+  generation: 0,
 };
+
+const pageKey = (url: string) => url.split('#')[0] ?? url;
 const key = (id: number) => `session:${id}`;
 
 let state: TabSession = EMPTY;
@@ -74,7 +85,7 @@ function schedulePersist() {
   const id = tabId;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    const { pinned: _pinned, ...rest } = state;
+    const { pinned: _pinned, generation: _generation, ...rest } = state;
     void chrome.storage.session.set({ [key(id)]: rest satisfies Persisted });
   }, 300);
 }
@@ -107,10 +118,19 @@ export async function loadSession(id: number, url: string): Promise<void> {
   tabId = id;
   const raw = await chrome.storage.session.get(key(id));
   const stored = raw[key(id)] as Partial<Persisted> | undefined;
-  state =
-    stored?.scan && sameOrigin(stored.scan.url, url)
-      ? { ...EMPTY, ...stored, pinned: null }
-      : { ...EMPTY, agentMayWrite: isLocal(url) };
+  const keep = stored?.scan && sameOrigin(stored.scan.url, url);
+  const samePage = keep && stored.logUrl === pageKey(url);
+  state = keep
+    ? {
+        ...EMPTY,
+        agentMayWrite: isLocal(url),
+        ...stored,
+        pinned: null,
+        log: samePage ? (stored.log ?? emptyLog()) : emptyLog(),
+        logUrl: pageKey(url),
+        generation: state.generation + 1,
+      }
+    : { ...EMPTY, agentMayWrite: isLocal(url), logUrl: pageKey(url), generation: state.generation + 1 };
   emit();
 }
 

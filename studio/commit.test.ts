@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '@/shared/types';
-import { buildChangeSet, isEmpty, isLocal, toJson, toPrompt } from './commit';
+import { buildChangeSet, isEmpty, isLocal, summariseElements, toJson, toPrompt } from './commit';
+import type { ElementChange } from './changes';
 import type { Override } from './reskin';
 
 function scanOf(over: Partial<ScanResult> = {}): ScanResult {
@@ -133,6 +134,48 @@ describe('toPrompt', () => {
 
   it('says explicitly to change nothing else', () => {
     expect(toPrompt(buildChangeSet(scanOf(), [markOverride], {}))).toMatch(/Change nothing else/i);
+  });
+});
+
+const edit = (over: Partial<ElementChange>): ElementChange => ({
+  id: 'x',
+  selector: '.btn',
+  matches: 1,
+  stable: true,
+  property: 'padding-top',
+  from: '8px',
+  to: '12px',
+  status: 'applied',
+  at: '2026-09-08T00:00:00.000Z',
+  ...over,
+});
+
+describe('element changes', () => {
+  it('collapses a scrub to one line, first value to last', () => {
+    const out = summariseElements([edit({ id: 'a', to: '9px' }), edit({ id: 'b', from: '9px', to: '14px' })]);
+    expect(out).toEqual([expect.objectContaining({ from: '8px', to: '14px' })]);
+  });
+
+  it('drops an edit that ended where it started', () => {
+    expect(summariseElements([edit({ to: '10px' }), edit({ from: '10px', to: '8px' })])).toEqual([]);
+  });
+
+  it('counts towards emptiness and reaches the brief grouped by selector', () => {
+    const set = buildChangeSet(scanOf(), [], {}, [
+      edit({}),
+      edit({ id: 'y', property: 'color', from: '#BE3A22', to: 'var(--mark)', token: '--mark' }),
+      edit({ id: 'z', selector: 'h1', property: 'text', from: 'Hi', to: 'Hello', stable: false }),
+    ]);
+    expect(isEmpty(set)).toBe(false);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('## Element changes — 3');
+    expect(prompt).toContain('- `.btn`');
+    expect(prompt).toContain('`padding-top`: `8px` → `12px`');
+    expect(prompt).toContain('`color`: `#BE3A22` → `var(--mark)` (the token `--mark`)');
+    expect(prompt).toContain('text: "Hi" → "Hello"');
+    expect(prompt).toContain('positional selector');
+    // Still never a stylesheet.
+    expect(prompt).not.toMatch(/\{[^}]*:[^}]*\}/);
   });
 });
 
