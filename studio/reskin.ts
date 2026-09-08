@@ -84,14 +84,17 @@ function findStep(
   return best ? { role: best.role, step: best.step } : null;
 }
 
-export function buildReskin(
-  customProps: CustomPropInfo[],
-  before: ResolvedTokens,
-  after: ResolvedTokens,
-  mode: Mode = 'light',
-): Override[] {
-  // How each seed moved, for the family pass.
-  const seedShift = SCALE_ROLES.map((role) => {
+type Oklch = NonNullable<ReturnType<typeof toOklch>>;
+
+interface SeedShift {
+  role: (typeof SCALE_ROLES)[number];
+  from: Oklch;
+  to: Oklch;
+}
+
+/** How each seed moved, for the family pass. Empty when nothing was edited. */
+function seedShifts(before: ResolvedTokens, after: ResolvedTokens): SeedShift[] {
+  return SCALE_ROLES.map((role) => {
     const from = parse(before.config.color.scales.find((s) => s.role === role)!.seed);
     const to = parse(after.config.color.scales.find((s) => s.role === role)!.seed);
     if (!from || !to) return null;
@@ -100,8 +103,62 @@ export function buildReskin(
     if (!a || !b) return null;
     const moved = Math.abs((a.h ?? 0) - (b.h ?? 0)) > 0.5 || Math.abs((a.c ?? 0) - (b.c ?? 0)) > 0.005;
     return moved ? { role, from: a, to: b } : null;
-  }).filter((x): x is NonNullable<typeof x> => x !== null);
+  }).filter((x): x is SeedShift => x !== null);
+}
 
+/**
+ * What one colour on the page becomes under the edited system, or null to leave
+ * it alone. The single decision both paths ask — a variable definition and a
+ * hardcoded declaration should never disagree about the same colour.
+ */
+export function remapColor(
+  hex: string,
+  before: ResolvedTokens,
+  after: ResolvedTokens,
+  shifts: SeedShift[],
+  mode: Mode = 'light',
+): { to: string; reason: Override['reason'] } | null {
+  // 1. Sitting on a ramp — move it to the same step after the edit.
+  const at = findStep(hex, before, mode);
+  if (at) {
+    // Compare the step to itself across the edit, not to the colour. A colour
+    // sitting *near* a step would otherwise be dragged onto the ramp even when
+    // nothing changed — repainting the page for no reason.
+    const fromStep = before.scales[at.role].steps[mode][at.step].hex.toUpperCase();
+    const toStep = after.scales[at.role].steps[mode][at.step].hex.toUpperCase();
+    return fromStep === toStep ? null : { to: toStep, reason: 'exact' };
+  }
+
+  // 2. Same hue family as a seed that moved — carry it along.
+  const parsed = parse(hex);
+  const own = parsed ? toOklch(parsed) : null;
+  if (!own || (own.c ?? 0) < MIN_CHROMA) return null;
+  const family = shifts.find((s) => {
+    const delta = Math.abs(((((s.from.h ?? 0) - (own.h ?? 0) + 540) % 360) - 180));
+    return delta < FAMILY_HUE;
+  });
+  if (!family) return null;
+
+  const hueDelta = (family.to.h ?? 0) - (family.from.h ?? 0);
+  const chromaRatio = (family.from.c ?? 0) > 0.001 ? (family.to.c ?? 0) / (family.from.c ?? 0) : 1;
+  // Lightness is the colour's own: a tint must stay a tint.
+  const shifted = formatHex({
+    mode: 'oklch',
+    l: own.l,
+    c: Math.min((own.c ?? 0) * chromaRatio, 0.4),
+    h: ((((own.h ?? 0) + hueDelta) % 360) + 360) % 360,
+  });
+  if (!shifted || shifted.toUpperCase() === hex) return null;
+  return { to: shifted.toUpperCase(), reason: 'family' };
+}
+
+export function buildReskin(
+  customProps: CustomPropInfo[],
+  before: ResolvedTokens,
+  after: ResolvedTokens,
+  mode: Mode = 'light',
+): Override[] {
+  const shifts = seedShifts(before, after);
   const overrides: Override[] = [];
   const seen = new Set<string>();
 
@@ -109,45 +166,35 @@ export function buildReskin(
     if (seen.has(prop.name)) continue;
     const hex = hexOf(prop.value);
     if (!hex) continue;
-
-    // 1. Sitting on a ramp — move it to the same step after the edit.
-    const at = findStep(hex, before, mode);
-    if (at) {
-      // Compare the step to itself across the edit, not to the variable. A
-      // variable sitting *near* a step would otherwise be dragged onto the ramp
-      // even when nothing changed — repainting the page for no reason.
-      const fromStep = before.scales[at.role].steps[mode][at.step].hex.toUpperCase();
-      const toStep = after.scales[at.role].steps[mode][at.step].hex.toUpperCase();
-      if (fromStep !== toStep) {
-        overrides.push({ name: prop.name, from: hex, to: toStep, reason: 'exact' });
-        seen.add(prop.name);
-      }
-      continue;
-    }
-
-    // 2. Same hue family as a seed that moved — carry it along.
-    const own = toOklch(parse(hex)!);
-    if (!own || (own.c ?? 0) < MIN_CHROMA) continue;
-    const family = seedShift.find((s) => {
-      const delta = Math.abs(((s.from.h ?? 0) - (own.h ?? 0) + 540) % 360 - 180);
-      return delta < FAMILY_HUE;
-    });
-    if (!family) continue;
-
-    const hueDelta = (family.to.h ?? 0) - (family.from.h ?? 0);
-    const chromaRatio = (family.from.c ?? 0) > 0.001 ? (family.to.c ?? 0) / (family.from.c ?? 0) : 1;
-    // Lightness is the variable's own: a tint must stay a tint.
-    const shifted = formatHex({
-      mode: 'oklch',
-      l: own.l,
-      c: Math.min((own.c ?? 0) * chromaRatio, 0.4),
-      h: (((own.h ?? 0) + hueDelta) % 360 + 360) % 360,
-    });
-    if (shifted && shifted.toUpperCase() !== hex) {
-      overrides.push({ name: prop.name, from: hex, to: shifted.toUpperCase(), reason: 'family' });
-      seen.add(prop.name);
-    }
+    const mapped = remapColor(hex, before, after, shifts, mode);
+    if (!mapped) continue;
+    overrides.push({ name: prop.name, from: hex, to: mapped.to, reason: mapped.reason });
+    seen.add(prop.name);
   }
-
   return overrides;
+}
+
+/**
+ * old hex → new hex for every colour the scan actually saw on the page.
+ *
+ * This is what the rule-rewriting path needs: a site that hardcodes `#be3a22`
+ * in forty declarations has no variable to override, so the colours themselves
+ * are the handle. Keyed on colours observed in the DOM rather than on every
+ * ramp step, so the map stays small and only claims colours that are really there.
+ */
+export function buildColorMap(
+  observed: { hex: string }[],
+  before: ResolvedTokens,
+  after: ResolvedTokens,
+  mode: Mode = 'light',
+): Record<string, string> {
+  const shifts = seedShifts(before, after);
+  const map: Record<string, string> = {};
+  for (const { hex } of observed) {
+    const key = hex.toUpperCase();
+    if (map[key]) continue;
+    const mapped = remapColor(key, before, after, shifts, mode);
+    if (mapped) map[key] = mapped.to;
+  }
+  return map;
 }

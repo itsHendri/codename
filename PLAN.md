@@ -38,7 +38,7 @@ read-only rather than guessing at it.
   a header control and the full-tab Studio deleted.
 - 249 tests. `.harness/` renders the panel outside the extension.
 
-## Live re-skin — variable path done
+## Live re-skin — both paths done
 
 Change a seed → the real page repaints. On by default, session-scoped, cleared
 when you leave the tab or toggle it off.
@@ -58,11 +58,21 @@ Two mechanisms, and **the clean one is not always available**:
    declarations matching an extracted value, and emit an override sheet reusing
    *their* selectors so `:hover` and `:focus` keep working.
 
-**Path 1 is built** (`studio/reskin.ts` + `entrypoints/reskin.content.ts`).
-**Path 2 is not.** Measured reality: stripe.com exposes zero readable custom
-properties while forfontsake has 26, so path 2 is not a nice-to-have fallback —
-it is what makes this work anywhere but your own projects. Until it exists the
-panel says "no variables to change here" rather than failing silently.
+Both are built (`studio/reskin.ts` + `entrypoints/reskin.content.ts`), and
+path 2 is what makes this work beyond your own projects: stripe.com exposes zero
+readable custom properties while forfontsake has 26.
+
+Path 2 verified against a page with no variables at all: 8 rules emitted from 9
+source rules, and the parts that usually break survived — `:hover` repaints to
+the new hover colour, `:focus-visible` keeps its `rgba(…, 0.45)` alpha, the
+`@media (min-width: 600px)` block keeps its condition, and border shorthands
+expand to the right longhands. Neutrals were left alone. Clearing restored every
+value with no leftover style tag.
+
+The reason it reuses the page's own selector verbatim rather than inventing one:
+that is what carries interactive states and breakpoints. An override written as
+`.btn { background: … }` would repaint the resting button and silently lose its
+hover.
 
 How a variable is matched, and nothing else is touched:
 
@@ -82,6 +92,12 @@ How a variable is matched, and nothing else is touched:
 - An inline root override outranks every author rule for that element, which is
   what makes this work — but it also means a page whose theme is scoped to a
   descendant (`.theme-dark .card`) will not fully follow.
+- Path 2 can only read same-origin stylesheets; a cross-origin sheet throws on
+  `cssRules` and is skipped. `unreadableSheets` already records which.
+- Colours written inline on an element (`style="color:#be3a22"`) are not
+  rewritten — only rules are.
+- Rules are rebuilt on each change. Fine at the sizes measured; if a very large
+  site drags, cache the matched rules and re-emit only the values.
 
 ## After that: the agent link
 

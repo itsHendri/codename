@@ -3,7 +3,7 @@ import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ScaleRole } from '@/studio/engine/types';
 import { resolveTokens } from '@/studio/engine/resolve';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
-import { buildReskin } from '@/studio/reskin';
+import { buildColorMap, buildReskin } from '@/studio/reskin';
 import { applyReskin, clearReskin } from '../lib/messaging';
 import { Section } from './design/Section';
 import { ColourSection } from './design/ColourSection';
@@ -29,7 +29,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
   // On by default: the page is the canvas, so an edit you cannot see is not an
   // edit. Overrides last the session and die with the document.
   const [live, setLive] = useState(true);
-  const [appliedCount, setAppliedCount] = useState<number | null>(null);
+  const [result, setResult] = useState<{ vars: number; rules: number } | null>(null);
 
   // Both hooks run unconditionally — `config ?? useMemo(...)` short-circuits and
   // would make the hook call conditional.
@@ -43,6 +43,12 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
     () => (config ? buildReskin(scan.customProps, baseline, resolved, mode) : []),
     [config, scan.customProps, baseline, resolved, mode],
   );
+  // For pages with no variables to override, the colours themselves are the
+  // handle: the page's own rules get re-emitted with the new values.
+  const colorMap = useMemo(
+    () => (config ? buildColorMap(scan.colors, baseline, resolved, mode) : {}),
+    [config, scan.colors, baseline, resolved, mode],
+  );
 
   // Push to the page whenever the result changes. Cleared on unmount so leaving
   // the tab does not leave the site repainted behind you.
@@ -52,15 +58,15 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
     if (!live) {
       if (lastSent.current !== '') {
         lastSent.current = '';
-        void clearReskin(tabId).then(() => setAppliedCount(null));
+        void clearReskin(tabId).then(() => setResult(null));
       }
       return;
     }
-    const key = JSON.stringify(overrides);
+    const key = JSON.stringify([overrides, colorMap]);
     if (key === lastSent.current) return;
     lastSent.current = key;
-    void applyReskin(tabId, overrides).then(setAppliedCount);
-  }, [tabId, live, overrides]);
+    void applyReskin(tabId, overrides, colorMap).then(setResult);
+  }, [tabId, live, overrides, colorMap]);
 
   useEffect(() => {
     return () => {
@@ -115,11 +121,13 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
             ? 'read from this page'
             : !live
               ? 'edited · page untouched'
-              : appliedCount === null
-                ? 'edited'
-                : appliedCount > 0
-                  ? `${appliedCount} live on the page`
-                  : 'no variables to change here'}
+              : result === null
+              ? 'edited'
+              : result.vars + result.rules === 0
+                ? "this page's colours can't be reached"
+                : result.vars > 0
+                  ? `${result.vars} ${result.vars === 1 ? 'variable' : 'variables'} live on the page`
+                  : `${result.rules} ${result.rules === 1 ? 'rule' : 'rules'} live on the page`}
         </span>
         {edited && (
           <button

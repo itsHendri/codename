@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { converter, parse } from 'culori';
 import type { CustomPropInfo } from '@/shared/types';
-import { buildReskin } from './reskin';
+import { buildColorMap, buildReskin } from './reskin';
 import { resolveTokens } from './engine/resolve';
 import { seedBrandFromScan } from './seedFromScan';
 import type { ScanResult } from '@/shared/types';
@@ -149,5 +149,37 @@ describe('buildReskin', () => {
     // stripe.com: zero readable variables, so the clean path has no purchase.
     const after = withSeed('primary', '#1C7F5C');
     expect(buildReskin([], before, after)).toEqual([]);
+  });
+});
+
+describe('buildColorMap — for pages with no variables to override', () => {
+  const before = resolveTokens(seedBrandFromScan(scan));
+
+  it('maps the colours the page actually paints with', () => {
+    const after = withSeed('primary', '#1C7F5C');
+    const map = buildColorMap([{ hex: '#BE3A22' }], before, after);
+    expect(map['#BE3A22']).toBeDefined();
+    expect(Math.abs(hue(map['#BE3A22']!) - hue('#1C7F5C'))).toBeLessThan(12);
+  });
+
+  it('is empty when nothing changed, so no rules get rewritten', () => {
+    expect(buildColorMap([{ hex: '#BE3A22' }, { hex: '#15171B' }], before, before)).toEqual({});
+  });
+
+  it('leaves colours it has no claim on out of the map', () => {
+    const after = withSeed('primary', '#1C7F5C');
+    // A page neutral and an unrelated hue: neither belongs to the brand family.
+    const map = buildColorMap([{ hex: '#CBC7BC' }, { hex: '#2A78D6' }], before, after);
+    expect(map['#CBC7BC']).toBeUndefined();
+    expect(map['#2A78D6']).toBeUndefined();
+  });
+
+  it('agrees with the variable path about the same colour', () => {
+    // Both paths ask remapColor, so a site defining --mark and another
+    // hardcoding #be3a22 must end up with the same new colour.
+    const after = withSeed('primary', '#1C7F5C');
+    const viaVar = buildReskin([{ name: '--mark', value: '#be3a22' }], before, after)[0]!;
+    const viaMap = buildColorMap([{ hex: '#BE3A22' }], before, after);
+    expect(viaMap['#BE3A22']).toBe(viaVar.to);
   });
 });

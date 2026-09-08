@@ -69,31 +69,41 @@ interface ReskinOverride {
  * injecting on failure avoids both a redundant inject on every keystroke and a
  * separate "is it there?" round trip.
  */
+export interface ReskinResult {
+  /** Custom properties overridden on the root. */
+  vars: number;
+  /** Rules re-emitted for pages that hardcode their colours. */
+  rules: number;
+}
+
 async function sendReskin(
   tabId: number,
-  message: { type: string; overrides?: ReskinOverride[] },
-): Promise<number | null> {
+  message: { type: string; overrides?: ReskinOverride[]; colorMap?: Record<string, string> },
+): Promise<ReskinResult | null> {
+  const send = () => chrome.tabs.sendMessage(tabId, message) as Promise<ReskinResult | undefined>;
   try {
-    const res = (await chrome.tabs.sendMessage(tabId, message)) as { applied: number } | undefined;
-    return res?.applied ?? 0;
+    return (await send()) ?? null;
   } catch {
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
         files: ['content-scripts/reskin.js'],
       });
-      const res = (await chrome.tabs.sendMessage(tabId, message)) as { applied: number } | undefined;
-      return res?.applied ?? 0;
+      return (await send()) ?? null;
     } catch {
       return null;
     }
   }
 }
 
-export function applyReskin(tabId: number, overrides: ReskinOverride[]): Promise<number | null> {
-  return sendReskin(tabId, { type: 'reskin-apply', overrides });
+export function applyReskin(
+  tabId: number,
+  overrides: ReskinOverride[],
+  colorMap: Record<string, string>,
+): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'reskin-apply', overrides, colorMap });
 }
 
-export function clearReskin(tabId: number): Promise<number | null> {
+export function clearReskin(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-clear' });
 }
