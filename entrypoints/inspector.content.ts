@@ -100,7 +100,6 @@ function opaqueBackground(el: Element): string {
 /* ---------------- reading an element ---------------- */
 
 const HOST_TAG = 'CODENAME-INSPECTOR';
-const FREEZE_ID = 'codename-freeze';
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -307,10 +306,6 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
-      .bar .pause { display: flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid ${d.cardLine}; border-radius: 6px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
-      .bar .pause svg { width: 12px; height: 12px; }
-      .bar .pause:hover { color: ${d.cardInk}; }
-      .bar .pause.on { background: ${d.accent}; color: ${d.cardBg}; border-color: ${d.accent}; }
       .hint { position: fixed; top: 34px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
       .hint.fading { opacity: 0; }
       .hint b { font-weight: 600; }
@@ -342,9 +337,6 @@ function activate() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg>Comment
         </button>
       </div>
-      <button class="pause" aria-pressed="false" title="Hold every animation, transition and video still">
-        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg>Pause
-      </button>
       <span class="fold" title="Collapse">‹</span>
     </div>
     <div class="hint hidden"></div>
@@ -374,7 +366,6 @@ function activate() {
   const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
-  const barPause = bar.querySelector<HTMLButtonElement>('.pause')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
 
@@ -385,8 +376,6 @@ function activate() {
   let pins: Pin[] = [];
   let barOn = false;
   let noteOn = false;
-  let frozen = false;
-  let freezeSheet: HTMLStyleElement | null = null;
   /** Elements shift-clicked in note mode, in the order they were picked. */
   let picked: Element[] = [];
   let drag: { x: number; y: number } | null = null;
@@ -818,40 +807,6 @@ function activate() {
     if (barOn) renderBar();
   };
 
-  /* ----- freeze: hold the page still ----- */
-
-  const setFreeze = (on: boolean) => {
-    if (on === frozen) return;
-    frozen = on;
-    if (on) {
-      freezeSheet = document.createElement('style');
-      freezeSheet.id = FREEZE_ID;
-      freezeSheet.textContent =
-        '*, *::before, *::after { animation-play-state: paused !important; transition: none !important; }';
-      document.head.appendChild(freezeSheet);
-      // CSS alone stops neither a Web Animation nor a playing video.
-      try {
-        for (const a of document.getAnimations()) a.pause();
-      } catch {
-        /* not supported here */
-      }
-      for (const v of document.querySelectorAll('video')) v.pause();
-    } else {
-      freezeSheet?.remove();
-      freezeSheet = null;
-      try {
-        for (const a of document.getAnimations()) a.play();
-      } catch {
-        /* not supported here */
-      }
-    }
-    send({ type: 'freeze-toggled', active: on });
-    if (barOn) {
-      renderBar();
-      showHint(on ? '<b>Paused</b> — animations, transitions and video are held still.' : null);
-    }
-  };
-
   /* ----- the bar ----- */
 
   let menu: HTMLElement | null = null;
@@ -863,8 +818,6 @@ function activate() {
     barSelect.setAttribute('aria-checked', String(hoverOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
-    barPause.classList.toggle('on', frozen);
-    barPause.setAttribute('aria-pressed', String(frozen));
   };
 
   /**
@@ -927,7 +880,6 @@ function activate() {
   });
   barSelect.addEventListener('click', () => setHover(!hoverOn));
   barComment.addEventListener('click', () => setNote(!noteOn));
-  barPause.addEventListener('click', () => setFreeze(!frozen));
   // The mark folds the bar down to a pill and opens it again; the chevron only folds.
   bar.querySelector('.mark')!.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -949,7 +901,6 @@ function activate() {
       showBar(false);
       setHover(false);
       setNote(false);
-      setFreeze(false);
     });
   };
   chrome.runtime.onConnect.addListener(onConnect);
@@ -1073,9 +1024,6 @@ function activate() {
       case 'note':
         setNote(!!msg.on);
         break;
-      case 'freeze':
-        setFreeze(!!msg.on);
-        break;
       case 'off':
         deactivate();
         break;
@@ -1089,7 +1037,6 @@ function activate() {
   function deactivate() {
     setHover(false);
     setNote(false);
-    setFreeze(false);
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);

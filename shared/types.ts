@@ -168,8 +168,6 @@ export type InspectorCommand =
   | { cmd: 'pins'; pins: Pin[] }
   /** Draw-a-box / click / shift-click to say what a note is about. */
   | { cmd: 'note'; on: boolean }
-  /** Hold every animation, transition and video still. */
-  | { cmd: 'freeze'; on: boolean }
   | { cmd: 'measure'; on: boolean }
   | { cmd: 'bar'; on: boolean }
   | { cmd: 'off' };
@@ -183,7 +181,6 @@ export type RuntimeMessage =
   | { type: 'note-target'; target: CommentTarget }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
-  | { type: 'freeze-toggled'; active: boolean }
   | { type: 'resize-window'; width: number; height: number }
   | { type: 'text-edited'; selector: string; from: string; to: string }
   | { type: 'fetch-text'; url: string };

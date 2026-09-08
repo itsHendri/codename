@@ -48,9 +48,8 @@ presets behind it, and the modes. **Select** hovers for font, colour and
 contrast and clicks to pick an element. **Comment** marks something up: click
 an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
-where it lands. **Pause** holds every animation, transition and video still so
-you can mark up a moment. Each mode says what it does as you enter it. Click
-the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
+where it lands. Each mode says what it does as you enter it. Click the mark to
+fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
 light, or follow the system), site access, and the agent bridge.
 
 Reading the page is automatic wherever Chrome already lets the extension in:
@@ -198,5 +197,13 @@ hand-off brief, the local bridge with its MCP tools, and the exports. See
 
 ## License
 
-MIT. Geist and Geist Mono are bundled under the SIL Open Font License; see
+MIT.
+
+Geist and Geist Mono are bundled under the SIL Open Font License; see
 `public/fonts/LICENSE-Geist-OFL.txt`.
+
+The panel's palette, type sizes and spacing rhythm are taken from
+[Ship Studio](https://github.com/ship-studio/ship-studio), used under its MIT
+licence (Copyright © 2026 Julian Galluzzo and Ship Studio contributors). Token
+names are Codename's own; the values are theirs. `entrypoints/sidepanel/style.css`
+carries the notice and says what the choice costs in contrast.

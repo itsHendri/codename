@@ -221,6 +221,21 @@ than a style one, and on the dev server this is built for it would be undone
 by the next render and can confuse the framework's reconciliation. If it
 comes, it comes as an instruction in the brief rather than as a live edit.
 
+**W10. Ship Studio's palette, adopted (S).** Done. Rather than approximate it,
+the panel now uses Ship Studio's own values under its MIT licence, with the
+notice in `style.css` and in the README. Token names stay ours so utilities
+keep reading `text-ink-muted`; the numbers are theirs, including the green
+accent. Pause is gone from the bar and the content script, along with its
+command and message.
+
+The audit changed rather than the palette. This palette does not meet the APCA
+thresholds Codename holds scanned sites to — primary text lands at Lc 65 where
+body copy wants 75, muted at 29 where the old floor was 45 — so `theme.test.ts`
+stopped asserting a standard it does not reach and now pins the measured
+numbers, keeps the ink ladder monotonic, and still requires text on a coloured
+fill to be readable. The trade is written down in both files rather than left
+for someone to discover.
+
 **W9. The panel's own density (M).** Done, measured against Ship Studio's
 token files rather than against a memory of them.
 

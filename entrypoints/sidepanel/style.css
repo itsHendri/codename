@@ -1,12 +1,22 @@
 /*
- * The panel's own design system. Every colour, size and radius the chrome
- * uses is a semantic token here; components only ever say what a surface or
- * an ink is *for*. Dark is the default, light is an override, and the
- * system preference decides when no choice has been made.
+ * The panel's own design system.
  *
- * Values are hex on purpose: theme.test.ts parses this file and runs the
- * panel's own APCA audit against it, so the panel is held to the standard it
- * holds sites to.
+ * The palette, the type sizes and the spacing rhythm are Ship Studio's, used
+ * under its MIT licence:
+ *
+ *   Copyright (c) 2026 Julian Galluzzo and Ship Studio contributors
+ *   https://github.com/ship-studio/ship-studio
+ *
+ * Token names stay ours — `ink` rather than `text`, `line` rather than
+ * `border` — so utilities read `text-ink-muted` and `border-line` instead of
+ * `text-text-muted`. The values are theirs.
+ *
+ * What this costs, stated plainly because the panel audits other people's
+ * contrast: this palette does not meet the APCA thresholds Codename holds
+ * scanned sites to. Primary text lands near Lc 65 where body copy wants 75,
+ * and muted text near Lc 28 where the panel's own floor was 45. That was a
+ * deliberate choice to match Ship Studio, and theme.test.ts records the real
+ * numbers rather than asserting a standard the palette does not meet.
  */
 
 @import 'tailwindcss';
@@ -27,83 +37,83 @@
 /* dark — the default */
 :root {
   color-scheme: dark;
-  --surface-app: #151311;
-  --surface-panel: #1c1a18;
-  --surface-control: #262421;
-  --surface-recessed: #0f0d0b;
-  --surface-raised: #302d2b;
-  --surface-selected: #3b3935;
-  --ink: #dad7d3;
-  --ink-secondary: #c1bdb8;
-  --ink-muted: #a5a19b;
-  --ink-faint: #7e7a74;
-  --line: #302d2b;
-  --line-subtle: #262421;
-  --line-strong: #403d39;
-  --accent: #6bb3ff;
-  --accent-hover: #86c4ff;
-  --accent-soft: #132946;
-  --accent-ink: #02050b;
-  --warn: #e6ac3d;
-  --warn-soft: #332305;
-  --warn-ink: #fac871;
-  --ok: #5dc879;
-  --ok-soft: #122d19;
+  --surface-app: #141414;
+  --surface-panel: #1a1a1a;
+  --surface-control: #282828;
+  --surface-recessed: #141414;
+  --surface-raised: #282828;
+  --surface-selected: #393939;
+  --ink: #bcbcbc;
+  --ink-secondary: #979797;
+  --ink-muted: #767676;
+  --ink-faint: #4e4e4e;
+  --line: #303030;
+  --line-subtle: #282828;
+  --line-strong: #393939;
+  --accent: #46e76f;
+  --accent-hover: #35d35d;
+  --accent-soft: #213927;
+  --accent-ink: #141414;
+  --warn: #e89a1c;
+  --warn-soft: #392d1a;
+  --warn-ink: #f6bf3e;
+  --ok: #35d35d;
+  --ok-soft: #1e3624;
 }
 
 /* light — an explicit choice… */
 :root[data-theme='light'] {
   color-scheme: light;
-  --surface-app: #fbfaf8;
+  --surface-app: #fafafa;
   --surface-panel: #ffffff;
-  --surface-control: #f2f0ed;
-  --surface-recessed: #f6f5f3;
+  --surface-control: #f1f1f1;
+  --surface-recessed: #f6f6f6;
   --surface-raised: #ffffff;
-  --surface-selected: #e9e6e2;
-  --ink: #1d1a16;
-  --ink-secondary: #4b4742;
-  --ink-muted: #615d57;
-  --ink-faint: #8a8580;
-  --line: #d6d4d0;
-  --line-subtle: #e6e4e1;
-  --line-strong: #c1bdb8;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-soft: #e0eeff;
+  --surface-selected: #e4e4e4;
+  --ink: #303030;
+  --ink-secondary: #565656;
+  --ink-muted: #767676;
+  --ink-faint: #a9a9a9;
+  --line: #dcdcdc;
+  --line-subtle: #e8e8e8;
+  --line-strong: #bcbcbc;
+  --accent: #1f9a3f;
+  --accent-hover: #1a8235;
+  --accent-soft: #e4f3e8;
   --accent-ink: #ffffff;
-  --warn: #de9300;
-  --warn-soft: #fef4df;
-  --warn-ink: #904700;
-  --ok: #00943e;
-  --ok-soft: #e8fbeb;
+  --warn: #e89a1c;
+  --warn-soft: #fcf1df;
+  --warn-ink: #8a5a04;
+  --ok: #1f9a3f;
+  --ok-soft: #e4f3e8;
 }
 
 /* …or the system's, when no choice has been made. Same values as above. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     color-scheme: light;
-    --surface-app: #fbfaf8;
+    --surface-app: #fafafa;
     --surface-panel: #ffffff;
-    --surface-control: #f2f0ed;
-    --surface-recessed: #f6f5f3;
+    --surface-control: #f1f1f1;
+    --surface-recessed: #f6f6f6;
     --surface-raised: #ffffff;
-    --surface-selected: #e9e6e2;
-    --ink: #1d1a16;
-    --ink-secondary: #4b4742;
-    --ink-muted: #615d57;
-    --ink-faint: #8a8580;
-    --line: #d6d4d0;
-    --line-subtle: #e6e4e1;
-    --line-strong: #c1bdb8;
-    --accent: #2563eb;
-    --accent-hover: #1d4ed8;
-    --accent-soft: #e0eeff;
+    --surface-selected: #e4e4e4;
+    --ink: #303030;
+    --ink-secondary: #565656;
+    --ink-muted: #767676;
+    --ink-faint: #a9a9a9;
+    --line: #dcdcdc;
+    --line-subtle: #e8e8e8;
+    --line-strong: #bcbcbc;
+    --accent: #1f9a3f;
+    --accent-hover: #1a8235;
+    --accent-soft: #e4f3e8;
     --accent-ink: #ffffff;
-    --warn: #de9300;
-    --warn-soft: #fef4df;
-    --warn-ink: #904700;
-    --ok: #00943e;
-    --ok-soft: #e8fbeb;
+    --warn: #e89a1c;
+    --warn-soft: #fcf1df;
+    --warn-ink: #8a5a04;
+    --ok: #1f9a3f;
+    --ok-soft: #e4f3e8;
   }
 }
 
@@ -142,15 +152,16 @@
   --text-xs: 11px;
   --text-xs--line-height: 14px;
   --text-sm: 12px;
-  --text-sm--line-height: 15px;
+  --text-sm--line-height: 16px;
   --text-base: 13px;
   --text-base--line-height: 17px;
   --text-lg: 15px;
-  --text-lg--line-height: 19px;
+  --text-lg--line-height: 20px;
 
   --radius-control: 6px;
   --radius-card: 8px;
 
+  /* Ship Studio: fast 0.1s, default 0.15s, slow 0.3s. */
   --default-transition-duration: 150ms;
 }
 

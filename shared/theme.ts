@@ -5,20 +5,20 @@
  */
 export const OVERLAY = {
   dark: {
-    accent: '#6bb3ff',
-    accentWash: 'rgba(107, 179, 255, 0.12)',
-    cardBg: '#302d2b',
-    cardInk: '#dad7d3',
-    cardMuted: '#a5a19b',
-    cardLine: '#403d39',
+    accent: '#46e76f',
+    accentWash: 'rgba(70, 231, 111, 0.12)',
+    cardBg: '#1a1a1a',
+    cardInk: '#bcbcbc',
+    cardMuted: '#767676',
+    cardLine: '#393939',
   },
   light: {
-    accent: '#2563eb',
-    accentWash: 'rgba(37, 99, 235, 0.08)',
+    accent: '#1f9a3f',
+    accentWash: 'rgba(31, 154, 63, 0.10)',
     cardBg: '#ffffff',
-    cardInk: '#14110d',
-    cardMuted: '#67635d',
-    cardLine: '#d6d4d0',
+    cardInk: '#303030',
+    cardMuted: '#767676',
+    cardLine: '#dcdcdc',
   },
 } as const;
 

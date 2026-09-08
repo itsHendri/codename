@@ -71,12 +71,8 @@ export interface InspectController {
   /** Note mode: draw a box, click, shift-click, or select text on the page. */
   noting: boolean;
   setNoting(on: boolean): void;
-  /** Hold every animation, transition and video still. */
-  frozen: boolean;
-  setFrozen(on: boolean): void;
   /** The page flipped its own switch; take the state without echoing it back. */
   setNotingFromPage(on: boolean): void;
-  setFrozenFromPage(on: boolean): void;
   /** The page as a list to pick from. Read on demand, not kept in step. */
   layers: LayerNode[];
   layersLoading: boolean;
@@ -130,7 +126,6 @@ export function useInspect(
   const [scope, setScope] = useState<Scope>('element');
   const [measuring, setMeasuring] = useState(false);
   const [noting, setNoting] = useState(false);
-  const [frozen, setFrozen] = useState(false);
   const [layers, setLayers] = useState<LayerNode[]>([]);
   const [layersLoading, setLayersLoading] = useState(false);
   const [holding, setHolding] = useState(false);
@@ -286,13 +281,7 @@ export function useInspect(
       setNoting(on);
       send({ cmd: 'note', on });
     },
-    frozen,
-    setFrozen: (on) => {
-      setFrozen(on);
-      send({ cmd: 'freeze', on });
-    },
     setNotingFromPage: setNoting,
-    setFrozenFromPage: setFrozen,
     layers,
     layersLoading,
     refreshLayers,
