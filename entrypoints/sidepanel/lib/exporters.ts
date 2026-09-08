@@ -105,6 +105,26 @@ export function buildBrandMd(scan: ScanResult, sections: ExportSections): string
     }
   }
 
+  if (sections.spacing && scan.shape.spacing.length) {
+    lines.push('## Spacing');
+    lines.push('');
+    lines.push('Lengths seen in padding, margin and gap, most used first.');
+    lines.push('');
+    for (const v of scan.shape.spacing.slice(0, 12)) lines.push(`- \`${v.value}\` × ${v.count}`);
+    if (scan.shape.radii.length) {
+      lines.push('');
+      lines.push(`Corner radii: ${scan.shape.radii.slice(0, 6).map((r) => `\`${r.value}\` × ${r.count}`).join(', ')}`);
+    }
+    lines.push('');
+  }
+
+  if (sections.shadows && scan.shape.shadows.length) {
+    lines.push('## Shadows');
+    lines.push('');
+    for (const v of scan.shape.shadows.slice(0, 6)) lines.push(`- \`${v.value}\` × ${v.count}`);
+    lines.push('');
+  }
+
   if (sections.rawVars && scan.customProps.length) {
     lines.push('## CSS custom properties');
     lines.push('');
@@ -135,12 +155,4 @@ export function buildBrandMd(scan: ScanResult, sections: ExportSections): string
   return lines.join('\n');
 }
 
-export function download(filename: string, content: string | Uint8Array, mime: string) {
-  const blob = new Blob([content as BlobPart], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
+export { download } from '@/studio/download';

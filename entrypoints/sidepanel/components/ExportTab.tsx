@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
+import type { ResolvedTokens } from '@/studio/engine/types';
+import { buildExport, exportBudget } from '@/studio/export/bundle';
+import { downloadBundle } from '@/studio/download';
 import {
   buildBrandMd,
   buildTokensJson,
@@ -16,16 +19,26 @@ const ALL_SECTIONS: ExportSections = {
   rawVars: true,
 };
 
-type PresetKey = 'ai' | 'style-dictionary' | 'full' | 'custom';
+type PresetKey = 'ai' | 'style-dictionary' | 'system' | 'full' | 'custom';
 
 const PRESETS: { key: PresetKey; label: string }[] = [
   { key: 'ai', label: 'AI agent · brand.md' },
+  { key: 'system', label: 'Design system' },
   { key: 'style-dictionary', label: 'Style Dictionary' },
   { key: 'full', label: 'Full report' },
   { key: 'custom', label: 'Custom…' },
 ];
 
-export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: string }) {
+export function ExportTab({
+  scan,
+  hostname,
+  resolved,
+}: {
+  scan: ScanResult;
+  hostname: string;
+  /** The system as edited in the Design tab; the generated files come from it. */
+  resolved: ResolvedTokens | null;
+}) {
   const [preset, setPreset] = useState<PresetKey>('ai');
   const [sections, setSections] = useState<ExportSections>({ ...ALL_SECTIONS, rawVars: false });
   const [showReport, setShowReport] = useState(false);
@@ -40,6 +53,10 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
   };
 
   const brandMd = () => buildBrandMd(scan, effectiveSections);
+  const files = useMemo(() => (resolved ? buildExport(resolved) : []), [resolved]);
+  const file = (path: string) => files.find((f) => f.path === path)?.content ?? '';
+  const budget = useMemo(() => (files.length ? exportBudget(files) : null), [files]);
+  const slug = resolved?.config.meta.slug ?? hostname;
   const tokensJson = () => {
     try {
       return buildTokensJson(scan);
@@ -113,6 +130,43 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
         />
       )}
 
+      {(preset === 'system' || preset === 'full') && resolved && (
+        <>
+          <ExportCard
+            title="tokens.css"
+            description="The edited system as CSS custom properties, light and dark, with a Tailwind v4 @theme block."
+            onDownload={() => download('tokens.css', file('tokens.css'), 'text/css')}
+            onCopy={() => navigator.clipboard.writeText(file('tokens.css')).then(() => flash('tokens.css'))}
+            copied={copied === 'tokens.css'}
+          />
+          <ExportCard
+            title="SKILL.md"
+            description={`An agent skill with the full DESIGN_SYSTEM.md reference behind it${
+              budget ? ` · ~${(budget.tokens / 1000).toFixed(1)}k tokens${budget.overBudget ? ', over the doc budget' : ''}` : ''
+            }.`}
+            onDownload={() => download('SKILL.md', file('skill/SKILL.md'), 'text/markdown')}
+            onCopy={() =>
+              navigator.clipboard.writeText(file('skill/references/DESIGN_SYSTEM.md')).then(() => flash('system'))
+            }
+            copied={copied === 'system'}
+            copyLabel="Copy DESIGN_SYSTEM.md"
+          />
+          <ExportCard
+            title="preview.html"
+            description="A standalone style guide page for the edited system. Open it, send it to anyone."
+            onDownload={() => download('preview.html', file('preview.html'), 'text/html')}
+            onCopy={() => navigator.clipboard.writeText(file('preview.html')).then(() => flash('preview'))}
+            copied={copied === 'preview'}
+          />
+          <button
+            onClick={() => downloadBundle(files, slug)}
+            className="rounded-control border border-line-strong bg-surface-control px-3.5 py-1.5 text-sm font-medium hover:bg-surface-raised"
+          >
+            Download everything as a ZIP ({files.length} files)
+          </button>
+        </>
+      )}
+
       <div className="rounded-card border border-line p-3">
         <div className="font-medium">Consistency report</div>
         <p className="mt-1 text-sm text-ink-muted">
@@ -148,6 +202,7 @@ function ExportCard({
   onDownload,
   onCopy,
   copied,
+  copyLabel = 'Copy',
 }: {
   title: string;
   description: string;
@@ -155,6 +210,7 @@ function ExportCard({
   onDownload: () => void;
   onCopy: () => void;
   copied: boolean;
+  copyLabel?: string;
 }) {
   return (
     <div className={`rounded-card border p-3 ${accent ? 'border-accent bg-accent-soft' : 'border-line'}`}>
@@ -177,7 +233,7 @@ function ExportCard({
             accent ? 'border-accent text-accent' : 'border-line'
           }`}
         >
-          {copied ? 'Copied ✓' : 'Copy'}
+          {copied ? 'Copied ✓' : copyLabel}
         </button>
       </div>
     </div>

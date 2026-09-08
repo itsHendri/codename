@@ -10,7 +10,7 @@
 
 import type { BrandConfig } from './engine/types';
 import { migrateConfig } from './engine/schema';
-import { hendriPreset } from './presets/hendri';
+import { isNoEdits, type BrandEdits } from './edits';
 
 const KEY_PREFIX = 'brand:';
 const INDEX_KEY = 'brandIndex';
@@ -42,14 +42,19 @@ export async function listBrands(): Promise<BrandSummary[]> {
   return [...index].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export async function loadBrand(slug: string): Promise<BrandConfig | null> {
+/**
+ * `base` is what a missing field falls back to. It must be the fresh reading
+ * of the same page, never a preset: filling a gap from someone else's brand
+ * is exactly the leakage the extraction rule forbids.
+ */
+export async function loadBrand(slug: string, base: BrandConfig): Promise<BrandConfig | null> {
   if (!available()) return null;
   const stored = await chrome.storage.local.get(key(slug));
   const raw = stored[key(slug)];
   if (!raw) return null;
   // Same three-level merge the dev-server host needed: a shipped default can
   // gain a block, a key, or an item after a brand was saved.
-  const { config, filled } = migrateConfig(raw, hendriPreset);
+  const { config, filled } = migrateConfig(raw, base);
   if (filled.length) {
     console.info(`[studio] ${slug}: filled ${filled.length} missing field(s)`, filled);
   }
@@ -71,6 +76,25 @@ export async function deleteBrand(slug: string): Promise<void> {
   await chrome.storage.local.remove(key(slug));
   const index = await listBrands();
   await chrome.storage.local.set({ [INDEX_KEY]: index.filter((b) => b.slug !== slug) });
+}
+
+/* ---------------- per-site edits ---------------- */
+
+const EDITS_PREFIX = 'edits:';
+
+/** The decisions made against a site, kept so a rescan does not undo them. */
+export async function loadEdits(origin: string): Promise<BrandEdits | null> {
+  if (!available()) return null;
+  const k = `${EDITS_PREFIX}${slugify(origin)}`;
+  const stored = await chrome.storage.local.get(k);
+  return (stored[k] as BrandEdits | undefined) ?? null;
+}
+
+export async function saveEdits(origin: string, edits: BrandEdits): Promise<void> {
+  if (!available()) return;
+  const k = `${EDITS_PREFIX}${slugify(origin)}`;
+  if (isNoEdits(edits)) await chrome.storage.local.remove(k);
+  else await chrome.storage.local.set({ [k]: edits });
 }
 
 /** Slug that is safe as a storage key and a folder name. */

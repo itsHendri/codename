@@ -16,6 +16,9 @@ import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
+import { applyEdits, diffEdits } from '@/studio/edits';
+import { loadEdits, saveEdits } from '@/studio/storage';
+import { seedBrandFromScan } from '@/studio/seedFromScan';
 
 export interface TabSession {
   scan: ScanResult | null;
@@ -182,7 +185,30 @@ export function addReply(id: string, from: 'user' | 'agent', text: string) {
   });
 }
 
-/** A new scan is a new reading of the page: edits against the old one go. */
-export function setScan(scan: ScanResult) {
-  updateSession({ scan, config: null });
+const originOf = (url: string) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * A new scan is a new reading of the page. The decisions made against this
+ * site are laid back over it, so a seed you moved stays moved while
+ * everything else is observed afresh.
+ */
+export async function setScan(scan: ScanResult) {
+  const edits = await loadEdits(originOf(scan.url)).catch(() => null);
+  const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
+  updateSession({ scan, config });
+}
+
+/** Change the edited system and remember the decision for this site. */
+export function setConfig(config: BrandConfig | null) {
+  updateSession({ config });
+  const { scan } = state;
+  if (!scan) return;
+  const edits = diffEdits(seedBrandFromScan(scan), config ?? seedBrandFromScan(scan));
+  void saveEdits(originOf(scan.url), edits).catch(() => {});
 }

@@ -147,6 +147,14 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
   );
 }
 
+/** One file, straight to disk: inline markup as-is, a URL through the worker. */
+async function downloadOne(asset: SvgAsset) {
+  const markup = asset.markup ?? (asset.url ? await fetchViaBackground(asset.url) : null);
+  if (!markup) return;
+  const name = asset.url?.split('/').pop()?.split('?')[0] || `${asset.id}.svg`;
+  download(name.endsWith('.svg') ? name : `${name}.svg`, markup, 'image/svg+xml');
+}
+
 function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boolean; onToggle: () => void }) {
   const preview = asset.markup ? svgDataUri(asset.markup) : asset.url;
   return (
@@ -164,18 +172,32 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
       >
         {selected ? '✓' : ''}
       </span>
-      {asset.markup && (
+      <span className="absolute right-1 top-1 flex gap-0.5">
+        {asset.markup && (
+          <button
+            className="rounded bg-surface-panel/80 p-0.5 text-ink-muted hover:text-accent"
+            title="Copy markup"
+            aria-label="Copy markup"
+            onClick={(e) => {
+              e.stopPropagation();
+              void navigator.clipboard.writeText(asset.markup!);
+            }}
+          >
+            <CopyIcon />
+          </button>
+        )}
         <button
-          className="absolute right-1 top-1 rounded bg-surface-panel/80 p-0.5 text-ink-muted hover:text-accent"
-          title="Copy markup"
+          className="rounded bg-surface-panel/80 px-1 text-2xs text-ink-muted hover:text-accent"
+          title="Download this SVG"
+          aria-label="Download this SVG"
           onClick={(e) => {
             e.stopPropagation();
-            void navigator.clipboard.writeText(asset.markup!);
+            void downloadOne(asset);
           }}
         >
-          <CopyIcon />
+          ↓
         </button>
-      )}
+      </span>
       {preview ? (
         <img src={preview} alt="" className="max-h-full max-w-full" loading="lazy" />
       ) : (

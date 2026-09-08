@@ -8,7 +8,7 @@ import {
   startInspector,
   stopInspector,
 } from './lib/messaging';
-import { loadSession, setPinned, setScan, updateSession, useSession } from './lib/session';
+import { loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { HandOff } from './components/design/HandOff';
@@ -104,8 +104,7 @@ export default function App() {
       // Only accept messages from content scripts in the tab this panel is scoped to.
       if (sender.tab?.id !== tabIdRef.current) return;
       if (msg?.type === 'scan-result') {
-        setScan(msg.data as ScanResult);
-        setScanning(false);
+        void setScan(msg.data as ScanResult).then(() => setScanning(false));
       } else if (msg?.type === 'scan-error') {
         setScanning(false);
         setScanError(msg.error ?? 'Scan failed');
@@ -238,7 +237,7 @@ export default function App() {
             reskin={reskin}
             onModeChange={(m) => updateSession({ mode: m })}
             onLiveChange={(v) => updateSession({ live: v })}
-            onConfigChange={(c) => updateSession({ config: c })}
+            onConfigChange={setConfig}
             hasChanges={hasChanges}
             onHandOff={() => setHandingOff(true)}
           />
@@ -248,7 +247,7 @@ export default function App() {
         content = <SvgsTab scan={scan!} />;
         break;
       case 'export':
-        content = <ExportTab scan={scan!} hostname={hostname} />;
+        content = <ExportTab scan={scan!} hostname={hostname} resolved={model?.resolved ?? null} />;
         break;
     }
   }
