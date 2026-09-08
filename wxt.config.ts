@@ -9,10 +9,21 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   /**
-   * `wxt` normally launches its own browser on a throwaway profile. Load
-   * `dist/chrome-mv3-dev` into the browser you already have open instead: the
-   * hot reload works over the dev server either way, and you keep your tabs,
-   * your site permissions and your bridge pairing.
+   * One output folder, whether this is a dev build or a production one.
+   *
+   * WXT defaults to `chrome-mv3-dev` in dev, which means the folder you loaded
+   * into the browser and the folder being rebuilt are different — so you end
+   * up loading both and they inject into every page twice. Dropping the suffix
+   * means the extension you loaded once is always the current one.
+   *
+   * The cost: `npm run build` overwrites the dev output, so reload the
+   * extension once after a production build.
+   */
+  outDirTemplate: '{{browser}}-mv{{manifestVersion}}',
+  /**
+   * `wxt` normally launches its own browser on a throwaway profile. Keeping it
+   * in the browser you already have means your tabs, your granted site
+   * permissions and your bridge pairing all survive a restart of the dev server.
    */
   webExt: { disabled: true },
   manifest: {
