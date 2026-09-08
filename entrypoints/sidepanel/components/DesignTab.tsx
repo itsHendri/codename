@@ -30,8 +30,6 @@ export function DesignTab({
   onModeChange,
   onLiveChange,
   onConfigChange,
-  hasChanges,
-  onHandOff,
 }: {
   scan: ScanResult;
   model: DesignModel;
@@ -41,9 +39,6 @@ export function DesignTab({
   onModeChange: (mode: Mode) => void;
   onLiveChange: (live: boolean) => void;
   onConfigChange: (config: BrandConfig | null) => void;
-  /** Anything to hand off, from any tab. */
-  hasChanges: boolean;
-  onHandOff: () => void;
 }) {
   const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour']));
   const { brand, resolved, edited } = model;
@@ -110,14 +105,6 @@ export function DesignTab({
             title="Go back to what the page actually uses"
           >
             revert
-          </button>
-        )}
-        {hasChanges && (
-          <button
-            onClick={onHandOff}
-            className="ml-auto shrink-0 rounded-control border border-accent bg-surface-panel px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
-          >
-            Hand to agent →
           </button>
         )}
         <span className="flex items-center gap-1 rounded-control border border-line p-0.5">

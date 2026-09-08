@@ -12,20 +12,20 @@ import {
 import { getSession, loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
-import { HandOff } from './components/design/HandOff';
 import { active as activeChanges } from '@/studio/changes';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import { DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
+import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
 import { AppMenu } from './components/AppMenu';
-import { InspectTab } from './components/InspectTab';
+import { ElementTab } from './components/ElementTab';
+import { ChangesTab } from './components/ChangesTab';
 import { DesignTab } from './components/DesignTab';
 import { SvgsTab } from './components/SvgsTab';
 import { ExportTab } from './components/ExportTab';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'inspect' | 'design' | 'assets' | 'export';
+type TabKey = 'element' | 'design' | 'changes' | 'assets' | 'export';
 
 /**
  * Four, not six. Fonts and Colors were one job split in half — the page's design
@@ -33,14 +33,15 @@ type TabKey = 'inspect' | 'design' | 'assets' | 'export';
  * now lives in the header. At 360px six tabs left 60px each.
  */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
-  { key: 'inspect', label: 'Inspect', Icon: InspectIcon },
+  { key: 'element', label: 'Element', Icon: InspectIcon },
   { key: 'design', label: 'Design', Icon: DesignIcon },
+  { key: 'changes', label: 'Changes', Icon: ChangesIcon },
   { key: 'assets', label: 'Assets', Icon: SvgsIcon },
   { key: 'export', label: 'Export', Icon: ExportIcon },
 ];
 
 export default function App() {
-  const [active, setActive] = useState<TabKey>('inspect');
+  const [active, setActive] = useState<TabKey>('element');
   const [tabId, setTabId] = useState<number | null>(null);
   const [tabUrl, setTabUrl] = useState<string>('');
   const [scanning, setScanning] = useState(false);
@@ -59,10 +60,9 @@ export default function App() {
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
-  const [handingOff, setHandingOff] = useState(false);
-  // A hand-off can carry a seed edit, element edits or notes, from any tab.
-  const hasChanges =
-    !!model?.edited || activeChanges(session.log).length > 0 || pendingNotes(session.comments).length > 0;
+  // What is queued for the agent, from any tab: a seed edit, element edits, notes.
+  const pendingCount =
+    (model?.edited ? 1 : 0) + activeChanges(session.log).length + pendingNotes(session.comments).length;
   const scanLike = scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] };
   const ctl = useInspect(tabId, tabUrl, session, focusedComment);
   const ctlRef = useRef(ctl);
@@ -129,12 +129,12 @@ export default function App() {
         setScanError(msg.error ?? 'Scan failed');
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
-        if (msg.data) setActive('inspect');
+        if (msg.data) setActive('element');
       } else if (msg?.type === 'hover-toggled') {
         setInspecting(Boolean(msg.active));
       } else if (msg?.type === 'pin-clicked') {
         setFocusedComment((msg as { id?: string }).id ?? null);
-        setActive('inspect');
+        setActive('changes');
       } else if (msg?.type === 'inspector-shortcut') {
         // Cmd+Z pressed on the page while an element is selected.
         if ((msg as { action?: string }).action === 'redo') ctlRef.current.redo();
@@ -231,19 +231,20 @@ export default function App() {
     }
   })();
 
-  const needsScan = active !== 'inspect';
+  // Selecting, editing and noting all work before a scan; the rest reads it.
+  const needsScan = active === 'design' || active === 'assets' || active === 'export';
   let content: React.ReactNode;
-  if (restricted && active !== 'inspect') {
-    content = <RestrictedState url={tabUrl} onOpenInspect={() => setActive('inspect')} />;
+  if (restricted && needsScan) {
+    content = <RestrictedState url={tabUrl} onOpenInspect={() => setActive('element')} />;
   } else if (scanning && needsScan) {
     content = <ScanningState />;
   } else if (!scan && needsScan) {
     content = <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />;
   } else {
     switch (active) {
-      case 'inspect':
+      case 'element':
         content = (
-          <InspectTab
+          <ElementTab
             inspecting={inspecting}
             onToggle={toggleInspector}
             error={scanError}
@@ -253,6 +254,9 @@ export default function App() {
             mode={mode}
           />
         );
+        break;
+      case 'changes':
+        content = <ChangesTab scan={scanLike} overrides={model?.overrides ?? []} colorMap={model?.colorMap ?? {}} ctl={ctl} />;
         break;
       case 'design':
         content = (
@@ -265,8 +269,6 @@ export default function App() {
             onModeChange={(m) => updateSession({ mode: m })}
             onLiveChange={(v) => updateSession({ live: v })}
             onConfigChange={setConfig}
-            hasChanges={hasChanges}
-            onHandOff={() => setHandingOff(true)}
           />
         );
         break;
@@ -281,7 +283,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col text-base">
-      <nav role="tablist" aria-label="Panel" className="grid grid-cols-4 border-b border-line-subtle" onKeyDown={onTabKey}>
+      <nav role="tablist" aria-label="Panel" className="grid grid-cols-5 border-b border-line-subtle" onKeyDown={onTabKey}>
         {TABS.map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -291,7 +293,7 @@ export default function App() {
             aria-controls="panel"
             tabIndex={active === key ? 0 : -1}
             onClick={() => setActive(key)}
-            className={`flex flex-col items-center gap-0.5 py-2 text-xs ${
+            className={`relative flex flex-col items-center gap-0.5 py-2 text-2xs ${
               active === key
                 ? 'border-b-2 border-accent font-medium text-accent'
                 : 'border-b-2 border-transparent text-ink-muted hover:text-ink'
@@ -299,20 +301,17 @@ export default function App() {
           >
             <Icon />
             {label}
+            {key === 'changes' && pendingCount > 0 && (
+              <span className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
 
       <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="relative flex-1 overflow-y-auto">
         {content}
-        {handingOff && (
-          <HandOff
-            scan={scanLike}
-            overrides={model?.overrides ?? []}
-            colorMap={model?.colorMap ?? {}}
-            onClose={() => setHandingOff(false)}
-          />
-        )}
       </main>
 
       <footer className="flex items-center gap-2 border-t border-line-subtle px-2.5 py-1.5 text-sm text-ink-muted">
@@ -327,18 +326,10 @@ export default function App() {
             {restricted ? "Can't read this page" : needsAccess ? 'Needs site access' : scanning ? 'Reading…' : 'Not read yet'}
           </span>
         )}
-        {hasChanges && !handingOff && (
-          <button
-            onClick={() => setHandingOff(true)}
-            className="ml-auto shrink-0 rounded-control border border-accent bg-accent-soft px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent hover:text-accent-ink"
-          >
-            Hand to agent →
-          </button>
-        )}
         <button
           onClick={handleScan}
           disabled={restricted || scanning || !tabId}
-          className={`${hasChanges ? '' : 'ml-auto '}rounded-control border border-line px-2.5 py-0.5 text-xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40`}
+          className="ml-auto rounded-control border border-line px-2.5 py-0.5 text-xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40"
         >
           {scanning ? 'Reading…' : scan ? 'Rescan' : needsAccess ? 'Allow' : 'Scan'}
         </button>

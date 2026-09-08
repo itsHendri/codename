@@ -64,6 +64,15 @@ export function ResizeIcon({ className = base }: IconProps) {
   );
 }
 
+export function ChangesIcon({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2.5 4.5h11M2.5 8h7M2.5 11.5h4" />
+      <circle cx="12" cy="11" r="2.2" />
+    </svg>
+  );
+}
+
 export function ExportIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

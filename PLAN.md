@@ -167,11 +167,45 @@ against the fresh scan, never a preset); wire the tested-but-unwired exports
 (`tokens.css`, style guide, `SKILL.md`); fix the inert spacing/shadows export
 flags; per-file SVG download; README and `PRIVACY.md`.
 
-### Deferred
-Editable Type and Space seeds; APCA one-click fix; layers tree, effects and
-motion editors (Design Mode parity); Ship Studio's breakpoint canvas (needs
-an iframe canvas, which the rule above excludes); an Impeccable-style
-`critique` tool; in-panel chat; Firefox build; store listing.
+**W5. The panel's shape (M).** Done. The bar across the page carries the
+host, the viewport and the Inspect switch, so the panel's own header went.
+Five tabs: Element · Design · Changes · Assets · Export. The Element tab
+leads with colour and type, open, and collapses the rest behind a summary —
+before this, the colour of a heading sat 1012px down a 1751px scroll, which
+reads as "you cannot change this". Changes and notes moved out of the
+selection and into their own tab, which is also the hand-off review, so the
+overlay went too.
+
+## Still to build
+
+In order.
+
+1. **Finish the Design tab (M).** Type and Space are read-only observations;
+   the tab is a third of what its name promises. Make the type ladder and the
+   spacing grid editable and repaint live, the way seeds already do. Add the
+   one-click APCA fix — `Warning.fix` exists in the data model with no button.
+2. **Annotations, to Agentation parity (M).** Today a note is pinned to one
+   element. Add a region note (drag a box, including empty space), a note on
+   a text range inside an element, and multi-select. Freeze CSS, JS and video
+   animation so a specific state can be captured and described.
+3. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
+   drag-to-reorder. The tree is also the answer to "select something with no
+   distinctive selector", which the positional-selector warning currently
+   just reports.
+4. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
+   trigger-first interaction editor (hover, press, focus, appear, loop,
+   scroll) with a shared easing curve. The largest remaining chunk, and the
+   one that needs the most new engine surface.
+5. **A `critique` tool over the scan (S).** Impeccable's contribution: the
+   agent asks the panel what is wrong with the page and gets the APCA
+   failures, the off-grid spacing, the near-duplicate colours and the type
+   scale strays it already computes.
+
+### Deferred, on purpose
+Ship Studio's breakpoint canvas needs an iframe canvas, which the live-page
+rule excludes; viewport presets on the bar are the answer instead. In-panel
+chat waits until the bridge has earned it. Firefox build and store listing
+are packaging, not product.
 
 ## Known limits and open questions
 

@@ -4,16 +4,15 @@ A designer's toolkit in the browser side panel: read the design system a page
 is actually running, edit it, watch the real page repaint, and hand the change
 to your agent — which can be connected, so you never paste.
 
-## The four tabs
+## The five tabs
 
-- **Inspect** — hover any element for its font, colours, box model and
-  contrast; click to select it. A selection stays: walk the tree with the
-  arrow keys, measure it against whatever the cursor is over, edit its
-  spacing, size, type, colours, radius, border, shadow and text, and pin a
-  note to it for the agent. Every edit lands in a changes list with undo, redo
-  and per-change revert. When a value matches one of the page's own variables
-  the panel offers `var(--x)` instead of a literal. Plus a screen-wide
-  eyedropper with history.
+- **Element** — the selection, and what you can change about it. Colour and
+  type are open at the top, because that is what you came for; spacing, size,
+  radius, border, shadow and text collapse behind a one-line summary. A
+  selection stays put: walk the tree with the arrow keys, measure it against
+  whatever the cursor is over, and pin a note to it for the agent. When a
+  value matches one of the page's own variables the panel offers `var(--x)`
+  instead of a literal. Plus a screen-wide eyedropper with history.
 - **Design** — the system this page runs, editable.
   - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
     ramps, and the semantic tokens with light/dark values and an APCA audit.
@@ -22,6 +21,10 @@ to your agent — which can be connected, so you never paste.
     line-height ladder it renders them at.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
     from the page, with off-grid strays named rather than rounded in.
+- **Changes** — everything queued for the agent, wherever it came from: token
+  definitions, element edits with undo, redo and per-change revert, and your
+  notes. Hold **View original** to see the page without any of it. The
+  actions to copy, send or download the brief live at the bottom.
 - **Assets** — every SVG on the page (inline, `<img>`, CSS backgrounds, sprite
   `<use>`, favicons), previewed with copy, per-file download and ZIP export.
 - **Export** — `brand.md` for agent context, `tokens.json` in W3C DTCG format,
@@ -48,7 +51,7 @@ agent to edit one definition, where a rendered stylesheet would invite it to
 stamp a hex across forty components. Element edits are one line per selector
 and property, before and after. Notes name the element they are about.
 
-**Copy** it, download it as JSON, or **send** it.
+**Copy** it, download it as JSON, or **send** it, all from the Changes tab.
 
 ### Connect your agent
 
