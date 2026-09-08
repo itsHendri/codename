@@ -38,10 +38,15 @@ read-only rather than guessing at it.
   a header control and the full-tab Studio deleted.
 - 249 tests. `.harness/` renders the panel outside the extension.
 
-## Next: the live re-skin
+## Live re-skin — variable path done
 
-Change a token → the real page repaints. On by default, session-scoped, gone
-when you leave.
+Change a seed → the real page repaints. On by default, session-scoped, cleared
+when you leave the tab or toggle it off.
+
+Proven end to end against forfontsake: dragging its brand seed to `#1C7F5C`
+produces exactly one override (`--mark`), the painted link colour goes
+`rgb(190,58,34)` → `rgb(28,127,92)`, and clearing restores it with no residue on
+the root element.
 
 Two mechanisms, and **the clean one is not always available**:
 
@@ -53,13 +58,30 @@ Two mechanisms, and **the clean one is not always available**:
    declarations matching an extracted value, and emit an override sheet reusing
    *their* selectors so `:hover` and `:focus` keep working.
 
-Measured reality: **stripe.com exposes zero readable custom properties**, while
-**forfontsake has 26** in `src/index.css`. So path 1 covers your own code
-projects and path 2 has to carry the rest — it is not a nice-to-have fallback.
-When neither applies, say so rather than silently doing nothing.
+**Path 1 is built** (`studio/reskin.ts` + `entrypoints/reskin.content.ts`).
+**Path 2 is not.** Measured reality: stripe.com exposes zero readable custom
+properties while forfontsake has 26, so path 2 is not a nice-to-have fallback —
+it is what makes this work anywhere but your own projects. Until it exists the
+panel says "no variables to change here" rather than failing silently.
 
-**Test against forfontsake** (`localhost:5173`, already in `.claude/launch.json`):
-you own both sides and it has real tokens.
+How a variable is matched, and nothing else is touched:
+
+- **exact** — its value is a step on a ramp; it moves to that step after the
+  edit. Compared step-to-step across the edit, never variable-to-step, or a
+  variable sitting merely *near* a step gets snapped onto the ramp when nothing
+  changed.
+- **family** — it shares a hue with a seed that moved; the hue rotation and
+  chroma ratio are applied while keeping its own lightness, so a wash stays a
+  wash. The chroma floor (0.025) sits in the measured gap between forfontsake's
+  brand wash (0.033) and its neutrals (≤0.016).
+
+### Known limits
+- Only the first definition of a variable is captured, so a value defined again
+  under `.dark` or a media query is invisible. Overrides use the mode selected
+  in the panel. Scope-aware capture is the fix, and is not built.
+- An inline root override outranks every author rule for that element, which is
+  what makes this work — but it also means a page whose theme is scoped to a
+  descendant (`.theme-dark .card`) will not fully follow.
 
 ## After that: the agent link
 

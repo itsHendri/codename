@@ -55,3 +55,45 @@ export async function loadScan<T>(tabId: number): Promise<T | null> {
   const entry = await chrome.storage.session.get(`scan:${tabId}`);
   return (entry[`scan:${tabId}`] as T) ?? null;
 }
+
+/* ---------------- live re-skin ---------------- */
+
+interface ReskinOverride {
+  name: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * Talk to the re-skin script, injecting it the first time. Sending blind and
+ * injecting on failure avoids both a redundant inject on every keystroke and a
+ * separate "is it there?" round trip.
+ */
+async function sendReskin(
+  tabId: number,
+  message: { type: string; overrides?: ReskinOverride[] },
+): Promise<number | null> {
+  try {
+    const res = (await chrome.tabs.sendMessage(tabId, message)) as { applied: number } | undefined;
+    return res?.applied ?? 0;
+  } catch {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content-scripts/reskin.js'],
+      });
+      const res = (await chrome.tabs.sendMessage(tabId, message)) as { applied: number } | undefined;
+      return res?.applied ?? 0;
+    } catch {
+      return null;
+    }
+  }
+}
+
+export function applyReskin(tabId: number, overrides: ReskinOverride[]): Promise<number | null> {
+  return sendReskin(tabId, { type: 'reskin-apply', overrides });
+}
+
+export function clearReskin(tabId: number): Promise<number | null> {
+  return sendReskin(tabId, { type: 'reskin-clear' });
+}

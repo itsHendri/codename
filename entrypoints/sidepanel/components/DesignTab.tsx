@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ScaleRole } from '@/studio/engine/types';
 import { resolveTokens } from '@/studio/engine/resolve';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
+import { buildReskin } from '@/studio/reskin';
+import { applyReskin, clearReskin } from '../lib/messaging';
 import { Section } from './design/Section';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
@@ -18,18 +20,53 @@ type SectionKey = 'colour' | 'type' | 'space';
  * this is that thing. It also absorbs what the full-tab Studio did, minus the
  * synthetic preview — in an extension the live site is the preview.
  */
-export function DesignTab({ scan }: { scan: ScanResult }) {
+export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | null }) {
   // The brand is derived from the scan and then edited in place. A fresh scan
   // discards edits, which is correct: it is a different reading of the page.
   const [config, setConfig] = useState<BrandConfig | null>(null);
   const [mode, setMode] = useState<Mode>('light');
   const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour']));
+  // On by default: the page is the canvas, so an edit you cannot see is not an
+  // edit. Overrides last the session and die with the document.
+  const [live, setLive] = useState(true);
+  const [appliedCount, setAppliedCount] = useState<number | null>(null);
 
   // Both hooks run unconditionally — `config ?? useMemo(...)` short-circuits and
   // would make the hook call conditional.
   const seeded = useMemo(() => seedBrandFromScan(scan), [scan]);
   const brand = config ?? seeded;
   const resolved = useMemo(() => resolveTokens(brand), [brand]);
+  const baseline = useMemo(() => resolveTokens(seeded), [seeded]);
+
+  // What the page's own variables become under the edited system.
+  const overrides = useMemo(
+    () => (config ? buildReskin(scan.customProps, baseline, resolved, mode) : []),
+    [config, scan.customProps, baseline, resolved, mode],
+  );
+
+  // Push to the page whenever the result changes. Cleared on unmount so leaving
+  // the tab does not leave the site repainted behind you.
+  const lastSent = useRef<string>('');
+  useEffect(() => {
+    if (!tabId) return;
+    if (!live) {
+      if (lastSent.current !== '') {
+        lastSent.current = '';
+        void clearReskin(tabId).then(() => setAppliedCount(null));
+      }
+      return;
+    }
+    const key = JSON.stringify(overrides);
+    if (key === lastSent.current) return;
+    lastSent.current = key;
+    void applyReskin(tabId, overrides).then(setAppliedCount);
+  }, [tabId, live, overrides]);
+
+  useEffect(() => {
+    return () => {
+      if (tabId) void clearReskin(tabId);
+    };
+  }, [tabId]);
 
   const toggle = (key: SectionKey) =>
     setOpen((prev) => {
@@ -58,9 +95,31 @@ export function DesignTab({ scan }: { scan: ScanResult }) {
   return (
     <div className="flex flex-col">
       {/* Where this came from, and the mode the swatches are showing. */}
-      <div className="flex items-center gap-2 border-b border-gray-200 px-3.5 py-2 text-[11px]">
-        <span className="text-gray-500">
-          {edited ? 'edited' : 'read from this page'}
+      <div
+        className={`flex items-center gap-2 border-b px-3.5 py-2 text-[11px] ${
+          live && edited ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
+        }`}
+      >
+        <button
+          onClick={() => setLive((v) => !v)}
+          className={`flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 ${
+            live ? 'justify-end border-blue-600 bg-blue-600' : 'justify-start border-gray-400 bg-gray-200'
+          }`}
+          title={live ? 'Stop applying changes to the page' : 'Apply changes to the page'}
+          aria-pressed={live}
+        >
+          <span className="h-3 w-3 rounded-full bg-white" />
+        </button>
+        <span className={live && edited ? 'text-blue-700' : 'text-gray-500'}>
+          {!edited
+            ? 'read from this page'
+            : !live
+              ? 'edited · page untouched'
+              : appliedCount === null
+                ? 'edited'
+                : appliedCount > 0
+                  ? `${appliedCount} live on the page`
+                  : 'no variables to change here'}
         </span>
         {edited && (
           <button

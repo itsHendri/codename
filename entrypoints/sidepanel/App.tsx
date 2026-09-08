@@ -186,7 +186,7 @@ export default function App() {
         );
         break;
       case 'design':
-        content = <DesignTab scan={scan!} />;
+        content = <DesignTab scan={scan!} tabId={tabId} />;
         break;
       case 'assets':
         content = <SvgsTab scan={scan!} />;
