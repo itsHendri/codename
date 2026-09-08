@@ -66,7 +66,7 @@ export function ExportTab({
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3.5">
+    <div className="flex flex-col gap-3 p-3">
       {scan.unreadableSheets.length > 0 && (
         <p className="rounded-control border border-warn bg-warn-soft px-2.5 py-1.5 text-xs text-warn-ink">
           {scan.unreadableSheets.length} cross-origin stylesheet(s) couldn&apos;t be read — this export may be
@@ -160,7 +160,7 @@ export function ExportTab({
           />
           <button
             onClick={() => downloadBundle(files, slug)}
-            className="rounded-control border border-line-strong bg-surface-control px-3.5 py-1.5 text-sm font-medium hover:bg-surface-raised"
+            className="rounded-control border border-line-strong bg-surface-control px-3 py-1.5 text-sm font-medium hover:bg-surface-raised"
           >
             Download everything as a ZIP ({files.length} files)
           </button>
@@ -219,7 +219,7 @@ function ExportCard({
       <div className="mt-2 flex gap-2">
         <button
           onClick={onDownload}
-          className={`rounded-control border px-3.5 py-1 text-sm font-medium ${
+          className={`rounded-control border px-3 py-1 text-sm font-medium ${
             accent
               ? 'border-accent bg-surface-panel text-accent hover:bg-accent-soft'
               : 'border-line-strong bg-surface-control hover:bg-surface-control'
@@ -229,7 +229,7 @@ function ExportCard({
         </button>
         <button
           onClick={onCopy}
-          className={`rounded-control border px-3.5 py-1 text-sm ${
+          className={`rounded-control border px-3 py-1 text-sm ${
             accent ? 'border-accent text-accent' : 'border-line'
           }`}
         >

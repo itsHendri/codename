@@ -8,9 +8,9 @@ export const OVERLAY = {
     accent: '#6bb3ff',
     accentWash: 'rgba(107, 179, 255, 0.12)',
     cardBg: '#302d2b',
-    cardInk: '#edebe7',
+    cardInk: '#dad7d3',
     cardMuted: '#a5a19b',
-    cardLine: '#504c48',
+    cardLine: '#403d39',
   },
   light: {
     accent: '#2563eb',

@@ -221,6 +221,22 @@ than a style one, and on the dev server this is built for it would be undone
 by the next render and can confuse the framework's reconciliation. If it
 comes, it comes as an instruction in the brief rather than as a live edit.
 
+**W9. The panel's own density (M).** Done, measured against Ship Studio's
+token files rather than against a memory of them.
+
+Their body text is `#bcbcbc` where ours was `#edebe7`: every ink level sat one
+to two steps brighter, which is most of why the panel read loud. Ink came down
+as far as the panel's own APCA audit allows and stopped there — `ink-muted`
+and `ink-faint` were already at their floor, and Ship Studio's equivalents sit
+below it. That is a real disagreement, not an oversight: their small text does
+not clear the bar this panel holds sites to, and the audit wins.
+
+Line heights tightened across the scale, the gutter came in from 14px to 12px,
+focus moved inside the control, and `--surface-selected` arrived so a selected
+row is a lifted surface rather than a block of accent. Outlined cards became
+grouped lists with hairlines where the content is a list. The eyedropper
+stopped being styled as the loudest thing on the tab.
+
 ## Still to build
 
 In order.

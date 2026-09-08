@@ -54,7 +54,7 @@ export function EyeDropperButton() {
       <div className="flex gap-2">
         <button
           onClick={pick}
-          className="flex flex-1 items-center justify-center gap-2 rounded-card border border-accent bg-accent-soft py-2 font-medium text-accent hover:bg-accent-soft"
+          className="flex flex-1 items-center justify-center gap-2 rounded-control border border-line bg-surface-control py-1.5 text-ink-secondary hover:bg-surface-selected hover:text-ink"
         >
           <EyeDropperIcon />
           Pick colour
@@ -62,7 +62,7 @@ export function EyeDropperButton() {
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as ColorFormat)}
-          className="rounded-card border border-line px-2 text-sm"
+          className="rounded-control border border-line bg-surface-control px-1.5 text-xs text-ink-secondary"
           aria-label="Colour format"
         >
           <option value="hex">HEX</option>
@@ -71,7 +71,7 @@ export function EyeDropperButton() {
           <option value="oklch">OKLCH</option>
         </select>
       </div>
-      <p className="text-center text-xs text-ink-muted">
+      <p className="text-center text-2xs text-ink-muted">
         samples anywhere on screen · copies to clipboard
       </p>
       {error && <p className="text-center text-xs text-warn-ink">{error}</p>}

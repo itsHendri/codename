@@ -10,7 +10,7 @@ export function EmptyState({
   needsAccess?: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <svg className="h-14 w-14 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.5 15.5 L21 21 M8 10.5 H13 M10.5 8 V13" />
@@ -53,7 +53,7 @@ export function ScanningState() {
 
 export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenInspect: () => void }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <svg className="h-12 w-12 text-warn-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <rect x="5" y="10" width="14" height="10" rx="2" />
         <path d="M8 10 V7 a4 4 0 0 1 8 0 V10" />

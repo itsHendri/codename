@@ -110,7 +110,9 @@ export function LayersTree({
                 }}
                 onMouseEnter={() => onPeek(node)}
                 className={`flex items-center gap-1 py-0.5 pr-1 text-2xs ${
-                  isSelected ? 'bg-accent text-accent-ink' : 'hover:bg-surface-control'
+                  isSelected
+                    ? 'bg-surface-selected text-ink'
+                    : 'text-ink-secondary hover:bg-surface-control'
                 } ${node.hidden ? 'opacity-50' : ''}`}
                 style={{ paddingLeft: `${4 + node.depth * 9}px` }}
               >
@@ -118,9 +120,7 @@ export function LayersTree({
                   onClick={() => foldable && toggle(node.id)}
                   aria-label={foldable ? (collapsed.has(node.id) ? 'Expand' : 'Collapse') : undefined}
                   tabIndex={foldable ? 0 : -1}
-                  className={`w-2.5 shrink-0 text-left ${
-                    isSelected ? 'text-accent-ink' : 'text-ink-muted'
-                  } ${foldable ? '' : 'invisible'}`}
+                  className={`w-2.5 shrink-0 text-left text-ink-muted ${foldable ? '' : 'invisible'}`}
                 >
                   {collapsed.has(node.id) ? '▸' : '▾'}
                 </button>
@@ -131,7 +131,7 @@ export function LayersTree({
                 >
                   {node.label}
                   {node.text && (
-                    <span className={`ml-1.5 font-sans ${isSelected ? 'opacity-80' : 'text-ink-muted'}`}>
+                    <span className="ml-1.5 font-sans text-ink-muted">
                       {node.text}
                     </span>
                   )}
@@ -140,9 +140,7 @@ export function LayersTree({
                   onClick={() => onToggleHidden(node)}
                   aria-label={node.hidden ? 'Show' : 'Hide'}
                   title={node.hidden ? 'Show' : 'Hide'}
-                  className={`shrink-0 px-0.5 ${
-                    isSelected ? 'text-accent-ink' : 'text-ink-faint hover:text-ink-secondary'
-                  }`}
+                  className="shrink-0 px-0.5 text-ink-faint hover:text-ink-secondary"
                 >
                   {node.hidden ? '◌' : '◉'}
                 </button>

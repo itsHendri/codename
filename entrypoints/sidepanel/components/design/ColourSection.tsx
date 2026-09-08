@@ -50,12 +50,13 @@ export function ColourSection({
   const toFix = resolved.warnings.filter((w) => w.level === 'fail').length;
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3">
       {/* Seeds */}
       <div className="flex flex-col gap-1.5">
         <div className="text-2xs tracking-wide text-ink-muted">
           SEEDS — the only place you edit colour
         </div>
+        <div className="divide-y divide-line-subtle overflow-hidden rounded-control border border-line-subtle">
         {config.color.scales.slice(0, 3).map((seed) => (
           <SeedRow
             key={seed.role}
@@ -68,6 +69,7 @@ export function ColourSection({
             onChange={(value) => onSeedChange(seed.role, value)}
           />
         ))}
+        </div>
         <div className="text-2xs text-ink-muted">
           + {config.color.scales.length - 3} status ramps — taken from the page where it has them
         </div>
@@ -228,8 +230,8 @@ function SeedRow({
   return (
     <div
       onClick={onSelect}
-      className={`flex cursor-pointer flex-col gap-0.5 rounded-card border px-2 py-1.5 ${
-        selected ? 'border-accent bg-accent-soft/60' : 'border-line hover:border-line'
+      className={`flex cursor-pointer flex-col gap-0.5 px-2 py-1.5 ${
+        selected ? 'bg-surface-selected' : 'hover:bg-surface-control'
       }`}
     >
       <div className="flex items-center gap-2">

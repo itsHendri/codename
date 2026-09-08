@@ -63,7 +63,7 @@ export function ElementTab({
 
   if (!el) {
     return (
-      <div className="flex flex-col gap-3 p-3.5">
+      <div className="flex flex-col gap-3 p-3">
         <p className="text-xs text-ink-muted">
           Pick a layer below, or turn on <b className="font-medium text-ink-secondary">Select</b> on
           the bar and click the page.
@@ -83,7 +83,7 @@ export function ElementTab({
   }
 
   return (
-    <div className="flex flex-col gap-2.5 p-3.5">
+    <div className="flex flex-col gap-2.5 p-3">
       <Layers>{layers}</Layers>
       <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
       <Header element={el} ctl={ctl} />

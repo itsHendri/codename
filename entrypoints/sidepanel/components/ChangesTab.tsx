@@ -44,7 +44,7 @@ export function ChangesTab({
   };
 
   const composer = pendingTarget && (
-    <div className="border-b border-line bg-surface-recessed px-3.5 py-2.5">
+    <div className="border-b border-line bg-surface-recessed px-3 py-2">
       <CommentComposer
         target={pendingTarget}
         onCancel={onClearTarget}
@@ -74,7 +74,7 @@ export function ChangesTab({
   return (
     <div className="flex flex-col">
       {composer}
-      <div className="flex flex-col gap-4 p-3.5">
+      <div className="flex flex-col gap-4 p-3">
         {set.tokens.length > 0 && (
           <section className="flex flex-col gap-1.5">
             <SectionHead title="Token definitions" count={set.tokens.length} />
@@ -184,7 +184,7 @@ export function ChangesTab({
         )}
       </div>
 
-      <div className="sticky bottom-0 flex flex-col gap-1.5 border-t border-line bg-surface-app px-3.5 py-2.5">
+      <div className="sticky bottom-0 flex flex-col gap-1.5 border-t border-line bg-surface-app px-3 py-2">
         <p className="text-2xs text-ink-muted">
           {connected
             ? 'Nothing is written until your agent runs — review its diff as usual.'

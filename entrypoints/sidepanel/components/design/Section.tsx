@@ -22,7 +22,7 @@ export function Section({
     <div className="border-t border-line-subtle first:border-t-0">
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left hover:bg-surface-recessed"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-recessed"
       >
         <span className={`text-2xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>
           ▶
@@ -30,7 +30,7 @@ export function Section({
         <span className="font-medium">{title}</span>
         <span className="ml-auto truncate text-xs text-ink-muted">{summary}</span>
       </button>
-      {open && <div className="px-3.5 pb-4">{children}</div>}
+      {open && <div className="px-3 pb-4">{children}</div>}
     </div>
   );
 }

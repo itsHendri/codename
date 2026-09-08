@@ -31,7 +31,7 @@ export function SpaceSection({
     .slice(0, 4);
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span className="text-2xs tracking-wide text-ink-muted">SPACING</span>

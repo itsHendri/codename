@@ -32,13 +32,14 @@
   --surface-control: #262421;
   --surface-recessed: #0f0d0b;
   --surface-raised: #302d2b;
-  --ink: #edebe7;
-  --ink-secondary: #cac7c2;
+  --surface-selected: #3b3935;
+  --ink: #dad7d3;
+  --ink-secondary: #c1bdb8;
   --ink-muted: #a5a19b;
   --ink-faint: #7e7a74;
   --line: #302d2b;
   --line-subtle: #262421;
-  --line-strong: #504c48;
+  --line-strong: #403d39;
   --accent: #6bb3ff;
   --accent-hover: #86c4ff;
   --accent-soft: #132946;
@@ -58,13 +59,14 @@
   --surface-control: #f2f0ed;
   --surface-recessed: #f6f5f3;
   --surface-raised: #ffffff;
-  --ink: #14110d;
-  --ink-secondary: #403c37;
+  --surface-selected: #e9e6e2;
+  --ink: #1d1a16;
+  --ink-secondary: #4b4742;
   --ink-muted: #615d57;
   --ink-faint: #8a8580;
   --line: #d6d4d0;
   --line-subtle: #e6e4e1;
-  --line-strong: #b4b0ac;
+  --line-strong: #c1bdb8;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-soft: #e0eeff;
@@ -85,13 +87,14 @@
     --surface-control: #f2f0ed;
     --surface-recessed: #f6f5f3;
     --surface-raised: #ffffff;
-    --ink: #14110d;
-    --ink-secondary: #403c37;
+    --surface-selected: #e9e6e2;
+    --ink: #1d1a16;
+    --ink-secondary: #4b4742;
     --ink-muted: #615d57;
     --ink-faint: #8a8580;
     --line: #d6d4d0;
     --line-subtle: #e6e4e1;
-    --line-strong: #b4b0ac;
+    --line-strong: #c1bdb8;
     --accent: #2563eb;
     --accent-hover: #1d4ed8;
     --accent-soft: #e0eeff;
@@ -111,6 +114,7 @@
   --color-surface-control: var(--surface-control);
   --color-surface-recessed: var(--surface-recessed);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-selected: var(--surface-selected);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
@@ -134,15 +138,15 @@
   /* Five steps for a 360px panel. Tailwind's own xs/sm/base are re-pointed
      so the scale is the only one in play. */
   --text-2xs: 10px;
-  --text-2xs--line-height: 14px;
+  --text-2xs--line-height: 13px;
   --text-xs: 11px;
-  --text-xs--line-height: 16px;
+  --text-xs--line-height: 14px;
   --text-sm: 12px;
-  --text-sm--line-height: 16px;
+  --text-sm--line-height: 15px;
   --text-base: 13px;
-  --text-base--line-height: 20px;
+  --text-base--line-height: 17px;
   --text-lg: 15px;
-  --text-lg--line-height: 22px;
+  --text-lg--line-height: 19px;
 
   --radius-control: 6px;
   --radius-card: 8px;
@@ -157,7 +161,7 @@
   }
   :focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline-offset: -1px;
   }
   :focus:not(:focus-visible) {
     outline: none;

@@ -91,7 +91,7 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3.5">
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
         <div className="flex items-center gap-2">
           <span className="font-medium">{scan.svgs.length} SVGs found</span>
           <div className="ml-auto flex gap-1.5 text-xs">
@@ -118,7 +118,7 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
         <p className="text-xs text-ink-muted">Sources: inline · img · css background · sprite &lt;use&gt; · favicon</p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-t border-line-subtle px-3.5 py-2.5">
+      <div className="flex flex-col gap-1.5 border-t border-line-subtle px-3 py-2">
         <div className="flex items-center gap-2.5">
           <span className="text-sm text-ink-muted">
             {selected.size ? (

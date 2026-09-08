@@ -35,7 +35,7 @@ export function TypeSection({
   ];
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <div className="text-2xs tracking-wide text-ink-muted">FAMILIES — read off the page</div>
         {stacks.map(({ key, label, stack }) => {
