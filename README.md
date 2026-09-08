@@ -205,5 +205,6 @@ Geist and Geist Mono are bundled under the SIL Open Font License; see
 The panel's palette, type sizes and spacing rhythm are taken from
 [Ship Studio](https://github.com/ship-studio/ship-studio), used under its MIT
 licence (Copyright © 2026 Julian Galluzzo and Ship Studio contributors). Token
-names are Codename's own; the values are theirs. `entrypoints/sidepanel/style.css`
+names and the blue accent are Codename's own; the neutrals, sizes and rhythm
+are theirs. `entrypoints/sidepanel/style.css`
 carries the notice and says what the choice costs in contrast.

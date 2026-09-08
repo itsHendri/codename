@@ -9,7 +9,9 @@
  *
  * Token names stay ours — `ink` rather than `text`, `line` rather than
  * `border` — so utilities read `text-ink-muted` and `border-line` instead of
- * `text-text-muted`. The values are theirs.
+ * `text-text-muted`. The neutrals, the sizes and the rhythm are theirs; the
+ * accent is Codename's own, taken from their blue ramp rather than the green,
+ * so the panel does not read as a Ship Studio clone.
  *
  * What this costs, stated plainly because the panel audits other people's
  * contrast: this palette does not meet the APCA thresholds Codename holds
@@ -50,9 +52,9 @@
   --line: #303030;
   --line-subtle: #282828;
   --line-strong: #393939;
-  --accent: #46e76f;
-  --accent-hover: #35d35d;
-  --accent-soft: #213927;
+  --accent: #6bb5ff;
+  --accent-hover: #2792ff;
+  --accent-soft: #26313c;
   --accent-ink: #141414;
   --warn: #e89a1c;
   --warn-soft: #392d1a;
@@ -77,9 +79,9 @@
   --line: #dcdcdc;
   --line-subtle: #e8e8e8;
   --line-strong: #bcbcbc;
-  --accent: #1f9a3f;
-  --accent-hover: #1a8235;
-  --accent-soft: #e4f3e8;
+  --accent: #006acc;
+  --accent-hover: #005ab0;
+  --accent-soft: #e0edf9;
   --accent-ink: #ffffff;
   --warn: #e89a1c;
   --warn-soft: #fcf1df;
@@ -105,9 +107,9 @@
     --line: #dcdcdc;
     --line-subtle: #e8e8e8;
     --line-strong: #bcbcbc;
-    --accent: #1f9a3f;
-    --accent-hover: #1a8235;
-    --accent-soft: #e4f3e8;
+    --accent: #006acc;
+    --accent-hover: #005ab0;
+    --accent-soft: #e0edf9;
     --accent-ink: #ffffff;
     --warn: #e89a1c;
     --warn-soft: #fcf1df;

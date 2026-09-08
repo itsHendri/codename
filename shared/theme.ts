@@ -5,16 +5,16 @@
  */
 export const OVERLAY = {
   dark: {
-    accent: '#46e76f',
-    accentWash: 'rgba(70, 231, 111, 0.12)',
+    accent: '#6bb5ff',
+    accentWash: 'rgba(107, 181, 255, 0.14)',
     cardBg: '#1a1a1a',
     cardInk: '#bcbcbc',
     cardMuted: '#767676',
     cardLine: '#393939',
   },
   light: {
-    accent: '#1f9a3f',
-    accentWash: 'rgba(31, 154, 63, 0.10)',
+    accent: '#006acc',
+    accentWash: 'rgba(0, 106, 204, 0.10)',
     cardBg: '#ffffff',
     cardInk: '#303030',
     cardMuted: '#767676',
