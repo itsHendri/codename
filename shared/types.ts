@@ -159,6 +159,11 @@ export type InspectorCommand =
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
   | { cmd: 'ancestor'; depth: number }
   | { cmd: 'read' }
+  /** The page as a flat list of layers. */
+  | { cmd: 'layers' }
+  /** Light an element up from the panel, without selecting it. */
+  | { cmd: 'peek'; selector: string }
+  | { cmd: 'unpeek' }
   | { cmd: 'text'; selector: string; text: string }
   | { cmd: 'pins'; pins: Pin[] }
   /** Draw-a-box / click / shift-click to say what a note is about. */

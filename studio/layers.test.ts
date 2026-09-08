@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { ancestorsOf, initialCollapsed, visibleRows, type LayerNode } from './layers';
+
+/** body > (header > h1, main > (p, ul > li)) */
+const node = (
+  id: number,
+  depth: number,
+  label: string,
+  descendants: number,
+  text?: string,
+): LayerNode => ({
+  id,
+  depth,
+  label,
+  descendants,
+  tag: label.split(/[.#]/)[0]!,
+  selector: label,
+  stable: true,
+  hidden: false,
+  display: 'block',
+  ...(text ? { text } : {}),
+});
+
+const tree: LayerNode[] = [
+  node(0, 0, 'body', 5),
+  node(1, 1, 'header', 1),
+  node(2, 2, 'h1#title', 0, 'For Font Sake'),
+  node(3, 1, 'main', 2),
+  node(4, 2, 'p.note', 0, '1080 × 1350'),
+  node(5, 2, 'ul.list', 0),
+];
+
+describe('visibleRows', () => {
+  it('shows everything when nothing is collapsed', () => {
+    expect(visibleRows(tree, new Set()).map((n) => n.id)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('skips a collapsed row’s whole subtree, not just its children', () => {
+    expect(visibleRows(tree, new Set([1])).map((n) => n.id)).toEqual([0, 1, 3, 4, 5]);
+    expect(visibleRows(tree, new Set([0])).map((n) => n.id)).toEqual([0]);
+  });
+
+  it('keeps the ancestors of a match, so a hit still says where it lives', () => {
+    expect(visibleRows(tree, new Set(), 'note').map((n) => n.label)).toEqual(['body', 'main', 'p.note']);
+  });
+
+  it('searches text as well as the label', () => {
+    expect(visibleRows(tree, new Set(), 'font sake').map((n) => n.label)).toEqual([
+      'body',
+      'header',
+      'h1#title',
+    ]);
+  });
+
+  it('ignores collapse while searching', () => {
+    expect(visibleRows(tree, new Set([0, 1, 3]), 'note').map((n) => n.id)).toEqual([0, 3, 4]);
+  });
+
+  it('finds nothing for a query that matches nothing', () => {
+    expect(visibleRows(tree, new Set(), 'zzz')).toEqual([]);
+  });
+});
+
+describe('ancestorsOf', () => {
+  it('is the chain down to the row, excluding the row', () => {
+    expect(ancestorsOf(tree, 4)).toEqual([0, 3]);
+    expect(ancestorsOf(tree, 0)).toEqual([]);
+    expect(ancestorsOf(tree, 99)).toEqual([]);
+  });
+});
+
+describe('initialCollapsed', () => {
+  it('collapses deep rows that have something in them', () => {
+    // Only rows at depth >= 2 with descendants; this tree has none, so nothing.
+    expect(initialCollapsed(tree)).toEqual(new Set());
+    expect(initialCollapsed(tree, 1)).toEqual(new Set([1, 3]));
+  });
+});

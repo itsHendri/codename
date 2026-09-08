@@ -202,19 +202,34 @@ the moment a word changes, and the quote is the thing an agent can search
 for. Note mode swallows the click it rides on, so marking a button up does
 not also press it.
 
+**W8. Layers (M).** Done. The page arrives as a flat list with depths, built
+in one walk and read on demand rather than mirrored live. Rows search by name
+and by their own text, keeping the ancestors of a match so a hit still says
+where it lives; folding skips a subtree by its descendant count. Picking a row
+selects it, hovering lights it up, and the eye hides it — as an ordinary
+element edit, so hiding undoes, reverts and reaches the agent through the same
+list as everything else.
+
+Two decisions worth keeping. An `<svg>` is one layer and its paths are not:
+on an illustrated page the drawing outnumbers the structure several to one,
+and 734 rows became 535. And the positional badge does not appear per row —
+431 of those 535 have no distinctive selector, so a flag on each is noise
+rather than signal; the selection header still says it once, where it matters.
+
+Drag-to-reorder is deliberately not here. A reorder is a DOM change rather
+than a style one, and on the dev server this is built for it would be undone
+by the next render and can confuse the framework's reconciliation. If it
+comes, it comes as an instruction in the brief rather than as a live edit.
+
 ## Still to build
 
 In order.
 
-1. **Layers (M).** Design Mode's searchable DOM tree with multi-select and
-   drag-to-reorder. The tree is also the answer to "select something with no
-   distinctive selector", which the positional-selector warning currently
-   just reports.
-2. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
+1. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
    trigger-first interaction editor (hover, press, focus, appear, loop,
    scroll) with a shared easing curve. The largest remaining chunk, and the
    one that needs the most new engine surface.
-3. **A `critique` tool over the scan (S).** Impeccable's contribution: the
+2. **A `critique` tool over the scan (S).** Impeccable's contribution: the
    agent asks the panel what is wrong with the page and gets the APCA
    failures, the off-grid spacing, the near-duplicate colours and the type
    scale strays it already computes.

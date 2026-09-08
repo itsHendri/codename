@@ -6,7 +6,12 @@ to your agent — which can be connected, so you never paste.
 
 ## The five tabs
 
-- **Element** — the selection, and what you can change about it. Colour and
+- **Element** — the page as a tree you can pick from, and the selection you
+  picked. **Layers** lists every element with its own text beside it, searches
+  by name or content, folds, hides a layer with one click, and lights a row up
+  on the page as you run down it. It is the answer to selecting something with
+  no distinctive selector, which is most of a real page. Below it, the
+  selection, and what you can change about it. Colour and
   type are open at the top, because that is what you came for; spacing, size,
   radius, border, shadow and text collapse behind a one-line summary. A
   selection stays put: walk the tree with the arrow keys, measure it against

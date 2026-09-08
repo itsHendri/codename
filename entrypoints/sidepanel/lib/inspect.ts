@@ -11,7 +11,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
+import type { LayerNode } from '@/studio/layers';
 import {
+  active,
   canRedo,
   canUndo,
   commit,
@@ -75,6 +77,15 @@ export interface InspectController {
   /** The page flipped its own switch; take the state without echoing it back. */
   setNotingFromPage(on: boolean): void;
   setFrozenFromPage(on: boolean): void;
+  /** The page as a list to pick from. Read on demand, not kept in step. */
+  layers: LayerNode[];
+  layersLoading: boolean;
+  refreshLayers(): void;
+  selectLayer(node: LayerNode): void;
+  /** Light a layer up on the page without selecting it. */
+  peekLayer(node: LayerNode | null): void;
+  /** Hide a layer, or take the hiding back. */
+  toggleHidden(node: LayerNode): void;
 }
 
 /** The current value of a longhand, as the element reports it. */
@@ -120,6 +131,8 @@ export function useInspect(
   const [measuring, setMeasuring] = useState(false);
   const [noting, setNoting] = useState(false);
   const [frozen, setFrozen] = useState(false);
+  const [layers, setLayers] = useState<LayerNode[]>([]);
+  const [layersLoading, setLayersLoading] = useState(false);
   const [holding, setHolding] = useState(false);
 
   // Pins follow the notes; pushed again after a reload, like the rules.
@@ -167,6 +180,19 @@ export function useInspect(
     }
     sentText.current = wanted;
   }, [tabId, log, holding, generation]);
+
+  const refreshLayers = useCallback(() => {
+    if (tabId == null) return;
+    setLayersLoading(true);
+    void sendInspector<LayerNode[]>(tabId, { cmd: 'layers' })
+      .then((list) => setLayers(list ?? []))
+      .finally(() => setLayersLoading(false));
+  }, [tabId]);
+
+  // A new page is a new tree; the old one describes something that is gone.
+  useEffect(() => {
+    setLayers([]);
+  }, [tabId, generation]);
 
   const change = useCallback(
     (property: string, to: string, token?: string) => {
@@ -267,5 +293,27 @@ export function useInspect(
     },
     setNotingFromPage: setNoting,
     setFrozenFromPage: setFrozen,
+    layers,
+    layersLoading,
+    refreshLayers,
+    selectLayer: (node) => send({ cmd: 'select', selector: node.selector }),
+    peekLayer: (node) => (node ? send({ cmd: 'peek', selector: node.selector }) : send({ cmd: 'unpeek' })),
+    toggleHidden: (node) => {
+      // Hiding is an element edit like any other, so it undoes, reverts and
+      // reaches the agent through the same list. Showing again is that edit
+      // taken back, which lets the page's own CSS decide what display means.
+      const existing = active(log).find(
+        (e) => e.selector === node.selector && e.property === 'display' && e.to === 'none',
+      );
+      setLog((l) => (existing ? revertLog(l, existing.id) : commit(l, {
+        selector: node.selector,
+        matches: 1,
+        stable: node.stable,
+        property: 'display',
+        from: node.display,
+        to: 'none',
+      })));
+      window.setTimeout(refreshLayers, 120);
+    },
   };
 }

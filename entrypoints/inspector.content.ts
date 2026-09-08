@@ -11,9 +11,10 @@
 
 import type { ElementProps, InspectorCommand } from '@/shared/types';
 import { OVERLAY } from '@/shared/theme';
-import { buildSelector } from '@/studio/selector';
+import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import type { CommentTarget, Pin } from '@/studio/annotations';
+import type { LayerNode } from '@/studio/layers';
 import { DEVICE_PRESETS } from '@/shared/types';
 
 declare global {
@@ -172,6 +173,74 @@ function readProps(el: Element): ElementProps {
     text: ownText(el),
     contrastRatio: contrast(fg, bg),
   };
+}
+
+/** Structure only: script, style and metadata are not layers. */
+const SKIPPED = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE', 'NOSCRIPT', 'TEMPLATE', 'BR']);
+
+/** A page bigger than this is not worth sending whole; the tree stops here. */
+const MAX_LAYERS = 1500;
+
+/**
+ * How a row reads: `input#family.name-field`. The id goes first because it is
+ * the most identifying thing an element has, and a row that shows only classes
+ * disagrees with the selector the header shows once you pick it.
+ */
+function layerLabel(el: Element): string {
+  const id = el.getAttribute('id');
+  const idPart = id && /^[A-Za-z][\w-]*$/.test(id) ? `#${id}` : '';
+  const classes = Array.from(el.classList)
+    .filter(isStableClass)
+    .slice(0, 2)
+    .map((c) => `.${c}`)
+    .join('');
+  return el.tagName.toLowerCase() + idPart + classes;
+}
+
+/**
+ * The page as a flat list with depths. Built in one walk; `descendants` is
+ * filled in on the way back up so the panel can collapse a subtree by
+ * skipping rows.
+ */
+function buildLayers(): LayerNode[] {
+  const out: LayerNode[] = [];
+  const walk = (el: Element, depth: number): number => {
+    if (out.length >= MAX_LAYERS) return 0;
+    const index = out.length;
+    const own = Array.from(el.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent ?? '')
+      .join(' ')
+      .trim();
+    const cs = getComputedStyle(el);
+    // One selector build per node: it walks ancestors and is the expensive part.
+    const sel = buildSelector(el);
+    out.push({
+      id: index,
+      tag: el.tagName.toLowerCase(),
+      label: layerLabel(el),
+      selector: sel.selector,
+      stable: sel.stable,
+      depth,
+      descendants: 0,
+      hidden: cs.display === 'none' || cs.visibility === 'hidden',
+      display: cs.display,
+      ...(own ? { text: own.slice(0, 60) } : {}),
+    });
+    let count = 0;
+    // An icon is one layer. Its paths and polylines are drawing, not structure,
+    // and on an illustrated page they outnumber everything else several to one.
+    if (el.tagName.toLowerCase() !== 'svg') {
+      for (const child of el.children) {
+        if (SKIPPED.has(child.tagName) || isOurs(child)) continue;
+        count += 1 + walk(child, depth + 1);
+      }
+    }
+    out[index]!.descendants = count;
+    return count;
+  };
+  if (document.body) walk(document.body, 0);
+  return out;
 }
 
 function find(selector: string | undefined): Element | null {
@@ -810,6 +879,23 @@ function activate() {
       case 'read':
         sendResponse(selected ? readProps(selected) : null);
         return true;
+      case 'layers':
+        sendResponse(buildLayers());
+        return true;
+      case 'peek': {
+        // Hovering a row in the panel lights the element up on the page.
+        const el = find(msg.selector);
+        if (el) {
+          hovBox.classList.remove('hidden');
+          place(hovBox, rectOf(el));
+        } else {
+          hovBox.classList.add('hidden');
+        }
+        break;
+      }
+      case 'unpeek':
+        if (!hoverOn) hovBox.classList.add('hidden');
+        break;
       case 'text': {
         const el = find(msg.selector);
         if (el && msg.text !== undefined) el.textContent = msg.text;

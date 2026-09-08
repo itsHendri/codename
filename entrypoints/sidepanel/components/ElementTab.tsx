@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
@@ -9,6 +9,7 @@ import { EyeDropperButton } from './EyeDropperButton';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
+import { LayersTree } from './inspect/LayersTree';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -40,35 +41,49 @@ export function ElementTab({
 }) {
   const el = ctl.element;
 
+  // The tree is read when this tab is showing, and again when the page under
+  // it changes. `refreshLayers` keeps its identity until the tab id does, so
+  // this asks once per page rather than on every render — and it asks again
+  // once the tab id arrives, which an empty dependency list would have missed.
+  useEffect(() => {
+    ctl.refreshLayers();
+  }, [ctl.refreshLayers]);
+
+  const layers = (
+    <LayersTree
+      nodes={ctl.layers}
+      selectedSelector={el?.selector ?? null}
+      onSelect={ctl.selectLayer}
+      onPeek={ctl.peekLayer}
+      onToggleHidden={ctl.toggleHidden}
+      onRefresh={ctl.refreshLayers}
+      loading={ctl.layersLoading}
+    />
+  );
+
   if (!el) {
     return (
-      <div className="flex flex-col gap-3.5 p-3.5">
-        <div className="flex flex-col items-center gap-2 rounded-card border border-dashed border-line py-6 text-center">
-          <p className="max-w-56 text-sm text-ink-secondary">
-            {inspecting
-              ? 'Hover the page, then click an element to bring it here.'
-              : 'Turn on Inspect from the bar across the page, then click an element.'}
-          </p>
+      <div className="flex flex-col gap-3 p-3.5">
+        <p className="text-xs text-ink-muted">
+          Pick a layer below, or turn on Inspect and click the page.
           {!inspecting && (
-            <button
-              onClick={onToggle}
-              className="rounded-control border border-accent bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
-            >
-              Turn on Inspect
+            <button onClick={onToggle} className="ml-1.5 text-accent hover:underline">
+              turn it on
             </button>
           )}
-          {error && <p className="max-w-56 text-xs text-warn-ink">{error}</p>}
-        </div>
-        <EyeDropperButton />
-        <p className="text-center text-2xs text-ink-muted">
-          the colour picker samples anywhere on screen, selection or not
         </p>
+        {error && <p className="text-xs text-warn-ink">{error}</p>}
+        {layers}
+        <div className="border-t border-dashed border-line-subtle pt-3">
+          <EyeDropperButton />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2.5 p-3.5">
+      <Layers>{layers}</Layers>
       <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
       <Header element={el} ctl={ctl} />
       <Contrast element={el} />
@@ -84,6 +99,24 @@ export function ElementTab({
       <div className="border-t border-dashed border-line-subtle pt-2.5">
         <EyeDropperButton />
       </div>
+    </div>
+  );
+}
+
+/** Out of the way once something is selected, but one click from coming back. */
+function Layers({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-left"
+      >
+        <span className={`text-2xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span className="text-2xs tracking-wide text-ink-muted uppercase">Layers</span>
+      </button>
+      {open && children}
     </div>
   );
 }
