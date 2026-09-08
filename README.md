@@ -126,7 +126,7 @@ Requires Node 20+.
 
 ```sh
 npm install
-npm run dev        # dev build with hot reload
+npm run dev        # hot reload; load dist/chrome-mv3-dev once, see below
 npm run build      # production build → dist/chrome-mv3
 npm run compile    # type check
 npx vitest run     # engine, extraction, panel and bridge tests
@@ -136,6 +136,13 @@ npm run build -w codename-bridge   # the companion, → packages/bridge/dist/cli
 
 To load in Chrome/Brave: `chrome://extensions` (or `brave://extensions`) →
 enable Developer mode → **Load unpacked** → select `dist/chrome-mv3`.
+
+While developing, run `npm run dev` and load `dist/chrome-mv3-dev` instead.
+It does not launch its own browser, so you keep the tabs, site permissions and
+bridge pairing you already have. Panel code is served from the dev server and
+swaps live with no reload at all; a content-script change rebuilds and reloads
+the extension by itself. Load only one of the two builds at a time, or both
+will inject into every page.
 
 Click the Codename icon on a tab and the page is read; on a site Chrome has
 not let the extension into yet, allow it when asked. Access is per site, and

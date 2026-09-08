@@ -8,6 +8,13 @@ export default defineConfig({
   vite: () => ({
     plugins: [tailwindcss()],
   }),
+  /**
+   * `wxt` normally launches its own browser on a throwaway profile. Load
+   * `dist/chrome-mv3-dev` into the browser you already have open instead: the
+   * hot reload works over the dev server either way, and you keep your tabs,
+   * your site permissions and your bridge pairing.
+   */
+  webExt: { disabled: true },
   manifest: {
     name: 'Codename',
     description:

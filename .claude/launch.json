@@ -4,8 +4,21 @@
     {
       "name": "harness",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--config", ".harness/vite.config.ts"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--config",
+        ".harness/vite.config.ts"
+      ],
       "port": 5320
+    },
+    {
+      "name": "wxt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }
