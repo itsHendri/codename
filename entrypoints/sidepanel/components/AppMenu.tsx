@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme, type ThemePref } from '../lib/theme';
 import { LogoIcon } from './icons';
+import { BridgeSection } from './BridgeMenu';
 
 const THEMES: { key: ThemePref; label: string }[] = [
   { key: 'system', label: 'System' },
@@ -68,6 +69,7 @@ export function AppMenu({ children }: { children?: React.ReactNode }) {
               </button>
             ))}
           </div>
+          <BridgeSection />
           {children}
         </div>
       )}

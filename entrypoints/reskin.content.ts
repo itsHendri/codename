@@ -29,6 +29,8 @@ interface ApplyMessage {
   overrides?: Override[];
   /** old hex (uppercase) → new hex, for pages that hardcode their colours. */
   colorMap?: Record<string, string>;
+  /** A stylesheet the connected agent wants to try on the page. */
+  css?: string;
 }
 
 declare global {
@@ -38,6 +40,12 @@ declare global {
 }
 
 const STYLE_ID = 'codename-reskin';
+/**
+ * The agent's own sheet. It is a preview the user consented to, kept apart
+ * from the re-skin so either can be cleared without the other.
+ */
+const PREVIEW_ID = 'codename-agent-preview';
+const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID]);
 /** A pathological page shouldn't hang the panel; stop well before that. */
 const MAX_RULES = 20000;
 
@@ -49,6 +57,7 @@ export default defineContentScript({
     const applied = new Map<string, string>();
     const root = document.documentElement;
     let sheet: HTMLStyleElement | null = null;
+    let preview: HTMLStyleElement | null = null;
     let ruleCount = 0;
 
     /* -------- hardcoded colours -------- */
@@ -138,7 +147,7 @@ export default defineContentScript({
       ruleCount = 0;
       const out: string[] = [];
       for (const styleSheet of Array.from(document.styleSheets)) {
-        if (styleSheet.ownerNode instanceof Element && styleSheet.ownerNode.id === STYLE_ID) continue;
+        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
         let rules: CSSRuleList;
         try {
           rules = styleSheet.cssRules; // cross-origin sheets throw
@@ -181,6 +190,16 @@ export default defineContentScript({
       sheet = null;
     };
 
+    const setPreview = (css: string) => {
+      preview?.remove();
+      preview = null;
+      if (!css.trim()) return;
+      preview = document.createElement('style');
+      preview.id = PREVIEW_ID;
+      preview.textContent = css;
+      document.head.appendChild(preview);
+    };
+
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
@@ -195,6 +214,16 @@ export default defineContentScript({
       if (msg?.type === 'reskin-clear') {
         clear();
         sendResponse({ ok: true, vars: 0, rules: 0 });
+        return true;
+      }
+      if (msg?.type === 'reskin-preview') {
+        setPreview(msg.css ?? '');
+        sendResponse({ ok: true, vars: applied.size, rules: preview ? 1 : 0 });
+        return true;
+      }
+      if (msg?.type === 'reskin-preview-clear') {
+        setPreview('');
+        sendResponse({ ok: true, vars: applied.size, rules: 0 });
         return true;
       }
       return false;

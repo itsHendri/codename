@@ -8,7 +8,9 @@ import {
   startInspector,
   stopInspector,
 } from './lib/messaging';
-import { loadSession, setScan, updateSession, useSession } from './lib/session';
+import { loadSession, setPinned, setScan, updateSession, useSession } from './lib/session';
+import { useBridge, useBridgeSync } from './lib/bridge';
+import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
 import { DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
 import { AppMenu } from './components/AppMenu';
@@ -44,10 +46,12 @@ export default function App() {
 
   // The session outlives whichever tab is showing: an edit made in Design is
   // still there, and still painted on the page, after a detour through Inspect.
-  const { scan, config, mode, live, pinned } = useSession();
+  const session = useSession();
+  const { scan, config, mode, live, pinned } = session;
   const model = useDesignModel(scan, config, mode);
   const reskin = useLiveReskin(tabId, live, model);
-  const setPinned = (p: PinnedElement | null) => updateSession({ pinned: p });
+  const bridge = useBridge();
+  useBridgeSync(tabId, tabUrl, session, model);
 
   const restricted = isRestricted(tabUrl);
 
@@ -218,6 +222,7 @@ export default function App() {
         <span className="ml-auto max-w-[38%] truncate rounded-full border border-line px-2.5 py-0.5 text-sm text-ink-secondary">
           {hostname}
         </span>
+        <BridgeDot status={bridge.status} />
         <ViewportControl tabId={tabId} restricted={restricted} />
       </header>
 

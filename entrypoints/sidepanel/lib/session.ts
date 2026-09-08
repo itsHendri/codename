@@ -12,7 +12,9 @@
 
 import { useSyncExternalStore } from 'react';
 import type { PinnedElement, ScanResult } from '@/shared/types';
+import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
+import { isLocal } from '@/studio/commit';
 
 export interface TabSession {
   scan: ScanResult | null;
@@ -22,12 +24,32 @@ export interface TabSession {
   /** Whether edits repaint the page. */
   live: boolean;
   pinned: PinnedElement | null;
+  /**
+   * Moves on intent — a hand-off, a comment, a pin — never on a drag tick.
+   * The bridge's `watch` tool resolves when it does.
+   */
+  revision: number;
+  /** What was pressed "Send to agent" on, until the agent or the user clears it. */
+  handoff: SessionState['handoff'];
+  /** Whether the agent may paint on this page. Defaults on for localhost. */
+  agentMayWrite: boolean;
+  comments: Comment[];
 }
 
 /** The part of a session that is worth keeping across a panel reopen. */
 type Persisted = Omit<TabSession, 'pinned'>;
 
-const EMPTY: TabSession = { scan: null, config: null, mode: 'light', live: true, pinned: null };
+const EMPTY: TabSession = {
+  scan: null,
+  config: null,
+  mode: 'light',
+  live: true,
+  pinned: null,
+  revision: 0,
+  handoff: null,
+  agentMayWrite: false,
+  comments: [],
+};
 const key = (id: number) => `session:${id}`;
 
 let state: TabSession = EMPTY;
@@ -88,8 +110,31 @@ export async function loadSession(id: number, url: string): Promise<void> {
   state =
     stored?.scan && sameOrigin(stored.scan.url, url)
       ? { ...EMPTY, ...stored, pinned: null }
-      : EMPTY;
+      : { ...EMPTY, agentMayWrite: isLocal(url) };
   emit();
+}
+
+/** Something the agent should wake up for. */
+export function bumpRevision(patch: Partial<TabSession> = {}) {
+  updateSession((s) => ({ ...patch, revision: s.revision + 1 }));
+}
+
+export function setPinned(pinned: PinnedElement | null) {
+  bumpRevision({ pinned });
+}
+
+export function setCommentStatus(id: string, status: CommentStatus) {
+  bumpRevision({
+    comments: state.comments.map((c) => (c.id === id ? { ...c, status } : c)),
+  });
+}
+
+export function addReply(id: string, from: 'user' | 'agent', text: string) {
+  bumpRevision({
+    comments: state.comments.map((c) =>
+      c.id === id ? { ...c, replies: [...c.replies, { from, text, at: new Date().toISOString() }] } : c,
+    ),
+  });
 }
 
 /** A new scan is a new reading of the page: edits against the old one go. */

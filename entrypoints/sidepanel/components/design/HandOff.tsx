@@ -3,6 +3,8 @@ import type { ScanResult } from '@/shared/types';
 import type { Override } from '@/studio/reskin';
 import { buildChangeSet, isEmpty, toJson, toPrompt } from '@/studio/commit';
 import { download } from '../../lib/exporters';
+import { sendToAgent, useBridge } from '../../lib/bridge';
+import { useSession } from '../../lib/session';
 
 /**
  * The review step before a change leaves the panel.
@@ -24,6 +26,9 @@ export function HandOff({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const { status } = useBridge();
+  const { handoff } = useSession();
+  const connected = status === 'connected';
   const set = useMemo(
     () => buildChangeSet(scan, overrides, colorMap),
     [scan, overrides, colorMap],
@@ -160,8 +165,20 @@ export function HandOff({
 
       <footer className="flex flex-col gap-1.5 border-t border-line px-3.5 py-2.5">
         <p className="text-2xs text-ink-muted">
-          Nothing is written until your agent runs — review its diff as usual.
+          {connected
+            ? 'Nothing is written until your agent runs — review its diff as usual.'
+            : 'Not connected: run `npx codename-bridge` and pair from the menu, or copy the brief.'}
         </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => (sendToAgent() ? flash('sent') : null)}
+            disabled={isEmpty(set) || !connected}
+            title={connected ? 'Hand this to the connected agent' : 'Start `npx codename-bridge` and pair in the menu'}
+            className="flex-1 rounded-control border border-accent bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+          >
+            {copied === 'sent' || handoff ? 'Sent — your agent will pick it up' : 'Send to agent'}
+          </button>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => download(`codename-changes.json`, toJson(set), 'application/json')}
@@ -173,7 +190,7 @@ export function HandOff({
           <button
             onClick={() => navigator.clipboard.writeText(prompt).then(() => flash('prompt'))}
             disabled={isEmpty(set)}
-            className="flex-1 rounded-control border border-accent bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+            className="flex-1 rounded-control border border-line px-3 py-1.5 text-sm hover:bg-surface-control disabled:opacity-40"
           >
             {copied === 'prompt' ? 'Copied — paste it to your agent' : 'Copy for your agent'}
           </button>

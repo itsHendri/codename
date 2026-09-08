@@ -1,0 +1,33 @@
+{
+  "name": "codename-bridge",
+  "version": "0.1.0",
+  "description": "Local companion for the codename extension: stdio MCP to your agent, WebSocket on 127.0.0.1 to the panel.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codename-bridge": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../.. && vitest run packages",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ws": "^8.21.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -69,7 +69,7 @@ export interface ReskinResult {
 
 async function sendReskin(
   tabId: number,
-  message: { type: string; overrides?: ReskinOverride[]; colorMap?: Record<string, string> },
+  message: { type: string; overrides?: ReskinOverride[]; colorMap?: Record<string, string>; css?: string },
 ): Promise<ReskinResult | null> {
   const send = () => chrome.tabs.sendMessage(tabId, message) as Promise<ReskinResult | undefined>;
   try {
@@ -97,4 +97,29 @@ export function applyReskin(
 
 export function clearReskin(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-clear' });
+}
+
+/* ---------------- the agent's own preview sheet ---------------- */
+
+export function applyAgentPreview(tabId: number, css: string): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'reskin-preview', css });
+}
+
+export function clearAgentPreview(tabId: number): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'reskin-preview-clear' });
+}
+
+/** PNG of the visible tab in a window, as base64 without the data-URL prefix. */
+export async function captureVisible(
+  windowId: number,
+): Promise<{ png: string; width: number; height: number }> {
+  const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+  const png = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('screenshot could not be decoded'));
+    img.src = dataUrl;
+  });
+  return { png, width: img.naturalWidth, height: img.naturalHeight };
 }
