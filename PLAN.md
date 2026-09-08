@@ -99,23 +99,40 @@ How a variable is matched, and nothing else is touched:
 - Rules are rebuilt on each change. Fine at the sizes measured; if a very large
   site drags, cache the matched rules and re-emit only the values.
 
-## After that: the agent link
+## The agent link — hand-off built, automation not
 
-The change list is a **commit, not a browsing surface**. You design, then tell
-your agent to apply it to the repo; a confirmation screen shows what will be
-written, and nothing is written until the agent runs.
+`studio/commit.ts` + the **Hand to agent** screen in the Design tab. Edit a
+seed, review exactly what will be asked for, and copy a brief for your agent
+(or take the same thing as JSON).
 
-- **Token-level changes only**: `--brand-primary: #533AFD → #1C7F5C, tokens.css
-  L12, 34 uses`. The agent edits the *definition*, never resolved hexes stamped
-  across components.
-- Needs a mapping from Codename's tokens onto the project's own. This is the
-  hard part of the whole idea, and it is only solvable because you own both
-  sides.
-- Transport undecided: MCP server, CLI, or a watched file. An extension cannot
-  host an MCP server itself, so any of these needs a small companion process —
-  Design Mode uses a local WebSocket bridged to stdio MCP.
-- **Only where a project is linked.** On a site you don't own there is no repo
-  to write to, so the flow isn't offered at all; export is the way out.
+**Token-level, never a rendered stylesheet.** `--mark: #BE3A22 → #1C7F5C
+(34 usages; loaded from …/src/index.css)` lets an agent edit one definition.
+Handing over resolved CSS invites it to stamp a hex across forty components,
+which is the thing a token system exists to prevent. A test pins that the prompt
+never contains a rule body.
+
+**No file positions, on purpose.** The extension sees the rendered page, so a
+line number would be a guess. The agent has the repo and can find a definition
+properly; what it gets is the stylesheet URL the browser loaded, labelled as a
+hint. This is why the wireframe's `tokens.css L12` is not implemented and does
+not need to be.
+
+A colour already covered by a token is not also listed as a literal — one job,
+one handle. A page with no tokens at all gets the literals plus a suggestion to
+introduce tokens, since a colour used thirty times is a token in all but name.
+
+### Still to build: the automation
+Copying a prompt is the whole value minus the convenience. The remaining piece
+is a companion process — an extension cannot host an MCP server itself:
+
+- a small published package speaking stdio MCP to Claude Code/Cursor and
+  WebSocket to the extension (Design Mode's local-mode shape; its cloud-relay
+  default is the anti-pattern)
+- a `get_changes` tool returning the same `ChangeSet` this already builds, so
+  the payload does not change — only the transport
+- a connection indicator in the panel, and "Send to agent" beside "Copy"
+
+Because the payload is already the artifact, the bridge is additive.
 
 ## Known limits and open questions
 

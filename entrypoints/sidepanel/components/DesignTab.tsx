@@ -9,6 +9,7 @@ import { Section } from './design/Section';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
+import { HandOff } from './design/HandOff';
 
 type SectionKey = 'colour' | 'type' | 'space';
 
@@ -30,6 +31,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
   // edit. Overrides last the session and die with the document.
   const [live, setLive] = useState(true);
   const [result, setResult] = useState<{ vars: number; rules: number } | null>(null);
+  const [handingOff, setHandingOff] = useState(false);
 
   // Both hooks run unconditionally — `config ?? useMemo(...)` short-circuits and
   // would make the hook call conditional.
@@ -99,7 +101,7 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
   const failing = resolved.warnings.filter((w) => w.level === 'fail').length;
 
   return (
-    <div className="flex flex-col">
+    <div className="relative flex flex-col">
       {/* Where this came from, and the mode the swatches are showing. */}
       <div
         className={`flex items-center gap-2 border-b px-3.5 py-2 text-[11px] ${
@@ -138,7 +140,15 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
             revert
           </button>
         )}
-        <span className="ml-auto flex items-center gap-1 rounded-md border border-gray-300 p-0.5">
+        {edited && (
+          <button
+            onClick={() => setHandingOff(true)}
+            className="ml-auto shrink-0 rounded-md border border-blue-600 bg-white px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
+          >
+            Hand to agent →
+          </button>
+        )}
+        <span className="flex items-center gap-1 rounded-md border border-gray-300 p-0.5">
           {(['light', 'dark'] as const).map((m) => (
             <button
               key={m}
@@ -181,6 +191,15 @@ export function DesignTab({ scan, tabId }: { scan: ScanResult; tabId: number | n
       >
         <SpaceSection scan={scan} config={brand} resolved={resolved} />
       </Section>
+
+      {handingOff && (
+        <HandOff
+          scan={scan}
+          overrides={overrides}
+          colorMap={colorMap}
+          onClose={() => setHandingOff(false)}
+        />
+      )}
     </div>
   );
 }

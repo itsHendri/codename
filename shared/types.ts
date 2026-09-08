@@ -48,6 +48,15 @@ export interface SvgAsset {
 export interface CustomPropInfo {
   name: string;
   value: string;
+  /**
+   * Where the browser loaded the stylesheet that defines this. On a dev server
+   * it maps to a repo path, which is a useful hint when handing a change to an
+   * agent — but it is where the *browser* got the CSS, not proof of where the
+   * source lives. Absent for inline `<style>` blocks.
+   */
+  source?: string;
+  /** How many declarations reference it, as a measure of blast radius. */
+  uses?: number;
 }
 
 /** A CSS value observed on the page, with how often it was seen. */

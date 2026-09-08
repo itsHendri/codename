@@ -26,7 +26,7 @@ export default defineContentScript({
 function scanPage(): ScanResult {
   const css = gatherCss();
   const sampled = sampleComputedStyles();
-  const customProps = extractCustomProps(css.text);
+  const customProps = extractCustomProps(css.sheets, css.text);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -50,8 +50,8 @@ function scanPage(): ScanResult {
 
 /* ---------------- CSS acquisition ---------------- */
 
-function gatherCss(): { text: string; unreadable: string[] } {
-  const chunks: string[] = [];
+function gatherCss(): { text: string; unreadable: string[]; sheets: { href: string | null; text: string }[] } {
+  const sheets: { href: string | null; text: string }[] = [];
   const unreadable: string[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
     try {
@@ -59,12 +59,14 @@ function gatherCss(): { text: string; unreadable: string[] } {
       const text = Array.from(rules)
         .map((r) => r.cssText)
         .join('\n');
-      chunks.push(text);
+      // Keep sheets apart so a token can say which file it came from; the
+      // concatenation loses that, and an agent being handed a change wants it.
+      sheets.push({ href: sheet.href, text });
     } catch {
       if (sheet.href) unreadable.push(sheet.href);
     }
   }
-  return { text: chunks.join('\n'), unreadable };
+  return { text: sheets.map((s) => s.text).join('\n'), unreadable, sheets };
 }
 
 /* ---------------- Fonts ---------------- */
@@ -372,12 +374,25 @@ function addColor(
 
 /* ---------------- Custom properties ---------------- */
 
-function extractCustomProps(cssText: string): CustomPropInfo[] {
-  const map = new Map<string, string>();
-  for (const m of cssText.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)[;}]/g)) {
-    if (!map.has(m[1]!)) map.set(m[1]!, m[2]!.trim());
+function extractCustomProps(
+  sheets: { href: string | null; text: string }[],
+  allCss: string,
+): CustomPropInfo[] {
+  const map = new Map<string, { value: string; source?: string }>();
+  for (const sheet of sheets) {
+    for (const m of sheet.text.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)[;}]/g)) {
+      const name = m[1]!;
+      if (map.has(name)) continue; // first definition wins, as the cascade did
+      map.set(name, { value: m[2]!.trim(), source: sheet.href ?? undefined });
+    }
   }
-  return Array.from(map, ([name, value]) => ({ name, value }));
+  return Array.from(map, ([name, { value, source }]) => ({
+    name,
+    value,
+    source,
+    // Blast radius: how many declarations lean on this token.
+    uses: allCss.split(`var(${name}`).length - 1,
+  }));
 }
 
 /** Give extracted colors the site's own token names when a custom property resolves to them. */
