@@ -33,7 +33,7 @@ const distance = differenceEuclidean('oklab');
  * wash landed on a neutral step and got snapped onto the ramp, losing the
  * lightness that made it a wash.
  */
-const EXACT_DISTANCE = 0.008;
+export const EXACT_DISTANCE = 0.008;
 /** Degrees of hue within which a colour counts as part of a seed's family. */
 const FAMILY_HUE = 22;
 /**
@@ -55,7 +55,7 @@ export interface Override {
   reason: 'exact' | 'family';
 }
 
-function hexOf(value: string): string | null {
+export function hexOf(value: string): string | null {
   const v = value.trim();
   // Only literal colours: a `var()` reference resolves to something else we
   // will meet on its own terms, and rewriting it would flatten the indirection.

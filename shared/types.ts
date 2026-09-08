@@ -94,6 +94,8 @@ export interface ScanResult {
   shape: ShapeUsage;
   /** Full CSS text gathered from same-origin sheets and <style> tags */
   cssText: string;
+  /** The root font size in px, so rem values can be compared honestly. */
+  rootFontSize?: number;
   /** hrefs of cross-origin sheets that could not be read in-page */
   unreadableSheets: string[];
   stats: { elementsSampled: number; styleSheets: number };

@@ -33,6 +33,7 @@ function scanPage(): ScanResult {
     url: location.href,
     title: document.title,
     scannedAt: Date.now(),
+    rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
     fontFaces: extractFontFaces(),
     fontUsage: sampled.fontUsage,
