@@ -19,16 +19,16 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="border-t border-gray-200 first:border-t-0">
+    <div className="border-t border-line-subtle first:border-t-0">
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left hover:bg-gray-50"
+        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left hover:bg-surface-recessed"
       >
-        <span className={`text-[10px] text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`}>
+        <span className={`text-2xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>
           ▶
         </span>
         <span className="font-medium">{title}</span>
-        <span className="ml-auto truncate text-[11px] text-gray-400">{summary}</span>
+        <span className="ml-auto truncate text-xs text-ink-muted">{summary}</span>
       </button>
       {open && <div className="px-3.5 pb-4">{children}</div>}
     </div>

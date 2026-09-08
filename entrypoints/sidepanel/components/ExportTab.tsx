@@ -51,25 +51,25 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
   return (
     <div className="flex flex-col gap-3 p-3.5">
       {scan.unreadableSheets.length > 0 && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+        <p className="rounded-control border border-warn bg-warn-soft px-2.5 py-1.5 text-xs text-warn-ink">
           {scan.unreadableSheets.length} cross-origin stylesheet(s) couldn&apos;t be read — this export may be
           partial.
         </p>
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="text-xs text-gray-500">Preset</div>
+        <div className="text-sm text-ink-muted">Preset</div>
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPreset(p.key)}
-              className={`rounded-full border px-3 py-0.5 text-xs ${
+              className={`rounded-full border px-3 py-0.5 text-sm ${
                 preset === p.key
-                  ? 'border-blue-600 bg-blue-50 text-blue-600'
+                  ? 'border-accent bg-accent-soft text-accent'
                   : p.key === 'custom'
-                    ? 'border-dashed border-gray-400 text-gray-500'
-                    : 'border-gray-400 text-gray-700'
+                    ? 'border-dashed border-line text-ink-muted'
+                    : 'border-line text-ink-secondary'
               }`}
             >
               {p.label}
@@ -77,7 +77,7 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
           ))}
         </div>
         {preset === 'custom' && (
-          <div className="flex flex-wrap gap-2.5 rounded-md border border-dashed border-gray-300 p-2 text-xs">
+          <div className="flex flex-wrap gap-2.5 rounded-control border border-dashed border-line p-2 text-sm">
             {(Object.keys(sections) as (keyof ExportSections)[]).map((key) => (
               <label key={key} className="flex items-center gap-1.5">
                 <input
@@ -113,21 +113,21 @@ export function ExportTab({ scan, hostname }: { scan: ScanResult; hostname: stri
         />
       )}
 
-      <div className="rounded-lg border border-gray-300 p-3">
+      <div className="rounded-card border border-line p-3">
         <div className="font-medium">Consistency report</div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-sm text-ink-muted">
           {stats.colorCount} colors ({stats.grayCount} grays), {stats.fontFamilyCount} font families,{' '}
           {stats.fontSizeCount} font sizes, {stats.gradientCount} gradients on this page.
         </p>
         <button
           onClick={() => setShowReport(!showReport)}
-          className="mt-2 rounded-md border border-gray-400 px-3 py-1 text-xs hover:bg-gray-50"
+          className="mt-2 rounded-control border border-line px-3 py-1 text-sm hover:bg-surface-recessed"
         >
           {showReport ? 'Hide details' : 'View report'}
         </button>
         {showReport && (
-          <div className="mt-2 max-h-48 overflow-y-auto rounded bg-gray-50 p-2 text-[11px] text-gray-600">
-            <div className="mb-1 font-medium text-gray-700">Custom properties ({scan.customProps.length})</div>
+          <div className="mt-2 max-h-48 overflow-y-auto rounded bg-surface-recessed p-2 text-xs text-ink-secondary">
+            <div className="mb-1 font-medium text-ink-secondary">Custom properties ({scan.customProps.length})</div>
             {scan.customProps.slice(0, 40).map((p) => (
               <div key={p.name} className="truncate">
                 <code>{p.name}</code>: {p.value}
@@ -157,24 +157,24 @@ function ExportCard({
   copied: boolean;
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${accent ? 'border-blue-600 bg-blue-50' : 'border-gray-300'}`}>
-      <div className={`font-medium ${accent ? 'text-blue-700' : ''}`}>{title}</div>
-      <p className="mt-0.5 text-xs text-gray-500">{description}</p>
+    <div className={`rounded-card border p-3 ${accent ? 'border-accent bg-accent-soft' : 'border-line'}`}>
+      <div className={`font-medium ${accent ? 'text-accent' : ''}`}>{title}</div>
+      <p className="mt-0.5 text-sm text-ink-muted">{description}</p>
       <div className="mt-2 flex gap-2">
         <button
           onClick={onDownload}
-          className={`rounded-md border px-3.5 py-1 text-xs font-medium ${
+          className={`rounded-control border px-3.5 py-1 text-sm font-medium ${
             accent
-              ? 'border-blue-600 bg-white text-blue-600 hover:bg-blue-100'
-              : 'border-gray-800 bg-gray-100 hover:bg-gray-200'
+              ? 'border-accent bg-surface-panel text-accent hover:bg-accent-soft'
+              : 'border-line-strong bg-surface-control hover:bg-surface-control'
           }`}
         >
           Download
         </button>
         <button
           onClick={onCopy}
-          className={`rounded-md border px-3.5 py-1 text-xs ${
-            accent ? 'border-blue-600 text-blue-600' : 'border-gray-400'
+          className={`rounded-control border px-3.5 py-1 text-sm ${
+            accent ? 'border-accent text-accent' : 'border-line'
           }`}
         >
           {copied ? 'Copied ✓' : 'Copy'}

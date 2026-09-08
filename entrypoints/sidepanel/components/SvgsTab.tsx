@@ -94,13 +94,13 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3.5">
         <div className="flex items-center gap-2">
           <span className="font-medium">{scan.svgs.length} SVGs found</span>
-          <div className="ml-auto flex gap-1.5 text-[11px]">
+          <div className="ml-auto flex gap-1.5 text-xs">
             {(['all', 'inline', 'external'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-full border px-2.5 py-0.5 capitalize ${
-                  filter === f ? 'border-blue-600 text-blue-600' : 'border-gray-400 text-gray-500'
+                  filter === f ? 'border-accent text-accent' : 'border-line text-ink-muted'
                 }`}
               >
                 {f}
@@ -114,17 +114,17 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
             <SvgTile key={asset.id} asset={asset} selected={selected.has(asset.id)} onToggle={() => toggle(asset.id)} />
           ))}
         </div>
-        {assets.length === 0 && <p className="text-center text-xs text-gray-400">No SVGs in this filter.</p>}
-        <p className="text-[11px] text-gray-400">Sources: inline · img · css background · sprite &lt;use&gt; · favicon</p>
+        {assets.length === 0 && <p className="text-center text-sm text-ink-muted">No SVGs in this filter.</p>}
+        <p className="text-xs text-ink-muted">Sources: inline · img · css background · sprite &lt;use&gt; · favicon</p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-t border-gray-200 px-3.5 py-2.5">
+      <div className="flex flex-col gap-1.5 border-t border-line-subtle px-3.5 py-2.5">
         <div className="flex items-center gap-2.5">
-          <span className="text-xs text-gray-500">
+          <span className="text-sm text-ink-muted">
             {selected.size ? (
               <>
                 {selected.size} selected ·{' '}
-                <button className="text-blue-600 hover:underline" onClick={() => setSelected(new Set())}>
+                <button className="text-accent hover:underline" onClick={() => setSelected(new Set())}>
                   clear
                 </button>
               </>
@@ -135,13 +135,13 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
           <button
             onClick={downloadZip}
             disabled={zipping || scan.svgs.length === 0}
-            className="ml-auto flex flex-1 items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-50 py-2 font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+            className="ml-auto flex flex-1 items-center justify-center gap-2 rounded-card border border-accent bg-accent-soft py-2 font-medium text-accent hover:bg-accent-soft disabled:opacity-50"
           >
             <DownloadIcon />
             {zipping ? 'Zipping…' : `Download ${selected.size || scan.svgs.length} · ZIP`}
           </button>
         </div>
-        {zipNote && <p className="text-[11px] text-amber-700">{zipNote}</p>}
+        {zipNote && <p className="text-xs text-warn-ink">{zipNote}</p>}
       </div>
     </div>
   );
@@ -151,22 +151,22 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
   const preview = asset.markup ? svgDataUri(asset.markup) : asset.url;
   return (
     <div
-      className={`relative flex h-[88px] cursor-pointer items-center justify-center rounded-lg border p-2 checkerboard ${
-        selected ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-300 hover:border-gray-500'
+      className={`relative flex h-22 cursor-pointer items-center justify-center rounded-card border p-2 checkerboard ${
+        selected ? 'border-accent ring-1 ring-accent' : 'border-line hover:border-line-strong'
       }`}
       onClick={onToggle}
       title={asset.url ?? `${asset.source} SVG`}
     >
       <span
-        className={`absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded border text-[10px] ${
-          selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-400 bg-white'
+        className={`absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded border text-2xs ${
+          selected ? 'border-accent bg-accent text-accent-ink' : 'border-line bg-surface-panel'
         }`}
       >
         {selected ? '✓' : ''}
       </span>
       {asset.markup && (
         <button
-          className="absolute right-1 top-1 rounded bg-white/80 p-0.5 text-gray-500 hover:text-blue-600"
+          className="absolute right-1 top-1 rounded bg-surface-panel/80 p-0.5 text-ink-muted hover:text-accent"
           title="Copy markup"
           onClick={(e) => {
             e.stopPropagation();
@@ -179,10 +179,10 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
       {preview ? (
         <img src={preview} alt="" className="max-h-full max-w-full" loading="lazy" />
       ) : (
-        <span className="text-[10px] text-gray-400">{asset.source}</span>
+        <span className="text-2xs text-ink-muted">{asset.source}</span>
       )}
       {asset.bytes != null && (
-        <span className="absolute bottom-0.5 right-1 rounded bg-white/80 px-0.5 text-[9px] text-gray-500">
+        <span className="absolute bottom-0.5 right-1 rounded bg-surface-panel/80 px-0.5 text-2xs text-ink-muted">
           {asset.bytes < 1024 ? `${asset.bytes} B` : `${(asset.bytes / 1024).toFixed(1)} KB`}
         </span>
       )}

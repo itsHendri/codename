@@ -6,6 +6,8 @@ declare global {
   }
 }
 
+import { OVERLAY } from '@/shared/theme';
+
 export default defineContentScript({
   registration: 'runtime',
   main() {
@@ -93,17 +95,21 @@ function buildSelector(el: Element): string {
 }
 
 function activate() {
+  // The overlay paints inside the site, so it carries its own colours and
+  // follows the system preference; the panel's stylesheet cannot reach it.
+  const c = OVERLAY[matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'];
+  const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
   const host = document.createElement('codename-inspector');
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const shadow = host.attachShadow({ mode: 'closed' });
   shadow.innerHTML = `
     <style>
-      .box { position: fixed; pointer-events: none; outline: 2px solid #2563eb; outline-offset: -1px; background: rgba(37, 99, 235, 0.08); }
-      .tag { position: fixed; pointer-events: none; background: #2563eb; color: #fff; font: 11px/1.6 ui-sans-serif, system-ui, sans-serif; padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
-      .card { position: fixed; pointer-events: none; background: #fff; color: #1f2937; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.14); font: 12px/1.5 ui-sans-serif, system-ui, sans-serif; padding: 8px 10px; max-width: 280px; }
+      .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
+      .tag { position: fixed; pointer-events: none; background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .card { position: fixed; pointer-events: none; background: ${c.cardBg}; color: ${c.cardInk}; border: 1px solid ${c.cardLine}; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.24); font: 12px/1.5 ${font}; padding: 8px 10px; max-width: 280px; font-variant-numeric: tabular-nums; }
       .card .row { display: flex; gap: 6px; align-items: center; }
-      .card .k { color: #6b7280; width: 56px; flex-shrink: 0; }
-      .card .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid #d1d5db; display: inline-block; }
+      .card .k { color: ${c.cardMuted}; width: 56px; flex-shrink: 0; }
+      .card .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid ${c.cardLine}; display: inline-block; }
       .hidden { display: none; }
     </style>
     <div class="box hidden"></div>

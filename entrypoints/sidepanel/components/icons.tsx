@@ -8,7 +8,7 @@ export function LogoIcon({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M8 1 L15 8 L8 15 L1 8 Z" />
-      <path d="M8 5 L11 8 L8 11 L5 8 Z" fill="#2563eb" stroke="none" />
+      <path d="M8 5 L11 8 L8 11 L5 8 Z" fill="var(--accent)" stroke="none" />
     </svg>
   );
 }

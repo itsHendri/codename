@@ -73,21 +73,21 @@ export function DesignTab({
     <div className="relative flex flex-col">
       {/* Where this came from, and the mode the swatches are showing. */}
       <div
-        className={`flex items-center gap-2 border-b px-3.5 py-2 text-[11px] ${
-          live && edited ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
+        className={`flex items-center gap-2 border-b px-3.5 py-2 text-xs ${
+          live && edited ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'
         }`}
       >
         <button
           onClick={() => onLiveChange(!live)}
           className={`flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 ${
-            live ? 'justify-end border-blue-600 bg-blue-600' : 'justify-start border-gray-400 bg-gray-200'
+            live ? 'justify-end border-accent bg-accent' : 'justify-start border-line bg-surface-control'
           }`}
           title={live ? 'Stop applying changes to the page' : 'Apply changes to the page'}
           aria-pressed={live}
         >
-          <span className="h-3 w-3 rounded-full bg-white" />
+          <span className="h-3 w-3 rounded-full bg-surface-panel" />
         </button>
-        <span className={live && edited ? 'text-blue-700' : 'text-gray-500'}>
+        <span className={live && edited ? 'text-accent' : 'text-ink-muted'}>
           {!edited
             ? 'read from this page'
             : !live
@@ -103,7 +103,7 @@ export function DesignTab({
         {edited && (
           <button
             onClick={() => onConfigChange(null)}
-            className="text-blue-600 hover:underline"
+            className="text-accent hover:underline"
             title="Go back to what the page actually uses"
           >
             revert
@@ -112,18 +112,18 @@ export function DesignTab({
         {edited && (
           <button
             onClick={() => setHandingOff(true)}
-            className="ml-auto shrink-0 rounded-md border border-blue-600 bg-white px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
+            className="ml-auto shrink-0 rounded-control border border-accent bg-surface-panel px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
           >
             Hand to agent →
           </button>
         )}
-        <span className="flex items-center gap-1 rounded-md border border-gray-300 p-0.5">
+        <span className="flex items-center gap-1 rounded-control border border-line p-0.5">
           {(['light', 'dark'] as const).map((m) => (
             <button
               key={m}
               onClick={() => onModeChange(m)}
-              className={`rounded px-2 py-0.5 text-[10px] capitalize ${
-                mode === m ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'
+              className={`rounded px-2 py-0.5 text-2xs capitalize ${
+                mode === m ? 'bg-ink text-surface-app' : 'text-ink-muted hover:text-ink'
               }`}
             >
               {m}

@@ -95,21 +95,21 @@ export function ViewportControl({ tabId, restricted }: { tabId: number | null; r
     <div className="relative" ref={wrap}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-gray-500"
+        className="flex items-center gap-1 rounded-control border border-line px-1.5 py-0.5 text-xs text-ink-secondary hover:border-line-strong"
         title="Resize the page"
       >
         <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M2 6 V2 H6 M10 2 H14 V6 M14 10 V14 H10 M6 14 H2 V10" />
         </svg>
         {viewport ? viewport.width : '—'}
-        <span className="text-[8px]">▼</span>
+        <span className="text-2xs">▼</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
+        <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-card border border-line bg-surface-panel p-2 shadow-lg">
           <div className="mb-1.5 flex items-baseline gap-2 px-1">
-            <span className="text-xs font-medium">Viewport</span>
-            <span className="ml-auto text-[10px] tabular-nums text-gray-400">
+            <span className="text-sm font-medium">Viewport</span>
+            <span className="ml-auto text-2xs tabular-nums text-ink-muted">
               {viewport ? `${viewport.width} × ${viewport.height}` : 'unknown'}
             </span>
           </div>
@@ -118,37 +118,37 @@ export function ViewportControl({ tabId, restricted }: { tabId: number | null; r
               <button
                 key={preset.name}
                 onClick={() => apply(preset)}
-                className="flex flex-col items-start rounded-md border border-gray-200 px-2 py-1 text-left hover:border-blue-600 hover:bg-blue-50"
+                className="flex flex-col items-start rounded-control border border-line-subtle px-2 py-1 text-left hover:border-accent hover:bg-accent-soft"
               >
-                <span className="text-[11px]">{preset.name}</span>
-                <span className="text-[10px] tabular-nums text-gray-400">
+                <span className="text-xs">{preset.name}</span>
+                <span className="text-2xs tabular-nums text-ink-muted">
                   {preset.width} × {preset.height}
-                  {preset.width < MIN_OUTER_WIDTH && <span className="text-amber-700"> ~min</span>}
+                  {preset.width < MIN_OUTER_WIDTH && <span className="text-warn-ink"> ~min</span>}
                 </span>
               </button>
             ))}
           </div>
-          <div className="mt-1.5 flex items-center gap-1 border-t border-dashed border-gray-200 pt-1.5">
+          <div className="mt-1.5 flex items-center gap-1 border-t border-dashed border-line-subtle pt-1.5">
             <input
               value={draft.w}
               onChange={(e) => setDraft({ ...draft, w: e.target.value })}
               placeholder="w"
               inputMode="numeric"
-              className="w-12 rounded border border-gray-300 px-1 py-0.5 text-[11px]"
+              className="w-12 rounded border border-line px-1 py-0.5 text-xs"
             />
-            <span className="text-[10px] text-gray-400">×</span>
+            <span className="text-2xs text-ink-muted">×</span>
             <input
               value={draft.h}
               onChange={(e) => setDraft({ ...draft, h: e.target.value })}
               placeholder="h"
               inputMode="numeric"
-              className="w-12 rounded border border-gray-300 px-1 py-0.5 text-[11px]"
+              className="w-12 rounded border border-line px-1 py-0.5 text-xs"
             />
-            <button onClick={addCustom} className="ml-auto text-[11px] text-blue-600 hover:underline">
+            <button onClick={addCustom} className="ml-auto text-xs text-accent hover:underline">
               add
             </button>
           </div>
-          <p className="mt-1.5 px-1 text-[10px] text-amber-700">
+          <p className="mt-1.5 px-1 text-2xs text-warn-ink">
             Chrome won&apos;t shrink below ~{MIN_OUTER_WIDTH}px, so phone widths get as close as they can.
           </p>
         </div>

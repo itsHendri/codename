@@ -3,22 +3,22 @@ import { WarnIcon } from './icons';
 export function EmptyState({ onScan, error }: { onScan: () => void; error: string | null }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
-      <svg className="h-14 w-14 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+      <svg className="h-14 w-14 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.5 15.5 L21 21 M8 10.5 H13 M10.5 8 V13" />
       </svg>
-      <div className="text-base font-medium text-gray-800">Nothing scanned yet</div>
-      <p className="max-w-[240px] text-xs text-gray-500">
+      <div className="text-lg font-medium text-ink">Nothing scanned yet</div>
+      <p className="max-w-60 text-sm text-ink-muted">
         Scan this page to pull its fonts, colors, SVGs and design tokens.
       </p>
       <button
         onClick={onScan}
-        className="rounded-lg border border-blue-600 bg-blue-50 px-7 py-2 font-medium text-blue-600 hover:bg-blue-100"
+        className="rounded-card border border-accent bg-accent-soft px-7 py-2 font-medium text-accent hover:bg-accent-soft"
       >
         Scan this page
       </button>
-      <p className="text-[11px] text-gray-400">or just use Resize / the color picker — no scan needed</p>
-      {error && <p className="max-w-[260px] text-[11px] text-amber-700">{error}</p>}
+      <p className="text-xs text-ink-muted">or just use Resize / the color picker — no scan needed</p>
+      {error && <p className="max-w-64 text-xs text-warn-ink">{error}</p>}
     </div>
   );
 }
@@ -26,14 +26,14 @@ export function EmptyState({ onScan, error }: { onScan: () => void; error: strin
 export function ScanningState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-8">
-      <svg className="h-6 w-6 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg className="h-6 w-6 animate-spin text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M12 2 a10 10 0 0 1 10 10" />
       </svg>
-      <div className="text-sm text-gray-600">Reading the page&hellip;</div>
-      <div className="w-full max-w-[240px] space-y-2">
-        <div className="h-11 animate-pulse rounded-lg bg-gray-100" />
-        <div className="h-11 animate-pulse rounded-lg bg-gray-100" />
-        <div className="h-11 animate-pulse rounded-lg bg-gray-100" />
+      <div className="text-base text-ink-secondary">Reading the page&hellip;</div>
+      <div className="w-full max-w-60 space-y-2">
+        <div className="h-11 animate-pulse rounded-card bg-surface-control" />
+        <div className="h-11 animate-pulse rounded-card bg-surface-control" />
+        <div className="h-11 animate-pulse rounded-card bg-surface-control" />
       </div>
     </div>
   );
@@ -42,26 +42,26 @@ export function ScanningState() {
 export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenInspect: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
-      <svg className="h-12 w-12 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+      <svg className="h-12 w-12 text-warn-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <rect x="5" y="10" width="14" height="10" rx="2" />
         <path d="M8 10 V7 a4 4 0 0 1 8 0 V10" />
         <circle cx="12" cy="15" r="1.4" />
       </svg>
-      <div className="text-base font-medium text-gray-800">Can&apos;t inspect this page</div>
-      <p className="max-w-[250px] text-xs text-gray-500">
+      <div className="text-lg font-medium text-ink">Can&apos;t inspect this page</div>
+      <p className="max-w-64 text-sm text-ink-muted">
         Chrome blocks extensions on this page ({url ? new URL(url).protocol.replace(':', '') : 'internal'} pages and
         the Web Store). Open a normal website to use Codename.
       </p>
-      <div className="flex items-start gap-2 border-t border-dashed border-gray-200 pt-3 text-[11px] text-gray-500">
-        <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+      <div className="flex items-start gap-2 border-t border-dashed border-line-subtle pt-3 text-xs text-ink-muted">
+        <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
         <span>
-          Still available: the <b className="text-gray-700">colour picker</b> samples your whole
-          screen, and <b className="text-gray-700">resize</b> in the header works anywhere
+          Still available: the <b className="text-ink-secondary">colour picker</b> samples your whole
+          screen, and <b className="text-ink-secondary">resize</b> in the header works anywhere
         </span>
       </div>
       <button
         onClick={onOpenInspect}
-        className="rounded-lg border border-gray-800 px-5 py-1.5 text-gray-800 hover:bg-gray-50"
+        className="rounded-card border border-line-strong px-5 py-1.5 text-ink hover:bg-surface-recessed"
       >
         Open Inspect
       </button>

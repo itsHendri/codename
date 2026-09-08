@@ -1,10 +1,170 @@
+/*
+ * The panel's own design system. Every colour, size and radius the chrome
+ * uses is a semantic token here; components only ever say what a surface or
+ * an ink is *for*. Dark is the default, light is an override, and the
+ * system preference decides when no choice has been made.
+ *
+ * Values are hex on purpose: theme.test.ts parses this file and runs the
+ * panel's own APCA audit against it, so the panel is held to the standard it
+ * holds sites to.
+ */
+
 @import 'tailwindcss';
 
-body {
-  @apply bg-white text-gray-800 antialiased;
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* dark — the default */
+:root {
+  color-scheme: dark;
+  --surface-app: #151311;
+  --surface-panel: #1c1a18;
+  --surface-control: #262421;
+  --surface-recessed: #0f0d0b;
+  --surface-raised: #302d2b;
+  --ink: #edebe7;
+  --ink-secondary: #cac7c2;
+  --ink-muted: #a5a19b;
+  --ink-faint: #7e7a74;
+  --line: #302d2b;
+  --line-subtle: #262421;
+  --line-strong: #504c48;
+  --accent: #6bb3ff;
+  --accent-hover: #86c4ff;
+  --accent-soft: #132946;
+  --accent-ink: #02050b;
+  --warn: #e6ac3d;
+  --warn-soft: #332305;
+  --warn-ink: #fac871;
+  --ok: #5dc879;
+  --ok-soft: #122d19;
+}
+
+/* light — an explicit choice… */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --surface-app: #fbfaf8;
+  --surface-panel: #ffffff;
+  --surface-control: #f2f0ed;
+  --surface-recessed: #f6f5f3;
+  --surface-raised: #ffffff;
+  --ink: #14110d;
+  --ink-secondary: #403c37;
+  --ink-muted: #615d57;
+  --ink-faint: #8a8580;
+  --line: #d6d4d0;
+  --line-subtle: #e6e4e1;
+  --line-strong: #b4b0ac;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #e0eeff;
+  --accent-ink: #ffffff;
+  --warn: #de9300;
+  --warn-soft: #fef4df;
+  --warn-ink: #904700;
+  --ok: #00943e;
+  --ok-soft: #e8fbeb;
+}
+
+/* …or the system's, when no choice has been made. Same values as above. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --surface-app: #fbfaf8;
+    --surface-panel: #ffffff;
+    --surface-control: #f2f0ed;
+    --surface-recessed: #f6f5f3;
+    --surface-raised: #ffffff;
+    --ink: #14110d;
+    --ink-secondary: #403c37;
+    --ink-muted: #615d57;
+    --ink-faint: #8a8580;
+    --line: #d6d4d0;
+    --line-subtle: #e6e4e1;
+    --line-strong: #b4b0ac;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-soft: #e0eeff;
+    --accent-ink: #ffffff;
+    --warn: #de9300;
+    --warn-soft: #fef4df;
+    --warn-ink: #904700;
+    --ok: #00943e;
+    --ok-soft: #e8fbeb;
+  }
+}
+
+/* Utilities resolve to the variables (inline), so they follow the swap. */
+@theme inline {
+  --color-surface-app: var(--surface-app);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-control: var(--surface-control);
+  --color-surface-recessed: var(--surface-recessed);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Five steps for a 360px panel. Tailwind's own xs/sm/base are re-pointed
+     so the scale is the only one in play. */
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 16px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  --text-lg: 15px;
+  --text-lg--line-height: 22px;
+
+  --radius-control: 6px;
+  --radius-card: 8px;
+
+  --default-transition-duration: 150ms;
+}
+
+@layer base {
+  body {
+    @apply bg-surface-app text-ink antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 .checkerboard {
-  background-image: repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%);
+  background-image: repeating-conic-gradient(var(--surface-control) 0% 25%, var(--surface-panel) 0% 50%);
   background-size: 12px 12px;
 }

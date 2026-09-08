@@ -54,7 +54,7 @@ export function EyeDropperButton() {
       <div className="flex gap-2">
         <button
           onClick={pick}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-50 py-2 font-medium text-blue-600 hover:bg-blue-100"
+          className="flex flex-1 items-center justify-center gap-2 rounded-card border border-accent bg-accent-soft py-2 font-medium text-accent hover:bg-accent-soft"
         >
           <EyeDropperIcon />
           Pick colour
@@ -62,7 +62,7 @@ export function EyeDropperButton() {
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as ColorFormat)}
-          className="rounded-lg border border-gray-400 px-2 text-xs"
+          className="rounded-card border border-line px-2 text-sm"
           aria-label="Colour format"
         >
           <option value="hex">HEX</option>
@@ -71,20 +71,20 @@ export function EyeDropperButton() {
           <option value="oklch">OKLCH</option>
         </select>
       </div>
-      <p className="text-center text-[11px] text-gray-400">
+      <p className="text-center text-xs text-ink-muted">
         samples anywhere on screen · copies to clipboard
       </p>
-      {error && <p className="text-center text-[11px] text-amber-700">{error}</p>}
+      {error && <p className="text-center text-xs text-warn-ink">{error}</p>}
 
       {history.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <span className="w-[52px] text-xs text-gray-500">History</span>
+          <span className="w-13 text-sm text-ink-muted">History</span>
           {history.slice(0, 9).map((hex) => (
             <button
               key={hex}
               title={`Copy ${formatColor(hex, format)}`}
               onClick={() => navigator.clipboard.writeText(formatColor(hex, format))}
-              className="h-[18px] w-[18px] rounded-full border border-gray-500"
+              className="size-4.5 rounded-full border border-line-strong"
               style={{ background: hex }}
             />
           ))}

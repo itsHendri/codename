@@ -10,13 +10,8 @@ import {
 } from './lib/messaging';
 import { loadSession, setScan, updateSession, useSession } from './lib/session';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import {
-  DesignIcon,
-  ExportIcon,
-  InspectIcon,
-  LogoIcon,
-  SvgsIcon,
-} from './components/icons';
+import { DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
+import { AppMenu } from './components/AppMenu';
 import { InspectTab } from './components/InspectTab';
 import { DesignTab } from './components/DesignTab';
 import { SvgsTab } from './components/SvgsTab';
@@ -149,6 +144,21 @@ export default function App() {
     }
   }, [tabId, tabUrl, inspecting]);
 
+  // Roving tabindex: arrows move both focus and selection, as a tablist should.
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const idx = TABS.findIndex((t) => t.key === active);
+    const next =
+      e.key === 'ArrowRight' ? (idx + 1) % TABS.length
+      : e.key === 'ArrowLeft' ? (idx - 1 + TABS.length) % TABS.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? TABS.length - 1
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setActive(TABS[next]!.key);
+    document.getElementById(`tab-${TABS[next]!.key}`)?.focus();
+  };
+
   const hostname = (() => {
     try {
       return new URL(tabUrl).hostname || 'this page';
@@ -202,25 +212,29 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col text-sm">
-      <header className="flex items-center gap-2 border-b border-gray-200 px-3.5 py-2.5">
-        <LogoIcon className="h-5 w-5 text-gray-900" />
-        <span className="text-base font-semibold tracking-tight">Codename</span>
-        <span className="ml-auto max-w-[38%] truncate rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-600">
+    <div className="flex h-screen flex-col text-base">
+      <header className="flex items-center gap-2 border-b border-line-subtle px-3.5 py-2.5">
+        <AppMenu />
+        <span className="ml-auto max-w-[38%] truncate rounded-full border border-line px-2.5 py-0.5 text-sm text-ink-secondary">
           {hostname}
         </span>
         <ViewportControl tabId={tabId} restricted={restricted} />
       </header>
 
-      <nav className="grid grid-cols-4 border-b border-gray-200">
+      <nav role="tablist" aria-label="Panel" className="grid grid-cols-4 border-b border-line-subtle" onKeyDown={onTabKey}>
         {TABS.map(({ key, label, Icon }) => (
           <button
             key={key}
+            role="tab"
+            id={`tab-${key}`}
+            aria-selected={active === key}
+            aria-controls="panel"
+            tabIndex={active === key ? 0 : -1}
             onClick={() => setActive(key)}
-            className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${
+            className={`flex flex-col items-center gap-0.5 py-2 text-xs ${
               active === key
-                ? 'border-b-2 border-blue-600 font-medium text-blue-600'
-                : 'border-b-2 border-transparent text-gray-500 hover:text-gray-800'
+                ? 'border-b-2 border-accent font-medium text-accent'
+                : 'border-b-2 border-transparent text-ink-muted hover:text-ink'
             }`}
           >
             <Icon />
@@ -229,12 +243,14 @@ export default function App() {
         ))}
       </nav>
 
-      <main className="flex-1 overflow-y-auto">{content}</main>
+      <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="flex-1 overflow-y-auto">
+        {content}
+      </main>
 
-      <footer className="flex items-center gap-2 border-t border-gray-200 px-3.5 py-2 text-xs text-gray-500">
+      <footer className="flex items-center gap-2 border-t border-line-subtle px-3.5 py-2 text-sm text-ink-muted">
         {scan ? (
           <>
-            <span className="h-2 w-2 rounded-full bg-blue-600" />
+            <span className="h-2 w-2 rounded-full bg-accent" />
             <span className="truncate">
               Scanned · {scan.colors.length} colors · {scan.fontUsage.length} fonts · {scan.svgs.length} SVGs
             </span>
@@ -245,7 +261,7 @@ export default function App() {
         <button
           onClick={handleScan}
           disabled={restricted || scanning || !tabId}
-          className="ml-auto rounded-md border border-gray-300 px-2.5 py-0.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          className="ml-auto rounded-control border border-line px-2.5 py-0.5 text-ink-secondary hover:bg-surface-recessed disabled:opacity-40"
         >
           {scanning ? 'Scanning…' : scan ? 'Rescan' : 'Scan'}
         </button>
