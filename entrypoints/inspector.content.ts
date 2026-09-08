@@ -267,6 +267,7 @@ function activate() {
   let hoverOn = false;
   let measuring = false;
   let pins: { id: string; selector: string; label: string; done?: boolean }[] = [];
+  let barOn = false;
 
   const place = (box: HTMLElement, r: Rect) => {
     Object.assign(box.style, {
@@ -380,9 +381,21 @@ function activate() {
 
   /* ----- hover mode ----- */
 
+  const clearHover = () => {
+    hovered = null;
+    hovBox.classList.add('hidden');
+    tag.classList.add('hidden');
+    card.classList.add('hidden');
+  };
+
   const onMove = (e: MouseEvent) => {
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || isOurs(el) || el === document.documentElement || el === hovered) return;
+    // Over our own bar or pins: drop the highlight so a click there is a click there.
+    if (el && isOurs(el)) {
+      if (hovered) clearHover();
+      return;
+    }
+    if (!el || el === document.documentElement || el === hovered) return;
     hovered = el;
     const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
@@ -390,7 +403,10 @@ function activate() {
     place(hovBox, rectOf(el));
     tag.classList.remove('hidden');
     tag.textContent = `${buildSelector(el).intent.selector} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    Object.assign(tag.style, { left: `${Math.max(4, rect.left)}px`, top: `${Math.max(4, rect.top - 22)}px` });
+    // Above the element when there is room under the bar; otherwise tucked inside its top edge.
+    const minTop = barOn ? 32 : 4;
+    const tagTop = rect.top - 22 >= minTop ? rect.top - 22 : Math.max(minTop, rect.top + 4);
+    Object.assign(tag.style, { left: `${Math.max(4, rect.left)}px`, top: `${tagTop}px` });
 
     if (measuring && selected) {
       card.classList.add('hidden');
@@ -413,6 +429,7 @@ function activate() {
   };
 
   const onClick = (e: MouseEvent) => {
+    if (e.composedPath().includes(host)) return;
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
@@ -428,10 +445,7 @@ function activate() {
     } else {
       removeEventListener('mousemove', onMove, true);
       removeEventListener('click', onClick, true);
-      hovered = null;
-      hovBox.classList.add('hidden');
-      tag.classList.add('hidden');
-      card.classList.add('hidden');
+      clearHover();
       drawMeasure();
     }
     send({ type: 'hover-toggled', active: on });
@@ -440,7 +454,6 @@ function activate() {
 
   /* ----- the bar ----- */
 
-  let barOn = false;
   let menu: HTMLElement | null = null;
 
   const renderBar = () => {

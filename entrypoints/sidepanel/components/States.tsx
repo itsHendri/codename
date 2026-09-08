@@ -1,23 +1,35 @@
 import { WarnIcon } from './icons';
 
-export function EmptyState({ onScan, error }: { onScan: () => void; error: string | null }) {
+export function EmptyState({
+  onScan,
+  error,
+  needsAccess = false,
+}: {
+  onScan: () => void;
+  error: string | null;
+  needsAccess?: boolean;
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3.5 px-8 text-center">
       <svg className="h-14 w-14 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.5 15.5 L21 21 M8 10.5 H13 M10.5 8 V13" />
       </svg>
-      <div className="text-lg font-medium text-ink">Nothing scanned yet</div>
+      <div className="text-lg font-medium text-ink">
+        {needsAccess ? 'Codename needs access to this site' : 'Nothing read yet'}
+      </div>
       <p className="max-w-60 text-sm text-ink-muted">
-        Scan this page to pull its fonts, colors, SVGs and design tokens.
+        {needsAccess
+          ? 'Chrome asks once per site. Allow it and the page is read straight away — or turn on "Always allow localhost" in the menu.'
+          : 'Read this page to pull its fonts, colors, SVGs and design tokens.'}
       </p>
       <button
         onClick={onScan}
         className="rounded-card border border-accent bg-accent-soft px-7 py-2 font-medium text-accent hover:bg-accent-soft"
       >
-        Scan this page
+        {needsAccess ? 'Allow and read the page' : 'Read this page'}
       </button>
-      <p className="text-xs text-ink-muted">or just use Resize / the color picker — no scan needed</p>
+      <p className="text-xs text-ink-muted">the colour picker works anywhere, no access needed</p>
       {error && <p className="max-w-64 text-xs text-warn-ink">{error}</p>}
     </div>
   );
@@ -56,7 +68,7 @@ export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenIns
         <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
         <span>
           Still available: the <b className="text-ink-secondary">colour picker</b> samples your whole
-          screen, and <b className="text-ink-secondary">resize</b> in the header works anywhere
+          screen
         </span>
       </div>
       <button

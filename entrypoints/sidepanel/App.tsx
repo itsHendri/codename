@@ -9,7 +9,7 @@ import {
   startInspector,
   stopInspector,
 } from './lib/messaging';
-import { loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
+import { getSession, loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { HandOff } from './components/design/HandOff';
@@ -23,7 +23,6 @@ import { InspectTab } from './components/InspectTab';
 import { DesignTab } from './components/DesignTab';
 import { SvgsTab } from './components/SvgsTab';
 import { ExportTab } from './components/ExportTab';
-import { ViewportControl } from './components/ViewportControl';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
 type TabKey = 'inspect' | 'design' | 'assets' | 'export';
@@ -46,6 +45,8 @@ export default function App() {
   const [tabUrl, setTabUrl] = useState<string>('');
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  // Chrome would not let us into the tab: the one thing that needs a click.
+  const [needsAccess, setNeedsAccess] = useState(false);
   const [inspecting, setInspecting] = useState(false);
   const tabIdRef = useRef<number | null>(null);
 
@@ -80,6 +81,23 @@ export default function App() {
     setInspecting(false);
     setScanning(false);
     setScanError(null);
+    setNeedsAccess(false);
+    if (isRestricted(tab.url)) return;
+    // Reading the page is automatic wherever Chrome already lets us in: the
+    // tab the icon was clicked on (activeTab), or a site allowed before. Only
+    // a site we cannot reach asks for a click.
+    if (getSession().scan) {
+      void attachBar(tab.id);
+      return;
+    }
+    setScanning(true);
+    try {
+      await runScan(tab.id);
+      void attachBar(tab.id);
+    } catch {
+      setScanning(false);
+      setNeedsAccess(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -158,12 +176,14 @@ export default function App() {
     if (!tabId) return;
     setScanError(null);
     if (!(await ensureHostAccess(tabUrl))) {
-      setScanError('Site access is needed to scan — click Scan again and allow it.');
+      setScanError('Site access is needed — try again and choose "Allow".');
       return;
     }
+    setNeedsAccess(false);
     setScanning(true);
     try {
       await runScan(tabId);
+      void attachBar(tabId);
     } catch (err) {
       setScanning(false);
       setScanError(friendlyError(err));
@@ -218,7 +238,7 @@ export default function App() {
   } else if (scanning && needsScan) {
     content = <ScanningState />;
   } else if (!scan && needsScan) {
-    content = <EmptyState onScan={handleScan} error={scanError} />;
+    content = <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />;
   } else {
     switch (active) {
       case 'inspect':
@@ -261,15 +281,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col text-base">
-      <header className="flex items-center gap-2 border-b border-line-subtle px-3.5 py-2.5">
-        <AppMenu />
-        <span className="ml-auto max-w-[38%] truncate rounded-full border border-line px-2.5 py-0.5 text-sm text-ink-secondary">
-          {hostname}
-        </span>
-        <BridgeDot status={bridge.status} />
-        <ViewportControl tabId={tabId} restricted={restricted} />
-      </header>
-
       <nav role="tablist" aria-label="Panel" className="grid grid-cols-4 border-b border-line-subtle" onKeyDown={onTabKey}>
         {TABS.map(({ key, label, Icon }) => (
           <button
@@ -304,16 +315,17 @@ export default function App() {
         )}
       </main>
 
-      <footer className="flex items-center gap-2 border-t border-line-subtle px-3.5 py-2 text-sm text-ink-muted">
+      <footer className="flex items-center gap-2 border-t border-line-subtle px-2.5 py-1.5 text-sm text-ink-muted">
+        <AppMenu compact />
+        <BridgeDot status={bridge.status} />
         {scan ? (
-          <>
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            <span className="truncate">
-              Scanned · {scan.colors.length} colors · {scan.fontUsage.length} fonts · {scan.svgs.length} SVGs
-            </span>
-          </>
+          <span className="truncate text-xs">
+            {scan.colors.length} colors · {scan.fontUsage.length} fonts · {scan.svgs.length} SVGs
+          </span>
         ) : (
-          <span className="truncate">{restricted ? "Can't scan this page" : 'Not scanned yet'}</span>
+          <span className="truncate text-xs">
+            {restricted ? "Can't read this page" : needsAccess ? 'Needs site access' : scanning ? 'Reading…' : 'Not read yet'}
+          </span>
         )}
         {hasChanges && !handingOff && (
           <button
@@ -326,9 +338,9 @@ export default function App() {
         <button
           onClick={handleScan}
           disabled={restricted || scanning || !tabId}
-          className={`${hasChanges ? '' : 'ml-auto '}rounded-control border border-line px-2.5 py-0.5 text-ink-secondary hover:bg-surface-recessed disabled:opacity-40`}
+          className={`${hasChanges ? '' : 'ml-auto '}rounded-control border border-line px-2.5 py-0.5 text-xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40`}
         >
-          {scanning ? 'Scanning…' : scan ? 'Rescan' : 'Scan'}
+          {scanning ? 'Reading…' : scan ? 'Rescan' : needsAccess ? 'Allow' : 'Scan'}
         </button>
       </footer>
     </div>

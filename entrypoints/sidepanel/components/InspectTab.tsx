@@ -3,7 +3,7 @@ import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
 import type { InspectController } from '../lib/inspect';
-import { CopyIcon, InspectIcon } from './icons';
+import { CopyIcon } from './icons';
 import { EyeDropperButton } from './EyeDropperButton';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { ChangesList } from './inspect/ChangesList';
@@ -34,25 +34,21 @@ export function InspectTab({
   const caption = el
     ? '↑↓←→ walk the tree · Esc to deselect'
     : inspecting
-      ? 'Hover any element on the page · click to pin it here · Esc to exit'
-      : 'Turn on, then hover the page';
+      ? 'Hover the page · click to pin an element here · Esc to exit'
+      : 'The switch is on the bar across the page';
 
   return (
     <div className="flex flex-col gap-3.5 p-3.5">
-      <div className="flex flex-col gap-1.5">
-        <button
-          onClick={onToggle}
-          className={`flex items-center justify-center gap-2 rounded-card border px-3 py-2.5 font-medium ${
-            inspecting
-              ? 'border-accent bg-accent-soft text-accent'
-              : 'border-line-strong text-ink hover:bg-surface-recessed'
-          }`}
-        >
-          <InspectIcon />
-          Hover inspect: {inspecting ? 'ON' : 'OFF'}
-        </button>
-        <p className="text-center text-sm text-ink-muted">{caption}</p>
-        {error && <p className="text-center text-xs text-warn-ink">{error}</p>}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 text-sm">
+          <span className={`h-2 w-2 rounded-full ${inspecting ? 'bg-accent' : 'bg-ink-faint'}`} />
+          <span className="text-ink-secondary">Inspect {inspecting ? 'on' : 'off'}</span>
+          <button onClick={onToggle} className="ml-auto text-xs text-accent hover:underline">
+            {inspecting ? 'turn off' : 'turn on'}
+          </button>
+        </div>
+        <p className="text-xs text-ink-muted">{caption}</p>
+        {error && <p className="text-xs text-warn-ink">{error}</p>}
       </div>
 
       <div className="border-t border-dashed border-line-subtle pt-3">

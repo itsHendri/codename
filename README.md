@@ -32,8 +32,13 @@ to your agent — which can be connected, so you never paste.
 While the panel is open on a site, a thin bar sits across the top of the
 page: the Codename mark, the host, the live viewport size with the device
 presets behind it, and the Inspect switch. Click the mark to fold it to a
-pill. The panel's wordmark opens the menu: theme (dark by default, light, or
-follow the system) and the agent bridge.
+pill. The mark in the panel's footer opens the menu: theme (dark by default,
+light, or follow the system), site access, and the agent bridge.
+
+Reading the page is automatic wherever Chrome already lets the extension in:
+the tab you clicked the icon on, or a site you allowed before. A site it
+cannot reach asks for one click; **Always allow localhost** in the menu
+makes every dev server open without asking.
 
 ## Hand to agent
 
@@ -106,8 +111,9 @@ npm run build -w codename-bridge   # the companion, → packages/bridge/dist/cli
 To load in Chrome/Brave: `chrome://extensions` (or `brave://extensions`) →
 enable Developer mode → **Load unpacked** → select `dist/chrome-mv3`.
 
-Click **Scan this page** and allow site access when asked — the permission is
-requested per-site, on the click, and nothing is read until you do.
+Click the Codename icon on a tab and the page is read; on a site Chrome has
+not let the extension into yet, allow it when asked. Access is per site, and
+nothing is read on a site without it.
 
 ### Looking at the panel without installing it
 
