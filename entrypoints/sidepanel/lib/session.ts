@@ -28,6 +28,8 @@ export interface TabSession {
   mode: Mode;
   /** Whether edits repaint the page. */
   live: boolean;
+  /** The panel tab showing, kept so a reopen lands where you were. */
+  activeTab: string;
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
   /** Observed colours set by hand: old hex (upper case) → new hex. */
@@ -58,6 +60,7 @@ const EMPTY: TabSession = {
   config: null,
   mode: 'light',
   live: true,
+  activeTab: 'layers',
   varOverrides: {},
   colorEdits: {},
   pinned: null,

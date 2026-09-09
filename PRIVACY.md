@@ -19,7 +19,7 @@ extension's background worker, using the site access you already granted.
 
 | Where | What | Lifetime |
 |---|---|---|
-| `chrome.storage.session` | The scan of a tab, your edits to its system, element edits and notes, per tab | Until the browser session ends or the tab leaves the origin |
+| `chrome.storage.session` | The scan of a tab, your edits to its system, element edits and notes, and which panel tab was showing, per tab | Until the browser session ends or the tab leaves the origin |
 | `chrome.storage.local` | The bridge pairing code; per-site design decisions (seeds you moved, variables and scales you set) | Until you clear it |
 | `chrome.storage.sync` | The panel theme (system, dark, light) | Synced with your Chrome profile |
 | `localStorage` of the panel page | A mirror of the theme choice, read before first paint; where you left the Layers split | Same as above |

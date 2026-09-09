@@ -43,10 +43,16 @@ export function PageVariablesSection({
   onVar: (name: string, value: string | null) => void;
 }) {
   const [showAll, setShowAll] = useState<Set<VarKind>>(new Set());
-  const groups = groupCustomProps(scan.customProps);
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const groups = groupCustomProps(
+    needle
+      ? scan.customProps.filter((p) => p.name.toLowerCase().includes(needle) || p.value.toLowerCase().includes(needle))
+      : scan.customProps,
+  );
   const byEngine = new Map(engine.filter((o) => o.reason !== 'manual').map((o) => [o.name, o]));
 
-  if (!groups.length) {
+  if (!scan.customProps.length) {
     return (
       <p className="text-xs text-ink-muted">
         This page defines no CSS variables. Its colours are below; a scale change reaches it
@@ -57,8 +63,20 @@ export function PageVariablesSection({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* A Tailwind page defines hundreds; the one you want is a name away. */}
+      {scan.customProps.length > FOLD && (
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Find a variable… (${scan.customProps.length})`}
+          aria-label="Find a variable"
+          spellCheck={false}
+          className="w-full rounded-control border border-line bg-surface-recessed px-2 py-0.5 text-xs"
+        />
+      )}
+      {needle && !groups.length && <p className="text-xs text-ink-muted">Nothing named or valued like that.</p>}
       {groups.map(({ kind, props }) => {
-        const open = showAll.has(kind);
+        const open = showAll.has(kind) || !!needle;
         const shown = open ? props : props.slice(0, FOLD);
         return (
           <div key={kind} className="flex flex-col gap-1">
@@ -79,7 +97,7 @@ export function PageVariablesSection({
                 />
               ))}
             </div>
-            {props.length > FOLD && (
+            {props.length > FOLD && !needle && (
               <button
                 onClick={() =>
                   setShowAll((prev) => {

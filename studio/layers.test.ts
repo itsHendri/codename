@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ancestorsOf, initialCollapsed, visibleRows, type LayerNode } from './layers';
+import { ancestorsOf, componentsOf, initialCollapsed, visibleRows, type LayerNode } from './layers';
 
 /** body > (header > h1, main > (p, ul > li)) */
 const node = (
@@ -90,5 +90,22 @@ describe('initialCollapsed', () => {
     ];
     // The article at depth 3 stays open; the paragraph at depth 4 folds.
     expect(initialCollapsed(deep)).toEqual(new Set([4]));
+  });
+});
+
+describe('componentsOf', () => {
+  it('groups repeated class selectors with children, most common first', () => {
+    const rows: LayerNode[] = [
+      { ...node(0, 0, 'body', 6), intent: 'body', matches: 1 },
+      { ...node(1, 1, 'div.card', 1), intent: 'div.card', matches: 3 },
+      { ...node(2, 2, 'p', 0), intent: 'p', matches: 9 },
+      { ...node(3, 1, 'div.card', 1), intent: 'div.card', matches: 3 },
+      { ...node(4, 2, 'span.tag', 0), intent: 'span.tag', matches: 5 },
+      { ...node(5, 1, 'li', 1), intent: 'li', matches: 12 },
+      { ...node(6, 2, 'a.link', 0), intent: 'a.link', matches: 2 },
+    ];
+    const groups = componentsOf(rows);
+    // A bare tag is structure, a leaf is not a component, so only .card remains.
+    expect(groups.map((g) => [g.selector, g.count, g.nodes.length])).toEqual([['div.card', 3, 2]]);
   });
 });

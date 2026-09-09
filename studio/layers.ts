@@ -22,6 +22,8 @@ export interface LayerNode {
    * The nearest thing the page has to a component, shown as a badge.
    */
   matches: number;
+  /** The class-level selector those matches share, when there is one — `div.card`. */
+  intent?: string;
   depth: number;
   /** How many rows after this one are inside it. */
   descendants: number;
@@ -92,6 +94,32 @@ export function ancestorsOf(nodes: LayerNode[], id: number): number[] {
     break;
   }
   return out;
+}
+
+/** A class selector that repeats across boxes with something inside them. */
+export interface LayerComponent {
+  selector: string;
+  /** How many elements share it on the page. */
+  count: number;
+  /** The rows in this snapshot that carry it, in document order. */
+  nodes: LayerNode[];
+}
+
+/**
+ * The nearest thing a page has to components: class-level selectors that
+ * match more than one element with children. A `.card` twelve times over is a
+ * component in all but name; a `<li>` repeated is structure, not a pattern,
+ * so bare tags are left out.
+ */
+export function componentsOf(nodes: LayerNode[], limit = 8): LayerComponent[] {
+  const groups = new Map<string, LayerNode[]>();
+  for (const n of nodes) {
+    if (!n.intent || n.matches < 2 || n.descendants === 0 || !/[.#]/.test(n.intent)) continue;
+    groups.set(n.intent, [...(groups.get(n.intent) ?? []), n]);
+  }
+  return Array.from(groups, ([selector, list]) => ({ selector, count: list[0]!.matches, nodes: list }))
+    .sort((a, b) => b.count - a.count || a.selector.localeCompare(b.selector))
+    .slice(0, limit);
 }
 
 /**

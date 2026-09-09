@@ -9,6 +9,7 @@ import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
 import { LayersTree } from './inspect/LayersTree';
+import { ComponentsStrip } from './inspect/ComponentsStrip';
 import { SplitPane } from './SplitPane';
 
 /** Where the Layers split remembers itself; Reset puts it back. */
@@ -50,7 +51,15 @@ export function LayersTab({
   }, [ctl.refreshLayers]);
 
   const layers = (
-    <LayersTree
+    <>
+      <ComponentsStrip
+        nodes={ctl.layers}
+        onPick={(component) => {
+          ctl.selectLayer(component.nodes[0]!);
+          ctl.setScope('all');
+        }}
+      />
+      <LayersTree
       nodes={ctl.layers}
       selectedSelector={el?.selector ?? null}
       onSelect={ctl.selectLayer}
@@ -59,6 +68,7 @@ export function LayersTab({
       onRefresh={ctl.refreshLayers}
       loading={ctl.layersLoading}
     />
+    </>
   );
 
   if (!el) {

@@ -9,7 +9,10 @@ to your agent — which can be connected, so you never paste.
 Layers · Variables · Assets · Export · Changes.
 
 - **Layers** — the page as a tree you can pick from, and the selection you
-  picked. The tree lists every element with its own text beside it, searches
+  picked. Above the tree, **Components**: the class selectors that repeat on
+  the page with something inside them (`.card` ×12), read off the page rather
+  than a framework; pick one and the edit scope is all of them. The tree
+  lists every element with its own text beside it, searches
   by name or content, folds, hides a layer with one click, and lights a row up
   on the page as you run down it. It is the answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the

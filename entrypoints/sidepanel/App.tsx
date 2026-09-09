@@ -49,7 +49,11 @@ const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
 ];
 
 export default function App() {
-  const [active, setActive] = useState<TabKey>('layers');
+  // The session remembers the tab, so closing and reopening the panel does
+  // not send you back to Layers every time.
+  const session = useSession();
+  const active: TabKey = (TABS.some((t) => t.key === session.activeTab) ? session.activeTab : 'layers') as TabKey;
+  const setActive = useCallback((key: TabKey) => updateSession({ activeTab: key }), []);
   const [tabId, setTabId] = useState<number | null>(null);
   const [tabUrl, setTabUrl] = useState<string>('');
   const [scanning, setScanning] = useState(false);
@@ -61,7 +65,6 @@ export default function App() {
 
   // The session outlives whichever tab is showing: an edit made in Variables is
   // still there, and still painted on the page, after a detour through Layers.
-  const session = useSession();
   const { scan, config, mode, live, varOverrides, colorEdits } = session;
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
