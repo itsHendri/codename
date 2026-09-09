@@ -150,11 +150,11 @@ export function VariablesTab({
         <span className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
           {status}
         </span>
-        {dirty && (
+        {(dirty || mode === 'dark') && (
           <button
             onClick={onResetAll}
             className="shrink-0 rounded-control border border-accent px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
-            title="Take back every override — variables, colours, scale and element edits. Notes stay. Also on the bar."
+            title="Take back every override — variables, colours, scale, element edits — and the dark preview. Notes stay. Also on the bar."
           >
             Reset all
           </button>

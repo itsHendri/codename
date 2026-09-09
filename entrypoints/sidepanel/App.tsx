@@ -103,18 +103,21 @@ export default function App() {
   const ctlRef = useRef(ctl);
   ctlRef.current = ctl;
 
-  // What Reset on the bar would take back: everything but the notes. The
-  // count is what the brief would carry; a seed moved with nothing on the
-  // page to follow it still counts as one, so the button still appears.
+  // What Reset on the bar would take back: everything but the notes, and
+  // the dark preview with them. The count is what the brief would carry; a
+  // seed moved with nothing on the page to follow it, or a preview alone,
+  // still counts as one, so the button still appears.
   const overrideCount =
     changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
-  const resettable = model?.dirty || activeChanges(session.log).length > 0 ? Math.max(1, overrideCount) : 0;
+  const resettable =
+    model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' ? Math.max(1, overrideCount) : 0;
   const look: BarLook = { theme, mode, resettable };
   lookRef.current = look;
 
-  /** Every override goes; the page reads as itself. Notes are not overrides. */
+  /** Every override goes, and the preview with it; the page reads as itself. Notes are not overrides. */
   const resetAll = useCallback(() => {
     setConfig(null);
+    setMode('light');
     ctlRef.current.revertAll();
   }, []);
 

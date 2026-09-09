@@ -357,7 +357,7 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <button class="reset hidden" title="Take back every override: variables, colours, scale and element edits. Notes stay.">Reset<span></span></button>
+      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — and the dark preview. Notes stay.">Reset<span></span></button>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
@@ -1269,8 +1269,11 @@ function activate() {
     );
   };
   barReset.addEventListener('click', () => {
+    barMode = 'light';
+    resettable = 0;
+    renderBar();
     send({ type: 'reset-all' });
-    showHint('<b>Reset</b> — every override is gone; the page is reading as itself again. Notes stay.');
+    showHint('<b>Reset</b> — every override and the dark preview are gone; the page is reading as itself again. Notes stay.');
   });
   barLight.addEventListener('click', () => setMode('light'));
   barDark.addEventListener('click', () => setMode('dark'));
