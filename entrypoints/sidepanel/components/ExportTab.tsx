@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { ResolvedTokens } from '@/studio/engine/types';
 import { buildExport, exportBudget } from '@/studio/export/bundle';
+import { critique } from '@/studio/critique';
+import { seedBrandFromScan } from '@/studio/seedFromScan';
 import { downloadBundle } from '@/studio/download';
 import {
   buildBrandMd,
@@ -41,10 +43,10 @@ export function ExportTab({
 }) {
   const [preset, setPreset] = useState<PresetKey>('ai');
   const [sections, setSections] = useState<ExportSections>({ ...ALL_SECTIONS, rawVars: false });
-  const [showReport, setShowReport] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
   const stats = useMemo(() => consistencyStats(scan), [scan]);
+  const review = useMemo(() => critique(scan, seedBrandFromScan(scan)), [scan]);
   const effectiveSections = preset === 'custom' ? sections : ALL_SECTIONS;
 
   const flash = (what: string) => {
@@ -168,29 +170,16 @@ export function ExportTab({
       )}
 
       <div className="rounded-card border border-line p-3">
-        <div className="font-medium">Consistency report</div>
+        <div className="font-medium">What the exports describe</div>
         <p className="mt-1 text-sm text-ink-muted">
           {stats.colorCount} colors ({stats.grayCount} grays), {stats.fontFamilyCount} font families,{' '}
-          {stats.fontSizeCount} font sizes, {stats.gradientCount} gradients on this page. brand.md carries
-          the Critique from Variables too.
+          {stats.fontSizeCount} font sizes, {stats.gradientCount} gradients, {scan.customProps.length} custom
+          properties on this page — all listed and editable in Variables.
         </p>
-        <button
-          onClick={() => setShowReport(!showReport)}
-          className="mt-2 rounded-control border border-line px-3 py-1 text-sm hover:bg-surface-recessed"
-        >
-          {showReport ? 'Hide details' : 'View report'}
-        </button>
-        {showReport && (
-          <div className="mt-2 max-h-48 overflow-y-auto rounded bg-surface-recessed p-2 text-xs text-ink-secondary">
-            <div className="mb-1 font-medium text-ink-secondary">Custom properties ({scan.customProps.length})</div>
-            {scan.customProps.slice(0, 40).map((p) => (
-              <div key={p.name} className="truncate">
-                <code>{p.name}</code>: {p.value}
-              </div>
-            ))}
-            {scan.customProps.length > 40 && <div>… and {scan.customProps.length - 40} more</div>}
-          </div>
-        )}
+        <p className="mt-1 text-sm text-ink-muted">
+          Critique: {review.summary}. brand.md ends with the full list, so an agent reading it knows
+          what to be careful of.
+        </p>
       </div>
     </div>
   );
