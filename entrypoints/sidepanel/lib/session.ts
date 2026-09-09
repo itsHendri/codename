@@ -49,6 +49,8 @@ export interface TabSession {
   handoff: SessionState['handoff'];
   /** Whether the agent may paint on this page. Defaults on for localhost. */
   agentMayWrite: boolean;
+  /** Whether the agent's preview stylesheet is on the page right now. */
+  agentPreview: boolean;
   comments: Comment[];
   /** Element edits, kept per page (url without hash). */
   log: ChangeLog;
@@ -73,6 +75,7 @@ const EMPTY: TabSession = {
   revision: 0,
   handoff: null,
   agentMayWrite: false,
+  agentPreview: false,
   comments: [],
   log: emptyLog(),
   logUrl: '',
@@ -134,6 +137,8 @@ export function updateSession(patch: Partial<TabSession> | ((s: TabSession) => P
  * still on the origin it was scanned at; anything else starts fresh.
  */
 export async function loadSession(id: number, url: string): Promise<void> {
+  // A decision made on the tab we are leaving lands before the store moves.
+  flushSaveEdits();
   tabId = id;
   const raw = await chrome.storage.session.get(key(id));
   const stored = raw[key(id)] as Partial<Persisted> | undefined;
@@ -230,16 +235,27 @@ function currentEdits(): { origin: string; edits: BrandEdits } | null {
   };
 }
 
-/** Coalesced like the session itself: a colour picker fires per frame. */
+/**
+ * Coalesced like the session itself: a colour picker fires per frame. The
+ * decision is taken at schedule time, against the origin it was made on,
+ * so a tab switch inside the window cannot redirect it; and it is flushed
+ * when the store moves to another tab or the panel goes away.
+ */
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleSaveEdits() {
+let pendingSave: { origin: string; edits: BrandEdits } | null = null;
+function flushSaveEdits() {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    const current = currentEdits();
-    if (current) void saveEdits(current.origin, current.edits).catch(() => {});
-  }, 300);
+  saveTimer = null;
+  const due = pendingSave;
+  pendingSave = null;
+  if (due) void saveEdits(due.origin, due.edits).catch(() => {});
 }
+function scheduleSaveEdits() {
+  pendingSave = currentEdits();
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSaveEdits, 300);
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSaveEdits);
 
 /**
  * Change the edited system and remember the decision for this site. Passing

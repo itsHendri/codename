@@ -25,7 +25,7 @@ async function scanPage(): Promise<ScanResult> {
   const css = await gatherCss();
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
-  attachDarkValues(customProps);
+  attachDarkValues(customProps, css.fetched);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -56,26 +56,47 @@ async function scanPage(): Promise<ScanResult> {
  * the user already granted; only one that cannot be fetched either is
  * counted as unreadable.
  */
-async function gatherCss(): Promise<{ text: string; unreadable: string[]; sheets: { href: string | null; text: string }[] }> {
-  const sheets: { href: string | null; text: string }[] = [];
-  const unreadable: string[] = [];
+async function gatherCss(): Promise<{
+  text: string;
+  unreadable: string[];
+  sheets: { href: string | null; text: string }[];
+  /** The cross-origin sheets, as fetched text, for a second reading through the object model. */
+  fetched: { href: string; text: string }[];
+}> {
+  // Readable sheets first, in document order; the rest are fetched together
+  // and slotted back where they were.
+  const slots: ({ href: string | null; text: string } | { pending: string })[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
     try {
-      const rules = sheet.cssRules; // throws on cross-origin sheets
-      const text = Array.from(rules)
+      const text = Array.from(sheet.cssRules) // throws on cross-origin sheets
         .map((r) => r.cssText)
         .join('\n');
       // Keep sheets apart so a token can say which file it came from; the
       // concatenation loses that, and an agent being handed a change wants it.
-      sheets.push({ href: sheet.href, text });
+      slots.push({ href: sheet.href, text });
     } catch {
-      if (!sheet.href) continue;
-      const text = await fetchSheet(sheet.href);
-      if (text !== null) sheets.push({ href: sheet.href, text });
-      else unreadable.push(sheet.href);
+      if (sheet.href) slots.push({ pending: sheet.href });
     }
   }
-  return { text: sheets.map((s) => s.text).join('\n'), unreadable, sheets };
+  const pending = slots.filter((s): s is { pending: string } => 'pending' in s).map((s) => s.pending);
+  const texts = await Promise.all(pending.map(fetchSheet));
+  const byHref = new Map(pending.map((href, i) => [href, texts[i]!]));
+  const sheets: { href: string | null; text: string }[] = [];
+  const fetched: { href: string; text: string }[] = [];
+  const unreadable: string[] = [];
+  for (const slot of slots) {
+    if (!('pending' in slot)) {
+      sheets.push(slot);
+      continue;
+    }
+    const text = byHref.get(slot.pending) ?? null;
+    if (text === null) unreadable.push(slot.pending);
+    else {
+      sheets.push({ href: slot.pending, text });
+      fetched.push({ href: slot.pending, text });
+    }
+  }
+  return { text: sheets.map((s) => s.text).join('\n'), unreadable, sheets, fetched };
 }
 
 async function fetchSheet(url: string): Promise<string | null> {
@@ -419,7 +440,7 @@ function extractCustomProps(
  * again through the object model and takes the last definition found under a
  * dark media query or a dark theme hook, which is what the cascade does there.
  */
-function attachDarkValues(props: CustomPropInfo[]) {
+function attachDarkValues(props: CustomPropInfo[], fetched: { href: string; text: string }[]) {
   const byName = new Map(props.map((p) => [p.name, p]));
   const walk = (rules: CSSRuleList, inDark: boolean) => {
     for (const rule of Array.from(rules)) {
@@ -446,7 +467,16 @@ function attachDarkValues(props: CustomPropInfo[]) {
     try {
       walk(sheet.cssRules, false);
     } catch {
-      /* cross-origin */
+      /* cross-origin: read below from the fetched text */
+    }
+  }
+  for (const { text } of fetched) {
+    try {
+      const parsed = new CSSStyleSheet();
+      parsed.replaceSync(text);
+      walk(parsed.cssRules, false);
+    } catch {
+      /* unparsable text */
     }
   }
 }

@@ -27,10 +27,22 @@ export const isLightMedia = (condition: string): boolean => LIGHT_MEDIA.test(con
 export function withoutDarkQuery(condition: string): string | null | undefined {
   const c = condition.trim();
   if (!DARK_MEDIA.test(c)) return undefined;
-  if (/,|\bor\b/i.test(c)) return undefined;
+  // `not (prefers-color-scheme: dark)` is a light block wearing dark's words.
+  if (/,|\bor\b|\bnot\b/i.test(c)) return undefined;
   const parts = c.split(/\s+and\s+/i).map((p) => p.trim());
   const rest = parts.filter((p) => !DARK_MEDIA.test(p) && !/^(screen|all)$/i.test(p));
   return rest.length ? rest.join(' and ') : null;
+}
+
+/**
+ * A media condition that applies in light and never in dark: the explicit
+ * light query, or dark negated. These are what a dark preview has to switch
+ * off, since hoisting the dark rules alone leaves them live.
+ */
+export function isLightOnly(condition: string): boolean {
+  const c = condition.trim();
+  if (LIGHT_MEDIA.test(c) && !DARK_MEDIA.test(c)) return true;
+  return /^\s*not\s*\(?\s*prefers-color-scheme\s*:\s*dark/i.test(c);
 }
 
 const CLASS_HOOK = /(?:^|[\s>,~+]|html|body|:root)\.(dark|dark-mode|dark-theme|theme-dark|mode-dark)(?![\w-])/i;

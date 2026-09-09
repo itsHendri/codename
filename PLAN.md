@@ -358,10 +358,12 @@ selectors until a real grouping earns a section.
   navigation, so a reload leaves the window resized at 100%; the label
   re-asks and says so.
 - Dark shows the page's own dark mode by hoisting its dark media rules and
-  setting its theme hook; a theme driven purely by script with no CSS hook
-  stays light, and light-only media rules cannot be switched off without
-  the debugger. The mirrored preview, used where the page has no dark mode,
-  reads the page as light; chromatic colours on no ramp keep their place.
+  setting its theme hook, and switches the page's light-only media blocks
+  off in place (`not all`) for the duration; a theme driven purely by script
+  with no CSS hook stays light, and a light-only block inside a fetched
+  cross-origin sheet was never applied to begin with. The mirrored preview,
+  used where the page has no dark mode, reads the page as light; chromatic
+  colours on no ramp keep their place.
 - The length rewrite, like the colour rewrite, never sees cross-origin
   sheets or inline styles.
 

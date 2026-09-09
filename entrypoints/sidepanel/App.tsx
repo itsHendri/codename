@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import {
   attachBar,
+  clearAgentPreview,
   ensureHostAccess,
   getActiveTab,
   isRestricted,
@@ -126,7 +127,9 @@ export default function App() {
   const overrideCount =
     changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
   const resettable =
-    model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' ? Math.max(1, overrideCount) : 0;
+    model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' || session.agentPreview
+      ? Math.max(1, overrideCount)
+      : 0;
   const look: BarLook = { theme, mode, resettable, darkVia };
   lookRef.current = look;
 
@@ -137,8 +140,15 @@ export default function App() {
     ctlRef.current.revertAll();
     ctlRef.current.clear();
     resetSplit(LAYERS_SPLIT_KEY);
-    // The viewport is the bar's to put back; the panel only asks.
-    if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
+    if (tabIdRef.current != null) {
+      // The agent's preview sheet is an override too, whoever painted it.
+      if (getSession().agentPreview) {
+        void clearAgentPreview(tabIdRef.current);
+        updateSession({ agentPreview: false });
+      }
+      // The viewport is the bar's to put back; the panel only asks.
+      void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
+    }
   }, []);
 
   const restricted = isRestricted(tabUrl);

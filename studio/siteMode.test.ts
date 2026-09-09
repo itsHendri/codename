@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { hookFromSelector, hookKey, isDarkMedia, withoutDarkQuery } from './siteMode';
+import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery } from './siteMode';
 
 describe('withoutDarkQuery', () => {
   it('drops the dark query and keeps what it was joined with', () => {
     expect(withoutDarkQuery('(prefers-color-scheme: dark)')).toBeNull();
     expect(withoutDarkQuery('(prefers-color-scheme:dark) and (min-width: 600px)')).toBe('(min-width: 600px)');
     expect(withoutDarkQuery('screen and (prefers-color-scheme: dark)')).toBeNull();
+  });
+
+  it('leaves a negated dark query alone: it is a light block', () => {
+    expect(withoutDarkQuery('not (prefers-color-scheme: dark)')).toBeUndefined();
+    expect(withoutDarkQuery('not all and (prefers-color-scheme: dark)')).toBeUndefined();
+    expect(isLightOnly('not (prefers-color-scheme: dark)')).toBe(true);
+    expect(isLightOnly('(prefers-color-scheme: light)')).toBe(true);
+    expect(isLightOnly('(prefers-color-scheme: dark)')).toBe(false);
+    expect(isLightOnly('(min-width: 600px)')).toBe(false);
   });
 
   it('leaves a condition it cannot simplify alone', () => {

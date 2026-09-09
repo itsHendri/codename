@@ -13,8 +13,16 @@ export default defineBackground(() => {
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('setPanelBehavior failed', err));
 
-  /** What a window looked like before the bar's first preset, so Reset can put it back. */
-  const previous = new Map<number, Previous>();
+  /**
+   * What a window looked like before the bar's first preset, so Reset can put
+   * it back. In session storage rather than a variable: the service worker is
+   * evicted after a short idle, and the baseline has to outlive it.
+   */
+  const prevKey = (windowId: number) => `viewport:${windowId}`;
+  const getPrevious = async (windowId: number): Promise<Previous | null> =>
+    ((await chrome.storage.session.get(prevKey(windowId)))[prevKey(windowId)] as Previous | undefined) ?? null;
+  const setPrevious = (windowId: number, p: Previous) => chrome.storage.session.set({ [prevKey(windowId)]: p });
+  const clearPrevious = (windowId: number) => chrome.storage.session.remove(prevKey(windowId));
 
   /**
    * A preset is a CSS viewport. The window is asked for the outer size that
@@ -28,9 +36,9 @@ export default defineBackground(() => {
     windowId: number,
   ) => {
     const zoom = await chrome.tabs.getZoom(tabId);
-    if (!previous.has(windowId)) {
+    if (!(await getPrevious(windowId))) {
       const win = await chrome.windows.get(windowId);
-      previous.set(windowId, { width: win.width ?? 0, height: win.height ?? 0, state: win.state, zoom });
+      await setPrevious(windowId, { width: win.width ?? 0, height: win.height ?? 0, state: win.state, zoom });
     }
     // Per tab, so the zoom does not leak to every other tab on the origin.
     await chrome.tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-tab' });
@@ -48,17 +56,20 @@ export default defineBackground(() => {
   };
 
   const reset = async (tabId: number, windowId: number) => {
-    const was = previous.get(windowId);
-    previous.delete(windowId);
-    await chrome.tabs.setZoom(tabId, 1);
-    if (!was) return { ok: true, zoom: 1, canReset: false };
+    const was = await getPrevious(windowId);
+    await clearPrevious(windowId);
+    // The zoom the tab had before, not 100%: a reader at 150% keeps it.
+    const zoom = was?.zoom ?? 1;
+    await chrome.tabs.setZoom(tabId, zoom);
+    await chrome.tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-origin' }).catch(() => {});
+    if (!was) return { ok: true, zoom, canReset: false };
     // A maximised window cannot take a size in the same call.
     if (was.state === 'maximized' || was.state === 'fullscreen') {
       await chrome.windows.update(windowId, { state: was.state as 'maximized' | 'fullscreen' });
     } else if (was.width && was.height) {
       await chrome.windows.update(windowId, { width: was.width, height: was.height, state: 'normal' });
     }
-    return { ok: true, zoom: 1, canReset: false };
+    return { ok: true, zoom, canReset: false };
   };
 
   // Keyboard shortcuts reach the inspector on the active tab; a tab with no
@@ -86,9 +97,8 @@ export default defineBackground(() => {
       return true;
     }
     if (msg?.type === 'viewport-state' && tabId != null && windowId != null) {
-      chrome.tabs
-        .getZoom(tabId)
-        .then((zoom) => sendResponse({ ok: true, zoom, canReset: previous.has(windowId) }))
+      Promise.all([chrome.tabs.getZoom(tabId), getPrevious(windowId)])
+        .then(([zoom, was]) => sendResponse({ ok: true, zoom, canReset: was !== null }))
         .catch(fail);
       return true;
     }

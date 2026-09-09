@@ -25,7 +25,7 @@
 
 import { lengthPx } from '@/studio/reskin';
 import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
-import { hookFromSelector, hookKey, isDarkMedia, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
+import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
 
 interface Override {
   name: string;
@@ -90,6 +90,14 @@ export default defineContentScript({
     let appliedHooks: DarkHook[] = [];
     let savedColorScheme: string | null = null;
     let ruleCount = 0;
+    /**
+     * Applies overlap: the panel sends every few frames and a cross-origin
+     * fetch takes longer than that. Each run takes a number, and a run that
+     * finds a newer one when its await returns does nothing — the DOM is
+     * only ever touched by the latest.
+     */
+    let applyRun = 0;
+    let modeRun = 0;
 
     /**
      * Cross-origin stylesheets hide their rules from the page, but the
@@ -125,16 +133,24 @@ export default defineContentScript({
       return fetched.get(href)?.cssRules ?? null;
     };
 
-    /** Every sheet's rules, own sheets left out, cross-origin ones fetched. */
+    /** Every sheet's rules, own sheets left out, cross-origin ones fetched — all at once. */
     const allRules = async (): Promise<CSSRuleList[]> => {
-      const out: CSSRuleList[] = [];
-      for (const styleSheet of Array.from(document.styleSheets)) {
-        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
-        const rules = await readableRules(styleSheet);
-        if (rules) out.push(rules);
-      }
-      return out;
+      const sheets = Array.from(document.styleSheets).filter(
+        (s) => !(s.ownerNode instanceof Element && OWN_SHEETS.has(s.ownerNode.id)),
+      );
+      const lists = await Promise.all(sheets.map(readableRules));
+      return lists.filter((r): r is CSSRuleList => r !== null);
     };
+
+    /** The name a grouping rule was written under, so a re-emitted rule lands in the same layer. */
+    const groupHead = (rule: CSSMediaRule | CSSSupportsRule | CSSLayerBlockRule): string =>
+      rule instanceof CSSMediaRule
+        ? `@media ${rule.conditionText}`
+        : rule instanceof CSSSupportsRule
+          ? `@supports ${rule.conditionText}`
+          : rule.name
+            ? `@layer ${rule.name}`
+            : '@layer';
 
     /* -------- hardcoded colours -------- */
 
@@ -178,7 +194,7 @@ export default defineContentScript({
 
     const rootPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
 
-    const collect = (rules: CSSRuleList, map: Record<string, string>, lengths: LengthMap | null, out: string[]) => {
+    const collect = (rules: CSSRuleList, map: Record<string, string>, lengths: LengthMap | null, out: string[], rem: number) => {
       for (const rule of Array.from(rules)) {
         if (ruleCount++ > MAX_RULES) return;
 
@@ -190,27 +206,19 @@ export default defineContentScript({
           (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
         ) {
           const inner: string[] = [];
-          collect(rule.cssRules, map, lengths, inner);
-          if (inner.length) {
-            const condition =
-              rule instanceof CSSMediaRule
-                ? `@media ${rule.conditionText}`
-                : rule instanceof CSSSupportsRule
-                  ? `@supports ${rule.conditionText}`
-                  : '@layer';
-            out.push(`${condition}{${inner.join('')}}`);
-          }
+          collect(rule.cssRules, map, lengths, inner, rem);
+          if (inner.length) out.push(`${groupHead(rule)}{${inner.join('')}}`);
           continue;
         }
 
         if (!(rule instanceof CSSStyleRule)) continue;
         const decls: string[] = [];
         // The rule's own size names the role its weight and line-height belong to.
-        const ruleFontPx = lengths ? lengthPx(rule.style.getPropertyValue('font-size'), rootPx()) : null;
+        const ruleFontPx = lengths ? lengthPx(rule.style.getPropertyValue('font-size'), rem) : null;
         for (const prop of Array.from(rule.style)) {
           const value = rule.style.getPropertyValue(prop);
           const swapped =
-            substitute(value, map) ?? (lengths ? rewriteLength(prop, value, lengths, ruleFontPx, rootPx()) : null);
+            substitute(value, map) ?? (lengths ? rewriteLength(prop, value, lengths, ruleFontPx, rem) : null);
           if (!swapped) continue;
           // Keep their priority: an !important original needs an !important
           // shadow to beat it, and a normal one must not become important.
@@ -222,13 +230,18 @@ export default defineContentScript({
     };
 
     const rewriteRules = async (map: Record<string, string>, lengths: LengthMap | null): Promise<number> => {
+      const run = ++applyRun;
+      const empty = !Object.keys(map).length && isLengthMapEmpty(lengths);
+      const lists = empty ? [] : await allRules();
+      if (run !== applyRun) return 0; // superseded while waiting; the newer run owns the DOM
       sheet?.remove();
       sheet = null;
-      if (!Object.keys(map).length && isLengthMapEmpty(lengths)) return 0;
+      if (empty) return 0;
 
       ruleCount = 0;
+      const rem = rootPx();
       const out: string[] = [];
-      for (const rules of await allRules()) collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out);
+      for (const rules of lists) collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out, rem);
       if (!out.length) return 0;
 
       sheet = document.createElement('style');
@@ -268,10 +281,7 @@ export default defineContentScript({
         if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
           const inner: string[] = [];
           hoistDark(rule.cssRules, inner, hooks, inDark);
-          if (inner.length) {
-            const head = rule instanceof CSSSupportsRule ? `@supports ${rule.conditionText}` : '@layer';
-            out.push(`${head}{${inner.join('')}}`);
-          }
+          if (inner.length) out.push(`${groupHead(rule)}{${inner.join('')}}`);
           continue;
         }
         if (!(rule instanceof CSSStyleRule)) continue;
@@ -291,9 +301,37 @@ export default defineContentScript({
       }
     };
 
+    /**
+     * Light-only media blocks in the page's own sheets are switched off in
+     * place while the dark preview is up — `not all` never matches — and
+     * put back exactly. Hoisting the dark rules alone would leave them live
+     * wherever they outrank a hoisted rule.
+     */
+    const suppressed: { rule: CSSMediaRule; was: string }[] = [];
+    const suppressLight = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        if (rule instanceof CSSMediaRule && isLightOnly(rule.conditionText)) {
+          suppressed.push({ rule, was: rule.media.mediaText });
+          rule.media.mediaText = 'not all';
+          continue;
+        }
+        if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
+          suppressLight(rule.cssRules);
+        }
+      }
+    };
+
     const clearSiteDark = () => {
       siteDark?.remove();
       siteDark = null;
+      for (const { rule, was } of suppressed) {
+        try {
+          rule.media.mediaText = was;
+        } catch {
+          /* the sheet is gone */
+        }
+      }
+      suppressed.length = 0;
       for (const h of appliedHooks) setHook(h, false);
       appliedHooks = [];
       if (savedColorScheme !== null) {
@@ -304,13 +342,29 @@ export default defineContentScript({
     };
 
     const setSiteMode = async (mode: 'light' | 'dark'): Promise<{ rules: number; hooks: string[] }> => {
+      const run = ++modeRun;
+      if (mode === 'light') {
+        clearSiteDark();
+        return { rules: 0, hooks: [] };
+      }
+      const lists = await allRules();
+      if (run !== modeRun) return { rules: 0, hooks: [] };
       clearSiteDark();
-      if (mode === 'light') return { rules: 0, hooks: [] };
       ruleCount = 0;
       const out: string[] = [];
       const hooks = new Map<string, DarkHook>();
-      for (const rules of await allRules()) hoistDark(rules, out, hooks, false);
+      for (const rules of lists) hoistDark(rules, out, hooks, false);
       if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
+      // The page's own readable sheets can be edited in place; a fetched
+      // sheet is a detached copy, and its light rules were never applied.
+      for (const styleSheet of Array.from(document.styleSheets)) {
+        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
+        try {
+          suppressLight(styleSheet.cssRules);
+        } catch {
+          /* cross-origin */
+        }
+      }
       if (out.length) {
         siteDark = document.createElement('style');
         siteDark.id = SITE_DARK_ID;
@@ -379,13 +433,21 @@ export default defineContentScript({
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[] }) => void,
+      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[]; error?: string }) => void,
     ) => {
+      // A branch that throws must still answer, or the panel reads silence
+      // as "not injected", re-injects, and gets silence again.
+      const failed = (err: unknown) =>
+        sendResponse({ ok: false, vars: applied.size, rules: 0, error: err instanceof Error ? err.message : String(err) });
       if (msg?.type === 'reskin-apply') {
-        applyVars(msg.overrides ?? []);
-        void rewriteRules(msg.colorMap ?? {}, msg.lengthMap ?? null).then((rules) =>
-          sendResponse({ ok: true, vars: applied.size, rules }),
-        );
+        try {
+          applyVars(msg.overrides ?? []);
+          rewriteRules(msg.colorMap ?? {}, msg.lengthMap ?? null)
+            .then((rules) => sendResponse({ ok: true, vars: applied.size, rules }))
+            .catch(failed);
+        } catch (err) {
+          failed(err);
+        }
         return true;
       }
       if (msg?.type === 'reskin-clear') {
@@ -414,9 +476,9 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'site-mode') {
-        void setSiteMode(msg.mode === 'dark' ? 'dark' : 'light').then((r) =>
-          sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks }),
-        );
+        setSiteMode(msg.mode === 'dark' ? 'dark' : 'light')
+          .then((r) => sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks }))
+          .catch(failed);
         return true;
       }
       return false;

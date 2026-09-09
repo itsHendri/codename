@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { CustomPropInfo, ScanResult } from '@/shared/types';
 import type { Mode } from '@/studio/engine/types';
 import type { Override } from '@/studio/reskin';
@@ -45,12 +45,17 @@ export function PageVariablesSection({
   const [showAll, setShowAll] = useState<Set<VarKind>>(new Set());
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();
-  const groups = groupCustomProps(
-    needle
-      ? scan.customProps.filter((p) => p.name.toLowerCase().includes(needle) || p.value.toLowerCase().includes(needle))
-      : scan.customProps,
+  // Hundreds of rows on a Tailwind page; classify them once per scan or query, not per keystroke.
+  const groups = useMemo(
+    () =>
+      groupCustomProps(
+        needle
+          ? scan.customProps.filter((p) => p.name.toLowerCase().includes(needle) || p.value.toLowerCase().includes(needle))
+          : scan.customProps,
+      ),
+    [scan.customProps, needle],
   );
-  const byEngine = new Map(engine.filter((o) => o.reason !== 'manual').map((o) => [o.name, o]));
+  const byEngine = useMemo(() => new Map(engine.filter((o) => o.reason !== 'manual').map((o) => [o.name, o])), [engine]);
 
   if (!scan.customProps.length) {
     return (

@@ -78,7 +78,7 @@ export function critique(scan: ScanResult, brand: BrandConfig): Critique {
   // Colours: two that are one colour twice.
   const parsed = scan.colors
     .map((c) => ({ hex: c.hex, count: c.count, lab: parse(c.hex) }))
-    .filter((c) => c.lab);
+    .filter((c): c is { hex: string; count: number; lab: NonNullable<ReturnType<typeof parse>> } => !!c.lab);
   const seenPairs = new Set<string>();
   let dupes = 0;
   for (let i = 0; i < parsed.length && dupes < MAX_PER_KIND; i++) {
@@ -86,7 +86,7 @@ export function critique(scan: ScanResult, brand: BrandConfig): Critique {
       const a = parsed[i]!;
       const b = parsed[j]!;
       if (a.hex === b.hex) continue;
-      const d = distance(a.hex, b.hex);
+      const d = distance(a.lab, b.lab);
       if (d >= DUPLICATE_DISTANCE) continue;
       const key = [a.hex, b.hex].sort().join(' ');
       if (seenPairs.has(key)) continue;

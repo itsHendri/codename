@@ -152,8 +152,8 @@ async function handle(req: BridgeRequest): Promise<unknown> {
     }
     case 'critique': {
       if (!session.scan) throw new Error('the page has not been read yet; ask the user to press Scan');
-      const brand = session.config ?? seedBrandFromScan(session.scan);
-      const result = critique(session.scan, brand);
+      // Against the page as read, like the panel and brand.md: the edit is the answer to it.
+      const result = critique(session.scan, seedBrandFromScan(session.scan));
       let host = session.scan.url;
       try {
         host = new URL(session.scan.url).host;
@@ -167,6 +167,7 @@ async function handle(req: BridgeRequest): Promise<unknown> {
       if (tabId == null) throw new Error('no tab');
       const r = await applyAgentPreview(tabId, req.css);
       if (!r) throw new Error('the page could not be reached');
+      updateSession({ agentPreview: req.css.trim().length > 0 });
       return { applied: true };
     }
     case 'clear': {
@@ -175,6 +176,7 @@ async function handle(req: BridgeRequest): Promise<unknown> {
         return { cleared: 'handoff' };
       }
       if (tabId != null) await clearAgentPreview(tabId);
+      updateSession({ agentPreview: false });
       return { cleared: 'preview' };
     }
     case 'set_status':

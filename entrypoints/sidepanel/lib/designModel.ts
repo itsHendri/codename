@@ -139,10 +139,12 @@ export function useLiveReskin(
       setResult(null);
       return;
     }
-    lastSent.current = { tabId, key };
     // A drag fires per frame; the page repaints at most every few frames and
-    // always ends on the last value, since a newer key cancels the timer.
+    // always ends on the last value: a newer key cancels the timer, and a
+    // repeat of a key that was cancelled but never sent arms it again, since
+    // `lastSent` is only written when the message actually goes.
     const timer = window.setTimeout(() => {
+      lastSent.current = { tabId, key };
       void applyReskin(tabId, overrides, colorMap, lengthMap).then((r) => setResult(empty ? null : r));
     }, 40);
     return () => window.clearTimeout(timer);

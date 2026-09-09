@@ -13,6 +13,8 @@ import type { ElementProps, InspectorCommand, TokenLengths } from '@/shared/type
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
 import { viewportLabel } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
+import { lengthPx } from '@/studio/reskin';
+import { paddingShorthand } from '@/studio/boxModel';
 import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
@@ -434,6 +436,12 @@ function activate() {
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const editCard = shadow.querySelector<HTMLElement>('.edit')!;
+  // Escape leaves the field, not the selection; the page's own shortcuts stay
+  // out. Wired once: the card's children are rebuilt per selection, the host is not.
+  editCard.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') (e.target as HTMLElement).blur();
+  });
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -450,8 +458,9 @@ function activate() {
   const named = (hex: string | null) => (hex && tokenNames[hex.toUpperCase()]) || null;
   /** A single px length's name on this page, for the kind the property says it is. */
   const namedLength = (kind: keyof TokenLengths, value: string): string | null => {
-    const m = /^(-?\d*\.?\d+)px$/.exec(value.trim());
-    return m ? (tokenLengths[kind][String(parseFloat(m[1]!))] ?? null) : null;
+    // px or rem, the way the panel keyed the map; rem against the page's root size.
+    const px = lengthPx(value, parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    return px === null ? null : (tokenLengths[kind][String(px)] ?? null);
   };
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
@@ -729,9 +738,7 @@ function activate() {
   const asLengths = (v: string) => v.trim().split(/\s+/).map(asPx).join(' ');
 
   const editValues = (props: ElementProps): Record<string, string> => {
-    const z = (v: string) => (v === '0px' ? '0' : v);
-    const [t, r, b, l] = [props.box.paddingTop, props.box.paddingRight, props.box.paddingBottom, props.box.paddingLeft].map(z);
-    const padding = t === r && r === b && b === l ? t! : t === b && r === l ? `${t} ${r}` : `${t} ${r} ${b} ${l}`;
+    const padding = paddingShorthand(props.box);
     return {
       ...(props.text !== null ? { text: props.text } : {}),
       color: props.color.text,
@@ -937,12 +944,6 @@ function activate() {
             : lengthControl(f.property, value, f.property === 'padding');
       fields.append(label, control);
     }
-
-    // Escape leaves the field, not the selection; the page's own shortcuts stay out.
-    editCard.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Escape') (e.target as HTMLElement).blur();
-    });
 
     editCard.append(grip, fields);
     editCard.classList.remove('hidden');
@@ -1316,13 +1317,13 @@ function activate() {
     );
   };
 
-  const resetViewport = async () => {
+  const resetViewport = async (quiet = false) => {
     const r = await ask<ResizeReply>({ type: 'reset-viewport' });
     if (!r?.ok) return showHint(`Reset — ${escapeHtml(r?.error ?? 'the window could not be put back')}`);
     zoom = r.zoom ?? 1;
     canReset = false;
     renderBar();
-    showHint('<b>Reset</b> — the window and zoom are back where they were.');
+    if (!quiet) showHint('<b>Reset</b> — the window and zoom are back where they were.');
   };
 
   const openMenu = () => {
@@ -1405,10 +1406,10 @@ function activate() {
     renderBar();
     // The selection goes too, so the card and the outline leave with the overrides.
     select(null);
+    // One path: the panel takes everything back and asks for the viewport too.
     send({ type: 'reset-all' });
-    if (viewport) void resetViewport();
     showHint(
-      `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the window is back at 100%' : ''}; the page is reading as itself again. Notes stay.`,
+      `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the window is back where it was' : ''}; the page is reading as itself again. Notes stay.`,
     );
   });
   barLight.addEventListener('click', () => setMode('light'));
@@ -1571,7 +1572,8 @@ function activate() {
         drawMeasure();
         break;
       case 'reset-viewport':
-        if (canReset) void resetViewport();
+        // Asked by the panel's Reset, which already said what happened.
+        if (canReset) void resetViewport(true);
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
