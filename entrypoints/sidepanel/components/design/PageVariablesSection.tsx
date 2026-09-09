@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CustomPropInfo, ScanResult } from '@/shared/types';
+import type { Mode } from '@/studio/engine/types';
 import type { Override } from '@/studio/reskin';
 import { groupCustomProps, type VarKind } from '@/studio/varGroups';
 import { ColorField } from '../inspect/ColorField';
@@ -29,12 +30,15 @@ const KIND_LABEL: Record<VarKind, string> = {
 export function PageVariablesSection({
   scan,
   engine,
+  mode,
   varOverrides,
   onVar,
 }: {
   scan: Pick<ScanResult, 'customProps'>;
   /** What the engine would set each variable to, by name. */
   engine: Override[];
+  /** In dark, the engine's colour moves are the preview, and the chip says so. */
+  mode: Mode;
   varOverrides: Record<string, string>;
   onVar: (name: string, value: string | null) => void;
 }) {
@@ -68,6 +72,7 @@ export function PageVariablesSection({
                   key={prop.name}
                   kind={kind}
                   prop={prop}
+                  mode={mode}
                   engine={byEngine.get(prop.name)}
                   manual={varOverrides[prop.name]}
                   onChange={(v) => onVar(prop.name, v)}
@@ -99,12 +104,14 @@ export function PageVariablesSection({
 function VarRow({
   kind,
   prop,
+  mode,
   engine,
   manual,
   onChange,
 }: {
   kind: VarKind;
   prop: CustomPropInfo;
+  mode: Mode;
   engine: Override | undefined;
   manual: string | undefined;
   onChange: (value: string | null) => void;
@@ -136,9 +143,9 @@ function VarRow({
         ) : engine ? (
           <span
             className="shrink-0 rounded-full border border-line-subtle px-1.5 text-2xs text-ink-muted"
-            title={`Moved by the ${engine.reason === 'grid' || engine.reason === 'scale' ? 'scale' : 'seed'}; was ${prop.value}`}
+            title={`Moved by the ${movedBy(engine, mode)}; was ${prop.value}`}
           >
-            {engine.reason === 'grid' || engine.reason === 'scale' ? 'scale' : 'seed'}
+            {movedBy(engine, mode)}
           </span>
         ) : null}
       </div>
@@ -146,6 +153,10 @@ function VarRow({
     </div>
   );
 }
+
+/** What moved a variable the person did not touch: the scale, the dark preview, or a seed. */
+const movedBy = (engine: Override, mode: Mode): string =>
+  engine.reason === 'grid' || engine.reason === 'scale' ? 'scale' : mode === 'dark' ? 'dark' : 'seed';
 
 function Editor({
   kind,

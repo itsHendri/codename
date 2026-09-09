@@ -253,6 +253,37 @@ row is a lifted surface rather than a block of accent. Outlined cards became
 grouped lists with hairlines where the content is a list. The eyedropper
 stopped being styled as the loudest thing on the tab.
 
+**W11. The panel as a tool, not a report (L).** Done, September 2026, from
+a walk through the panel on forfontsake. Element became Layers and Design
+became Variables, with Changes last, where the hand-off is. The bar across
+the page is the same 40px as the panel's tab strip, wears the panel's
+palette, pushes the page down rather than covering it, names the viewport
+by the preset it matches, and carries the Light/Dark switch; a preset the
+display cannot fit beside the panel zooms the page until its CSS viewport is
+the preset width, and says so. Select lives on the bar only; the eyedropper
+went.
+
+Variables leads with the page's own custom properties and the colours it
+paints with, each editable and live, because the generated semantic layer
+— ninety tokens the page never references — could not be: re-pointing
+`--background` repainted nothing. The semantics stay in Export. Type, grid
+and radius edits now rewrite the rules that hold them, keyed by property
+name (`font-size: 15px` says what it is where a variable holding `15px`
+cannot), failing closed on half-matched shorthands and anything computed.
+Dark on the bar previews the page on the dark side of its system by
+mirroring ramp steps (100 ↔ 900) and inverting greys by lightness; a
+preview, never a hand-off. Type and scale decisions persist per site like
+seeds, and the re-skin is pushed again after a reload.
+
+Layers fills the tab, opens four deep, stays above the selection in a draggable
+split, and badges rows whose class selector repeats (×12) — the seed of a
+component notion, deliberately no more than that yet. Selecting an element
+puts an edit card beside it on the page — text, fill, size, weight, padding,
+radius — writing into the same log as the panel. And an unpaired panel now
+says how to pair: a Connect agent button, a three-step card on Changes, a
+`pairing_code` MCP tool and a `codename-bridge code` subcommand, because the
+code went to a stderr the agent swallows.
+
 ## Still to build
 
 In order.
@@ -270,9 +301,23 @@ In order.
 Ship Studio's breakpoint canvas needs an iframe canvas, which the live-page
 rule excludes; viewport presets on the bar are the answer instead. In-panel
 chat waits until the bridge has earned it. Firefox build and store listing
-are packaging, not product.
+are packaging, not product. Emulating a site's *own* dark mode needs the
+`debugger` permission and its permanent infobar; the mirrored preview is
+the answer for now. Components stay as ×N badges until a real grouping
+earns a section.
 
 ## Known limits and open questions
+
+- The bar pushes the page with a root margin; a header the page fixes to the
+  top of the viewport still sits under it. Region notes store page
+  coordinates, so one drawn with the bar shown lands 40px off when it hides.
+- Zoom-to-fit matches width only, and Chrome resets a per-tab zoom on
+  navigation, so a reload leaves the window resized at 100%; the label
+  re-asks and says so.
+- The dark preview reads the page as light; a site that is already dark is
+  mostly left alone. Chromatic colours on no ramp keep their place.
+- The length rewrite, like the colour rewrite, never sees cross-origin
+  sheets or inline styles.
 
 - Framer projects define no custom properties — Framer owns the CSS, so the
   commit flow can't apply. Export only.

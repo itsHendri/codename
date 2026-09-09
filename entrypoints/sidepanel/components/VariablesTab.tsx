@@ -110,7 +110,7 @@ export function VariablesTab({
   const rulesLive = (reskin?.rules ?? 0) > 0 && model.lengthMap !== null;
 
   const status = !dirty
-    ? mode === 'dark'
+    ? mode === 'dark' && live
       ? 'previewing dark — nothing changed yet'
       : 'read from this page — nothing changed yet'
     : !live
@@ -165,7 +165,13 @@ export function VariablesTab({
           open={open.has('vars')}
           onToggle={() => toggle('vars')}
         >
-          <PageVariablesSection scan={scan} engine={model.paint.overrides} varOverrides={varOverrides} onVar={onVar} />
+          <PageVariablesSection
+            scan={scan}
+            engine={model.paint.overrides}
+            mode={mode}
+            varOverrides={varOverrides}
+            onVar={onVar}
+          />
         </Section>
       )}
 
