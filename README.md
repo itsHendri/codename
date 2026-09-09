@@ -69,7 +69,8 @@ under the bar). On it: the Codename mark, the host, the viewport named by the
 preset it matches — "Tablet · 768 × 1024", or "Custom" — with the device
 presets behind it, a **Reset** button in the centre whenever there is
 anything to take back (every override — variables, colours, scale and
-element edits — goes, and so does the dark preview; notes stay), a
+element edits — goes, and so do the dark preview and the viewport preset;
+notes stay), a
 **Light / Dark** switch, and the modes.
 Picking a preset
 resizes the window; when the display is too small for that beside the panel,

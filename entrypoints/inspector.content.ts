@@ -357,7 +357,7 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — and the dark preview. Notes stay.">Reset<span></span></button>
+      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — the dark preview, and the viewport preset. Notes stay.">Reset<span></span></button>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
@@ -1102,7 +1102,8 @@ function activate() {
     barLight.setAttribute('aria-checked', String(barMode === 'light'));
     barDark.classList.toggle('on', barMode === 'dark');
     barDark.setAttribute('aria-checked', String(barMode === 'dark'));
-    barReset.classList.toggle('hidden', resettable === 0);
+    // A resized or zoomed viewport is an override too, and only the bar knows about it.
+    barReset.classList.toggle('hidden', resettable === 0 && !canReset);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
   };
 
@@ -1271,9 +1272,13 @@ function activate() {
   barReset.addEventListener('click', () => {
     barMode = 'light';
     resettable = 0;
+    const viewport = canReset;
     renderBar();
     send({ type: 'reset-all' });
-    showHint('<b>Reset</b> — every override and the dark preview are gone; the page is reading as itself again. Notes stay.');
+    if (viewport) void resetViewport();
+    showHint(
+      `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the window is back at 100%' : ''}; the page is reading as itself again. Notes stay.`,
+    );
   });
   barLight.addEventListener('click', () => setMode('light'));
   barDark.addEventListener('click', () => setMode('dark'));
@@ -1420,6 +1425,9 @@ function activate() {
         measuring = !!msg.on;
         if (measuring && !hoverOn) setHover(true);
         drawMeasure();
+        break;
+      case 'reset-viewport':
+        if (canReset) void resetViewport();
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);

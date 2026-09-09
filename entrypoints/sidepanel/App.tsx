@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
-import { attachBar, ensureHostAccess, getActiveTab, isRestricted, runScan, type BarLook } from './lib/messaging';
+import { attachBar, ensureHostAccess, getActiveTab, isRestricted, runScan, sendInspector, type BarLook } from './lib/messaging';
 import {
   getSession,
   loadSession,
@@ -119,6 +119,8 @@ export default function App() {
     setConfig(null);
     setMode('light');
     ctlRef.current.revertAll();
+    // The viewport is the bar's to put back; the panel only asks.
+    if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
   }, []);
 
   const restricted = isRestricted(tabUrl);

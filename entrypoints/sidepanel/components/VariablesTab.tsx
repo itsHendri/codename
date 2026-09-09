@@ -154,7 +154,7 @@ export function VariablesTab({
           <button
             onClick={onResetAll}
             className="shrink-0 rounded-control border border-accent px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
-            title="Take back every override — variables, colours, scale, element edits — and the dark preview. Notes stay. Also on the bar."
+            title="Take back every override — variables, colours, scale, element edits — the dark preview and the viewport preset. Notes stay. Also on the bar."
           >
             Reset all
           </button>
