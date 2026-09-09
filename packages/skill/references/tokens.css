@@ -1,0 +1,191 @@
+/*
+ * A starting point on the naming scheme, with placeholder values a project
+ * replaces with its own. The names are the contract; the numbers are not.
+ * See NAMING.md.
+ */
+
+:root {
+  /* layers */
+  --background: #fafafa;
+  --card: #ffffff;
+  --card-hover: #f6f6f6;
+  --card-pressed: #efefef;
+  --card-secondary: #f1f1f1;
+  --foreground: #1b1b1b;
+  --foreground-secondary: #4e4e4e;
+  --foreground-tertiary: #767676;
+  --stroke: #dcdcdc;
+  --stroke-secondary: #ebebeb;
+
+  /* one inactive set, for everything switched off */
+  --inactive: #e4e4e4;
+  --inactive-foreground: #a9a9a9;
+
+  /* brand: solid, tinted, text-only */
+  --brand: #006acc;
+  --brand-hover: #005ab0;
+  --brand-pressed: #004a92;
+  --brand-foreground: #ffffff;
+  --brand-secondary: #e0edf9;
+  --brand-secondary-hover: #d0e3f6;
+  --brand-secondary-pressed: #bfd8f2;
+  --brand-secondary-foreground: #004a92;
+  --brand-tertiary: transparent;
+  --brand-tertiary-hover: #eef4fb;
+  --brand-tertiary-pressed: #e0edf9;
+  --brand-tertiary-foreground: #006acc;
+
+  /* status */
+  --success: #1f9a3f;
+  --success-hover: #1a8535;
+  --success-pressed: #15702c;
+  --success-foreground: #ffffff;
+  --warning: #e89a1c;
+  --warning-hover: #d18a16;
+  --warning-pressed: #b97a12;
+  --warning-foreground: #1b1b1b;
+  --danger: #d1373a;
+  --danger-hover: #b82f32;
+  --danger-pressed: #9f282b;
+  --danger-foreground: #ffffff;
+  --info: #0284c7;
+  --info-hover: #0273ad;
+  --info-pressed: #026294;
+  --info-foreground: #ffffff;
+
+  /* focus is a ring, not a colour with states */
+  --focus: #006acc;
+
+  /* rhythm and shape */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* type */
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  /* elevation: a card with a shadow, nothing more */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.18);
+
+  color-scheme: light;
+}
+
+:root.dark,
+:root[data-theme="dark"] {
+  --background: #141414;
+  --card: #1a1a1a;
+  --card-hover: #222222;
+  --card-pressed: #282828;
+  --card-secondary: #111111;
+  --foreground: #e6e6e6;
+  --foreground-secondary: #a8a8a8;
+  --foreground-tertiary: #7a7a7a;
+  --stroke: #303030;
+  --stroke-secondary: #262626;
+
+  --inactive: #2a2a2a;
+  --inactive-foreground: #5c5c5c;
+
+  --brand: #6bb5ff;
+  --brand-hover: #82c1ff;
+  --brand-pressed: #9acdff;
+  --brand-foreground: #0c1a2a;
+  --brand-secondary: #1b2a3c;
+  --brand-secondary-hover: #22344a;
+  --brand-secondary-pressed: #2a3f58;
+  --brand-secondary-foreground: #9acdff;
+  --brand-tertiary: transparent;
+  --brand-tertiary-hover: #1b2a3c;
+  --brand-tertiary-pressed: #22344a;
+  --brand-tertiary-foreground: #6bb5ff;
+
+  --success: #35d35d;
+  --success-hover: #52da75;
+  --success-pressed: #6fe18c;
+  --success-foreground: #0b1f10;
+  --warning: #f6bf3e;
+  --warning-hover: #f8c95b;
+  --warning-pressed: #f9d378;
+  --warning-foreground: #241a04;
+  --danger: #ff6b6e;
+  --danger-hover: #ff8386;
+  --danger-pressed: #ff9b9d;
+  --danger-foreground: #2a0c0d;
+  --info: #5fb8ec;
+  --info-hover: #78c4ef;
+  --info-pressed: #91d0f2;
+  --info-foreground: #0a1a24;
+
+  --focus: #6bb5ff;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+/* The system preference, when the page has made no choice of its own. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not([data-theme="light"]) {
+    --background: #141414;
+    --card: #1a1a1a;
+    --card-hover: #222222;
+    --card-pressed: #282828;
+    --card-secondary: #111111;
+    --foreground: #e6e6e6;
+    --foreground-secondary: #a8a8a8;
+    --foreground-tertiary: #7a7a7a;
+    --stroke: #303030;
+    --stroke-secondary: #262626;
+    --inactive: #2a2a2a;
+    --inactive-foreground: #5c5c5c;
+    --brand: #6bb5ff;
+    --brand-hover: #82c1ff;
+    --brand-pressed: #9acdff;
+    --brand-foreground: #0c1a2a;
+    --brand-secondary: #1b2a3c;
+    --brand-secondary-hover: #22344a;
+    --brand-secondary-pressed: #2a3f58;
+    --brand-secondary-foreground: #9acdff;
+    --brand-tertiary: transparent;
+    --brand-tertiary-hover: #1b2a3c;
+    --brand-tertiary-pressed: #22344a;
+    --brand-tertiary-foreground: #6bb5ff;
+    --success: #35d35d;
+    --success-hover: #52da75;
+    --success-pressed: #6fe18c;
+    --success-foreground: #0b1f10;
+    --warning: #f6bf3e;
+    --warning-hover: #f8c95b;
+    --warning-pressed: #f9d378;
+    --warning-foreground: #241a04;
+    --danger: #ff6b6e;
+    --danger-hover: #ff8386;
+    --danger-pressed: #ff9b9d;
+    --danger-foreground: #2a0c0d;
+    --info: #5fb8ec;
+    --info-hover: #78c4ef;
+    --info-pressed: #91d0f2;
+    --info-foreground: #0a1a24;
+    --focus: #6bb5ff;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
