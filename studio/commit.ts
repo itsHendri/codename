@@ -218,7 +218,8 @@ export function toPrompt(set: ChangeSet): string {
         t.reason === 'family' ? 'followed the brand hue'
           : t.reason === 'grid' ? 'a step on the spacing or radius scale'
             : t.reason === 'scale' ? 'a size on the type scale'
-              : null,
+              : t.reason === 'manual' ? 'set by hand'
+                : null,
       ]
         .filter(Boolean)
         .join('; ');

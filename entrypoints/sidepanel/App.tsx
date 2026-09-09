@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import { attachBar, ensureHostAccess, getActiveTab, isRestricted, runScan, type BarLook } from './lib/messaging';
-import { getSession, loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
+import {
+  getSession,
+  loadSession,
+  setColorEdit,
+  setConfig,
+  setMode,
+  setPinned,
+  setScan,
+  setVarOverride,
+  updateSession,
+  useSession,
+} from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
@@ -15,7 +26,7 @@ import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
 import { LayersTab } from './components/LayersTab';
 import { ChangesTab } from './components/ChangesTab';
-import { DesignTab } from './components/DesignTab';
+import { VariablesTab } from './components/VariablesTab';
 import { SvgsTab } from './components/SvgsTab';
 import { ExportTab } from './components/ExportTab';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
@@ -50,14 +61,14 @@ export default function App() {
   // The session outlives whichever tab is showing: an edit made in Variables is
   // still there, and still painted on the page, after a detour through Layers.
   const session = useSession();
-  const { scan, config, mode, live } = session;
+  const { scan, config, mode, live, varOverrides, colorEdits } = session;
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
   const look: BarLook = { theme, mode };
   const lookRef = useRef(look);
   lookRef.current = look;
-  const model = useDesignModel(scan, config, mode);
-  const reskin = useLiveReskin(tabId, live, model);
+  const model = useDesignModel(scan, config, mode, varOverrides, colorEdits);
+  const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
@@ -70,13 +81,14 @@ export default function App() {
 
   // Built once, here: the badge and the Changes tab must never disagree about
   // whether anything is pending. An edit that reaches nothing on the page —
-  // a grid change on a site with no length variables — counts as nothing.
+  // a grid change on a site with no length variables — counts as nothing,
+  // and so does a dark preview: the hand-off carries decisions, not previews.
   const changeSet = useMemo(
     () =>
       buildChangeSet(
         scanLike,
-        model?.overrides ?? [],
-        model?.colorMap ?? {},
+        model?.handoff.overrides ?? [],
+        model?.handoff.colorMap ?? {},
         activeChanges(session.log),
         pendingNotes(session.comments),
         model?.system ?? [],
@@ -157,7 +169,7 @@ export default function App() {
       } else if (msg?.type === 'mode-changed') {
         // The bar's Light/Dark switch; the session is the truth it echoes.
         const m = (msg as { mode?: string }).mode;
-        if (m === 'light' || m === 'dark') updateSession({ mode: m });
+        if (m === 'light' || m === 'dark') setMode(m);
       } else if (msg?.type === 'note-created') {
         // Written on the page, in the composer that opened where you pointed.
         const note = msg as unknown as { target: CommentTarget; text: string };
@@ -280,15 +292,18 @@ export default function App() {
         break;
       case 'variables':
         content = (
-          <DesignTab
+          <VariablesTab
             scan={scan!}
             model={model!}
             mode={mode}
             live={live}
             reskin={reskin}
-            onModeChange={(m) => updateSession({ mode: m })}
+            varOverrides={varOverrides}
+            colorEdits={colorEdits}
             onLiveChange={(v) => updateSession({ live: v })}
             onConfigChange={setConfig}
+            onVar={setVarOverride}
+            onColor={setColorEdit}
           />
         );
         break;

@@ -20,17 +20,34 @@ Layers · Variables · Assets · Export · Changes.
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
   instead of a literal. Select mode lives on the bar across the page.
-- **Variables** — the system this page runs, editable.
-  - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
-    ramps, and the semantic tokens. Each token shows the ramp step it points
-    at, and clicking that opens a picker to re-point it by hand. Change a seed
-    and the page repaints; a token that fails the APCA audit carries a **fix**
-    button that re-points it at the step the engine says will pass.
+- **Variables** — what this page runs on, editable, and live on the page
+  while **Preview on page** is on.
+  - **Page variables** — the custom properties the page's own stylesheets
+    define, under the names it gave them (`--ink`, `--paper`, `--mark`),
+    grouped by what they hold, with how many declarations use each. Type a
+    value and the page repaints; the brief gets one line: the name, what it
+    was, what it should be.
+  - **Colours on the page** — every colour it paints with, named or not, with
+    where it is used and how often. On a page with no variables this is the
+    handle: setting one rewrites the rules that hold the literal.
+  - **Palette** — three seed colours read off the page with their OKLCH
+    readouts, and the 11-step ramp the engine grows from each. Move a seed and
+    every page colour that sits on its ramp follows. The semantic tokens built
+    on these ramps live in Export: the page never references them, so they
+    cannot be live.
   - **Type** — the families the page really renders and the size/weight/
-    line-height ladder it renders them at. Drag any number to change it.
+    line-height ladder it renders them at. Drag any number and the rules that
+    set that size follow — `font-size: 15px` says what it is, where a variable
+    holding `15px` cannot — and a weight or line-height moves inside rules
+    whose size names the role.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
     from the page, with off-grid strays named rather than rounded in. Moving
-    the grid rescales the steps the page uses rather than inventing a ladder.
+    the grid rescales the steps the page uses rather than inventing a ladder,
+    and rewrites the paddings, margins and gaps that sit on those steps.
+  The **Light / Dark** switch on the bar previews the page in the other side
+  of its system: every colour on a light ramp step moves to the mirrored dark
+  step, and greys invert by lightness. A preview, not a decision — it never
+  enters the brief.
 - **Changes** — everything queued for the agent, wherever it came from: token
   definitions, scale changes, element edits with undo, redo and per-change
   revert, and your notes. A note says what it is about — an element, a set of
@@ -78,12 +95,13 @@ stamp a hex across forty components. Element edits are one line per selector
 and property, before and after. Notes name the element they are about.
 
 Colour edits reach the page through its own variables, or by rewriting the
-rules that hold a literal. Type and spacing edits move variables only: a hex
-in a stylesheet says what it is, but a bare `16px` could be a gap, a width or
-a font size, and rewriting every one of them would break layouts to fix a
-scale. Where a page holds none of it in variables, the change still travels
-as a **scale change** in the brief, which is an instruction the agent can act
-on in source.
+rules that hold a literal. Type and spacing edits move variables where a
+variable holds the value, and otherwise rewrite the rules whose property
+names what the length is — `font-size` is a type size, `padding` is spacing —
+failing closed on anything ambiguous: a shorthand moves only when every
+length in it is a step, and `calc()`, `var()`, percentages and `em` are left
+alone. Either way the change travels as a **scale change** in the brief,
+which is an instruction the agent can act on in source.
 
 **Copy** it, download it as JSON, or **send** it, all from the Changes tab.
 

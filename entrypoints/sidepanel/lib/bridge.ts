@@ -265,10 +265,11 @@ export function useBridgeSync(
     if (!session.scan) return null;
     const set = buildChangeSet(
       session.scan,
-      model?.overrides ?? [],
-      model?.colorMap ?? {},
+      model?.handoff.overrides ?? [],
+      model?.handoff.colorMap ?? {},
       active(session.log),
       pendingNotes(session.comments),
+      model?.system ?? [],
     );
     return isEmpty(set) ? null : set;
   }, [model, session.scan, session.log, session.comments]);

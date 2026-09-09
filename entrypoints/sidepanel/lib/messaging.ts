@@ -1,6 +1,7 @@
 import type { InspectorCommand } from '@/shared/types';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
+import type { LengthMap } from '@/studio/reskinRules';
 
 const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
 
@@ -131,6 +132,7 @@ function sendReskin(
     type: string;
     overrides?: ReskinOverride[];
     colorMap?: Record<string, string>;
+    lengthMap?: LengthMap | null;
     css?: string;
     rules?: { selector: string; property: string; value: string }[];
   },
@@ -142,8 +144,9 @@ export function applyReskin(
   tabId: number,
   overrides: ReskinOverride[],
   colorMap: Record<string, string>,
+  lengthMap: LengthMap | null = null,
 ): Promise<ReskinResult | null> {
-  return sendReskin(tabId, { type: 'reskin-apply', overrides, colorMap });
+  return sendReskin(tabId, { type: 'reskin-apply', overrides, colorMap, lengthMap });
 }
 
 export function clearReskin(tabId: number): Promise<ReskinResult | null> {

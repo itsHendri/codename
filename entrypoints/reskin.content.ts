@@ -14,9 +14,17 @@
  * verbatim, which is what keeps `:hover`, `:focus` and media queries working:
  * we are not inventing rules, we are shadowing theirs with the same reach.
  *
+ * **Lengths in rules.** The same rewrite reaches the type ladder, the grid and
+ * the radius: `font-size: 15px` says what it is by its property name, which a
+ * variable holding `15px` cannot, so a rule can move where a variable must be
+ * left alone. `studio/reskinRules` decides each declaration and fails closed.
+ *
  * Nothing is persisted. Both mechanisms live in this document and die with it —
  * a reload, a navigation or a clear returns the page to its own values.
  */
+
+import { lengthPx } from '@/studio/reskin';
+import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
 
 interface Override {
   name: string;
@@ -29,9 +37,11 @@ interface ApplyMessage {
   overrides?: Override[];
   /** old hex (uppercase) → new hex, for pages that hardcode their colours. */
   colorMap?: Record<string, string>;
+  /** Lengths the rules should move, by property. */
+  lengthMap?: LengthMap | null;
   /** A stylesheet the connected agent wants to try on the page. */
   css?: string;
-  /** Per-element edits from the Inspect tab. */
+  /** Per-element edits from the Layers tab. */
   rules?: { selector: string; property: string; value: string }[];
 }
 
@@ -110,7 +120,9 @@ export default defineContentScript({
       return touched ? out : null;
     };
 
-    const collect = (rules: CSSRuleList, map: Record<string, string>, out: string[]) => {
+    const rootPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
+
+    const collect = (rules: CSSRuleList, map: Record<string, string>, lengths: LengthMap | null, out: string[]) => {
       for (const rule of Array.from(rules)) {
         if (ruleCount++ > MAX_RULES) return;
 
@@ -122,7 +134,7 @@ export default defineContentScript({
           (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
         ) {
           const inner: string[] = [];
-          collect(rule.cssRules, map, inner);
+          collect(rule.cssRules, map, lengths, inner);
           if (inner.length) {
             const condition =
               rule instanceof CSSMediaRule
@@ -137,8 +149,12 @@ export default defineContentScript({
 
         if (!(rule instanceof CSSStyleRule)) continue;
         const decls: string[] = [];
+        // The rule's own size names the role its weight and line-height belong to.
+        const ruleFontPx = lengths ? lengthPx(rule.style.getPropertyValue('font-size'), rootPx()) : null;
         for (const prop of Array.from(rule.style)) {
-          const swapped = substitute(rule.style.getPropertyValue(prop), map);
+          const value = rule.style.getPropertyValue(prop);
+          const swapped =
+            substitute(value, map) ?? (lengths ? rewriteLength(prop, value, lengths, ruleFontPx, rootPx()) : null);
           if (!swapped) continue;
           // Keep their priority: an !important original needs an !important
           // shadow to beat it, and a normal one must not become important.
@@ -149,10 +165,10 @@ export default defineContentScript({
       }
     };
 
-    const rewriteRules = (map: Record<string, string>): number => {
+    const rewriteRules = (map: Record<string, string>, lengths: LengthMap | null): number => {
       sheet?.remove();
       sheet = null;
-      if (!Object.keys(map).length) return 0;
+      if (!Object.keys(map).length && isLengthMapEmpty(lengths)) return 0;
 
       ruleCount = 0;
       const out: string[] = [];
@@ -164,7 +180,7 @@ export default defineContentScript({
         } catch {
           continue;
         }
-        collect(rules, map, out);
+        collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out);
       }
       if (!out.length) return 0;
 
@@ -233,7 +249,7 @@ export default defineContentScript({
     ) => {
       if (msg?.type === 'reskin-apply') {
         applyVars(msg.overrides ?? []);
-        const rules = rewriteRules(msg.colorMap ?? {});
+        const rules = rewriteRules(msg.colorMap ?? {}, msg.lengthMap ?? null);
         sendResponse({ ok: true, vars: applied.size, rules });
         return true;
       }

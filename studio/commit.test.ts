@@ -85,6 +85,12 @@ describe('buildChangeSet', () => {
 });
 
 describe('toPrompt', () => {
+  it('says when a token was set by hand', () => {
+    const prompt = toPrompt(buildChangeSet(scanOf(), [{ ...markOverride, reason: 'manual' }], {}));
+    expect(prompt).toContain('set by hand');
+    expect(prompt).not.toMatch(/\{[^}]*color\s*:/);
+  });
+
   it('tells the agent to edit the definition, not the usages', () => {
     const prompt = toPrompt(buildChangeSet(scanOf(), [markOverride], {}));
     expect(prompt).toMatch(/Edit the definition/i);

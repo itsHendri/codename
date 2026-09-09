@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BrandConfig, ResolvedTokens } from './engine/types';
 import { hendriPreset } from './presets/hendri';
 import { resolveTokens } from './engine/resolve';
-import { buildLengthReskin, lengthKind, lengthPx } from './reskin';
+import { buildLengthMap, buildLengthReskin, lengthKind, lengthPx } from './reskin';
 
 const base = (): BrandConfig => structuredClone(hendriPreset);
 const resolve = (c: BrandConfig): ResolvedTokens => resolveTokens(c);
@@ -127,5 +127,30 @@ describe('buildLengthReskin', () => {
         resolve(after),
       ),
     ).toEqual([]);
+  });
+});
+
+describe('buildLengthMap', () => {
+  it('keys the grid and radius by their old px, and roles by their size', () => {
+    const before = base();
+    const after = regridded(before, before.spacing.basePx, before.spacing.basePx + 2);
+    const body = after.typography.roles.find((r) => r.role === 'body')!;
+    body.weight = 500;
+    body.lineHeight = 1.4;
+    const map = buildLengthMap(resolve(before), resolve(after));
+    const step = before.spacing.blessed[2]!;
+    expect(map.space[String(step)]).toBe(after.spacing.blessed[2]);
+    const bodyBefore = before.typography.roles.find((r) => r.role === 'body')!;
+    const key = String(Math.round(bodyBefore.sizeRem * 16 * 100) / 100);
+    expect(map.type[key]).toEqual({
+      weight: { from: bodyBefore.weight, to: 500 },
+      lineHeight: { from: bodyBefore.lineHeight, to: 1.4 },
+    });
+  });
+
+  it('is empty when nothing moved', () => {
+    const before = base();
+    const map = buildLengthMap(resolve(before), resolve(before));
+    expect(map).toEqual({ type: {}, space: {}, radius: {} });
   });
 });

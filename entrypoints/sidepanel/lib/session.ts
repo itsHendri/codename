@@ -2,8 +2,8 @@
  * What the panel knows about the tab it is scoped to, kept outside any one
  * tab's component tree.
  *
- * The Design tab used to hold the edited system in its own state, so switching
- * to Inspect unmounted it, dropped the edit and cleared the re-skin. An edit is
+ * The Variables tab used to hold the edited system in its own state, so switching
+ * to Layers unmounted it, dropped the edit and cleared the re-skin. An edit is
  * a fact about the page, not about which tab is showing, so it lives here and
  * is mirrored to `chrome.storage.session` under the tab id — session storage
  * because a scan is a reading of one document and should not outlive the
@@ -17,7 +17,7 @@ import type { CommentTarget } from '@/studio/annotations';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
-import { applyEdits, diffEdits } from '@/studio/edits';
+import { applyEdits, diffEdits, type BrandEdits } from '@/studio/edits';
 import { loadEdits, saveEdits } from '@/studio/storage';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
 
@@ -28,6 +28,10 @@ export interface TabSession {
   mode: Mode;
   /** Whether edits repaint the page. */
   live: boolean;
+  /** The page's own variables set by hand: name → value. */
+  varOverrides: Record<string, string>;
+  /** Observed colours set by hand: old hex (upper case) → new hex. */
+  colorEdits: Record<string, string>;
   pinned: PinnedElement | null;
   /**
    * Moves on intent — a hand-off, a comment, a pin — never on a drag tick.
@@ -54,6 +58,8 @@ const EMPTY: TabSession = {
   config: null,
   mode: 'light',
   live: true,
+  varOverrides: {},
+  colorEdits: {},
   pinned: null,
   revision: 0,
   handoff: null,
@@ -201,14 +207,65 @@ const originOf = (url: string) => {
 export async function setScan(scan: ScanResult) {
   const edits = await loadEdits(originOf(scan.url)).catch(() => null);
   const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
-  updateSession({ scan, config });
+  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {} });
 }
 
-/** Change the edited system and remember the decision for this site. */
+/** Everything decided against this site, as the store keeps it. */
+function currentEdits(): { origin: string; edits: BrandEdits } | null {
+  const { scan, config, varOverrides, colorEdits } = state;
+  if (!scan) return null;
+  const seeded = seedBrandFromScan(scan);
+  return {
+    origin: originOf(scan.url),
+    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits },
+  };
+}
+
+/** Coalesced like the session itself: a colour picker fires per frame. */
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSaveEdits() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    const current = currentEdits();
+    if (current) void saveEdits(current.origin, current.edits).catch(() => {});
+  }, 300);
+}
+
+/**
+ * Change the edited system and remember the decision for this site. Passing
+ * null is revert: the system, the variables and the colours set by hand all
+ * go back to what the page reads.
+ */
 export function setConfig(config: BrandConfig | null) {
-  updateSession({ config });
-  const { scan } = state;
-  if (!scan) return;
-  const edits = diffEdits(seedBrandFromScan(scan), config ?? seedBrandFromScan(scan));
-  void saveEdits(originOf(scan.url), edits).catch(() => {});
+  updateSession(config === null ? { config, varOverrides: {}, colorEdits: {} } : { config });
+  scheduleSaveEdits();
+}
+
+/** Set one of the page's own variables by hand, or take that back with null. */
+export function setVarOverride(name: string, to: string | null) {
+  updateSession((s) => {
+    const next = { ...s.varOverrides };
+    if (to === null) delete next[name];
+    else next[name] = to;
+    return { varOverrides: next };
+  });
+  scheduleSaveEdits();
+}
+
+/** Set what an observed colour becomes, or take that back with null. */
+export function setColorEdit(from: string, to: string | null) {
+  const key = from.toUpperCase();
+  updateSession((s) => {
+    const next = { ...s.colorEdits };
+    if (to === null || to.toUpperCase() === key) delete next[key];
+    else next[key] = to.toUpperCase();
+    return { colorEdits: next };
+  });
+  scheduleSaveEdits();
+}
+
+/** Which side of the system the page previews. */
+export function setMode(mode: Mode) {
+  updateSession({ mode });
 }

@@ -22,8 +22,9 @@
 
 import { converter, differenceEuclidean, formatHex, parse } from 'culori';
 import type { CustomPropInfo } from '@/shared/types';
-import type { Mode, ResolvedTokens } from './engine/types';
+import type { Mode, ResolvedTokens, Step } from './engine/types';
 import { SCALE_ROLES, STEPS } from './engine/types';
+import type { LengthMap } from './reskinRules';
 
 const toOklch = converter('oklch');
 const distance = differenceEuclidean('oklab');
@@ -54,9 +55,33 @@ export interface Override {
   to: string;
   /**
    * How the value was matched. `exact` and `family` are colour; `grid` is a
-   * spacing or radius step; `scale` is a size on the type ladder.
+   * spacing or radius step; `scale` is a size on the type ladder; `manual` is
+   * a value a person typed for this very variable.
    */
-  reason: 'exact' | 'family' | 'grid' | 'scale';
+  reason: 'exact' | 'family' | 'grid' | 'scale' | 'manual';
+}
+
+/**
+ * Page variables set by hand. Only names the scan knows are honoured: an
+ * override for a variable the page does not define would paint nothing and
+ * still reach the brief as a change, which is a lie in both directions.
+ */
+export function manualOverrides(vars: Record<string, string>, customProps: CustomPropInfo[]): Override[] {
+  const known = new Map(customProps.map((p) => [p.name, p.value.trim()]));
+  const out: Override[] = [];
+  for (const [name, to] of Object.entries(vars)) {
+    const from = known.get(name);
+    if (from === undefined || from === to.trim()) continue;
+    out.push({ name, from, to: to.trim(), reason: 'manual' });
+  }
+  return out;
+}
+
+/** The engine's overrides with a person's laid on top: a typed value beats a derived one. */
+export function mergeOverrides(engine: Override[], manual: Override[]): Override[] {
+  const byName = new Map(engine.map((o) => [o.name, o]));
+  for (const m of manual) byName.set(m.name, m);
+  return Array.from(byName.values());
 }
 
 /* ---------------- lengths ---------------- */
@@ -84,7 +109,7 @@ export function lengthPx(value: string, rootFontSize = 16): number | null {
 }
 
 /** Round-trips a new px value back into whatever unit the page was written in. */
-function inOriginalUnit(value: string, px: number, rootFontSize: number): string {
+export function inOriginalUnit(value: string, px: number, rootFontSize: number): string {
   const rem = /rem$/.test(value.trim());
   const n = rem ? px / rootFontSize : px;
   return `${Math.round(n * 1000) / 1000}${rem ? 'rem' : 'px'}`;
@@ -119,6 +144,38 @@ function lengthMaps(before: ResolvedTokens, after: ResolvedTokens): Record<Lengt
   }
 
   return { space, radius, type };
+}
+
+/**
+ * The same moves, keyed the way a stylesheet rule needs them: by property.
+ * A rule's `font-size` names the role it renders, which is what lets its
+ * weight and line-height follow the role — a bare `600` in a stylesheet says
+ * nothing about which role it belongs to on its own.
+ */
+export function buildLengthMap(before: ResolvedTokens, after: ResolvedTokens): LengthMap {
+  const maps = lengthMaps(before, after);
+  const map: LengthMap = { type: {}, space: {}, radius: {} };
+  for (const [from, to] of maps.space) map.space[String(from)] = to;
+  for (const [from, to] of maps.radius) map.radius[String(from)] = to;
+
+  const afterRoles = new Map(after.config.typography.roles.map((r) => [r.role, r]));
+  const seen = new Map<string, number>();
+  for (const role of before.config.typography.roles) {
+    const to = afterRoles.get(role.role);
+    if (!to) continue;
+    const key = String(Math.round(role.sizeRem * 16 * 100) / 100);
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+    const entry: LengthMap['type'][string] = {};
+    const fromPx = Math.round(role.sizeRem * 16 * 100) / 100;
+    const toPx = Math.round(to.sizeRem * 16 * 100) / 100;
+    if (fromPx !== toPx) entry.size = { from: fromPx, to: toPx };
+    if (role.weight !== to.weight) entry.weight = { from: role.weight, to: to.weight };
+    if (role.lineHeight !== to.lineHeight) entry.lineHeight = { from: role.lineHeight, to: to.lineHeight };
+    if (Object.keys(entry).length) map.type[key] = entry;
+  }
+  // Two roles at one size is an ambiguity the stylesheet cannot resolve.
+  for (const [key, n] of seen) if (n > 1) delete map.type[key];
+  return map;
 }
 
 /**
@@ -178,22 +235,42 @@ export function hexOf(value: string): string | null {
   return hex ? hex.toUpperCase() : null;
 }
 
-/** Where this colour sits on a ramp, if it sits on one. */
+/**
+ * Where this colour sits on a ramp, if it sits on one. The page is always read
+ * as a light page: that is what its stylesheet paints, whatever the panel is
+ * previewing.
+ */
 function findStep(
   hex: string,
   tokens: ResolvedTokens,
-  mode: Mode,
-): { role: (typeof SCALE_ROLES)[number]; step: (typeof STEPS)[number] } | null {
-  let best: { role: (typeof SCALE_ROLES)[number]; step: (typeof STEPS)[number]; d: number } | null =
-    null;
+): { role: (typeof SCALE_ROLES)[number]; step: Step } | null {
+  let best: { role: (typeof SCALE_ROLES)[number]; step: Step; d: number } | null = null;
   for (const role of SCALE_ROLES) {
     const scale = tokens.scales[role];
     for (const step of STEPS) {
-      const d = distance(hex, scale.steps[mode][step].hex);
+      const d = distance(hex, scale.steps.light[step].hex);
       if (d < EXACT_DISTANCE && (!best || d < best.d)) best = { role, step, d };
     }
   }
   return best ? { role: best.role, step: best.step } : null;
+}
+
+/** The step across the ramp: 50 ↔ 950, 100 ↔ 900 … 500 stays. What light becomes in dark. */
+export const mirrorStep = (step: Step): Step => STEPS[STEPS.length - 1 - STEPS.indexOf(step)]!;
+
+/**
+ * The neutral step whose light lightness is nearest this colour's. For the
+ * dark preview only: a page's greys — paper, rule, muted — rarely sit within
+ * `EXACT_DISTANCE` of a generated step, yet they are the colours a dark mode
+ * is mostly made of. Lightness is the honest handle for a colour with no hue.
+ */
+function nearestNeutralByLightness(l: number, tokens: ResolvedTokens): Step {
+  let best: { step: Step; d: number } | null = null;
+  for (const step of STEPS) {
+    const d = Math.abs(tokens.scales.neutral.steps.light[step].oklch.l - l);
+    if (!best || d < best.d) best = { step, d };
+  }
+  return best!.step;
 }
 
 type Oklch = NonNullable<ReturnType<typeof toOklch>>;
@@ -222,6 +299,11 @@ function seedShifts(before: ResolvedTokens, after: ResolvedTokens): SeedShift[] 
  * What one colour on the page becomes under the edited system, or null to leave
  * it alone. The single decision both paths ask — a variable definition and a
  * hardcoded declaration should never disagree about the same colour.
+ *
+ * `mode` is what the page should look like. In light it is the edit alone. In
+ * dark, a colour on a light step moves to the mirrored step of the dark ramp
+ * — 100 becomes 900 — which is the engine's own idea of what a surface or an
+ * ink becomes at night, applied to the colours the page names itself.
  */
 export function remapColor(
   hex: string,
@@ -231,20 +313,30 @@ export function remapColor(
   mode: Mode = 'light',
 ): { to: string; reason: Override['reason'] } | null {
   // 1. Sitting on a ramp — move it to the same step after the edit.
-  const at = findStep(hex, before, mode);
+  const at = findStep(hex, before);
   if (at) {
     // Compare the step to itself across the edit, not to the colour. A colour
     // sitting *near* a step would otherwise be dragged onto the ramp even when
     // nothing changed — repainting the page for no reason.
-    const fromStep = before.scales[at.role].steps[mode][at.step].hex.toUpperCase();
-    const toStep = after.scales[at.role].steps[mode][at.step].hex.toUpperCase();
+    const fromStep = before.scales[at.role].steps.light[at.step].hex.toUpperCase();
+    const step = mode === 'dark' ? mirrorStep(at.step) : at.step;
+    const toStep = after.scales[at.role].steps[mode][step].hex.toUpperCase();
     return fromStep === toStep ? null : { to: toStep, reason: 'exact' };
   }
 
-  // 2. Same hue family as a seed that moved — carry it along.
   const parsed = parse(hex);
   const own = parsed ? toOklch(parsed) : null;
-  if (!own || (own.c ?? 0) < MIN_CHROMA) return null;
+  if (!own) return null;
+
+  // 1b. In dark, a neutral off the ramp still inverts, by lightness alone.
+  if (mode === 'dark' && (own.c ?? 0) < MIN_CHROMA) {
+    const step = mirrorStep(nearestNeutralByLightness(own.l, before));
+    const to = after.scales.neutral.steps.dark[step].hex.toUpperCase();
+    return to === hex.toUpperCase() ? null : { to, reason: 'exact' };
+  }
+
+  // 2. Same hue family as a seed that moved — carry it along.
+  if ((own.c ?? 0) < MIN_CHROMA) return null;
   const family = shifts.find((s) => {
     const delta = Math.abs(((((s.from.h ?? 0) - (own.h ?? 0) + 540) % 360) - 180));
     return delta < FAMILY_HUE;

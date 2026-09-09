@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { converter, parse } from 'culori';
 import type { CustomPropInfo } from '@/shared/types';
-import { buildColorMap, buildReskin } from './reskin';
+import { buildColorMap, buildReskin, manualOverrides, mergeOverrides, mirrorStep } from './reskin';
 import { resolveTokens } from './engine/resolve';
 import { seedBrandFromScan } from './seedFromScan';
 import type { ScanResult } from '@/shared/types';
 
 const toOklch = converter('oklch');
 const hue = (hex: string) => toOklch(parse(hex)!)!.h ?? 0;
+const lightness = (hex: string) => toOklch(parse(hex)!)!.l;
 
 /** forfontsake's real token set — the project this was built against. */
 const FORFONTSAKE: CustomPropInfo[] = [
@@ -181,5 +182,56 @@ describe('buildColorMap — for pages with no variables to override', () => {
     const viaVar = buildReskin([{ name: '--mark', value: '#be3a22' }], before, after)[0]!;
     const viaMap = buildColorMap([{ hex: '#BE3A22' }], before, after);
     expect(viaMap['#BE3A22']).toBe(viaVar.to);
+  });
+});
+
+describe('dark preview — the page as the system\'s other side', () => {
+  const before = resolveTokens(seedBrandFromScan(scan));
+
+  it('mirrors a step across the ramp', () => {
+    expect(mirrorStep(50)).toBe(950);
+    expect(mirrorStep(100)).toBe(900);
+    expect(mirrorStep(500)).toBe(500);
+    expect(mirrorStep(950)).toBe(50);
+  });
+
+  it('inverts ink and paper with no edit at all', () => {
+    const map = buildColorMap([{ hex: '#15171B' }, { hex: '#E7E4DB' }], before, before, 'dark');
+    // The ink goes light and the paper goes dark: that is what a dark mode is.
+    expect(lightness(map['#15171B']!)).toBeGreaterThan(0.8);
+    expect(lightness(map['#E7E4DB']!)).toBeLessThan(0.45);
+  });
+
+  it('reaches the page\'s variables the same way', () => {
+    const names = buildReskin(FORFONTSAKE, before, before, 'dark').map((o) => o.name);
+    expect(names).toContain('--ink');
+    expect(names).toContain('--paper');
+    expect(names).toContain('--rule');
+  });
+
+  it('keeps a chromatic colour that is not on a ramp where it is', () => {
+    // An unrelated blue: no seed moved, so its family gives it nowhere to go.
+    const map = buildColorMap([{ hex: '#2A78D6' }], before, before, 'dark');
+    expect(map['#2A78D6']).toBeUndefined();
+  });
+
+  it('leaves the page alone in light with no edit, as before', () => {
+    expect(buildColorMap([{ hex: '#15171B' }, { hex: '#E7E4DB' }], before, before, 'light')).toEqual({});
+  });
+});
+
+describe('manual overrides — a value typed for one variable', () => {
+  it('honours only names the page defines, and only real changes', () => {
+    const out = manualOverrides({ '--mark': '#000000', '--paper': '#e7e4db', '--nope': '#fff' }, FORFONTSAKE);
+    expect(out).toEqual([{ name: '--mark', from: '#be3a22', to: '#000000', reason: 'manual' }]);
+  });
+
+  it('beats the engine for the same name', () => {
+    const merged = mergeOverrides(
+      [{ name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'exact' }, { name: '--ink', from: '#15171b', to: '#000', reason: 'exact' }],
+      [{ name: '--mark', from: '#be3a22', to: '#000000', reason: 'manual' }],
+    );
+    expect(merged.find((o) => o.name === '--mark')!.to).toBe('#000000');
+    expect(merged).toHaveLength(2);
   });
 });

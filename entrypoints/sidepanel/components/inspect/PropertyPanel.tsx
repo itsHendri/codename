@@ -5,6 +5,7 @@ import { suggestTokens, type TokenSuggestion } from '@/studio/tokenMatch';
 import { ColorField } from './ColorField';
 import { NumberField } from './NumberField';
 import { ShadowField } from './ShadowField';
+import { TextInput } from './TextInput';
 
 type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'>;
 type Change = (property: string, to: string, token?: string) => void;
@@ -345,38 +346,6 @@ function LengthField({
         </button>
       )}
     </div>
-  );
-}
-
-function TextInput({
-  value,
-  ariaLabel,
-  valid,
-  onCommit,
-}: {
-  value: string;
-  ariaLabel: string;
-  valid: (v: string) => boolean;
-  onCommit: (v: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  const ok = valid(draft);
-  const commit = () => {
-    if (ok && draft !== value) onCommit(draft);
-  };
-  return (
-    <input
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
-      spellCheck={false}
-      aria-label={ariaLabel}
-      className={`w-full min-w-0 rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-xs ${
-        ok ? 'border-line' : 'border-warn bg-warn-soft'
-      }`}
-    />
   );
 }
 

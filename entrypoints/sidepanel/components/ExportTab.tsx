@@ -36,7 +36,7 @@ export function ExportTab({
 }: {
   scan: ScanResult;
   hostname: string;
-  /** The system as edited in the Design tab; the generated files come from it. */
+  /** The system as edited in the Variables tab; the generated files come from it. */
   resolved: ResolvedTokens | null;
 }) {
   const [preset, setPreset] = useState<PresetKey>('ai');

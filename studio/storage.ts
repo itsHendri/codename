@@ -10,7 +10,7 @@
 
 import type { BrandConfig } from './engine/types';
 import { migrateConfig } from './engine/schema';
-import { isNoEdits, type BrandEdits } from './edits';
+import { isNoEdits, normaliseEdits, type BrandEdits } from './edits';
 
 const KEY_PREFIX = 'brand:';
 const INDEX_KEY = 'brandIndex';
@@ -87,7 +87,8 @@ export async function loadEdits(origin: string): Promise<BrandEdits | null> {
   if (!available()) return null;
   const k = `${EDITS_PREFIX}${slugify(origin)}`;
   const stored = await chrome.storage.local.get(k);
-  return (stored[k] as BrandEdits | undefined) ?? null;
+  const raw = stored[k] as Partial<BrandEdits> | undefined;
+  return raw ? normaliseEdits(raw) : null;
 }
 
 export async function saveEdits(origin: string, edits: BrandEdits): Promise<void> {
