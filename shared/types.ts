@@ -166,6 +166,8 @@ export type InspectorCommand =
   | { cmd: 'hover'; on: boolean }
   /** Flip a mode, from a keyboard shortcut. */
   | { cmd: 'toggle'; what: 'select' | 'comment' }
+  /** The page's own names for its colours (upper-case hex → variable), so the readout can say them. */
+  | { cmd: 'tokens'; colors: Record<string, string> }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }

@@ -16,6 +16,7 @@ import {
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
+import { hexOf } from '@/studio/reskin';
 import { buildChangeSet } from '@/studio/commit';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
@@ -225,6 +226,19 @@ export default function App() {
   useEffect(() => {
     if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode, resettable });
   }, [tabId, scan, restricted, theme, mode, resettable]);
+
+  // The page's own names for its colours, so the hover readout can say
+  // "#15171B --ink" rather than a hex alone. The scan already matched them.
+  useEffect(() => {
+    if (tabId == null || !scan || restricted) return;
+    const colors: Record<string, string> = {};
+    for (const c of scan.colors) if (c.varNames[0]) colors[c.hex.toUpperCase()] = c.varNames[0];
+    for (const p of scan.customProps) {
+      const hex = hexOf(p.value);
+      if (hex && !colors[hex]) colors[hex] = p.name;
+    }
+    void sendInspector(tabId, { cmd: 'tokens', colors });
+  }, [tabId, scan, restricted]);
 
   // Undo and redo from the panel itself, unless the user is typing.
   useEffect(() => {

@@ -67,6 +67,31 @@ export function LayersTree({
       return next;
     });
 
+  /**
+   * The tree from the keyboard, as a file browser works: up and down move the
+   * selection through the rows you can see, left folds and right unfolds the
+   * row you are on, and Enter picks it again (useful after the page moved).
+   */
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!rows.length) return;
+    const at = selectedId === null ? -1 : rows.findIndex((r) => r.id === selectedId);
+    const current = at >= 0 ? rows[at]! : null;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = rows[Math.min(rows.length - 1, Math.max(0, at + (e.key === 'ArrowDown' ? 1 : -1)))]!;
+      if (next !== current) onSelect(next);
+    } else if (e.key === 'ArrowLeft' && current && current.descendants > 0 && !collapsed.has(current.id)) {
+      e.preventDefault();
+      toggle(current.id);
+    } else if (e.key === 'ArrowRight' && current && current.descendants > 0 && collapsed.has(current.id)) {
+      e.preventDefault();
+      toggle(current.id);
+    } else if (e.key === 'Enter' && current) {
+      e.preventDefault();
+      onSelect(current);
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div className="flex shrink-0 items-center gap-1.5">
@@ -95,8 +120,12 @@ export function LayersTree({
       ) : (
         <div
           ref={listRef}
+          role="tree"
+          tabIndex={0}
+          aria-label="Layers"
+          onKeyDown={onKeyDown}
           onMouseLeave={() => onPeek(null)}
-          className="min-h-0 flex-1 overflow-y-auto rounded-control border border-line-subtle"
+          className="min-h-0 flex-1 overflow-y-auto rounded-control border border-line-subtle focus-visible:border-accent"
         >
           {rows.map((node) => {
             const isSelected = node.id === selectedId;
@@ -104,6 +133,9 @@ export function LayersTree({
             return (
               <div
                 key={node.id}
+                role="treeitem"
+                aria-selected={isSelected}
+                aria-expanded={foldable ? !collapsed.has(node.id) : undefined}
                 ref={(el) => {
                   if (el) rowRefs.current.set(node.id, el);
                   else rowRefs.current.delete(node.id);

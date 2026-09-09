@@ -295,6 +295,7 @@ function activate() {
       .card .row { display: flex; gap: 6px; align-items: center; }
       .card .k { color: ${c.cardMuted}; width: 56px; flex-shrink: 0; }
       .card .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid ${c.cardLine}; display: inline-block; }
+      .card .tok { color: ${c.accent}; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
       .seg.y { width: 1px; }
@@ -429,6 +430,9 @@ function activate() {
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   let barMode: Mode = 'light';
+  /** The page's own names for its colours, from the scan: `#15171B` → `--ink`. */
+  let tokenNames: Record<string, string> = {};
+  const named = (hex: string | null) => (hex && tokenNames[hex.toUpperCase()]) || null;
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
   /** The page's zoom, as the background last reported it. 1 until asked. */
@@ -612,8 +616,8 @@ function activate() {
     card.classList.remove('hidden');
     card.innerHTML = `
       <div class="row"><span class="k">Font</span><span>${(cs.fontFamily.split(',')[0] ?? '').replace(/["']/g, '')} · ${cs.fontWeight} · ${cs.fontSize}/${cs.lineHeight}</span></div>
-      <div class="row"><span class="k">Text</span><span class="swatch" style="background:${fg ?? 'transparent'}"></span><span>${fg ?? '—'}</span></div>
-      <div class="row"><span class="k">Fill</span><span class="swatch" style="background:${bg}"></span><span>${bg}</span></div>
+      <div class="row"><span class="k">Text</span><span class="swatch" style="background:${fg ?? 'transparent'}"></span><span>${fg ?? '—'}${named(fg) ? ` <span class="tok">${escapeHtml(named(fg)!)}</span>` : ''}</span></div>
+      <div class="row"><span class="k">Fill</span><span class="swatch" style="background:${bg}"></span><span>${bg}${named(bg) ? ` <span class="tok">${escapeHtml(named(bg)!)}</span>` : ''}</span></div>
       <div class="row"><span class="k">Contrast</span><span>${ratio ?? '—'}${ratio ? ':1' : ''} ${ratio ? (ratio >= 7 ? 'AAA ✓' : ratio >= 4.5 ? 'AA ✓' : '✗') : ''}</span></div>
       <div class="row"><span class="k">Box</span><span>pad ${cs.padding} · radius ${cs.borderRadius}</span></div>`;
     const cardX = Math.min(e.clientX + 16, innerWidth - 296);
@@ -1382,6 +1386,9 @@ function activate() {
       case 'toggle':
         if (msg.what === 'comment') setNote(!noteOn);
         else setHover(!hoverOn);
+        break;
+      case 'tokens':
+        tokenNames = msg.colors ?? {};
         break;
       case 'select':
         select(find(msg.selector));
