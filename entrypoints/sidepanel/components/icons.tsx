@@ -21,22 +21,6 @@ export function InspectIcon({ className = base }: IconProps) {
   );
 }
 
-export function FontsIcon({ className = base }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M3 3.5 H13 M8 3.5 V13" />
-    </svg>
-  );
-}
-
-export function ColorsIcon({ className = base }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M8 2 C8 2 4 7.2 4 10 a4 4 0 0 0 8 0 C12 7.2 8 2 8 2 Z" />
-    </svg>
-  );
-}
-
 export function DesignIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -52,14 +36,6 @@ export function SvgsIcon({ className = base }: IconProps) {
       <circle cx="3.5" cy="12.5" r="1.5" />
       <circle cx="12.5" cy="3.5" r="1.5" />
       <path d="M4.5 11.5 C6.5 6.5, 9.5 9.5, 11.5 4.5" />
-    </svg>
-  );
-}
-
-export function ResizeIcon({ className = base }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M2 6 V2 H6 M10 2 H14 V6 M14 10 V14 H10 M6 14 H2 V10" />
     </svg>
   );
 }

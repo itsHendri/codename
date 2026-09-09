@@ -12,6 +12,13 @@ type Change = (property: string, to: string, token?: string) => void;
 
 const ALIGNS = ['left', 'center', 'right', 'justify'] as const;
 const BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted'] as const;
+const DISPLAYS = ['block', 'flex', 'grid', 'inline', 'inline-block', 'inline-flex', 'none'] as const;
+const DIRECTIONS = ['row', 'column'] as const;
+const WRAPS = ['nowrap', 'wrap'] as const;
+const JUSTIFY = ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'] as const;
+const ALIGN_ITEMS = ['stretch', 'flex-start', 'center', 'flex-end', 'baseline'] as const;
+/** Computed values spell the keywords the long way; the controls use the short ones. */
+const normalise = (v: string) => (v === 'start' || v === 'normal' ? 'flex-start' : v === 'end' ? 'flex-end' : v);
 
 /**
  * Colour and type first, and open; everything else collapsed behind a summary.
@@ -52,8 +59,9 @@ export function PropertyPanel({
 
   const colour = (v: string) => suggestTokens('color', v, scan, resolved ?? undefined, mode);
   const length = (v: string) => suggestTokens('length', v, scan, resolved ?? undefined, mode);
-  const { box, type, color, border } = element;
+  const { box, type, color, border, layout } = element;
   const flexOrGrid = /flex|grid/.test(box.display);
+  const flex = /flex/.test(box.display);
 
   const len = (prop: string, value: string, label: string, aria: string, compact = false) => (
     <LengthField
@@ -169,6 +177,46 @@ export function PropertyPanel({
       )}
 
       {group(
+        'Layout',
+        `${box.display}${flex ? ` · ${layout.flexDirection} · ${normalise(layout.justifyContent)} / ${normalise(layout.alignItems)}` : ''}`,
+        <>
+          <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
+            <SideLabel>display</SideLabel>
+            <Select value={box.display} options={DISPLAYS} ariaLabel="Display" onChange={(v) => onChange('display', v)} />
+            {flexOrGrid && (
+              <>
+                <SideLabel>justify</SideLabel>
+                <Select
+                  value={normalise(layout.justifyContent)}
+                  options={JUSTIFY}
+                  ariaLabel="Justify content"
+                  onChange={(v) => onChange('justify-content', v)}
+                />
+                <SideLabel>align</SideLabel>
+                <Select
+                  value={normalise(layout.alignItems)}
+                  options={ALIGN_ITEMS}
+                  ariaLabel="Align items"
+                  onChange={(v) => onChange('align-items', v)}
+                />
+              </>
+            )}
+          </div>
+          {flex && (
+            <div className="grid grid-cols-2 gap-2">
+              <Segmented
+                value={layout.flexDirection}
+                options={DIRECTIONS}
+                ariaLabel="Flex direction"
+                onChange={(v) => onChange('flex-direction', v)}
+              />
+              <Segmented value={layout.flexWrap} options={WRAPS} ariaLabel="Flex wrap" onChange={(v) => onChange('flex-wrap', v)} />
+            </div>
+          )}
+        </>,
+      )}
+
+      {group(
         'Size',
         `${px(box.width)} × ${px(box.height)}`,
         <div className="grid grid-cols-2 gap-2">
@@ -213,13 +261,29 @@ export function PropertyPanel({
       )}
 
       {group(
-        'Shadow',
-        element.shadow === 'none' ? 'none' : 'set',
-        <ShadowField
-          value={element.shadow}
-          suggestions={suggestTokens('shadow', element.shadow, scan, resolved ?? undefined, mode)}
-          onChange={(v, t) => onChange('box-shadow', v, t)}
-        />,
+        'Effects',
+        `${element.opacity === '1' ? '' : `opacity ${element.opacity} · `}${element.shadow === 'none' ? 'no shadow' : 'shadow'}`,
+        <>
+          <Labelled label="opacity">
+            <NumberField
+              value={element.opacity}
+              ariaLabel="Opacity"
+              step={0.1}
+              className="w-16"
+              onChange={(v) => {
+                const n = parseFloat(v);
+                if (Number.isFinite(n)) onChange('opacity', String(Math.min(1, Math.max(0, n))));
+              }}
+            />
+          </Labelled>
+          <Labelled label="shadow">
+            <ShadowField
+              value={element.shadow}
+              suggestions={suggestTokens('shadow', element.shadow, scan, resolved ?? undefined, mode)}
+              onChange={(v, t) => onChange('box-shadow', v, t)}
+            />
+          </Labelled>
+        </>,
       )}
 
       {element.text !== null &&
@@ -367,6 +431,35 @@ function TextArea({ value, onCommit }: { value: string; onCommit: (v: string) =>
       aria-label="Element text"
       className="w-full resize-y rounded-control border border-line bg-surface-recessed px-1.5 py-1 text-sm"
     />
+  );
+}
+
+function Select<T extends string>({
+  value,
+  options,
+  ariaLabel,
+  onChange,
+}: {
+  value: string;
+  options: readonly T[];
+  ariaLabel: string;
+  onChange: (v: T) => void;
+}) {
+  const known = options.includes(value as T);
+  return (
+    <select
+      value={known ? value : ''}
+      onChange={(e) => onChange(e.target.value as T)}
+      aria-label={ariaLabel}
+      className="rounded-control border border-line bg-surface-recessed px-1 py-0.5 text-xs"
+    >
+      {!known && <option value="">{value}</option>}
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
   );
 }
 

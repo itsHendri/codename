@@ -71,8 +71,6 @@ export default function App() {
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
-  // A target drawn on the page, waiting for words in the Changes tab's composer.
-  const [pendingTarget, setPendingTarget] = useState<CommentTarget | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
     [scan, tabUrl],
@@ -311,12 +309,7 @@ export default function App() {
         break;
       case 'changes':
         content = (
-          <ChangesTab
-            set={changeSet}
-            ctl={ctl}
-            pendingTarget={pendingTarget}
-            onClearTarget={() => setPendingTarget(null)}
-          />
+          <ChangesTab set={changeSet} ctl={ctl} />
         );
         break;
       case 'variables':

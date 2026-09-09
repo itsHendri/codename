@@ -154,6 +154,13 @@ function readProps(el: Element): ElementProps {
       display: cs.display,
       gap: cs.gap,
     },
+    layout: {
+      flexDirection: cs.flexDirection,
+      justifyContent: cs.justifyContent,
+      alignItems: cs.alignItems,
+      flexWrap: cs.flexWrap,
+    },
+    opacity: cs.opacity,
     type: {
       fontFamily: cs.fontFamily,
       fontSize: cs.fontSize,
@@ -951,8 +958,6 @@ function activate() {
   const emitTarget = (target: CommentTarget, anchor: Rect) => {
     picked = [];
     drawPicks();
-    // The panel hears about it either way, so its list stays in step.
-    send({ type: 'note-target', target });
     openComposer(target, anchor);
   };
 

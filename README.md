@@ -14,8 +14,10 @@ Layers · Variables · Assets · Export · Changes.
   on the page as you run down it. It is the answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the
   selection, and what you can change about it. Colour and
-  type are open at the top, because that is what you came for; spacing, size,
-  radius, border, shadow and text collapse behind a one-line summary. A
+  type are open at the top, because that is what you came for; spacing,
+  layout (display, flex direction, justify, align, wrap), size, radius,
+  border, effects (opacity, shadow) and text collapse behind a one-line
+  summary. A
   selection stays put: walk the tree with the arrow keys, measure it against
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`

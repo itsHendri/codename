@@ -133,6 +133,14 @@ export interface ElementProps {
     display: string;
     gap: string;
   };
+  /** How the box lays its children out; only meaningful when display is flex or grid. */
+  layout: {
+    flexDirection: string;
+    justifyContent: string;
+    alignItems: string;
+    flexWrap: string;
+  };
+  opacity: string;
   type: {
     fontFamily: string;
     fontSize: string;
@@ -182,7 +190,6 @@ export type RuntimeMessage =
   | { type: 'element-selected'; data: ElementProps | null }
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }
-  | { type: 'note-target'; target: CommentTarget }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
   /** The bar picked a preset. The page sends what it knows; the background works out the window. */
