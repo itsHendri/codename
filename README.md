@@ -14,8 +14,9 @@ Layers · Variables · Assets · Export · Changes.
   than a framework; pick one and the edit scope is all of them. The tree
   lists every element with its own text beside it, searches
   by name or content, folds, hides a layer with one click, and lights a row up
-  on the page as you run down it, and walks from the keyboard: up and down
-  move the selection, left and right fold and unfold, Enter picks. It is the
+  on the page as you run down it, walks from the keyboard (up and down move
+  the selection, left and right fold and unfold, Enter picks), and can leave
+  out the layers the page is not painting. It is the
   answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the
   selection, and what you can change about it. Colour and
@@ -88,7 +89,10 @@ the page is zoomed out until its CSS viewport is the preset width and the
 label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.
 **Reset** puts the window and zoom back. **Select** hovers for font, colour
 and contrast — naming the page's own variable beside a colour when it has
-one — and clicks to pick an element. **Comment** marks something up:
+one — and clicks to pick an element. The edit card that opens beside the
+selection names the variable behind a colour, a padding, a radius or a size
+where the page has one whose name says what it is, and a click writes
+`var(--x)` in place of the literal. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a

@@ -16,7 +16,8 @@ import {
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
-import { hexOf } from '@/studio/reskin';
+import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
+import type { TokenLengths } from '@/shared/types';
 import { buildChangeSet } from '@/studio/commit';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
@@ -233,11 +234,15 @@ export default function App() {
     if (tabId == null || !scan || restricted) return;
     const colors: Record<string, string> = {};
     for (const c of scan.colors) if (c.varNames[0]) colors[c.hex.toUpperCase()] = c.varNames[0];
+    const lengths: TokenLengths = { space: {}, radius: {}, type: {} };
     for (const p of scan.customProps) {
       const hex = hexOf(p.value);
       if (hex && !colors[hex]) colors[hex] = p.name;
+      const kind = lengthKind(p.name);
+      const px = lengthPx(p.value, scan.rootFontSize);
+      if (kind && px !== null && !lengths[kind][String(px)]) lengths[kind][String(px)] = p.name;
     }
-    void sendInspector(tabId, { cmd: 'tokens', colors });
+    void sendInspector(tabId, { cmd: 'tokens', colors, lengths });
   }, [tabId, scan, restricted]);
 
   // Undo and redo from the panel itself, unless the user is typing.

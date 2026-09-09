@@ -57,6 +57,19 @@ describe('visibleRows', () => {
     expect(visibleRows(tree, new Set([0, 1, 3]), 'note').map((n) => n.id)).toEqual([0, 3, 4]);
   });
 
+  it('can leave out what the page is not painting, subtree and all', () => {
+    const rows: LayerNode[] = [
+      node(0, 0, 'body', 4),
+      { ...node(1, 1, 'aside.legacy', 1), hidden: true },
+      node(2, 2, 'p', 0),
+      node(3, 1, 'main', 1),
+      node(4, 2, 'h1', 0),
+    ];
+    expect(visibleRows(rows, new Set(), '', true).map((n) => n.id)).toEqual([0, 3, 4]);
+    // Folding still works on the remaining tree.
+    expect(visibleRows(rows, new Set([3]), '', true).map((n) => n.id)).toEqual([0, 3]);
+  });
+
   it('finds nothing for a query that matches nothing', () => {
     expect(visibleRows(tree, new Set(), 'zzz')).toEqual([]);
   });

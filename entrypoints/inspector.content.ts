@@ -9,7 +9,7 @@
  * which are meant to be clicked.
  */
 
-import type { ElementProps, InspectorCommand } from '@/shared/types';
+import type { ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
 import { viewportLabel } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
@@ -366,6 +366,11 @@ function activate() {
       .edit .colour .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
       .edit .colour .tok:hover { border-color: ${d.accent}; }
       .edit .colour .tok.hidden { display: none; }
+      .edit .len { display: flex; gap: 5px; align-items: center; }
+      .edit .len input { flex: 1; }
+      .edit .len .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
+      .edit .len .tok:hover { border-color: ${d.accent}; }
+      .edit .len .tok.hidden { display: none; }
       .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
       .bar .fold:hover { color: ${d.cardInk}; }
       .hidden { display: none; }
@@ -441,7 +446,13 @@ function activate() {
   let barMode: Mode = 'light';
   /** The page's own names for its colours, from the scan: `#15171B` → `--ink`. */
   let tokenNames: Record<string, string> = {};
+  let tokenLengths: TokenLengths = { space: {}, radius: {}, type: {} };
   const named = (hex: string | null) => (hex && tokenNames[hex.toUpperCase()]) || null;
+  /** A single px length's name on this page, for the kind the property says it is. */
+  const namedLength = (kind: keyof TokenLengths, value: string): string | null => {
+    const m = /^(-?\d*\.?\d+)px$/.exec(value.trim());
+    return m ? (tokenLengths[kind][String(parseFloat(m[1]!))] ?? null) : null;
+  };
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
   /** The page's zoom, as the background last reported it. 1 until asked. */
@@ -747,7 +758,15 @@ function activate() {
     return wrap;
   };
 
+  const LENGTH_KIND: Record<string, keyof TokenLengths> = {
+    padding: 'space',
+    'border-radius': 'radius',
+    'font-size': 'type',
+  };
+
   const lengthControl = (property: string, value: string, many = false): HTMLElement => {
+    const wrap = document.createElement('div');
+    wrap.className = 'len';
     const input = document.createElement('input');
     input.type = 'text';
     input.value = value;
@@ -772,7 +791,26 @@ function activate() {
       input.value = `${Math.round((parseFloat(m[1]!) + step) * 100) / 100}${m[2] ?? 'px'}`;
       commit();
     });
-    return input;
+    // The page's own name for this length, when its variable says what kind it is.
+    const kind = LENGTH_KIND[property];
+    const tok = document.createElement('button');
+    tok.className = 'tok';
+    const showTok = (v: string) => {
+      const name = kind ? namedLength(kind, v) : null;
+      tok.textContent = name ?? '';
+      tok.title = name ? `This is ${name} on this page — click to write var(${name}) instead` : '';
+      tok.classList.toggle('hidden', !name);
+    };
+    showTok(value);
+    input.addEventListener('input', () => showTok(input.value));
+    tok.addEventListener('click', () => {
+      const name = tok.textContent;
+      if (!name) return;
+      input.value = `var(${name})`;
+      emitEdit(property, `var(${name})`);
+    });
+    wrap.append(input, tok);
+    return wrap;
   };
 
   const weightControl = (value: string): HTMLElement => {
@@ -875,7 +913,8 @@ function activate() {
       if (pick instanceof HTMLInputElement && pick.type === 'color' && HEX6.test(v)) pick.value = v;
       const tok = el.nextElementSibling;
       if (tok instanceof HTMLButtonElement && tok.classList.contains('tok')) {
-        const name = named(v);
+        const kind = LENGTH_KIND[el.dataset.prop!];
+        const name = kind ? namedLength(kind, v) : named(v);
         tok.textContent = name ?? '';
         tok.classList.toggle('hidden', !name);
       }
@@ -1422,6 +1461,8 @@ function activate() {
         break;
       case 'tokens':
         tokenNames = msg.colors ?? {};
+        tokenLengths = msg.lengths ?? { space: {}, radius: {}, type: {} };
+        if (!editCard.classList.contains('hidden')) renderEdit();
         break;
       case 'select':
         select(find(msg.selector));

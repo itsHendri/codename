@@ -168,8 +168,12 @@ export type InspectorCommand =
   | { cmd: 'hover'; on: boolean }
   /** Flip a mode, from a keyboard shortcut. */
   | { cmd: 'toggle'; what: 'select' | 'comment' }
-  /** The page's own names for its colours (upper-case hex → variable), so the readout can say them. */
-  | { cmd: 'tokens'; colors: Record<string, string> }
+  /**
+   * The page's own names for its values, so the readout and the edit card can
+   * say them: colours by upper-case hex; lengths by px, and only for variables
+   * whose names say what they are, since a bare `8px` could be a gap or a radius.
+   */
+  | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
@@ -216,6 +220,12 @@ export type RuntimeMessage =
   /** Reset on the bar: every override goes, the page reads as itself. */
   | { type: 'reset-all' }
   | { type: 'fetch-text'; url: string };
+
+export interface TokenLengths {
+  space: Record<string, string>;
+  radius: Record<string, string>;
+  type: Record<string, string>;
+}
 
 export const DEVICE_PRESETS = [
   { name: 'Mobile S', width: 375, height: 667, kind: 'phone' },

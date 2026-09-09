@@ -27,6 +27,8 @@ export function LayersTree({
 }) {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState('');
+  const [skipHidden, setSkipHidden] = useState(false);
+  const hiddenCount = useMemo(() => nodes.filter((n) => n.hidden).length, [nodes]);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
 
@@ -35,7 +37,7 @@ export function LayersTree({
     setCollapsed(initialCollapsed(nodes));
   }, [nodes]);
 
-  const rows = useMemo(() => visibleRows(nodes, collapsed, query), [nodes, collapsed, query]);
+  const rows = useMemo(() => visibleRows(nodes, collapsed, query, skipHidden), [nodes, collapsed, query, skipHidden]);
 
   const selectedId = useMemo(
     () => (selectedSelector ? (nodes.find((n) => n.selector === selectedSelector)?.id ?? null) : null),
@@ -103,6 +105,18 @@ export function LayersTree({
           spellCheck={false}
           className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-2 py-0.5 text-xs"
         />
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setSkipHidden((v) => !v)}
+            aria-pressed={skipHidden}
+            title={skipHidden ? `Showing hidden layers again (${hiddenCount})` : `Leave out the ${hiddenCount} hidden ${hiddenCount === 1 ? 'layer' : 'layers'}`}
+            className={`shrink-0 rounded-control border px-1.5 py-0.5 text-2xs ${
+              skipHidden ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-secondary hover:bg-surface-control'
+            }`}
+          >
+            {skipHidden ? '◌' : '◉'} {hiddenCount}
+          </button>
+        )}
         <button
           onClick={onRefresh}
           disabled={loading}

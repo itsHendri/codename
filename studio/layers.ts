@@ -49,8 +49,24 @@ export function visibleRows(
   nodes: LayerNode[],
   collapsed: ReadonlySet<number>,
   query = '',
+  /** Leave out rows the page is not painting, and everything inside them. */
+  skipHidden = false,
 ): LayerNode[] {
   const needle = query.trim().toLowerCase();
+  if (skipHidden) {
+    const kept: LayerNode[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]!;
+      if (node.hidden) {
+        i += node.descendants;
+        continue;
+      }
+      kept.push(node);
+    }
+    // Descendant counts still describe the full tree; folding by count
+    // would skip too far, so a hidden subtree is removed by rebuilding them.
+    nodes = recount(kept);
+  }
 
   if (needle) {
     const keep = new Set<number>();
@@ -75,6 +91,17 @@ export function visibleRows(
     if (collapsed.has(node.id)) i += node.descendants;
   }
   return rows;
+}
+
+/** Descendant counts for a list some rows were removed from, by depth alone. */
+function recount(rows: LayerNode[]): LayerNode[] {
+  const out = rows.map((r) => ({ ...r, descendants: 0 }));
+  for (let i = 0; i < out.length; i++) {
+    let n = 0;
+    for (let j = i + 1; j < out.length && out[j]!.depth > out[i]!.depth; j++) n++;
+    out[i]!.descendants = n;
+  }
+  return out;
 }
 
 /** The chain from the root down to `id`, for expanding to a selection. */
