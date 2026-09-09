@@ -120,6 +120,7 @@ export default function App() {
     setConfig(null);
     setMode('light');
     ctlRef.current.revertAll();
+    ctlRef.current.clear();
     resetSplit(LAYERS_SPLIT_KEY);
     // The viewport is the bar's to put back; the panel only asks.
     if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });

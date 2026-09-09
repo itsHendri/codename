@@ -357,7 +357,7 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — the dark preview, and the viewport preset. Notes stay.">Reset<span></span></button>
+      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
@@ -1274,6 +1274,8 @@ function activate() {
     resettable = 0;
     const viewport = canReset;
     renderBar();
+    // The selection goes too, so the card and the outline leave with the overrides.
+    select(null);
     send({ type: 'reset-all' });
     if (viewport) void resetViewport();
     showHint(
