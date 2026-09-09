@@ -49,6 +49,10 @@ export function PropertyPanel({
   onText: (text: string) => void;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set(OPEN_BY_DEFAULT));
+  const { corners } = element;
+  const uneven = new Set([corners.topLeft, corners.topRight, corners.bottomRight, corners.bottomLeft]).size > 1;
+  // Four fields when the corners differ, or once you ask for them.
+  const [perCorner, setPerCorner] = useState(false);
   const toggle = (title: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -230,9 +234,25 @@ export function PropertyPanel({
         `r${px(element.radius)} · ${border.style === 'none' ? 'no border' : `${px(border.width)} ${border.style}`}`,
         <>
           <div className="grid grid-cols-2 gap-2">
-            {len('border-radius', element.radius, '◜', 'Border radius')}
+            {perCorner || uneven ? (
+              <div className="grid grid-cols-2 gap-1">
+                {len('border-top-left-radius', corners.topLeft, '◜', 'Top-left radius', true)}
+                {len('border-top-right-radius', corners.topRight, '◝', 'Top-right radius', true)}
+                {len('border-bottom-left-radius', corners.bottomLeft, '◟', 'Bottom-left radius', true)}
+                {len('border-bottom-right-radius', corners.bottomRight, '◞', 'Bottom-right radius', true)}
+              </div>
+            ) : (
+              len('border-radius', element.radius, '◜', 'Border radius')
+            )}
             {len('border-width', border.width, '▭', 'Border width')}
           </div>
+          <button
+            onClick={() => setPerCorner((v) => !v)}
+            className="self-start text-2xs text-ink-muted hover:text-accent"
+            title={uneven ? 'The corners differ, so they are shown one by one' : undefined}
+          >
+            {perCorner || uneven ? 'one radius' : 'each corner'}
+          </button>
           <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
             <SideLabel>style</SideLabel>
             <select

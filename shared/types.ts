@@ -151,6 +151,8 @@ export interface ElementProps {
   };
   color: { text: string; background: string; border: string };
   radius: string;
+  /** Each corner on its own, for the shapes one radius cannot say. */
+  corners: { topLeft: string; topRight: string; bottomRight: string; bottomLeft: string };
   border: { width: string; style: string; color: string };
   shadow: string;
   /** Present only when the element's own children are text. */

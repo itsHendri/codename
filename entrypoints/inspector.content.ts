@@ -175,6 +175,12 @@ function readProps(el: Element): ElementProps {
       border: toHex(cs.borderTopColor) ?? cs.borderTopColor,
     },
     radius: cs.borderRadius,
+    corners: {
+      topLeft: cs.borderTopLeftRadius,
+      topRight: cs.borderTopRightRadius,
+      bottomRight: cs.borderBottomRightRadius,
+      bottomLeft: cs.borderBottomLeftRadius,
+    },
     border: {
       width: cs.borderTopWidth,
       style: cs.borderTopStyle,
