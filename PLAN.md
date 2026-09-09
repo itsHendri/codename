@@ -278,6 +278,13 @@ click, which is the edit a token system wants. Each corner's radius is its
 own field once they differ, and `brand.md` ends with the critique, so the
 context an agent is handed already says what to be careful of.
 
+The naming scheme a project should use to be read natively — three layers,
+states on every colour that acts, one inactive set, a hierarchy with the
+primary level as the bare name — lives as the `design-system` skill in
+Hendri's skills repo (`~/Development/skills/skills/design-system`), not
+here: the skill is the single source of truth for the scheme, and the
+plugin reads whatever a page defines.
+
 **W11. The panel as a tool, not a report (L).** Done, September 2026, from
 a walk through the panel on forfontsake. Element became Layers and Design
 became Variables, with Changes last, where the hand-off is. The bar across
