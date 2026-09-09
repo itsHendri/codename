@@ -75,6 +75,8 @@ export interface BarLook {
   theme: OverlayTheme;
   /** Which way the bar's Light/Dark switch sits. */
   mode: Mode;
+  /** How many overrides Reset would take back; 0 hides the button. */
+  resettable: number;
 }
 
 /**
@@ -103,7 +105,7 @@ export async function attachBar(tabId: number, look: BarLook): Promise<void> {
 
 /** Re-send the bar's palette and switch position; the bar is shown if it was not. */
 export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
-  return sendInspector(tabId, { cmd: 'bar', on: true, theme: look.theme, mode: look.mode });
+  return sendInspector(tabId, { cmd: 'bar', on: true, theme: look.theme, mode: look.mode, resettable: look.resettable });
 }
 
 /* ---------------- live re-skin ---------------- */

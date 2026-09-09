@@ -19,6 +19,7 @@ import {
   commit,
   redo as redoLog,
   revert as revertLog,
+  revertAll as revertAllLog,
   toRules,
   toTextEdits,
   undo as undoLog,
@@ -50,6 +51,8 @@ export interface InspectController {
   undo(): void;
   redo(): void;
   revert(id: string): void;
+  /** Take every element edit back, keeping the history. */
+  revertAll(): void;
   /** While held, the page shows itself without any element edits. */
   viewOriginal(hold: boolean): void;
   walk(dir: 'parent' | 'child' | 'next' | 'prev'): void;
@@ -264,6 +267,7 @@ export function useInspect(
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),
     redo: () => setLog((l) => (canRedo(l) ? redoLog(l) : l)),
     revert: (id) => setLog((l) => revertLog(l, id)),
+    revertAll: () => setLog((l) => revertAllLog(l)),
     viewOriginal: setHolding,
     walk: (dir) => send({ cmd: 'walk', dir }),
     ancestor: (index) => send({ cmd: 'ancestor', depth: index }),

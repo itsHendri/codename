@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  revertAll,
   active,
   canRedo,
   canUndo,
@@ -59,6 +60,15 @@ describe('undo / redo / revert', () => {
     log = redo(log);
     expect(toRules(log)).toHaveLength(2);
     expect(undo(undo(undo(log))).cursor).toBe(0);
+  });
+
+  it('reverts everything at once and keeps the history', () => {
+    let log = commit(emptyLog(), { ...base, to: '9px' }, 1000);
+    log = commit(log, { ...base, property: 'color', from: '#000', to: '#fff' }, 2000);
+    log = revertAll(log);
+    expect(active(log)).toEqual([]);
+    expect(toRules(log)).toEqual([]);
+    expect(log.entries).toHaveLength(2);
   });
 
   it('reverts one change and leaves the rest in force', () => {

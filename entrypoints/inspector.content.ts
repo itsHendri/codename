@@ -308,6 +308,9 @@ function activate() {
       .bar .host { color: ${d.cardMuted}; }
       .bar .size { position: relative; cursor: pointer; padding: 3px 7px; border-radius: 4px; border: 1px solid ${d.cardLine}; color: ${d.cardInk}; background: transparent; font: inherit; }
       .bar .size:hover { border-color: ${d.accent}; }
+      .bar .reset { cursor: pointer; padding: 3px 9px; border-radius: 4px; border: 1px solid ${d.accent}; color: ${d.accent}; background: transparent; font: inherit; font-weight: 600; white-space: nowrap; }
+      .bar .reset:hover { background: ${d.accentWash}; }
+      .bar .reset span { margin-left: 5px; font-weight: 500; color: ${d.cardMuted}; }
       .bar .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 150px; padding: 4px; background: ${d.cardBg}; border: 1px solid ${d.cardLine}; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; }
       .bar .menu button { text-align: left; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; display: flex; gap: 8px; }
       .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
@@ -353,6 +356,8 @@ function activate() {
       <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
+      <span class="spacer"></span>
+      <button class="reset hidden" title="Take back every override: variables, colours, scale and element edits. Notes stay.">Reset<span></span></button>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
@@ -401,6 +406,7 @@ function activate() {
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
+  const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
   const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
@@ -415,6 +421,8 @@ function activate() {
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   let barMode: Mode = 'light';
+  /** How many overrides the panel holds; the bar only shows Reset when there are some. */
+  let resettable = 0;
   /** The page's zoom, as the background last reported it. 1 until asked. */
   let zoom = 1;
   let canReset = false;
@@ -1094,6 +1102,8 @@ function activate() {
     barLight.setAttribute('aria-checked', String(barMode === 'light'));
     barDark.classList.toggle('on', barMode === 'dark');
     barDark.setAttribute('aria-checked', String(barMode === 'dark'));
+    barReset.classList.toggle('hidden', resettable === 0);
+    barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
   };
 
   /** The zoom lives in the browser, not the page; ask before trusting the label. */
@@ -1258,6 +1268,10 @@ function activate() {
         : null,
     );
   };
+  barReset.addEventListener('click', () => {
+    send({ type: 'reset-all' });
+    showHint('<b>Reset</b> — every override is gone; the page is reading as itself again. Notes stay.');
+  });
   barLight.addEventListener('click', () => setMode('light'));
   barDark.addEventListener('click', () => setMode('dark'));
   // The mark folds the bar down to a pill and opens it again; the chevron only folds.
@@ -1406,10 +1420,8 @@ function activate() {
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
-        if (msg.mode && msg.mode !== barMode) {
-          barMode = msg.mode;
-          if (barOn) renderBar();
-        }
+        if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
+        if (typeof msg.resettable === 'number') resettable = msg.resettable;
         showBar(!!msg.on);
         break;
       case 'note':

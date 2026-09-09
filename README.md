@@ -67,7 +67,10 @@ the two read as one tool. It pushes the page down rather than floating over
 it (a header the page itself fixes to the top of the viewport still sits
 under the bar). On it: the Codename mark, the host, the viewport named by the
 preset it matches — "Tablet · 768 × 1024", or "Custom" — with the device
-presets behind it, a **Light / Dark** switch, and the modes. Picking a preset
+presets behind it, a **Reset** button in the centre whenever there is
+anything to take back (every override — variables, colours, scale and
+element edits — goes; notes stay), a **Light / Dark** switch, and the modes.
+Picking a preset
 resizes the window; when the display is too small for that beside the panel,
 the page is zoomed out until its CSS viewport is the preset width and the
 label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.

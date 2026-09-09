@@ -172,7 +172,7 @@ export type InspectorCommand =
   | { cmd: 'note'; on: boolean }
   | { cmd: 'measure'; on: boolean }
   /** Show the bar. `theme` is the panel's palette; `mode` is which way the Light/Dark switch sits. */
-  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode }
+  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode; resettable?: number }
   | { cmd: 'off' };
 
 export type RuntimeMessage =
@@ -198,6 +198,8 @@ export type RuntimeMessage =
   | { type: 'element-edit'; property: string; to: string }
   /** "More in panel" on that card. */
   | { type: 'panel-focus' }
+  /** Reset on the bar: every override goes, the page reads as itself. */
+  | { type: 'reset-all' }
   | { type: 'fetch-text'; url: string };
 
 export const DEVICE_PRESETS = [

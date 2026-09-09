@@ -99,6 +99,14 @@ export function revert(log: ChangeLog, id: string): ChangeLog {
   };
 }
 
+/** Take every change in force back at once. History stays; nothing is in effect. */
+export function revertAll(log: ChangeLog): ChangeLog {
+  return {
+    ...log,
+    entries: log.entries.map((e) => (e.status === 'applied' ? { ...e, status: 'reverted' } : e)),
+  };
+}
+
 /** The changes currently in effect: applied, not undone, oldest first. */
 export function active(log: ChangeLog): ElementChange[] {
   return log.entries.slice(0, log.cursor).filter((e) => e.status === 'applied');

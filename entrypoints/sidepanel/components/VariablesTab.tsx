@@ -36,6 +36,7 @@ export function VariablesTab({
   colorEdits,
   onLiveChange,
   onConfigChange,
+  onResetAll,
   onVar,
   onColor,
 }: {
@@ -48,6 +49,8 @@ export function VariablesTab({
   colorEdits: Record<string, string>;
   onLiveChange: (live: boolean) => void;
   onConfigChange: (config: BrandConfig | null) => void;
+  /** Every override, including element edits, back to what the page reads. */
+  onResetAll: () => void;
   onVar: (name: string, value: string | null) => void;
   onColor: (hex: string, value: string | null) => void;
 }) {
@@ -149,11 +152,11 @@ export function VariablesTab({
         </span>
         {dirty && (
           <button
-            onClick={() => onConfigChange(null)}
-            className="shrink-0 text-accent hover:underline"
-            title="Go back to what the page actually uses"
+            onClick={onResetAll}
+            className="shrink-0 rounded-control border border-accent px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent-soft"
+            title="Take back every override — variables, colours, scale and element edits. Notes stay. Also on the bar."
           >
-            revert
+            Reset all
           </button>
         )}
       </div>

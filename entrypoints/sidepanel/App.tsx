@@ -64,9 +64,7 @@ export default function App() {
   const { scan, config, mode, live, varOverrides, colorEdits } = session;
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
-  const look: BarLook = { theme, mode };
-  const lookRef = useRef(look);
-  lookRef.current = look;
+  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0 });
   const model = useDesignModel(scan, config, mode, varOverrides, colorEdits);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
@@ -104,6 +102,21 @@ export default function App() {
   const ctl = useInspect(tabId, tabUrl, session, focusedComment);
   const ctlRef = useRef(ctl);
   ctlRef.current = ctl;
+
+  // What Reset on the bar would take back: everything but the notes. The
+  // count is what the brief would carry; a seed moved with nothing on the
+  // page to follow it still counts as one, so the button still appears.
+  const overrideCount =
+    changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
+  const resettable = model?.dirty || activeChanges(session.log).length > 0 ? Math.max(1, overrideCount) : 0;
+  const look: BarLook = { theme, mode, resettable };
+  lookRef.current = look;
+
+  /** Every override goes; the page reads as itself. Notes are not overrides. */
+  const resetAll = useCallback(() => {
+    setConfig(null);
+    ctlRef.current.revertAll();
+  }, []);
 
   const restricted = isRestricted(tabUrl);
 
@@ -172,6 +185,8 @@ export default function App() {
         ctlRef.current.change(edit.property, edit.to);
       } else if (msg?.type === 'panel-focus') {
         setActive('layers');
+      } else if (msg?.type === 'reset-all') {
+        resetAll();
       } else if (msg?.type === 'mode-changed') {
         // The bar's Light/Dark switch; the session is the truth it echoes.
         const m = (msg as { mode?: string }).mode;
@@ -193,14 +208,14 @@ export default function App() {
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
-  }, []);
+  }, [resetAll]);
 
   // The in-page bar appears as soon as the site is reachable: a scan means
   // access was granted. It goes when the panel does, through its port. It is
   // told again whenever the panel's palette or the mode switch changes.
   useEffect(() => {
-    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode });
-  }, [tabId, scan, restricted, theme, mode]);
+    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode, resettable });
+  }, [tabId, scan, restricted, theme, mode, resettable]);
 
   // Undo and redo from the panel itself, unless the user is typing.
   useEffect(() => {
@@ -308,6 +323,7 @@ export default function App() {
             colorEdits={colorEdits}
             onLiveChange={(v) => updateSession({ live: v })}
             onConfigChange={setConfig}
+            onResetAll={resetAll}
             onVar={setVarOverride}
             onColor={setColorEdit}
           />
