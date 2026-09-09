@@ -24,7 +24,8 @@ import { useDesignModel, useLiveReskin } from './lib/designModel';
 import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
-import { LayersTab } from './components/LayersTab';
+import { LAYERS_SPLIT_KEY, LayersTab } from './components/LayersTab';
+import { resetSplit } from './components/SplitPane';
 import { ChangesTab } from './components/ChangesTab';
 import { VariablesTab } from './components/VariablesTab';
 import { SvgsTab } from './components/SvgsTab';
@@ -119,6 +120,7 @@ export default function App() {
     setConfig(null);
     setMode('light');
     ctlRef.current.revertAll();
+    resetSplit(LAYERS_SPLIT_KEY);
     // The viewport is the bar's to put back; the panel only asks.
     if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
   }, []);

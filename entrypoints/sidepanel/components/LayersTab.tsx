@@ -11,6 +11,9 @@ import { CommentComposer } from './inspect/Comments';
 import { LayersTree } from './inspect/LayersTree';
 import { SplitPane } from './SplitPane';
 
+/** Where the Layers split remembers itself; Reset puts it back. */
+export const LAYERS_SPLIT_KEY = 'codename:layersSplit';
+
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
 
@@ -76,7 +79,7 @@ export function LayersTab({
   // you left it.
   return (
     <SplitPane
-      storageKey="codename:layersSplit"
+      storageKey={LAYERS_SPLIT_KEY}
       top={<div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-2">{layers}</div>}
       bottom={
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">

@@ -6,6 +6,18 @@ export function clampRatio(ratio: number, min = 0.15, max = 0.85): number {
   return Math.min(max, Math.max(min, ratio));
 }
 
+const RESET_EVENT = 'codename:split-reset';
+
+/** Put a split back where it started, wherever it is mounted. */
+export function resetSplit(storageKey: string) {
+  try {
+    localStorage.removeItem(storageKey);
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new CustomEvent(RESET_EVENT, { detail: storageKey }));
+}
+
 function readRatio(key: string, fallback: number): number {
   try {
     const raw = localStorage.getItem(key);
@@ -45,6 +57,14 @@ export function SplitPane({
       /* private mode */
     }
   }, [storageKey, ratio]);
+
+  useEffect(() => {
+    const onReset = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === storageKey) setRatio(defaultRatio);
+    };
+    window.addEventListener(RESET_EVENT, onReset);
+    return () => window.removeEventListener(RESET_EVENT, onReset);
+  }, [storageKey, defaultRatio]);
 
   const fromPointer = (clientY: number) => {
     const box = ref.current?.getBoundingClientRect();
