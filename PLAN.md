@@ -266,6 +266,14 @@ chrome://extensions/shortcuts, beside the arrows, Escape and ⌘Z the page
 already had. Reset on the bar takes back every override, the dark
 preview, the viewport, the split and the selection at once.
 
+Then the smaller obvious ones: a Components strip above the Layers tree
+(class selectors that repeat with something inside them, read off the page;
+pick one and the scope is all of them); a filter box for page variables
+once there are more than a dozen; the panel remembers its tab; the tree
+walks from the keyboard; the hover readout and the edit card name the
+page's own variable beside a colour, and the card writes `var(--ink)` on a
+click, which is the edit a token system wants.
+
 **W11. The panel as a tool, not a report (L).** Done, September 2026, from
 a walk through the panel on forfontsake. Element became Layers and Design
 became Variables, with Changes last, where the hand-off is. The bar across

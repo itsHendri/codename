@@ -357,6 +357,9 @@ function activate() {
       .edit .colour { display: flex; gap: 5px; align-items: center; }
       .edit .colour input[type=color] { width: 22px; height: 22px; flex: 0 0 22px; padding: 0; cursor: pointer; }
       .edit .colour input[type=text] { flex: 1; font-family: ui-monospace, Menlo, monospace; }
+      .edit .colour .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
+      .edit .colour .tok:hover { border-color: ${d.accent}; }
+      .edit .colour .tok.hidden { display: none; }
       .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
       .bar .fold:hover { color: ${d.cardInk}; }
       .hidden { display: none; }
@@ -716,7 +719,25 @@ function activate() {
     };
     text.addEventListener('change', commit);
     text.addEventListener('keydown', (e) => isEnter(e) && commit());
-    wrap.append(pick, text);
+    // The page's own name for this colour, when it has one: writing `var(--ink)`
+    // is the edit a token system wants, and the brief carries the name.
+    const tok = document.createElement('button');
+    tok.className = 'tok';
+    tok.dataset.tokFor = property;
+    const showTok = (hex: string) => {
+      const name = named(hex);
+      tok.textContent = name ?? '';
+      tok.title = name ? `This is ${name} on this page — click to write var(${name}) instead of the hex` : '';
+      tok.classList.toggle('hidden', !name);
+    };
+    showTok(value);
+    tok.addEventListener('click', () => {
+      const name = named(text.value.trim()) ?? tok.textContent;
+      if (!name) return;
+      text.value = `var(${name})`;
+      emitEdit(property, `var(${name})`);
+    });
+    wrap.append(pick, text, tok);
     return wrap;
   };
 
@@ -846,6 +867,12 @@ function activate() {
       else el.value = v;
       const pick = el.previousElementSibling;
       if (pick instanceof HTMLInputElement && pick.type === 'color' && HEX6.test(v)) pick.value = v;
+      const tok = el.nextElementSibling;
+      if (tok instanceof HTMLButtonElement && tok.classList.contains('tok')) {
+        const name = named(v);
+        tok.textContent = name ?? '';
+        tok.classList.toggle('hidden', !name);
+      }
     }
   };
 
