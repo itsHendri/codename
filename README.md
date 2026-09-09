@@ -141,6 +141,8 @@ The bridge runs on your machine only: an MCP server on standard input and
 output for your agent, a WebSocket on `127.0.0.1` for the panel.
 
 The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
+`critique` (what a designer would flag on the page — contrast, off-grid
+spacing, near-duplicate colours, type strays — as facts with numbers),
 `get_selection`, `get_comments` with `set_status` and `reply`,
 `get_screenshot`, and — once you tick *Agent may change this page* —
 `apply_css` to paint a preview on the tab. Nothing is written to source

@@ -9,6 +9,8 @@
  */
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { critique, critiqueToText } from '@/studio/critique';
+import { seedBrandFromScan } from '@/studio/seedFromScan';
 import {
   DEFAULT_PORT,
   PROTOCOL_VERSION,
@@ -147,6 +149,18 @@ async function handle(req: BridgeRequest): Promise<unknown> {
           throw new Error('Chrome allows a screenshot only after the Codename icon was clicked on this tab; ask the user to click it and try again');
         throw err;
       }
+    }
+    case 'critique': {
+      if (!session.scan) throw new Error('the page has not been read yet; ask the user to press Scan');
+      const brand = session.config ?? seedBrandFromScan(session.scan);
+      const result = critique(session.scan, brand);
+      let host = session.scan.url;
+      try {
+        host = new URL(session.scan.url).host;
+      } catch {
+        /* keep the url */
+      }
+      return { ...result, text: critiqueToText(result, host) };
     }
     case 'apply_css': {
       if (!session.agentMayWrite) throw new Error('the user has not allowed the agent to change this page');

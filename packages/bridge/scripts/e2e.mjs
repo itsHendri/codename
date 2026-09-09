@@ -58,6 +58,7 @@ if (!connected) {
 
 await call('get_changes');
 await call('get_selection');
+await call('critique');
 await call('get_screenshot');
 await call('apply_css', { css: 'body { outline: 4px solid #59a6ff !important }' });
 await call('clear', { what: 'preview' });

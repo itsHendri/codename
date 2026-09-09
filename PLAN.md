@@ -292,10 +292,11 @@ In order.
    trigger-first interaction editor (hover, press, focus, appear, loop,
    scroll) with a shared easing curve. The largest remaining chunk, and the
    one that needs the most new engine surface.
-2. **A `critique` tool over the scan (S).** Impeccable's contribution: the
-   agent asks the panel what is wrong with the page and gets the APCA
-   failures, the off-grid spacing, the near-duplicate colours and the type
-   scale strays it already computes.
+2. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
+   the agent asks the panel what is wrong with the page and gets the contrast
+   pairs under AA with element counts, the off-grid spacing, the
+   near-duplicate colours, the type-ladder strays, the font-family and radius
+   counts — `studio/critique.ts`, deterministic, numbers attached.
 
 ### Deferred, on purpose
 Ship Studio's breakpoint canvas needs an iframe canvas, which the live-page

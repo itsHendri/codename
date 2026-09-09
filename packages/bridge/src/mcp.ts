@@ -117,6 +117,19 @@ export function createMcpServer(
   );
 
   register(
+    'critique',
+    {
+      description:
+        'What a designer would flag on the page, from what the panel measured: contrast pairs under AA with how many elements carry them, spacing off the grid the page is otherwise on, colours close enough to be one colour written twice, type sizes on no step of the ladder, too many font families, too many radii. Facts with numbers, not taste; act on them in source and say which you left alone.',
+      inputSchema: { session },
+    },
+    guard(async ({ session }) => {
+      const result = (await sessions.sendRequest(session, { method: 'critique' })) as { text: string };
+      return text(result.text);
+    }),
+  );
+
+  register(
     'get_screenshot',
     {
       description: 'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG.',

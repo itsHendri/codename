@@ -90,6 +90,8 @@ export interface SessionState {
 
 export type BridgeRequest =
   | { method: 'screenshot' }
+  /** What a designer would flag on the page, from what the scan measured. */
+  | { method: 'critique' }
   | { method: 'apply_css'; css: string }
   | { method: 'clear'; what: 'preview' | 'handoff' }
   | { method: 'set_status'; id: string; status: CommentStatus }

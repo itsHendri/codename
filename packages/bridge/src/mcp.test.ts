@@ -10,6 +10,7 @@ const EXPECTED_TOOLS = [
   'list_sessions',
   'get_changes',
   'watch',
+  'critique',
   'get_screenshot',
   'apply_css',
   'clear',
