@@ -190,7 +190,7 @@ export type InspectorCommand =
   | { cmd: 'note'; on: boolean }
   | { cmd: 'measure'; on: boolean }
   /** Show the bar. `theme` is the panel's palette; `mode` is which way the Light/Dark switch sits. */
-  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode; resettable?: number }
+  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode; resettable?: number; darkVia?: 'site' | 'mirror' | null }
   /** Put the window and zoom back where they were before the first preset. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };

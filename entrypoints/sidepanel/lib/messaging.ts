@@ -77,6 +77,8 @@ export interface BarLook {
   mode: Mode;
   /** How many overrides Reset would take back; 0 hides the button. */
   resettable: number;
+  /** How the dark preview is being shown, for the bar's hint. */
+  darkVia?: 'site' | 'mirror' | null;
 }
 
 /**
@@ -105,7 +107,14 @@ export async function attachBar(tabId: number, look: BarLook): Promise<void> {
 
 /** Re-send the bar's palette and switch position; the bar is shown if it was not. */
 export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
-  return sendInspector(tabId, { cmd: 'bar', on: true, theme: look.theme, mode: look.mode, resettable: look.resettable });
+  return sendInspector(tabId, {
+    cmd: 'bar',
+    on: true,
+    theme: look.theme,
+    mode: look.mode,
+    resettable: look.resettable,
+    darkVia: look.darkVia ?? null,
+  });
 }
 
 /* ---------------- live re-skin ---------------- */
@@ -136,6 +145,7 @@ function sendReskin(
     colorMap?: Record<string, string>;
     lengthMap?: LengthMap | null;
     css?: string;
+    mode?: 'light' | 'dark';
     rules?: { selector: string; property: string; value: string }[];
   },
 ): Promise<ReskinResult | null> {
@@ -153,6 +163,18 @@ export function applyReskin(
 
 export function clearReskin(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-clear' });
+}
+
+/* ---------------- the site's own dark mode ---------------- */
+
+export interface SiteModeResult extends ReskinResult {
+  /** The hooks the stylesheet hangs dark rules off, now set: `.dark`, `[data-theme="dark"]`. */
+  hooks: string[];
+}
+
+/** Show the page's own dark mode (its dark media rules and theme hooks), or put it back. */
+export function setSiteMode(tabId: number, mode: 'light' | 'dark'): Promise<SiteModeResult | null> {
+  return sendReskin(tabId, { type: 'site-mode', mode }) as Promise<SiteModeResult | null>;
 }
 
 /* ---------------- the agent's own preview sheet ---------------- */

@@ -325,10 +325,8 @@ In order.
 Ship Studio's breakpoint canvas needs an iframe canvas, which the live-page
 rule excludes; viewport presets on the bar are the answer instead. In-panel
 chat waits until the bridge has earned it. Firefox build and store listing
-are packaging, not product. Emulating a site's *own* dark mode needs the
-`debugger` permission and its permanent infobar; the mirrored preview is
-the answer for now. Components stay as ×N badges until a real grouping
-earns a section.
+are packaging, not product. Components stay as a strip of repeating
+selectors until a real grouping earns a section.
 
 ## Known limits and open questions
 
@@ -338,8 +336,11 @@ earns a section.
 - Zoom-to-fit matches width only, and Chrome resets a per-tab zoom on
   navigation, so a reload leaves the window resized at 100%; the label
   re-asks and says so.
-- The dark preview reads the page as light; a site that is already dark is
-  mostly left alone. Chromatic colours on no ramp keep their place.
+- Dark shows the page's own dark mode by hoisting its dark media rules and
+  setting its theme hook; a theme driven purely by script with no CSS hook
+  stays light, and light-only media rules cannot be switched off without
+  the debugger. The mirrored preview, used where the page has no dark mode,
+  reads the page as light; chromatic colours on no ramp keep their place.
 - The length rewrite, like the colour rewrite, never sees cross-origin
   sheets or inline styles.
 

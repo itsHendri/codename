@@ -455,6 +455,8 @@ function activate() {
   };
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
+  /** How the dark preview is being shown, as the panel last said. */
+  let darkVia: 'site' | 'mirror' | null = null;
   /** The page's zoom, as the background last reported it. 1 until asked. */
   let zoom = 1;
   let canReset = false;
@@ -1345,11 +1347,7 @@ function activate() {
     barMode = mode;
     renderBar();
     send({ type: 'mode-changed', mode });
-    showHint(
-      mode === 'dark'
-        ? '<b>Dark</b> — the page repaints with the dark side of its system. Light puts it back.'
-        : null,
-    );
+    showHint(mode === 'dark' ? '<b>Dark</b> — looking for the page\'s own dark mode…' : null);
   };
   barReset.addEventListener('click', () => {
     barMode = 'light';
@@ -1526,6 +1524,11 @@ function activate() {
         if (msg.theme) applyBarTheme(msg.theme);
         if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
+        if (msg.darkVia !== undefined && msg.darkVia !== darkVia) {
+          darkVia = msg.darkVia;
+          if (darkVia === 'site') showHint("<b>Dark</b> — this is the page's own dark mode, switched on from its stylesheet. Light puts it back.");
+          else if (darkVia === 'mirror') showHint('<b>Dark</b> — this page has no dark mode of its own, so it repaints with the dark side of its system. Light puts it back.');
+        }
         showBar(!!msg.on);
         break;
       case 'note':

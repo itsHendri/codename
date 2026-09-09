@@ -26,6 +26,11 @@ export interface TabSession {
   /** The edited system; null means "as scanned". */
   config: BrandConfig | null;
   mode: Mode;
+  /**
+   * How a dark preview is being shown: the site's own dark mode where it has
+   * one, else the system's mirrored ramps. Null in light.
+   */
+  darkVia: 'site' | 'mirror' | null;
   /** Whether edits repaint the page. */
   live: boolean;
   /** The panel tab showing, kept so a reopen lands where you were. */
@@ -59,6 +64,7 @@ const EMPTY: TabSession = {
   scan: null,
   config: null,
   mode: 'light',
+  darkVia: null,
   live: true,
   activeTab: 'layers',
   varOverrides: {},
@@ -270,5 +276,5 @@ export function setColorEdit(from: string, to: string | null) {
 
 /** Which side of the system the page previews. */
 export function setMode(mode: Mode) {
-  updateSession({ mode });
+  updateSession(mode === 'light' ? { mode, darkVia: null } : { mode });
 }

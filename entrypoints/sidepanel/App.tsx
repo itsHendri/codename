@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
-import { attachBar, ensureHostAccess, getActiveTab, isRestricted, runScan, sendInspector, type BarLook } from './lib/messaging';
+import {
+  attachBar,
+  ensureHostAccess,
+  getActiveTab,
+  isRestricted,
+  runScan,
+  sendInspector,
+  setSiteMode,
+  type BarLook,
+} from './lib/messaging';
 import {
   getSession,
   loadSession,
@@ -67,11 +76,14 @@ export default function App() {
 
   // The session outlives whichever tab is showing: an edit made in Variables is
   // still there, and still painted on the page, after a detour through Layers.
-  const { scan, config, mode, live, varOverrides, colorEdits } = session;
+  const { scan, config, mode, live, varOverrides, colorEdits, darkVia } = session;
+  // The engine mirrors its ramps only when the page has no dark mode of its
+  // own; where it has one, that is what Dark shows, and the system stays light.
+  const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
   const lookRef = useRef<BarLook>({ theme, mode, resettable: 0 });
-  const model = useDesignModel(scan, config, mode, varOverrides, colorEdits);
+  const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
@@ -115,7 +127,7 @@ export default function App() {
     changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
   const resettable =
     model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' ? Math.max(1, overrideCount) : 0;
-  const look: BarLook = { theme, mode, resettable };
+  const look: BarLook = { theme, mode, resettable, darkVia };
   lookRef.current = look;
 
   /** Every override goes, and the preview with it; the page reads as itself. Notes are not overrides. */
@@ -225,8 +237,24 @@ export default function App() {
   // access was granted. It goes when the panel does, through its port. It is
   // told again whenever the panel's palette or the mode switch changes.
   useEffect(() => {
-    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode, resettable });
-  }, [tabId, scan, restricted, theme, mode, resettable]);
+    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode, resettable, darkVia });
+  }, [tabId, scan, restricted, theme, mode, resettable, darkVia]);
+
+  // Dark on the bar asks the page for its own dark mode first — its dark
+  // media rules hoisted, its theme hook set — and only when it has none does
+  // the engine mirror its ramps. Light puts the page back. Asked again after
+  // a reload, like every other managed sheet.
+  useEffect(() => {
+    if (tabId == null || !scan || restricted) return;
+    if (mode === 'light') {
+      void setSiteMode(tabId, 'light');
+      return;
+    }
+    void setSiteMode(tabId, 'dark').then((r) => {
+      const own = !!r && (r.rules > 0 || r.hooks.length > 0);
+      updateSession({ darkVia: own ? 'site' : 'mirror' });
+    });
+  }, [tabId, scan, restricted, mode, session.generation]);
 
   // The page's own names for its colours, so the hover readout can say
   // "#15171B --ink" rather than a hex alone. The scan already matched them.
@@ -342,6 +370,7 @@ export default function App() {
             mode={mode}
             live={live}
             reskin={reskin}
+            darkVia={darkVia}
             varOverrides={varOverrides}
             colorEdits={colorEdits}
             onLiveChange={(v) => updateSession({ live: v })}

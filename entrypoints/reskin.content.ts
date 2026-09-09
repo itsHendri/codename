@@ -25,6 +25,7 @@
 
 import { lengthPx } from '@/studio/reskin';
 import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
+import { hookFromSelector, hookKey, isDarkMedia, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
 
 interface Override {
   name: string;
@@ -43,6 +44,8 @@ interface ApplyMessage {
   css?: string;
   /** Per-element edits from the Layers tab. */
   rules?: { selector: string; property: string; value: string }[];
+  /** For `site-mode`: which side of the page's own theme to show. */
+  mode?: 'light' | 'dark';
 }
 
 declare global {
@@ -64,7 +67,12 @@ const PREVIEW_ID = 'codename-agent-preview';
  * It is preview-only and never handed off, so the cost is nil.
  */
 const ELEMENTS_ID = 'codename-elements';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID]);
+/**
+ * The page's own dark rules, hoisted out of their media query so they apply
+ * in daylight. The site's dark mode, shown without the debugger permission.
+ */
+const SITE_DARK_ID = 'codename-site-dark';
+const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID]);
 /** A pathological page shouldn't hang the panel; stop well before that. */
 const MAX_RULES = 20000;
 
@@ -78,6 +86,9 @@ export default defineContentScript({
     let sheet: HTMLStyleElement | null = null;
     let preview: HTMLStyleElement | null = null;
     let elements: HTMLStyleElement | null = null;
+    let siteDark: HTMLStyleElement | null = null;
+    let appliedHooks: DarkHook[] = [];
+    let savedColorScheme: string | null = null;
     let ruleCount = 0;
 
     /* -------- hardcoded colours -------- */
@@ -193,6 +204,102 @@ export default defineContentScript({
       return out.length;
     };
 
+    /* -------- the site's own dark mode -------- */
+
+    /**
+     * Rules under a dark media query, re-emitted without it. A dark query
+     * joined to a breakpoint keeps the breakpoint; one joined with commas is
+     * left alone. Hooks the stylesheet hangs dark rules off are collected on
+     * the way so they can be set on the root.
+     */
+    const hoistDark = (rules: CSSRuleList, out: string[], hooks: Map<string, DarkHook>, inDark: boolean) => {
+      for (const rule of Array.from(rules)) {
+        if (ruleCount++ > MAX_RULES) return;
+        if (rule instanceof CSSMediaRule) {
+          const rest = withoutDarkQuery(rule.conditionText);
+          if (rest === undefined) {
+            if (isDarkMedia(rule.conditionText)) continue; // an arm we cannot separate
+            const inner: string[] = [];
+            hoistDark(rule.cssRules, inner, hooks, inDark);
+            if (inner.length) out.push(`@media ${rule.conditionText}{${inner.join('')}}`);
+            continue;
+          }
+          const inner: string[] = [];
+          hoistDark(rule.cssRules, inner, hooks, true);
+          if (inner.length) out.push(rest ? `@media ${rest}{${inner.join('')}}` : inner.join(''));
+          continue;
+        }
+        if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
+          const inner: string[] = [];
+          hoistDark(rule.cssRules, inner, hooks, inDark);
+          if (inner.length) {
+            const head = rule instanceof CSSSupportsRule ? `@supports ${rule.conditionText}` : '@layer';
+            out.push(`${head}{${inner.join('')}}`);
+          }
+          continue;
+        }
+        if (!(rule instanceof CSSStyleRule)) continue;
+        if (inDark) out.push(rule.cssText);
+        for (const sel of rule.selectorText.split(',')) {
+          const hook = hookFromSelector(sel.trim());
+          if (hook) hooks.set(hookKey(hook), hook);
+        }
+      }
+    };
+
+    const setHook = (hook: DarkHook, on: boolean) => {
+      for (const el of [root, document.body].filter(Boolean)) {
+        if (hook.kind === 'class') el.classList.toggle(hook.name, on);
+        else if (on) el.setAttribute(hook.name, hook.value);
+        else el.removeAttribute(hook.name);
+      }
+    };
+
+    const clearSiteDark = () => {
+      siteDark?.remove();
+      siteDark = null;
+      for (const h of appliedHooks) setHook(h, false);
+      appliedHooks = [];
+      if (savedColorScheme !== null) {
+        if (savedColorScheme) root.style.colorScheme = savedColorScheme;
+        else root.style.removeProperty('color-scheme');
+        savedColorScheme = null;
+      }
+    };
+
+    const setSiteMode = (mode: 'light' | 'dark'): { rules: number; hooks: string[] } => {
+      clearSiteDark();
+      if (mode === 'light') return { rules: 0, hooks: [] };
+      ruleCount = 0;
+      const out: string[] = [];
+      const hooks = new Map<string, DarkHook>();
+      for (const styleSheet of Array.from(document.styleSheets)) {
+        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
+        let rules: CSSRuleList;
+        try {
+          rules = styleSheet.cssRules;
+        } catch {
+          continue;
+        }
+        hoistDark(rules, out, hooks, false);
+      }
+      if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
+      if (out.length) {
+        siteDark = document.createElement('style');
+        siteDark.id = SITE_DARK_ID;
+        siteDark.textContent = out.join('\n');
+        // Before our own re-skin sheets, so an edit still wins over the theme.
+        const first = document.head.querySelector(`#${STYLE_ID}, #${ELEMENTS_ID}, #${PREVIEW_ID}`);
+        document.head.insertBefore(siteDark, first);
+      }
+      appliedHooks = Array.from(hooks.values());
+      for (const h of appliedHooks) setHook(h, true);
+      // Form controls and scrollbars follow too.
+      savedColorScheme = root.style.colorScheme;
+      root.style.colorScheme = 'dark';
+      return { rules: out.length, hooks: Array.from(hooks.keys()) };
+    };
+
     /* -------- variables -------- */
 
     const applyVars = (overrides: Override[]) => {
@@ -245,7 +352,7 @@ export default defineContentScript({
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: { ok: boolean; vars: number; rules: number }) => void,
+      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[] }) => void,
     ) => {
       if (msg?.type === 'reskin-apply') {
         applyVars(msg.overrides ?? []);
@@ -276,6 +383,11 @@ export default defineContentScript({
       if (msg?.type === 'elements-clear') {
         setElements([]);
         sendResponse({ ok: true, vars: applied.size, rules: 0 });
+        return true;
+      }
+      if (msg?.type === 'site-mode') {
+        const r = setSiteMode(msg.mode === 'dark' ? 'dark' : 'light');
+        sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks });
         return true;
       }
       return false;

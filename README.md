@@ -55,10 +55,14 @@ Layers · Variables · Assets · Export · Changes.
   - **Critique** — what a designer would flag on the page, from what the
     scan measured: contrast under AA with element counts, off-grid spacing,
     near-duplicate colours, type strays. The same list the agent gets.
-  The **Light / Dark** switch on the bar previews the page in the other side
-  of its system: every colour on a light ramp step moves to the mirrored dark
-  step, and greys invert by lightness. A preview, not a decision — it never
-  enters the brief.
+  The **Light / Dark** switch on the bar shows the page's own dark mode where
+  it has one — its `prefers-color-scheme: dark` rules are re-emitted without
+  the media query and the theme hook its stylesheet uses (`html.dark`,
+  `[data-theme="dark"]`) is set, no browser permission needed — and the hint
+  says so. Where the page has no dark mode, Dark previews the other side of
+  its system instead: every colour on a light ramp step moves to the mirrored
+  dark step, and greys invert by lightness. Either way it is a preview, not a
+  decision — it never enters the brief.
 - **Changes** — everything queued for the agent, wherever it came from: token
   definitions, scale changes, element edits with undo, redo and per-change
   revert, and your notes. A note says what it is about — an element, a set of

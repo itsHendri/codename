@@ -34,6 +34,7 @@ export function VariablesTab({
   mode,
   live,
   reskin,
+  darkVia,
   varOverrides,
   colorEdits,
   onLiveChange,
@@ -47,6 +48,7 @@ export function VariablesTab({
   mode: Mode;
   live: boolean;
   reskin: ReskinResult | null;
+  darkVia: 'site' | 'mirror' | null;
   varOverrides: Record<string, string>;
   colorEdits: Record<string, string>;
   onLiveChange: (live: boolean) => void;
@@ -116,9 +118,11 @@ export function VariablesTab({
   const painted = reskin ? reskin.vars + reskin.rules : 0;
   const rulesLive = (reskin?.rules ?? 0) > 0 && model.lengthMap !== null;
 
+  const darkNote =
+    darkVia === 'site' ? "previewing the page's own dark mode" : 'previewing dark — mirrored from the ramps';
   const status = !dirty
     ? mode === 'dark' && live
-      ? 'previewing dark — nothing changed yet'
+      ? `${darkNote} — nothing changed yet`
       : 'read from this page — nothing changed yet'
     : !live
       ? 'edited · page untouched'
