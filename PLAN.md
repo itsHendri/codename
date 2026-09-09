@@ -104,7 +104,9 @@ How a variable is matched, and nothing else is touched:
 - An inline root override outranks every author rule for that element — but a
   page whose theme is scoped to a descendant (`.theme-dark .card`) will not
   fully follow.
-- Path 2 can only read same-origin stylesheets; `unreadableSheets` records which.
+- Cross-origin stylesheets are fetched through the background with the site
+  access already granted, for the scan, the re-skin and the site's dark mode
+  alike; only a sheet that cannot be fetched either lands in `unreadableSheets`.
 - Colours written inline on an element are not rewritten — only rules are.
 
 ## The hand-off

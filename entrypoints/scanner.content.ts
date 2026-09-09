@@ -15,17 +15,14 @@ import { hookFromSelector, isDarkMedia } from '@/studio/siteMode';
 export default defineContentScript({
   registration: 'runtime',
   main() {
-    try {
-      const result = scanPage();
-      chrome.runtime.sendMessage({ type: 'scan-result', data: result });
-    } catch (err) {
-      chrome.runtime.sendMessage({ type: 'scan-error', error: String(err) });
-    }
+    scanPage()
+      .then((result) => chrome.runtime.sendMessage({ type: 'scan-result', data: result }))
+      .catch((err) => chrome.runtime.sendMessage({ type: 'scan-error', error: String(err) }));
   },
 });
 
-function scanPage(): ScanResult {
-  const css = gatherCss();
+async function scanPage(): Promise<ScanResult> {
+  const css = await gatherCss();
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
   attachDarkValues(customProps);
@@ -53,7 +50,13 @@ function scanPage(): ScanResult {
 
 /* ---------------- CSS acquisition ---------------- */
 
-function gatherCss(): { text: string; unreadable: string[]; sheets: { href: string | null; text: string }[] } {
+/**
+ * Every stylesheet's text. A cross-origin sheet hides its rules from the
+ * page, so its text is fetched through the background with the site access
+ * the user already granted; only one that cannot be fetched either is
+ * counted as unreadable.
+ */
+async function gatherCss(): Promise<{ text: string; unreadable: string[]; sheets: { href: string | null; text: string }[] }> {
   const sheets: { href: string | null; text: string }[] = [];
   const unreadable: string[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
@@ -66,10 +69,22 @@ function gatherCss(): { text: string; unreadable: string[]; sheets: { href: stri
       // concatenation loses that, and an agent being handed a change wants it.
       sheets.push({ href: sheet.href, text });
     } catch {
-      if (sheet.href) unreadable.push(sheet.href);
+      if (!sheet.href) continue;
+      const text = await fetchSheet(sheet.href);
+      if (text !== null) sheets.push({ href: sheet.href, text });
+      else unreadable.push(sheet.href);
     }
   }
   return { text: sheets.map((s) => s.text).join('\n'), unreadable, sheets };
+}
+
+async function fetchSheet(url: string): Promise<string | null> {
+  try {
+    const res = (await chrome.runtime.sendMessage({ type: 'fetch-text', url })) as { ok: boolean; text?: string } | undefined;
+    return res?.ok && typeof res.text === 'string' ? res.text : null;
+  } catch {
+    return null;
+  }
 }
 
 /* ---------------- Fonts ---------------- */

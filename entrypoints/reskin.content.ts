@@ -91,6 +91,51 @@ export default defineContentScript({
     let savedColorScheme: string | null = null;
     let ruleCount = 0;
 
+    /**
+     * Cross-origin stylesheets hide their rules from the page, but the
+     * background can fetch their text with the site access the user already
+     * granted. Parsed once into a detached sheet and kept for the document's
+     * life; a fetch that fails is remembered as null so it is not retried
+     * on every keystroke.
+     */
+    const fetched = new Map<string, CSSStyleSheet | null>();
+    const readableRules = async (styleSheet: CSSStyleSheet): Promise<CSSRuleList | null> => {
+      try {
+        return styleSheet.cssRules;
+      } catch {
+        /* cross-origin */
+      }
+      const href = styleSheet.href;
+      if (!href) return null;
+      if (!fetched.has(href)) {
+        let parsed: CSSStyleSheet | null = null;
+        try {
+          const res = (await chrome.runtime.sendMessage({ type: 'fetch-text', url: href })) as
+            | { ok: boolean; text?: string }
+            | undefined;
+          if (res?.ok && res.text) {
+            parsed = new CSSStyleSheet();
+            parsed.replaceSync(res.text);
+          }
+        } catch {
+          parsed = null;
+        }
+        fetched.set(href, parsed);
+      }
+      return fetched.get(href)?.cssRules ?? null;
+    };
+
+    /** Every sheet's rules, own sheets left out, cross-origin ones fetched. */
+    const allRules = async (): Promise<CSSRuleList[]> => {
+      const out: CSSRuleList[] = [];
+      for (const styleSheet of Array.from(document.styleSheets)) {
+        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
+        const rules = await readableRules(styleSheet);
+        if (rules) out.push(rules);
+      }
+      return out;
+    };
+
     /* -------- hardcoded colours -------- */
 
     const hexOf3 = (h: string) => `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toUpperCase();
@@ -176,23 +221,14 @@ export default defineContentScript({
       }
     };
 
-    const rewriteRules = (map: Record<string, string>, lengths: LengthMap | null): number => {
+    const rewriteRules = async (map: Record<string, string>, lengths: LengthMap | null): Promise<number> => {
       sheet?.remove();
       sheet = null;
       if (!Object.keys(map).length && isLengthMapEmpty(lengths)) return 0;
 
       ruleCount = 0;
       const out: string[] = [];
-      for (const styleSheet of Array.from(document.styleSheets)) {
-        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
-        let rules: CSSRuleList;
-        try {
-          rules = styleSheet.cssRules; // cross-origin sheets throw
-        } catch {
-          continue;
-        }
-        collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out);
-      }
+      for (const rules of await allRules()) collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out);
       if (!out.length) return 0;
 
       sheet = document.createElement('style');
@@ -267,22 +303,13 @@ export default defineContentScript({
       }
     };
 
-    const setSiteMode = (mode: 'light' | 'dark'): { rules: number; hooks: string[] } => {
+    const setSiteMode = async (mode: 'light' | 'dark'): Promise<{ rules: number; hooks: string[] }> => {
       clearSiteDark();
       if (mode === 'light') return { rules: 0, hooks: [] };
       ruleCount = 0;
       const out: string[] = [];
       const hooks = new Map<string, DarkHook>();
-      for (const styleSheet of Array.from(document.styleSheets)) {
-        if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
-        let rules: CSSRuleList;
-        try {
-          rules = styleSheet.cssRules;
-        } catch {
-          continue;
-        }
-        hoistDark(rules, out, hooks, false);
-      }
+      for (const rules of await allRules()) hoistDark(rules, out, hooks, false);
       if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
       if (out.length) {
         siteDark = document.createElement('style');
@@ -356,8 +383,9 @@ export default defineContentScript({
     ) => {
       if (msg?.type === 'reskin-apply') {
         applyVars(msg.overrides ?? []);
-        const rules = rewriteRules(msg.colorMap ?? {}, msg.lengthMap ?? null);
-        sendResponse({ ok: true, vars: applied.size, rules });
+        void rewriteRules(msg.colorMap ?? {}, msg.lengthMap ?? null).then((rules) =>
+          sendResponse({ ok: true, vars: applied.size, rules }),
+        );
         return true;
       }
       if (msg?.type === 'reskin-clear') {
@@ -386,8 +414,9 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'site-mode') {
-        const r = setSiteMode(msg.mode === 'dark' ? 'dark' : 'light');
-        sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks });
+        void setSiteMode(msg.mode === 'dark' ? 'dark' : 'light').then((r) =>
+          sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks }),
+        );
         return true;
       }
       return false;
