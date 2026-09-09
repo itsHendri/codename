@@ -171,7 +171,8 @@ export function ExportTab({
         <div className="font-medium">Consistency report</div>
         <p className="mt-1 text-sm text-ink-muted">
           {stats.colorCount} colors ({stats.grayCount} grays), {stats.fontFamilyCount} font families,{' '}
-          {stats.fontSizeCount} font sizes, {stats.gradientCount} gradients on this page.
+          {stats.fontSizeCount} font sizes, {stats.gradientCount} gradients on this page. brand.md carries
+          the Critique from Variables too.
         </p>
         <button
           onClick={() => setShowReport(!showReport)}

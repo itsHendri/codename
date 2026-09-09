@@ -1,4 +1,6 @@
 import { css_to_tokens } from '@projectwallace/css-design-tokens';
+import { critique } from '@/studio/critique';
+import { seedBrandFromScan } from '@/studio/seedFromScan';
 import type { ScanResult } from '@/shared/types';
 import { isGray } from './color';
 
@@ -145,6 +147,15 @@ export function buildBrandMd(scan: ScanResult, sections: ExportSections): string
   lines.push(
     `${stats.colorCount} distinct colors (${stats.grayCount} grays/neutrals), ${stats.fontFamilyCount} font families, ${stats.fontSizeCount} font sizes, ${stats.gradientCount} gradients.`,
   );
+  // The same facts the panel's Critique section and the agent's tool show,
+  // so a brand.md pasted as context already says what to be careful of.
+  const review = critique(scan, seedBrandFromScan(scan));
+  if (review.findings.length) {
+    lines.push('');
+    lines.push(`### What a designer would flag — ${review.summary}`);
+    lines.push('');
+    for (const f of review.findings) lines.push(`- [${f.level}] ${f.kind}: ${f.message}`);
+  }
   if (scan.unreadableSheets.length) {
     lines.push('');
     lines.push(

@@ -42,3 +42,16 @@ describe('buildBrandMd sections', () => {
     expect(md).not.toContain('## Shadows');
   });
 });
+
+describe('buildBrandMd critique', () => {
+  it('carries what a designer would flag, and stays quiet when there is nothing', () => {
+    expect(buildBrandMd(scan, all)).not.toContain('What a designer would flag');
+    const flawed: ScanResult = {
+      ...scan,
+      contrastPairs: [{ fg: '#9A9890', bg: '#E7E4DB', ratio: 2.6, count: 12 }],
+    };
+    const md = buildBrandMd(flawed, all);
+    expect(md).toContain('### What a designer would flag — 1 fail');
+    expect(md).toContain('[fail] contrast: #9A9890 on #E7E4DB is 2.6:1 across 12 elements');
+  });
+});
