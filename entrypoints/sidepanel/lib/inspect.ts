@@ -87,7 +87,7 @@ export interface InspectController {
   /** Hide a layer, or take the hiding back. */
   toggleHidden(node: LayerNode): void;
   /** Put a layer somewhere else among its siblings: before `before`, or last. */
-  move(node: LayerNode, parent: LayerNode, before: LayerNode | null, wasBefore: LayerNode | null): void;
+  move(node: LayerNode, parent: LayerNode, before: LayerNode | null, wasIn: LayerNode, wasBefore: LayerNode | null): void;
 }
 
 /** How a row reads in a sentence: its label, and its text when it has some. */
@@ -334,16 +334,19 @@ export function useInspect(
     refreshLayers,
     selectLayer: (node) => send({ cmd: 'select', selector: node.selector }),
     peekLayer: (node) => (node ? send({ cmd: 'peek', selector: node.selector }) : send({ cmd: 'unpeek' })),
-    move: (node, parent, before, wasBefore) => {
-      if (before?.id === node.id || (before === null && wasBefore === null) || before?.id === wasBefore?.id) return;
+    move: (node, parent, before, wasIn, wasBefore) => {
+      const samePlace = parent.id === wasIn.id && (before?.id ?? null) === (wasBefore?.id ?? null);
+      if (before?.id === node.id || samePlace) return;
+      const place = (p: LayerNode, b: LayerNode | null) =>
+        b ? `before ${rowName(b)} in \`${p.selector}\`` : `last in \`${p.selector}\``;
       setLog((l) =>
         commit(l, {
           selector: node.selector,
           matches: 1,
           stable: node.stable,
           property: 'move',
-          from: wasBefore ? `before ${rowName(wasBefore)}` : `last in \`${parent.selector}\``,
-          to: before ? `before ${rowName(before)} in \`${parent.selector}\`` : `last in \`${parent.selector}\``,
+          from: place(wasIn, wasBefore),
+          to: place(parent, before),
           move: { parent: parent.selector, before: before?.selector ?? null },
         }),
       );

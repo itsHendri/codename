@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ancestorsOf,
+  canHold,
   childrenOf,
   componentsOf,
+  isWithin,
   initialCollapsed,
   nextSiblingOf,
   parentOf,
@@ -129,6 +131,17 @@ describe('componentsOf', () => {
     const groups = componentsOf(rows);
     // A bare tag is structure, a leaf is not a component, so only .card remains.
     expect(groups.map((g) => [g.selector, g.count, g.nodes.length])).toEqual([['div.card', 3, 2]]);
+  });
+});
+
+describe('dropping into', () => {
+  it('refuses a row\'s own subtree and leaf elements', () => {
+    expect(isWithin(tree, tree[3]!, 4)).toBe(true);
+    expect(isWithin(tree, tree[3]!, 1)).toBe(false);
+    expect(isWithin(tree, tree[4]!, 4)).toBe(false);
+    expect(canHold(node(9, 1, 'div.card', 0))).toBe(true);
+    expect(canHold(node(9, 1, 'img.hero', 0))).toBe(false);
+    expect(canHold(node(9, 1, 'svg.brand-mark', 0))).toBe(false);
   });
 });
 

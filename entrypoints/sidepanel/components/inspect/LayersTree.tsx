@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ancestorsOf, initialCollapsed, nextSiblingOf, parentOf, visibleRows, type LayerNode } from '@/studio/layers';
+import {
+  ancestorsOf,
+  canHold,
+  initialCollapsed,
+  isWithin,
+  nextSiblingOf,
+  parentOf,
+  visibleRows,
+  type LayerNode,
+} from '@/studio/layers';
 
 /**
  * The page as a list you can pick from.
@@ -23,8 +32,8 @@ export function LayersTree({
   onSelect: (node: LayerNode) => void;
   onPeek: (node: LayerNode | null) => void;
   onToggleHidden: (node: LayerNode) => void;
-  /** Drop a row before another of its siblings, or last (`before` null). */
-  onMove: (node: LayerNode, parent: LayerNode, before: LayerNode | null, wasBefore: LayerNode | null) => void;
+  /** Drop a row into `parent`, before `before` or last (`before` null); `wasIn`/`wasBefore` say where it came from. */
+  onMove: (node: LayerNode, parent: LayerNode, before: LayerNode | null, wasIn: LayerNode, wasBefore: LayerNode | null) => void;
   onRefresh: () => void;
   loading: boolean;
 }) {
@@ -33,7 +42,7 @@ export function LayersTree({
   const [skipHidden, setSkipHidden] = useState(false);
   // A drag in progress: the row being carried, and where it would land.
   const [dragId, setDragId] = useState<number | null>(null);
-  const [drop, setDrop] = useState<{ id: number; where: 'before' | 'after' } | null>(null);
+  const [drop, setDrop] = useState<{ id: number; where: 'before' | 'after' | 'into' } | null>(null);
   const hiddenCount = useMemo(() => nodes.filter((n) => n.hidden).length, [nodes]);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
@@ -76,26 +85,33 @@ export function LayersTree({
     });
 
   /**
-   * Reordering by drag, among siblings only: a row can go before or after
-   * another row inside the same parent. Moving into a different parent is
-   * a bigger change than a reorder and is deliberately not offered.
+   * Moving by drag. The top and bottom quarters of a row mean before and
+   * after it, wherever it is in the tree; the middle means into it, as its
+   * last child, when it is something that can hold children. A row cannot be
+   * dropped into itself or anything inside it, and the root stays put.
    */
-  const dropFor = (target: LayerNode, e: React.DragEvent): { id: number; where: 'before' | 'after' } | null => {
+  const dropFor = (target: LayerNode, e: React.DragEvent): { id: number; where: 'before' | 'after' | 'into' } | null => {
     if (dragId === null || dragId === target.id) return null;
-    const a = parentOf(nodes, dragId);
-    const b = parentOf(nodes, target.id);
-    if (!a || !b || a.id !== b.id) return null;
+    const dragged = nodes.find((n) => n.id === dragId);
+    if (!dragged || isWithin(nodes, dragged, target.id)) return null;
     const box = e.currentTarget.getBoundingClientRect();
-    return { id: target.id, where: e.clientY < box.top + box.height / 2 ? 'before' : 'after' };
+    const y = (e.clientY - box.top) / box.height;
+    if (canHold(target) && y >= 0.3 && y <= 0.7) return { id: target.id, where: 'into' };
+    if (!parentOf(nodes, target.id)) return null;
+    return { id: target.id, where: y < 0.5 ? 'before' : 'after' };
   };
 
   const finishDrop = () => {
     if (dragId !== null && drop) {
       const node = nodes.find((n) => n.id === dragId)!;
       const target = nodes.find((n) => n.id === drop.id)!;
-      const parent = parentOf(nodes, dragId)!;
-      const before = drop.where === 'before' ? target : nextSiblingOf(nodes, target.id);
-      onMove(node, parent, before, nextSiblingOf(nodes, node.id));
+      const wasIn = parentOf(nodes, dragId)!;
+      if (drop.where === 'into') onMove(node, target, null, wasIn, nextSiblingOf(nodes, node.id));
+      else {
+        const parent = parentOf(nodes, target.id)!;
+        const before = drop.where === 'before' ? target : nextSiblingOf(nodes, target.id);
+        onMove(node, parent, before, wasIn, nextSiblingOf(nodes, node.id));
+      }
     }
     setDragId(null);
     setDrop(null);
@@ -217,7 +233,9 @@ export function LayersTree({
                   drop?.id === node.id
                     ? drop.where === 'before'
                       ? 'shadow-[inset_0_2px_0_0_var(--accent)]'
-                      : 'shadow-[inset_0_-2px_0_0_var(--accent)]'
+                      : drop.where === 'after'
+                        ? 'shadow-[inset_0_-2px_0_0_var(--accent)]'
+                        : 'shadow-[inset_0_0_0_2px_var(--accent)] bg-accent-soft'
                     : ''
                 }`}
                 style={{ paddingLeft: `${4 + node.depth * 9}px` }}

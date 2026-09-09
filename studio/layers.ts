@@ -104,6 +104,20 @@ function recount(rows: LayerNode[]): LayerNode[] {
   return out;
 }
 
+/** Elements that hold no children, so nothing can be dropped into them. */
+const LEAF_TAGS = new Set(['img', 'input', 'textarea', 'select', 'hr', 'br', 'svg', 'video', 'audio', 'canvas', 'iframe', 'picture', 'source']);
+
+/** Whether a row can take children: not a void or replaced element. */
+export const canHold = (node: LayerNode): boolean => !LEAF_TAGS.has(node.tag);
+
+/** Whether `id` is inside `ancestor` — its own subtree, so it cannot be dropped there. */
+export function isWithin(nodes: LayerNode[], ancestor: LayerNode, id: number): boolean {
+  const at = nodes.findIndex((n) => n.id === ancestor.id);
+  if (at < 0) return false;
+  for (let i = at + 1; i < nodes.length && nodes[i]!.depth > ancestor.depth; i++) if (nodes[i]!.id === id) return true;
+  return false;
+}
+
 /** The row this one sits inside, or null for the root. */
 export function parentOf(nodes: LayerNode[], id: number): LayerNode | null {
   const at = nodes.findIndex((n) => n.id === id);

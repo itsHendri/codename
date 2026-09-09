@@ -16,11 +16,11 @@ Layers · Variables · Assets · Export · Changes.
   by name or content, folds, hides a layer with one click, and lights a row up
   on the page as you run down it, walks from the keyboard (up and down move
   the selection, left and right fold and unfold, Enter picks), and can leave
-  out the layers the page is not painting. Drag a row before or after one of
-  its siblings and the page moves the element — a preview, since a framework
-  that owns the DOM may put it back on its next render — and the brief
-  carries the move as a sentence about the markup's order, undoable like any
-  edit. It is the
+  out the layers the page is not painting. Drag a row before or after any
+  other, or onto one to put it inside as the last child, and the page moves
+  the element — a preview, since a framework that owns the DOM may put it
+  back on its next render — and the brief carries the move as a sentence
+  about the markup: where it was, where to put it. Undoable like any edit. It is the
   answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the
   selection, and what you can change about it. Colour and
