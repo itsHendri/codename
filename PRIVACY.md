@@ -28,9 +28,11 @@ Nothing here leaves the browser.
 
 ## The agent bridge
 
-`codename-bridge` is a program you run yourself. It listens on
-`127.0.0.1` only, refuses connections from anything but the extension (by
-Origin) and requires the pairing code it prints. It speaks to your agent over
+`codename-bridge` is a program your agent runs for you (or that you run
+yourself). It listens on `127.0.0.1` only, refuses connections from anything
+but the extension (by Origin) and requires a pairing code, which it prints
+on start, hands to the agent through a `pairing_code` tool, and prints again
+for `codename-bridge code`. It speaks to your agent over
 standard input and output, on your machine. It writes one file,
 `~/.codename/bridge.json`, holding the code, port and its own process id, with
 owner-only permissions, and removes it on exit.

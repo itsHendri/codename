@@ -6,6 +6,7 @@ import { Sessions, type Link } from './sessions';
 import { makeState } from './test-helpers';
 
 const EXPECTED_TOOLS = [
+  'pairing_code',
   'list_sessions',
   'get_changes',
   'watch',
@@ -18,8 +19,8 @@ const EXPECTED_TOOLS = [
   'reply',
 ];
 
-async function connectedClient(sessions: Sessions) {
-  const { server, tools } = createMcpServer(sessions, '0.0.0-test');
+async function connectedClient(sessions: Sessions, pairingCode?: string) {
+  const { server, tools } = createMcpServer(sessions, '0.0.0-test', { pairingCode });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   const client = new Client({ name: 'test', version: '0' });
@@ -39,6 +40,15 @@ describe('MCP tools', () => {
     const listed = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(listed).toEqual([...EXPECTED_TOOLS].sort());
     await close();
+  });
+
+  it('tells the user the pairing code, and says so when it has none', async () => {
+    const paired = await connectedClient(new Sessions(), 'K7M4XQ');
+    expect(textOf(await paired.client.callTool({ name: 'pairing_code', arguments: {} }))).toContain('K7M4XQ');
+    await paired.close();
+    const bare = await connectedClient(new Sessions());
+    expect(textOf(await bare.client.callTool({ name: 'pairing_code', arguments: {} }))).toMatch(/no pairing code/);
+    await bare.close();
   });
 
   it('answers from the session snapshot and refuses writes without consent', async () => {

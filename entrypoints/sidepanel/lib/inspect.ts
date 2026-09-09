@@ -1,5 +1,5 @@
 /**
- * What the Inspect tab can do to the page, behind one object.
+ * What the Layers tab can do to the page, behind one object.
  *
  * The components render `InspectController`; `useInspect` is the only
  * implementation and owns the change log, the messages to the inspector and

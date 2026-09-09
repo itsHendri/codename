@@ -63,7 +63,8 @@ export function BridgeSection() {
           }}
         >
           <p className="px-1 text-2xs text-ink-muted">
-            Run <code className="font-mono">npx codename-bridge</code> and enter the code it prints.
+            Enter the pairing code: ask your agent for it, or run{' '}
+            <code className="font-mono">npx codename-bridge code</code>. The Changes tab walks through it.
           </p>
           <div className="flex gap-1.5">
             <input

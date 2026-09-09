@@ -9,7 +9,15 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import pkg from '../package.json';
 import { DEFAULT_PORT } from '../../../shared/protocol';
 import { createMcpServer } from './mcp';
-import { bridgeFilePath, generateToken, readBridgeFile, removeBridgeFile, TOKEN_RE, writeBridgeFile } from './pairing';
+import {
+  bridgeFilePath,
+  generateToken,
+  readBridgeFile,
+  readPairingCode,
+  removeBridgeFile,
+  TOKEN_RE,
+  writeBridgeFile,
+} from './pairing';
 import { Sessions } from './sessions';
 import { startServer } from './ws';
 
@@ -21,12 +29,31 @@ Runs the local companion for the codename extension: an MCP server on stdio
 for your agent and a WebSocket on 127.0.0.1 for the panel.
 
 Usage: codename-bridge [--port N] [--keep-token]
+       codename-bridge code
 
+  code            Print the pairing code of the bridge that is running, and exit.
+                  Your agent starts the bridge and swallows what it prints, so
+                  this is how you read the code — or ask the agent for it.
   --port N        Port for the panel socket (default ${DEFAULT_PORT}, or $CODENAME_PORT)
   --keep-token    Reuse the pairing code from ~/.codename/bridge.json
   --version       Print the version
   --help          This text
 `;
+
+/**
+ * `codename-bridge code`: for a person at a terminal, so it goes to stdout.
+ * Everything else the bridge says goes to stderr because stdout is the MCP
+ * transport — but this invocation is not a transport.
+ */
+function printCode(): never {
+  const running = readPairingCode();
+  if (!running) {
+    log('no codename-bridge is running — start your agent (it launches the bridge), or run npx codename-bridge');
+    process.exit(1);
+  }
+  process.stdout.write(`${running.token}\n`);
+  process.exit(0);
+}
 
 interface Args {
   port: number;
@@ -63,6 +90,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 async function main() {
+  if (process.argv[2] === 'code') printCode();
   const args = parseArgs(process.argv.slice(2));
   const filePath = bridgeFilePath();
   const previous = readBridgeFile(filePath);
@@ -90,7 +118,7 @@ async function main() {
   writeBridgeFile(filePath, { token, port: server.port, pid: process.pid, startedAt: new Date().toISOString() });
   log(`codename-bridge listening on ws://127.0.0.1:${server.port} — pairing code: ${token}`);
 
-  const { server: mcp } = createMcpServer(sessions, pkg.version);
+  const { server: mcp } = createMcpServer(sessions, pkg.version, { pairingCode: token });
   const transport = new StdioServerTransport();
 
   let closing = false;

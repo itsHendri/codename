@@ -48,6 +48,21 @@ export function writeBridgeFile(path: string, file: BridgeFile): void {
   chmodSync(path, 0o600);
 }
 
+/**
+ * The code a running bridge is waiting for, or null when none is running.
+ * The file outlives a crashed process, so the pid in it is checked first.
+ */
+export function readPairingCode(path = bridgeFilePath()): { token: string; port: number } | null {
+  const file = readBridgeFile(path);
+  if (!file) return null;
+  try {
+    process.kill(file.pid, 0);
+  } catch {
+    return null;
+  }
+  return { token: file.token, port: file.port };
+}
+
 /** Removes the file only when it still describes this process. */
 export function removeBridgeFile(path: string, pid: number): boolean {
   const current = readBridgeFile(path);

@@ -107,25 +107,35 @@ which is an instruction the agent can act on in source.
 
 ### Connect your agent
 
-```sh
-npx codename-bridge
-```
+Three steps, which the Changes tab walks you through until you are paired
+(**Connect agent** in the footer takes you there):
 
-The bridge prints a pairing code; enter it in the panel menu. It runs on your
-machine only: an MCP server on standard input and output for your agent, a
-WebSocket on `127.0.0.1` for the panel. Register it once:
+1. Register the bridge with your agent, once:
 
-```sh
-claude mcp add codename -- npx codename-bridge
-```
+   ```sh
+   claude mcp add codename -- npx codename-bridge
+   ```
 
-or, for Cursor, in `mcp.json`:
+   or, for Cursor, in `mcp.json`:
 
-```json
-{ "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
-```
+   ```json
+   { "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
+   ```
 
-The agent then has `get_changes`, a blocking `watch` it can loop on,
+2. Start your agent. It launches the bridge, which prints a six-character
+   pairing code — to the agent, not to you. Ask the agent for it (it has a
+   `pairing_code` tool), or read it yourself:
+
+   ```sh
+   npx codename-bridge code
+   ```
+
+3. Enter the code in the panel.
+
+The bridge runs on your machine only: an MCP server on standard input and
+output for your agent, a WebSocket on `127.0.0.1` for the panel.
+
+The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `get_selection`, `get_comments` with `set_status` and `reply`,
 `get_screenshot`, and — once you tick *Agent may change this page* —
 `apply_css` to paint a preview on the tab. Nothing is written to source
@@ -204,7 +214,7 @@ would and drives every tool once a panel pairs.
   `style.css` (dark default, light override, exposed to Tailwind through
   `@theme inline`); `theme.test.ts` runs the engine's APCA audit against them.
   `lib/session.ts` holds everything about the current tab outside any one
-  tab's component tree; `lib/inspect.ts` is the Inspect tab's controller;
+  tab's component tree; `lib/inspect.ts` is the Layers tab's controller;
   `lib/bridge.ts` owns the WebSocket to the companion.
 - `entrypoints/scanner.content.ts`, `inspector.content.ts`,
   `reskin.content.ts` — runtime registered, injected via `chrome.scripting` on

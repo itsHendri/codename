@@ -7,6 +7,7 @@ import type { InspectController } from '../lib/inspect';
 import { sendToAgent, useBridge } from '../lib/bridge';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
+import { ConnectAgentCard } from './ConnectAgentCard';
 import { CommentComposer, CommentList } from './inspect/Comments';
 import type { CommentTarget } from '@/studio/annotations';
 
@@ -67,6 +68,11 @@ export function ChangesTab({
             something on the page. Whatever you do collects here as one brief for your agent.
           </p>
         </div>
+        {status === 'off' && (
+          <div className="px-3 pb-3">
+            <ConnectAgentCard />
+          </div>
+        )}
       </div>
     );
   }
@@ -185,15 +191,19 @@ export function ChangesTab({
       </div>
 
       <div className="sticky bottom-0 flex flex-col gap-1.5 border-t border-line bg-surface-app px-3 py-2">
-        <p className="text-2xs text-ink-muted">
-          {connected
-            ? 'Nothing is written until your agent runs — review its diff as usual.'
-            : 'Not connected: run `npx codename-bridge` and pair from the menu, or copy the brief.'}
-        </p>
+        {status === 'off' ? (
+          <ConnectAgentCard />
+        ) : (
+          <p className="text-2xs text-ink-muted">
+            {connected
+              ? 'Nothing is written until your agent runs — review its diff as usual.'
+              : 'Looking for the bridge — start your agent, or copy the brief meanwhile.'}
+          </p>
+        )}
         <button
           onClick={() => (sendToAgent() ? flash('sent') : null)}
           disabled={empty || !connected}
-          title={connected ? 'Hand this to the connected agent' : 'Start `npx codename-bridge` and pair in the menu'}
+          title={connected ? 'Hand this to the connected agent' : 'Connect your agent first'}
           className="rounded-control border border-accent bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
         >
           {copied === 'sent' ? 'Sent — your agent will pick it up' : handoff ? 'Sent · send again' : 'Send to agent'}

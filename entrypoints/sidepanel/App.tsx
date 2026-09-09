@@ -359,6 +359,15 @@ export default function App() {
       <footer className="flex items-center gap-2 border-t border-line-subtle px-2.5 py-1.5 text-sm text-ink-muted">
         <AppMenu compact />
         <BridgeDot status={bridge.status} />
+        {bridge.status === 'off' && (
+          <button
+            onClick={() => setActive('changes')}
+            className="shrink-0 rounded-control border border-accent/60 px-1.5 py-0.5 text-2xs text-accent hover:bg-accent-soft"
+            title="Pair the panel with your agent"
+          >
+            Connect agent
+          </button>
+        )}
         {scan ? (
           <span className="truncate text-xs">
             {scan.colors.length} colors · {scan.fontUsage.length} fonts · {scan.svgs.length} SVGs

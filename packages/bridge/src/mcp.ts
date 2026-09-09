@@ -33,13 +33,36 @@ const guard =
     }
   };
 
-export function createMcpServer(sessions: Sessions, version: string): { server: McpServer; tools: string[] } {
+export interface McpOptions {
+  /** The code the panel must be given to pair with this bridge. */
+  pairingCode?: string;
+}
+
+export function createMcpServer(
+  sessions: Sessions,
+  version: string,
+  opts: McpOptions = {},
+): { server: McpServer; tools: string[] } {
   const server = new McpServer({ name: 'codename', version });
   const tools: string[] = [];
   const register: McpServer['registerTool'] = (name, config, cb) => {
     tools.push(name);
     return server.registerTool(name, config, cb);
   };
+
+  register(
+    'pairing_code',
+    {
+      description:
+        'The six-character code the user types into the Codename panel (Changes tab, or the menu) to pair it with this bridge. Tell it to the user when they ask how to connect; it is for them alone and is never sent anywhere else.',
+      inputSchema: {},
+    },
+    guard(() =>
+      opts.pairingCode
+        ? text(`Pairing code: ${opts.pairingCode} — enter it in the Codename panel under Connect agent.`)
+        : text('This bridge has no pairing code.'),
+    ),
+  );
 
   register(
     'list_sessions',
