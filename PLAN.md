@@ -272,7 +272,9 @@ pick one and the scope is all of them); a filter box for page variables
 once there are more than a dozen; the panel remembers its tab; the tree
 walks from the keyboard; the hover readout and the edit card name the
 page's own variable beside a colour, and the card writes `var(--ink)` on a
-click, which is the edit a token system wants.
+click, which is the edit a token system wants. Each corner's radius is its
+own field once they differ, and `brand.md` ends with the critique, so the
+context an agent is handed already says what to be careful of.
 
 **W11. The panel as a tool, not a report (L).** Done, September 2026, from
 a walk through the panel on forfontsake. Element became Layers and Design
