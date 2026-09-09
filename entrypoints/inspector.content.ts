@@ -300,7 +300,7 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .bar { position: fixed; top: 0; left: 0; right: 0; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar { position: fixed; top: 0; left: 0; right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
       .bar.collapsed > :not(.mark) { display: none; }
       .bar .mark { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; letter-spacing: -0.01em; }
@@ -318,7 +318,7 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
-      .hint { position: fixed; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
+      .hint { position: fixed; z-index: 2; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
       .hint.fading { opacity: 0; }
       .hint b { font-weight: 600; }
       .composer { position: fixed; pointer-events: auto; width: 280px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); padding: 8px; font: 400 12px/1.4 ${font}; }
@@ -332,6 +332,19 @@ function activate() {
       .composer .save { background: ${d.accent}; color: ${d.cardBg}; }
       .composer .save:disabled { opacity: 0.4; cursor: default; }
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
+      .edit { position: fixed; z-index: 1; pointer-events: auto; width: 232px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); font: 400 11px/1.4 ${font}; font-variant-numeric: tabular-nums; }
+      .edit .grip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab; border-bottom: 1px solid ${d.cardLine}; color: ${d.cardMuted}; font-size: 10px; user-select: none; }
+      .edit .grip:active { cursor: grabbing; }
+      .edit .grip code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${d.cardInk}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
+      .edit .grip .more { cursor: pointer; color: ${d.accent}; white-space: nowrap; background: none; border: 0; padding: 0; font: 600 10px/1.4 ${font}; }
+      .edit .fields { display: grid; grid-template-columns: 50px 1fr; gap: 5px 8px; padding: 8px; align-items: center; }
+      .edit label { color: ${d.cardMuted}; }
+      .edit input, .edit select { width: 100%; box-sizing: border-box; border: 1px solid ${d.cardLine}; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; padding: 3px 5px; }
+      .edit input:focus, .edit select:focus { outline: none; border-color: ${d.accent}; }
+      .edit select option { background: ${d.cardBg}; color: ${d.cardInk}; }
+      .edit .colour { display: flex; gap: 5px; align-items: center; }
+      .edit .colour input[type=color] { width: 22px; height: 22px; flex: 0 0 22px; padding: 0; cursor: pointer; }
+      .edit .colour input[type=text] { flex: 1; font-family: ui-monospace, Menlo, monospace; }
       .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
       .bar .fold:hover { color: ${d.cardInk}; }
       .hidden { display: none; }
@@ -361,6 +374,7 @@ function activate() {
     </div>
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
+    <div class="edit hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="tag hidden"></div>
@@ -390,6 +404,7 @@ function activate() {
   const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
+  const editCard = shadow.querySelector<HTMLElement>('.edit')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -440,6 +455,8 @@ function activate() {
   const select = (el: Element | null) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
     selected = el;
+    editPinned = null;
+    renderEdit();
     layout();
     announce();
   };
@@ -523,8 +540,10 @@ function activate() {
       if (selected?.isConnected) {
         selBox.classList.remove('hidden');
         place(selBox, rectOf(selected));
+        placeEdit();
       } else {
         selBox.classList.add('hidden');
+        editCard.classList.add('hidden');
         if (selected) {
           // The page re-rendered it away; say so rather than track a ghost.
           selected = null;
@@ -615,6 +634,221 @@ function activate() {
           : null,
       );
     }
+  };
+
+  /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
+
+  /** Where the card was dragged to, if it was; otherwise it follows the element. */
+  let editPinned: { left: number; top: number } | null = null;
+  let editDrag: { x: number; y: number; left: number; top: number } | null = null;
+
+  const EDIT_FIELDS: { label: string; property: string }[] = [
+    { label: 'Text', property: 'color' },
+    { label: 'Fill', property: 'background-color' },
+    { label: 'Size', property: 'font-size' },
+    { label: 'Weight', property: 'font-weight' },
+    { label: 'Padding', property: 'padding' },
+    { label: 'Radius', property: 'border-radius' },
+  ];
+
+  const HEX6 = /^#[0-9a-f]{6}$/i;
+  const isEnter = (e: KeyboardEvent) => e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
+  const asPx = (v: string) => (/^-?\d*\.?\d+$/.test(v.trim()) ? `${v.trim()}px` : v.trim());
+  /** A shorthand typed as "8 16" means pixels; anything with units is kept. */
+  const asLengths = (v: string) => v.trim().split(/\s+/).map(asPx).join(' ');
+
+  const editValues = (props: ElementProps): Record<string, string> => {
+    const z = (v: string) => (v === '0px' ? '0' : v);
+    const [t, r, b, l] = [props.box.paddingTop, props.box.paddingRight, props.box.paddingBottom, props.box.paddingLeft].map(z);
+    const padding = t === r && r === b && b === l ? t! : t === b && r === l ? `${t} ${r}` : `${t} ${r} ${b} ${l}`;
+    return {
+      color: props.color.text,
+      'background-color': props.color.background,
+      'font-size': props.type.fontSize,
+      'font-weight': props.type.fontWeight,
+      padding,
+      'border-radius': props.radius,
+    };
+  };
+
+  const emitEdit = (property: string, to: string) => send({ type: 'element-edit', property, to });
+
+  const colourControl = (property: string, value: string): HTMLElement => {
+    const wrap = document.createElement('div');
+    wrap.className = 'colour';
+    const pick = document.createElement('input');
+    pick.type = 'color';
+    pick.value = HEX6.test(value) ? value : '#000000';
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.value = value;
+    text.spellcheck = false;
+    text.dataset.prop = property;
+    pick.addEventListener('input', () => {
+      text.value = pick.value.toUpperCase();
+      emitEdit(property, text.value);
+    });
+    const commit = () => {
+      const v = text.value.trim();
+      if (!v || !CSS.supports('color', v)) return;
+      if (HEX6.test(v)) pick.value = v;
+      emitEdit(property, v);
+    };
+    text.addEventListener('change', commit);
+    text.addEventListener('keydown', (e) => isEnter(e) && commit());
+    wrap.append(pick, text);
+    return wrap;
+  };
+
+  const lengthControl = (property: string, value: string, many = false): HTMLElement => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.spellcheck = false;
+    input.dataset.prop = property;
+    const commit = () => {
+      const v = many ? asLengths(input.value) : asPx(input.value);
+      if (!v || !CSS.supports(property, v)) return;
+      input.value = v;
+      emitEdit(property, v);
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', (e) => {
+      if (isEnter(e)) commit();
+      // Arrows nudge a single length by a pixel; shift makes it ten.
+      const dir = e.key === 'ArrowUp' ? 1 : e.key === 'ArrowDown' ? -1 : 0;
+      if (!dir || many) return;
+      const m = /^(-?\d*\.?\d+)(px|rem|em)?$/.exec(input.value.trim());
+      if (!m) return;
+      e.preventDefault();
+      const step = (e.shiftKey ? 10 : 1) * dir;
+      input.value = `${Math.round((parseFloat(m[1]!) + step) * 100) / 100}${m[2] ?? 'px'}`;
+      commit();
+    });
+    return input;
+  };
+
+  const weightControl = (value: string): HTMLElement => {
+    const sel = document.createElement('select');
+    sel.dataset.prop = 'font-weight';
+    for (let w = 100; w <= 900; w += 100) {
+      const o = document.createElement('option');
+      o.value = String(w);
+      o.textContent = String(w);
+      sel.appendChild(o);
+    }
+    sel.value = String(Math.round(parseFloat(value) / 100) * 100 || 400);
+    sel.addEventListener('change', () => emitEdit('font-weight', sel.value));
+    return sel;
+  };
+
+  const renderEdit = () => {
+    editCard.replaceChildren();
+    if (!selected?.isConnected) {
+      editCard.classList.add('hidden');
+      return;
+    }
+    const props = readProps(selected);
+    const values = editValues(props);
+
+    const grip = document.createElement('div');
+    grip.className = 'grip';
+    const name = document.createElement('code');
+    name.textContent = props.intent.matches > 1 ? props.intent.selector : props.selector;
+    name.title = props.selector;
+    const more = document.createElement('button');
+    more.className = 'more';
+    more.textContent = 'More in panel ↗';
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      send({ type: 'panel-focus' });
+    });
+    grip.append(name, more);
+
+    // Drag by the grip: the card then stays where it was put until the next pick.
+    grip.addEventListener('pointerdown', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      const box = editCard.getBoundingClientRect();
+      editDrag = { x: e.clientX, y: e.clientY, left: box.left, top: box.top };
+      grip.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', (e) => {
+      if (!editDrag) return;
+      editPinned = {
+        left: editDrag.left + (e.clientX - editDrag.x),
+        top: editDrag.top + (e.clientY - editDrag.y),
+      };
+      placeEdit();
+    });
+    const endDrag = () => {
+      editDrag = null;
+    };
+    grip.addEventListener('pointerup', endDrag);
+    grip.addEventListener('pointercancel', endDrag);
+
+    const fields = document.createElement('div');
+    fields.className = 'fields';
+    for (const f of EDIT_FIELDS) {
+      const label = document.createElement('label');
+      label.textContent = f.label;
+      const value = values[f.property] ?? '';
+      const control =
+        f.property === 'color' || f.property === 'background-color'
+          ? colourControl(f.property, value)
+          : f.property === 'font-weight'
+            ? weightControl(value)
+            : lengthControl(f.property, value, f.property === 'padding');
+      fields.append(label, control);
+    }
+
+    // Escape leaves the field, not the selection; the page's own shortcuts stay out.
+    editCard.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') (e.target as HTMLElement).blur();
+    });
+
+    editCard.append(grip, fields);
+    editCard.classList.remove('hidden');
+    placeEdit();
+  };
+
+  /** After the panel applied a change, the computed values moved; show them, but never under a caret. */
+  const refreshEdit = (props: ElementProps) => {
+    if (editCard.classList.contains('hidden')) return;
+    const values = editValues(props);
+    const focused = shadow.activeElement as HTMLElement | null;
+    for (const el of editCard.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-prop]')) {
+      if (el === focused) continue;
+      const v = values[el.dataset.prop!];
+      if (v === undefined) continue;
+      if (el instanceof HTMLSelectElement) el.value = String(Math.round(parseFloat(v) / 100) * 100 || 400);
+      else el.value = v;
+      const pick = el.previousElementSibling;
+      if (pick instanceof HTMLInputElement && pick.type === 'color' && HEX6.test(v)) pick.value = v;
+    }
+  };
+
+  /** Below the element, or above when there is no room; clear of the bar either way. */
+  const placeEdit = () => {
+    if (!selected?.isConnected || editCard.classList.contains('hidden')) return;
+    const w = editCard.offsetWidth || 232;
+    const h = editCard.offsetHeight || 200;
+    const clear = barOn ? BAR_HEIGHT + 8 : 8;
+    if (editPinned) {
+      Object.assign(editCard.style, {
+        left: `${Math.min(Math.max(8, editPinned.left), innerWidth - w - 8)}px`,
+        top: `${Math.min(Math.max(clear, editPinned.top), innerHeight - h - 8)}px`,
+      });
+      return;
+    }
+    const r = rectOf(selected);
+    const below = r.y + r.height + 8;
+    const top = below + h <= innerHeight - 8 ? below : Math.max(clear, r.y - h - 8);
+    Object.assign(editCard.style, {
+      left: `${Math.min(Math.max(8, r.x), innerWidth - w - 8)}px`,
+      top: `${Math.min(Math.max(clear, top), innerHeight - h - 8)}px`,
+    });
   };
 
   /* ----- notes: what a note is about ----- */
@@ -1056,11 +1290,13 @@ function activate() {
 
   /**
    * The real target, not the shadow host. A window listener sees our own host
-   * for anything inside the overlay, so `e.target` would say "not typing"
-   * while the composer has the caret.
+   * for anything inside the overlay — a closed root hides its inside from
+   * `composedPath()` too — so the root's own `activeElement` is what says
+   * whether the composer or the edit card has the caret.
    */
   const typing = (e: Event) => {
-    const el = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
+    const inside = shadow.activeElement as HTMLElement | null;
+    const el = inside ?? ((e.composedPath()[0] ?? e.target) as HTMLElement | null);
     return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ''));
   };
 
@@ -1130,9 +1366,12 @@ function activate() {
         if (target) select(target);
         break;
       }
-      case 'read':
-        sendResponse(selected ? readProps(selected) : null);
+      case 'read': {
+        const props = selected ? readProps(selected) : null;
+        if (props) refreshEdit(props);
+        sendResponse(props);
         return true;
+      }
       case 'layers':
         sendResponse(buildLayers());
         return true;

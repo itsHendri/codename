@@ -83,6 +83,11 @@ describe('derived views', () => {
     expect(grouped(log).map((g) => g.selector)).toEqual(['h1', '.btn']);
   });
 
+  it('carries a shorthand through to the page untouched', () => {
+    const log = commit(emptyLog(), { ...base, property: 'padding', from: '8px 16px', to: '12px' }, 1000);
+    expect(toRules(log)).toEqual([{ selector: '.btn', property: 'padding', value: '12px' }]);
+  });
+
   it('last write wins per selector and property in the rule list', () => {
     let log = commit(emptyLog(), { ...base, to: '9px' }, 1000);
     log = commit(log, { ...base, to: '20px' }, 5000);

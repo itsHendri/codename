@@ -157,6 +157,15 @@ const edit = (over: Partial<ElementChange>): ElementChange => ({
 });
 
 describe('element changes', () => {
+  it('renders a shorthand as one line, still no stylesheet', () => {
+    const edits: ElementChange[] = [
+      { id: 'e1', selector: '.btn', matches: 1, stable: true, property: 'padding', from: '8px 16px', to: '12px', status: 'applied', at: '2026-09-08T00:00:00.000Z' },
+    ];
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, edits));
+    expect(prompt).toContain('`padding`: `8px 16px` → `12px`');
+    expect(prompt).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+
   it('collapses a scrub to one line, first value to last', () => {
     const out = summariseElements([edit({ id: 'a', to: '9px' }), edit({ id: 'b', from: '9px', to: '14px' })]);
     expect(out).toEqual([expect.objectContaining({ from: '8px', to: '14px' })]);

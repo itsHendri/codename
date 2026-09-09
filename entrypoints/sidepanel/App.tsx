@@ -166,6 +166,12 @@ export default function App() {
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
         if (msg.data) setActive('layers');
+      } else if (msg?.type === 'element-edit') {
+        // The edit card on the page: same log, same rules, same undo and brief.
+        const edit = msg as unknown as { property: string; to: string };
+        ctlRef.current.change(edit.property, edit.to);
+      } else if (msg?.type === 'panel-focus') {
+        setActive('layers');
       } else if (msg?.type === 'mode-changed') {
         // The bar's Light/Dark switch; the session is the truth it echoes.
         const m = (msg as { mode?: string }).mode;

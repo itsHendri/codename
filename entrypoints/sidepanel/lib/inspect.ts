@@ -84,9 +84,22 @@ export interface InspectController {
   toggleHidden(node: LayerNode): void;
 }
 
+/**
+ * Four sides as the shortest shorthand that says the same thing, units kept:
+ * `8px` when all agree, `8px 16px` when the pairs do, all four otherwise.
+ */
+export function paddingShorthand(box: Pick<ElementProps['box'], 'paddingTop' | 'paddingRight' | 'paddingBottom' | 'paddingLeft'>): string {
+  const z = (v: string) => (v === '0px' ? '0' : v);
+  const [t, r, b, l] = [box.paddingTop, box.paddingRight, box.paddingBottom, box.paddingLeft].map(z);
+  if (t === r && r === b && b === l) return t!;
+  if (t === b && r === l) return `${t} ${r}`;
+  return `${t} ${r} ${b} ${l}`;
+}
+
 /** The current value of a longhand, as the element reports it. */
 export function readValue(el: ElementProps, property: string): string {
   const map: Record<string, string> = {
+    padding: paddingShorthand(el.box),
     'margin-top': el.box.marginTop,
     'margin-right': el.box.marginRight,
     'margin-bottom': el.box.marginBottom,

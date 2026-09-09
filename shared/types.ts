@@ -194,6 +194,10 @@ export type RuntimeMessage =
   | { type: 'viewport-state' }
   /** The bar's Light/Dark switch. */
   | { type: 'mode-changed'; mode: Mode }
+  /** A value changed on the edit card that sits on the selected element. */
+  | { type: 'element-edit'; property: string; to: string }
+  /** "More in panel" on that card. */
+  | { type: 'panel-focus' }
   | { type: 'fetch-text'; url: string };
 
 export const DEVICE_PRESETS = [
