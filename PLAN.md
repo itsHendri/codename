@@ -280,6 +280,16 @@ click, which is the edit a token system wants. Each corner's radius is its
 own field once they differ, and `brand.md` ends with the critique, so the
 context an agent is handed already says what to be careful of.
 
+A further pass closed the depth items: a layer can be dragged anywhere in
+the tree, including into another element as its last child; the scanner
+reads each variable's value under the page's own dark mode; cross-origin
+stylesheets are fetched through the background for the scan, the re-skin
+and the site's dark mode alike; the edit card edits words; the model no
+longer re-derives the seed on every keystroke and the push to the page is
+debounced; and the panel is mounted in a test suite against a repo-side
+chrome stub (`entrypoints/sidepanel/test/chromeStub.ts`), so what the
+harness checked by hand is pinned.
+
 The naming scheme a project should use to be read natively — three layers,
 states on every colour that acts, one inactive set, a hierarchy with the
 primary level as the bare name — lives as the `design-system` skill in
