@@ -205,7 +205,8 @@ export default function App() {
       } else if (msg?.type === 'element-edit') {
         // The edit card on the page: same log, same rules, same undo and brief.
         const edit = msg as unknown as { property: string; to: string };
-        ctlRef.current.change(edit.property, edit.to);
+        if (edit.property === 'text') ctlRef.current.setText(edit.to);
+        else ctlRef.current.change(edit.property, edit.to);
       } else if (msg?.type === 'panel-focus') {
         setActive('layers');
       } else if (msg?.type === 'reset-all') {

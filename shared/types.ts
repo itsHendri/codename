@@ -61,6 +61,11 @@ export interface CustomPropInfo {
   source?: string;
   /** How many declarations reference it, as a measure of blast radius. */
   uses?: number;
+  /**
+   * Its value under the page's own dark mode — a `prefers-color-scheme: dark`
+   * block or a theme hook like `html.dark` — when the page defines one.
+   */
+  dark?: string;
 }
 
 /** A CSS value observed on the page, with how often it was seen. */

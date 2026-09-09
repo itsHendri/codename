@@ -60,12 +60,20 @@ export function useDesignModel(
   varOverrides: Record<string, string>,
   colorEdits: Record<string, string>,
 ): DesignModel | null {
-  return useMemo(() => {
+  // The reading of the page changes only when the page is read again; a
+  // colour picker firing per frame must not re-derive it, or resolve the
+  // untouched baseline, every time.
+  const seed = useMemo(() => {
     if (!scan) return null;
     const seeded = seedBrandFromScan(scan);
+    return { seeded, baseline: resolveTokens(seeded) };
+  }, [scan]);
+
+  return useMemo(() => {
+    if (!scan || !seed) return null;
+    const { seeded, baseline } = seed;
     const brand = config ?? seeded;
-    const resolved = resolveTokens(brand);
-    const baseline = config ? resolveTokens(seeded) : resolved;
+    const resolved = config ? resolveTokens(brand) : baseline;
     const edited = config !== null;
     const manual = manualOverrides(varOverrides, scan.customProps);
     const colours = prune(colorEdits);
@@ -99,7 +107,7 @@ export function useDesignModel(
       lengthMap: isLengthMapEmpty(lengthMap) ? null : lengthMap,
       system: edited ? diffSystem(seeded, brand) : [],
     };
-  }, [scan, config, mode, varOverrides, colorEdits]);
+  }, [scan, seed, config, mode, varOverrides, colorEdits]);
 }
 
 /**
@@ -132,7 +140,12 @@ export function useLiveReskin(
       return;
     }
     lastSent.current = { tabId, key };
-    void applyReskin(tabId, overrides, colorMap, lengthMap).then((r) => setResult(empty ? null : r));
+    // A drag fires per frame; the page repaints at most every few frames and
+    // always ends on the last value, since a newer key cancels the timer.
+    const timer = window.setTimeout(() => {
+      void applyReskin(tabId, overrides, colorMap, lengthMap).then((r) => setResult(empty ? null : r));
+    }, 40);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabId, generation, overrides, colorMap, lengthMap]);
 

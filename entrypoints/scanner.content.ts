@@ -10,6 +10,7 @@ import type {
   SvgAsset,
   ValueTally,
 } from '@/shared/types';
+import { hookFromSelector, isDarkMedia } from '@/studio/siteMode';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -27,6 +28,7 @@ function scanPage(): ScanResult {
   const css = gatherCss();
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
+  attachDarkValues(customProps);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -394,6 +396,44 @@ function extractCustomProps(
     // Blast radius: how many declarations lean on this token.
     uses: allCss.split(`var(${name}`).length - 1,
   }));
+}
+
+/**
+ * The value each variable takes under the page's own dark mode. The scan keeps
+ * the first definition as the cascade would in light; this reads the sheets
+ * again through the object model and takes the last definition found under a
+ * dark media query or a dark theme hook, which is what the cascade does there.
+ */
+function attachDarkValues(props: CustomPropInfo[]) {
+  const byName = new Map(props.map((p) => [p.name, p]));
+  const walk = (rules: CSSRuleList, inDark: boolean) => {
+    for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSMediaRule) {
+        walk(rule.cssRules, inDark || isDarkMedia(rule.conditionText));
+        continue;
+      }
+      if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
+        walk(rule.cssRules, inDark);
+        continue;
+      }
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const dark = inDark || rule.selectorText.split(',').some((s) => hookFromSelector(s.trim()) !== null);
+      if (!dark) continue;
+      for (const prop of Array.from(rule.style)) {
+        if (!prop.startsWith('--')) continue;
+        const known = byName.get(prop);
+        const value = rule.style.getPropertyValue(prop).trim();
+        if (known && value && value !== known.value) known.dark = value;
+      }
+    }
+  };
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      walk(sheet.cssRules, false);
+    } catch {
+      /* cross-origin */
+    }
+  }
 }
 
 /** Give extracted colors the site's own token names when a custom property resolves to them. */

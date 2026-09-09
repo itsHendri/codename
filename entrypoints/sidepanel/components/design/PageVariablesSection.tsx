@@ -145,6 +145,15 @@ function VarRow({
         <code className="min-w-0 flex-1 truncate text-xs" title={`${prop.name}: ${prop.value}${source ? ` — ${source}` : ''}`}>
           {prop.name}
         </code>
+        {prop.dark && (
+          <span
+            className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
+            title={`Under the page's dark mode: ${prop.dark}`}
+          >
+            {kind === 'colour' && <i className="inline-block h-3 w-3 rounded-sm border border-line" style={{ background: prop.dark }} />}
+            dark
+          </span>
+        )}
         {prop.uses != null && prop.uses > 0 && (
           <span className="shrink-0 font-mono text-2xs text-ink-muted" title={`${prop.uses} declarations use it`}>
             ×{prop.uses}

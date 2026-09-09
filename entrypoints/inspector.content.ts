@@ -713,6 +713,7 @@ function activate() {
   let editDrag: { x: number; y: number; left: number; top: number } | null = null;
 
   const EDIT_FIELDS: { label: string; property: string }[] = [
+    { label: 'Words', property: 'text' },
     { label: 'Text', property: 'color' },
     { label: 'Fill', property: 'background-color' },
     { label: 'Size', property: 'font-size' },
@@ -732,6 +733,7 @@ function activate() {
     const [t, r, b, l] = [props.box.paddingTop, props.box.paddingRight, props.box.paddingBottom, props.box.paddingLeft].map(z);
     const padding = t === r && r === b && b === l ? t! : t === b && r === l ? `${t} ${r}` : `${t} ${r} ${b} ${l}`;
     return {
+      ...(props.text !== null ? { text: props.text } : {}),
       color: props.color.text,
       'background-color': props.color.background,
       'font-size': props.type.fontSize,
@@ -843,6 +845,21 @@ function activate() {
     return wrap;
   };
 
+  /** The element's own words, committed on Enter or blur; the panel's text edit path applies them. */
+  const textControl = (value: string): HTMLElement => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.spellcheck = true;
+    input.dataset.prop = 'text';
+    const commit = () => {
+      if (input.value !== value) emitEdit('text', input.value);
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', (e) => isEnter(e) && commit());
+    return input;
+  };
+
   const weightControl = (value: string): HTMLElement => {
     const sel = document.createElement('select');
     sel.dataset.prop = 'font-weight';
@@ -905,11 +922,15 @@ function activate() {
     const fields = document.createElement('div');
     fields.className = 'fields';
     for (const f of EDIT_FIELDS) {
+      // Only an element whose own children are text can have its words edited.
+      if (f.property === 'text' && props.text === null) continue;
       const label = document.createElement('label');
       label.textContent = f.label;
       const value = values[f.property] ?? '';
       const control =
-        f.property === 'color' || f.property === 'background-color'
+        f.property === 'text'
+          ? textControl(value)
+          : f.property === 'color' || f.property === 'background-color'
           ? colourControl(f.property, value)
           : f.property === 'font-weight'
             ? weightControl(value)
