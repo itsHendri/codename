@@ -29,7 +29,6 @@ export function EmptyState({
       >
         {needsAccess ? 'Allow and read the page' : 'Read this page'}
       </button>
-      <p className="text-xs text-ink-muted">the colour picker works anywhere, no access needed</p>
       {error && <p className="max-w-64 text-xs text-warn-ink">{error}</p>}
     </div>
   );
@@ -51,7 +50,7 @@ export function ScanningState() {
   );
 }
 
-export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenInspect: () => void }) {
+export function RestrictedState({ url, onOpenLayers }: { url: string; onOpenLayers: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <svg className="h-12 w-12 text-warn-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -66,16 +65,13 @@ export function RestrictedState({ url, onOpenInspect }: { url: string; onOpenIns
       </p>
       <div className="flex items-start gap-2 border-t border-dashed border-line-subtle pt-3 text-xs text-ink-muted">
         <WarnIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
-        <span>
-          Still available: the <b className="text-ink-secondary">colour picker</b> samples your whole
-          screen
-        </span>
+        <span>Layers, Variables and the hand-off all need a page Chrome lets extensions read.</span>
       </div>
       <button
-        onClick={onOpenInspect}
+        onClick={onOpenLayers}
         className="rounded-card border border-line-strong px-5 py-1.5 text-ink hover:bg-surface-recessed"
       >
-        Open Inspect
+        Open Layers
       </button>
     </div>
   );

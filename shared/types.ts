@@ -1,4 +1,6 @@
 import type { CommentTarget, Pin } from '@/studio/annotations';
+import type { OverlayTheme } from './theme';
+import type { Mode } from '@/studio/engine/types';
 
 export interface FontFaceInfo {
   family: string;
@@ -169,20 +171,29 @@ export type InspectorCommand =
   /** Draw-a-box / click / shift-click to say what a note is about. */
   | { cmd: 'note'; on: boolean }
   | { cmd: 'measure'; on: boolean }
-  | { cmd: 'bar'; on: boolean }
+  /** Show the bar. `theme` is the panel's palette; `mode` is which way the Light/Dark switch sits. */
+  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode }
   | { cmd: 'off' };
 
 export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
   | { type: 'element-selected'; data: ElementProps | null }
-  | { type: 'hover-toggled'; active: boolean }
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-target'; target: CommentTarget }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
-  | { type: 'resize-window'; width: number; height: number }
-  | { type: 'text-edited'; selector: string; from: string; to: string }
+  /** The bar picked a preset. The page sends what it knows; the background works out the window. */
+  | {
+      type: 'resize-window';
+      preset: { name: string; width: number; height: number };
+      inner: { width: number; height: number };
+      outer: { width: number; height: number };
+    }
+  | { type: 'reset-viewport' }
+  | { type: 'viewport-state' }
+  /** The bar's Light/Dark switch. */
+  | { type: 'mode-changed'; mode: Mode }
   | { type: 'fetch-text'; url: string };
 
 export const DEVICE_PRESETS = [

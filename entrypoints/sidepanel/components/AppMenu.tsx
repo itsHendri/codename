@@ -10,9 +10,9 @@ const THEMES: { key: ThemePref; label: string }[] = [
 ];
 
 /**
- * The wordmark is the menu. A 360px header has room for the site and the
- * viewport control and nothing else, so settings that are set once — the
- * theme, and later the agent bridge — live behind the name.
+ * The mark in the footer is the menu. Settings that are set once — the theme,
+ * site access, the agent bridge's pairing — live behind it rather than
+ * taking a tab.
  */
 const LOCAL_ORIGINS = ['http://localhost/*', 'http://127.0.0.1/*'];
 

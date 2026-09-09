@@ -63,8 +63,8 @@ export function ChangesTab({
         <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
           <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
           <p className="max-w-60 text-sm text-ink-muted">
-            Change a seed in Design, edit an element, or turn on Note across the page and mark
-            something. Whatever you do collects here as one brief for your agent.
+            Change a variable in Variables, edit a layer, or turn on Comment on the bar and mark
+            something on the page. Whatever you do collects here as one brief for your agent.
           </p>
         </div>
       </div>

@@ -1,4 +1,6 @@
 import type { InspectorCommand } from '@/shared/types';
+import type { OverlayTheme } from '@/shared/theme';
+import type { Mode } from '@/studio/engine/types';
 
 const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
 
@@ -67,16 +69,26 @@ export function sendInspector<T = unknown>(tabId: number, command: InspectorComm
 let barPort: chrome.runtime.Port | null = null;
 let barTab: number | null = null;
 
+export interface BarLook {
+  /** The panel's palette, which the bar wears. */
+  theme: OverlayTheme;
+  /** Which way the bar's Light/Dark switch sits. */
+  mode: Mode;
+}
+
 /**
  * Show the in-page bar and hold a port open to it, so the page knows the
  * moment the panel closes and can take the bar and hover mode down with it.
  */
-export async function attachBar(tabId: number): Promise<void> {
-  if (barTab === tabId && barPort) return;
+export async function attachBar(tabId: number, look: BarLook): Promise<void> {
+  if (barTab === tabId && barPort) {
+    void setBarLook(tabId, look);
+    return;
+  }
   barPort?.disconnect();
   barPort = null;
   barTab = tabId;
-  const shown = await sendInspector(tabId, { cmd: 'bar', on: true });
+  const shown = await setBarLook(tabId, look);
   if (!shown) return;
   try {
     barPort = chrome.tabs.connect(tabId, { name: 'codename-panel' });
@@ -88,14 +100,9 @@ export async function attachBar(tabId: number): Promise<void> {
   }
 }
 
-export async function startInspector(tabId: number): Promise<void> {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['content-scripts/inspector.js'] });
-  await sendInspector(tabId, { cmd: 'hover', on: true });
-  await attachBar(tabId);
-}
-
-export async function stopInspector(tabId: number): Promise<void> {
-  await sendInspector(tabId, { cmd: 'hover', on: false });
+/** Re-send the bar's palette and switch position; the bar is shown if it was not. */
+export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
+  return sendInspector(tabId, { cmd: 'bar', on: true, theme: look.theme, mode: look.mode });
 }
 
 /* ---------------- live re-skin ---------------- */

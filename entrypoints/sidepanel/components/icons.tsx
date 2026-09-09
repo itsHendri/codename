@@ -94,15 +94,6 @@ export function CopyIcon({ className = 'w-3.5 h-3.5' }: IconProps) {
   );
 }
 
-export function EyeDropperIcon({ className = base }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M9 4 L12 7 L6.5 12.5 L3 13 L3.5 9.5 Z" />
-      <path d="M10.5 2.5 L13.5 5.5" />
-    </svg>
-  );
-}
-
 export function WarnIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

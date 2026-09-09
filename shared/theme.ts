@@ -23,3 +23,9 @@ export const OVERLAY = {
 } as const;
 
 export type OverlayTheme = keyof typeof OVERLAY;
+
+/**
+ * The strip across the top of the page and the panel's tab bar share this
+ * height, so the two read as one piece of chrome rather than two tools.
+ */
+export const BAR_HEIGHT = 40;

@@ -168,8 +168,9 @@ against the fresh scan, never a preset); wire the tested-but-unwired exports
 flags; per-file SVG download; README and `PRIVACY.md`.
 
 **W5. The panel's shape (M).** Done. The bar across the page carries the
-host, the viewport and the Inspect switch, so the panel's own header went.
-Five tabs: Element · Design · Changes · Assets · Export. The Element tab
+host, the viewport and the Select switch, so the panel's own header went.
+Five tabs, since renamed and reordered: Layers · Variables · Assets · Export ·
+Changes. The Layers tab
 leads with colour and type, open, and collapses the rest behind a summary —
 before this, the colour of a heading sat 1012px down a 1751px scroll, which
 reads as "you cannot change this". Changes and notes moved out of the
@@ -194,8 +195,8 @@ still hears about it.
 selector: one element, a set of them, a region in page coordinates, or a
 quoted run of text. Note mode on the bar is how you say which — click, drag a
 box over anything including empty space, shift-click to build a set, or
-select text and click it. Freeze holds CSS animations, Web Animations and
-video still so a moment can be marked up.
+select text and click it. (Freeze, which held animations still, went with
+Pause in W10.)
 
 The quote, not an offset, is what a text note carries: an offset goes stale
 the moment a word changes, and the quote is the thing an agent can search

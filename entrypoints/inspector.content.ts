@@ -1,5 +1,5 @@
 /**
- * The in-page half of the Inspect tab.
+ * The in-page half of the Layers tab.
  *
  * It used to be a one-shot hover probe that vanished on click. Now it stays:
  * a selection outlives hover mode, can be walked with the arrow keys, is
@@ -10,7 +10,9 @@
  */
 
 import type { ElementProps, InspectorCommand } from '@/shared/types';
-import { OVERLAY } from '@/shared/theme';
+import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
+import { viewportLabel } from '@/shared/viewport';
+import type { Mode } from '@/studio/engine/types';
 import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
@@ -258,14 +260,23 @@ function find(selector: string | undefined): Element | null {
 
 function activate() {
   const c = OVERLAY[matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'];
-  // The bar is the tool's chrome, not part of the page: dark like the panel, always.
-  const d = OVERLAY.dark;
+  // The bar is the tool's chrome, not part of the page, so it wears the
+  // panel's palette. The panel tells it which; until then, dark.
+  const d = {
+    accent: 'var(--cn-accent)',
+    accentWash: 'var(--cn-wash)',
+    cardBg: 'var(--cn-bg)',
+    cardInk: 'var(--cn-ink)',
+    cardMuted: 'var(--cn-muted)',
+    cardLine: 'var(--cn-line)',
+  };
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
   const host = document.createElement(HOST_TAG.toLowerCase());
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const shadow = host.attachShadow({ mode: 'closed' });
   shadow.innerHTML = `
     <style>
+      :host { --cn-accent: ${OVERLAY.dark.accent}; --cn-wash: ${OVERLAY.dark.accentWash}; --cn-bg: ${OVERLAY.dark.cardBg}; --cn-ink: ${OVERLAY.dark.cardInk}; --cn-muted: ${OVERLAY.dark.cardMuted}; --cn-line: ${OVERLAY.dark.cardLine}; }
       * { box-sizing: border-box; }
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
@@ -288,7 +299,7 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .bar { position: fixed; top: 0; left: 0; right: 0; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar { position: fixed; top: 0; left: 0; right: 0; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
       .bar.collapsed > :not(.mark) { display: none; }
       .bar .mark { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; letter-spacing: -0.01em; }
@@ -301,12 +312,12 @@ function activate() {
       .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
       .bar .menu button:hover { background: ${d.accentWash}; }
       .bar .spacer { flex: 1; }
-      .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.cardLine}33; border: 1px solid ${d.cardLine}; }
+      .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
       .bar .mode { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
-      .hint { position: fixed; top: 34px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
+      .hint { position: fixed; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
       .hint.fading { opacity: 0; }
       .hint b { font-weight: 600; }
       .composer { position: fixed; pointer-events: auto; width: 280px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); padding: 8px; font: 400 12px/1.4 ${font}; }
@@ -325,10 +336,18 @@ function activate() {
       .hidden { display: none; }
     </style>
     <div class="bar hidden">
-      <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" fill="${d.accent}" stroke="none"/></svg><span>Codename</span></div>
+      <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
+      <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
+        <button class="mode light" role="radio" aria-checked="false">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Light
+        </button>
+        <button class="mode dark" role="radio" aria-checked="false">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg>Dark
+        </button>
+      </div>
       <div class="modes" role="radiogroup" aria-label="Mode">
         <button class="mode select" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg>Select
@@ -366,6 +385,8 @@ function activate() {
   const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
+  const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
+  const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
 
@@ -376,6 +397,11 @@ function activate() {
   let pins: Pin[] = [];
   let barOn = false;
   let noteOn = false;
+  /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
+  let barMode: Mode = 'light';
+  /** The page's zoom, as the background last reported it. 1 until asked. */
+  let zoom = 1;
+  let canReset = false;
   /** Elements shift-clicked in note mode, in the order they were picked. */
   let picked: Element[] = [];
   let drag: { x: number; y: number } | null = null;
@@ -394,6 +420,15 @@ function activate() {
       void chrome.runtime.sendMessage(msg);
     } catch {
       /* panel closed */
+    }
+  };
+
+  /** Like `send`, for the background, which answers. */
+  const ask = async <T,>(msg: unknown): Promise<T | null> => {
+    try {
+      return ((await chrome.runtime.sendMessage(msg)) as T) ?? null;
+    } catch {
+      return null;
     }
   };
 
@@ -526,7 +561,7 @@ function activate() {
     tag.classList.remove('hidden');
     tag.textContent = `${buildSelector(el).intent.selector} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
     // Above the element when there is room under the bar; otherwise tucked inside its top edge.
-    const minTop = barOn ? 32 : 4;
+    const minTop = barOn ? BAR_HEIGHT + 4 : 4;
     const tagTop = rect.top - 22 >= minTop ? rect.top - 22 : Math.max(minTop, rect.top + 4);
     Object.assign(tag.style, { left: `${Math.max(4, rect.left)}px`, top: `${tagTop}px` });
 
@@ -571,7 +606,6 @@ function activate() {
       clearHover();
       drawMeasure();
     }
-    send({ type: 'hover-toggled', active: on });
     if (barOn) {
       renderBar();
       showHint(
@@ -662,10 +696,11 @@ function activate() {
     const w = 280;
     const h = composer.offsetHeight || 140;
     const below = anchor.y + anchor.height + 8;
-    const top = below + h <= innerHeight - 8 ? below : Math.max(36, anchor.y - h - 8);
+    const clear = BAR_HEIGHT + 8;
+    const top = below + h <= innerHeight - 8 ? below : Math.max(clear, anchor.y - h - 8);
     Object.assign(composer.style, {
       left: `${Math.min(Math.max(8, anchor.x), innerWidth - w - 8)}px`,
-      top: `${Math.min(Math.max(36, top), innerHeight - h - 8)}px`,
+      top: `${Math.min(Math.max(clear, top), innerHeight - h - 8)}px`,
     });
     field.focus();
   };
@@ -813,11 +848,37 @@ function activate() {
 
   const renderBar = () => {
     barHost.textContent = location.host;
-    barSize.textContent = `${innerWidth} × ${innerHeight}`;
+    // Named after the preset it is, so "did that take?" has an answer.
+    barSize.textContent = viewportLabel({ innerWidth, innerHeight, zoom });
+    barSize.title = `${innerWidth} × ${innerHeight} CSS px at ${Math.round(zoom * 100)}% — viewport presets`;
     barSelect.classList.toggle('on', hoverOn);
     barSelect.setAttribute('aria-checked', String(hoverOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
+    barLight.classList.toggle('on', barMode === 'light');
+    barLight.setAttribute('aria-checked', String(barMode === 'light'));
+    barDark.classList.toggle('on', barMode === 'dark');
+    barDark.setAttribute('aria-checked', String(barMode === 'dark'));
+  };
+
+  /** The zoom lives in the browser, not the page; ask before trusting the label. */
+  const refreshViewport = async () => {
+    const r = await ask<{ ok: boolean; zoom?: number; canReset?: boolean }>({ type: 'viewport-state' });
+    if (r?.ok && typeof r.zoom === 'number') {
+      zoom = r.zoom;
+      canReset = !!r.canReset;
+    }
+    if (barOn) renderBar();
+  };
+
+  const applyBarTheme = (theme: OverlayTheme) => {
+    const t = OVERLAY[theme];
+    host.style.setProperty('--cn-accent', t.accent);
+    host.style.setProperty('--cn-wash', t.accentWash);
+    host.style.setProperty('--cn-bg', t.cardBg);
+    host.style.setProperty('--cn-ink', t.cardInk);
+    host.style.setProperty('--cn-muted', t.cardMuted);
+    host.style.setProperty('--cn-line', t.cardLine);
   };
 
   /**
@@ -848,30 +909,101 @@ function activate() {
     menu = null;
   };
 
+  interface ResizeReply {
+    ok: boolean;
+    error?: string;
+    zoom?: number;
+    viewport?: { width: number; height: number };
+    canReset?: boolean;
+  }
+
+  const pickPreset = async (p: (typeof DEVICE_PRESETS)[number]) => {
+    // The page sends what it can see; the background knows the window and the zoom.
+    const r = await ask<ResizeReply>({
+      type: 'resize-window',
+      preset: { name: p.name, width: p.width, height: p.height },
+      inner: { width: innerWidth, height: innerHeight },
+      outer: { width: outerWidth, height: outerHeight },
+    });
+    if (!r) return showHint('The panel could not reach the browser to resize the window.');
+    if (!r.ok) return showHint(`<b>${p.name}</b> — ${escapeHtml(r.error ?? 'the window could not be resized')}`);
+    zoom = r.zoom ?? 1;
+    canReset = !!r.canReset;
+    renderBar();
+    showHint(
+      zoom === 1
+        ? `<b>${p.name}</b> — the window is now ${p.width} × ${p.height}.`
+        : `<b>${p.name}</b> — the display is too small for ${p.width}px beside the panel, so the page is zoomed to ${Math.round(zoom * 100)}%. Its CSS viewport is ${r.viewport?.width ?? p.width} wide, so breakpoints read true.`,
+    );
+  };
+
+  const resetViewport = async () => {
+    const r = await ask<ResizeReply>({ type: 'reset-viewport' });
+    if (!r?.ok) return showHint(`Reset — ${escapeHtml(r?.error ?? 'the window could not be put back')}`);
+    zoom = r.zoom ?? 1;
+    canReset = false;
+    renderBar();
+    showHint('<b>Reset</b> — the window and zoom are back where they were.');
+  };
+
   const openMenu = () => {
     if (menu) return closeMenu();
     menu = document.createElement('div');
     menu.className = 'menu';
-    // The page knows its own chrome delta, so it can ask for an outer size directly.
-    const dw = outerWidth - innerWidth;
-    const dh = outerHeight - innerHeight;
     for (const p of DEVICE_PRESETS) {
       const b = document.createElement('button');
       b.innerHTML = `${p.name}<span>${p.width} × ${p.height}</span>`;
       b.addEventListener('click', () => {
-        send({ type: 'resize-window', width: p.width + dw, height: p.height + dh });
+        void pickPreset(p);
         closeMenu();
       });
       menu.appendChild(b);
     }
+    const reset = document.createElement('button');
+    reset.innerHTML = `Reset<span>100%</span>`;
+    reset.disabled = !canReset;
+    reset.style.opacity = canReset ? '' : '0.4';
+    reset.addEventListener('click', () => {
+      void resetViewport();
+      closeMenu();
+    });
+    menu.appendChild(reset);
     barSize.appendChild(menu);
+  };
+
+  /**
+   * The bar takes its strip from the page rather than floating over it: the
+   * root's inline margin is the one declaration nothing in a stylesheet can
+   * outrank, and it is put back exactly. A header the page fixes to the top
+   * of the viewport will still sit under the bar; that is stated in the
+   * README rather than fought.
+   */
+  let pushed: { value: string; priority: string } | null = null;
+  const pushPage = (on: boolean) => {
+    const root = document.documentElement;
+    if (on) {
+      if (pushed) return;
+      pushed = {
+        value: root.style.getPropertyValue('margin-top'),
+        priority: root.style.getPropertyPriority('margin-top'),
+      };
+      root.style.setProperty('margin-top', `${BAR_HEIGHT}px`, 'important');
+    } else if (pushed) {
+      if (pushed.value) root.style.setProperty('margin-top', pushed.value, pushed.priority);
+      else root.style.removeProperty('margin-top');
+      pushed = null;
+    }
   };
 
   const showBar = (on: boolean) => {
     barOn = on;
     bar.classList.toggle('hidden', !on);
-    if (on) renderBar();
-    else closeMenu();
+    pushPage(on);
+    if (on) {
+      renderBar();
+      void refreshViewport();
+    } else closeMenu();
+    layout();
   };
 
   barSize.addEventListener('click', (e) => {
@@ -880,6 +1012,19 @@ function activate() {
   });
   barSelect.addEventListener('click', () => setHover(!hoverOn));
   barComment.addEventListener('click', () => setNote(!noteOn));
+  const setMode = (mode: Mode) => {
+    if (mode === barMode) return;
+    barMode = mode;
+    renderBar();
+    send({ type: 'mode-changed', mode });
+    showHint(
+      mode === 'dark'
+        ? '<b>Dark</b> — the page repaints with the dark side of its system. Light puts it back.'
+        : null,
+    );
+  };
+  barLight.addEventListener('click', () => setMode('light'));
+  barDark.addEventListener('click', () => setMode('dark'));
   // The mark folds the bar down to a pill and opens it again; the chevron only folds.
   bar.querySelector('.mark')!.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -889,7 +1034,8 @@ function activate() {
     e.stopPropagation();
     bar.classList.add('collapsed');
   });
-  addEventListener('resize', () => barOn && renderBar());
+  // A zoom change fires resize too, so the label re-asks rather than trusting its cache.
+  addEventListener('resize', () => barOn && void refreshViewport());
   addEventListener('click', () => closeMenu(), true);
 
   // The panel holds a port open while it is showing this tab; when it goes,
@@ -1019,6 +1165,11 @@ function activate() {
         drawMeasure();
         break;
       case 'bar':
+        if (msg.theme) applyBarTheme(msg.theme);
+        if (msg.mode && msg.mode !== barMode) {
+          barMode = msg.mode;
+          if (barOn) renderBar();
+        }
         showBar(!!msg.on);
         break;
       case 'note':
@@ -1037,6 +1188,7 @@ function activate() {
   function deactivate() {
     setHover(false);
     setNote(false);
+    pushPage(false);
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);

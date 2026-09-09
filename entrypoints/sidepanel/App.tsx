@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
-import {
-  attachBar,
-  ensureHostAccess,
-  getActiveTab,
-  isRestricted,
-  runScan,
-  startInspector,
-  stopInspector,
-} from './lib/messaging';
+import { attachBar, ensureHostAccess, getActiveTab, isRestricted, runScan, type BarLook } from './lib/messaging';
 import { getSession, loadSession, setConfig, setPinned, setScan, updateSession, useSession } from './lib/session';
 import { useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
@@ -19,50 +11,57 @@ import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
 import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
+import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
-import { ElementTab } from './components/ElementTab';
+import { LayersTab } from './components/LayersTab';
 import { ChangesTab } from './components/ChangesTab';
 import { DesignTab } from './components/DesignTab';
 import { SvgsTab } from './components/SvgsTab';
 import { ExportTab } from './components/ExportTab';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'element' | 'design' | 'changes' | 'assets' | 'export';
+type TabKey = 'layers' | 'variables' | 'assets' | 'export' | 'changes';
 
 /**
- * Four, not six. Fonts and Colors were one job split in half — the page's design
- * language — and Resize was never a view at all; it is a viewport setting and
- * now lives in the header. At 360px six tabs left 60px each.
+ * Five tabs, in the order you use them: the page as layers you pick from, the
+ * variables it runs on, its assets, the exports — and last, what you have
+ * changed, which is where the hand-off lives. Resize is not a view; it is a
+ * viewport setting, and it sits on the bar across the page.
  */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
-  { key: 'element', label: 'Element', Icon: InspectIcon },
-  { key: 'design', label: 'Design', Icon: DesignIcon },
-  { key: 'changes', label: 'Changes', Icon: ChangesIcon },
+  { key: 'layers', label: 'Layers', Icon: InspectIcon },
+  { key: 'variables', label: 'Variables', Icon: DesignIcon },
   { key: 'assets', label: 'Assets', Icon: SvgsIcon },
   { key: 'export', label: 'Export', Icon: ExportIcon },
+  { key: 'changes', label: 'Changes', Icon: ChangesIcon },
 ];
 
 export default function App() {
-  const [active, setActive] = useState<TabKey>('element');
+  const [active, setActive] = useState<TabKey>('layers');
   const [tabId, setTabId] = useState<number | null>(null);
   const [tabUrl, setTabUrl] = useState<string>('');
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   // Chrome would not let us into the tab: the one thing that needs a click.
   const [needsAccess, setNeedsAccess] = useState(false);
-  const [inspecting, setInspecting] = useState(false);
   const tabIdRef = useRef<number | null>(null);
+  const { resolved: theme } = useTheme();
 
-  // The session outlives whichever tab is showing: an edit made in Design is
-  // still there, and still painted on the page, after a detour through Inspect.
+  // The session outlives whichever tab is showing: an edit made in Variables is
+  // still there, and still painted on the page, after a detour through Layers.
   const session = useSession();
   const { scan, config, mode, live } = session;
+  // What the bar across the page wears and which way its switch sits. A ref,
+  // because the tab-sync callback must not be recreated for a theme change.
+  const look: BarLook = { theme, mode };
+  const lookRef = useRef(look);
+  lookRef.current = look;
   const model = useDesignModel(scan, config, mode);
   const reskin = useLiveReskin(tabId, live, model);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
-  // A target drawn on the page, waiting for words in the Element tab's composer.
+  // A target drawn on the page, waiting for words in the Changes tab's composer.
   const [pendingTarget, setPendingTarget] = useState<CommentTarget | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
@@ -104,7 +103,6 @@ export default function App() {
     setTabUrl(tab.url ?? '');
     // A stored session is kept only while the tab is still on that origin.
     await loadSession(tab.id, tab.url ?? '');
-    setInspecting(false);
     setScanning(false);
     setScanError(null);
     setNeedsAccess(false);
@@ -113,13 +111,13 @@ export default function App() {
     // tab the icon was clicked on (activeTab), or a site allowed before. Only
     // a site we cannot reach asks for a click.
     if (getSession().scan) {
-      void attachBar(tab.id);
+      void attachBar(tab.id, lookRef.current);
       return;
     }
     setScanning(true);
     try {
       await runScan(tab.id);
-      void attachBar(tab.id);
+      void attachBar(tab.id, lookRef.current);
     } catch {
       setScanning(false);
       setNeedsAccess(true);
@@ -155,9 +153,11 @@ export default function App() {
         setScanError(msg.error ?? 'Scan failed');
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
-        if (msg.data) setActive('element');
-      } else if (msg?.type === 'hover-toggled') {
-        setInspecting(Boolean(msg.active));
+        if (msg.data) setActive('layers');
+      } else if (msg?.type === 'mode-changed') {
+        // The bar's Light/Dark switch; the session is the truth it echoes.
+        const m = (msg as { mode?: string }).mode;
+        if (m === 'light' || m === 'dark') updateSession({ mode: m });
       } else if (msg?.type === 'note-created') {
         // Written on the page, in the composer that opened where you pointed.
         const note = msg as unknown as { target: CommentTarget; text: string };
@@ -178,10 +178,11 @@ export default function App() {
   }, []);
 
   // The in-page bar appears as soon as the site is reachable: a scan means
-  // access was granted. It goes when the panel does, through its port.
+  // access was granted. It goes when the panel does, through its port. It is
+  // told again whenever the panel's palette or the mode switch changes.
   useEffect(() => {
-    if (tabId != null && scan && !restricted) void attachBar(tabId);
-  }, [tabId, scan, restricted]);
+    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode });
+  }, [tabId, scan, restricted, theme, mode]);
 
   // Undo and redo from the panel itself, unless the user is typing.
   useEffect(() => {
@@ -215,30 +216,12 @@ export default function App() {
     setScanning(true);
     try {
       await runScan(tabId);
-      void attachBar(tabId);
+      void attachBar(tabId, lookRef.current);
     } catch (err) {
       setScanning(false);
       setScanError(friendlyError(err));
     }
   }, [tabId, tabUrl]);
-
-  const toggleInspector = useCallback(async () => {
-    if (!tabId) return;
-    if (inspecting) {
-      await stopInspector(tabId);
-      return;
-    }
-    setScanError(null);
-    if (!(await ensureHostAccess(tabUrl))) {
-      setScanError('Site access is needed for the hover tool — try again and allow it.');
-      return;
-    }
-    try {
-      await startInspector(tabId);
-    } catch (err) {
-      setScanError(friendlyError(err));
-    }
-  }, [tabId, tabUrl, inspecting]);
 
   // Roving tabindex: arrows move both focus and selection, as a tablist should.
   const onTabKey = (e: React.KeyboardEvent) => {
@@ -264,21 +247,19 @@ export default function App() {
   })();
 
   // Selecting, editing and noting all work before a scan; the rest reads it.
-  const needsScan = active === 'design' || active === 'assets' || active === 'export';
+  const needsScan = active === 'variables' || active === 'assets' || active === 'export';
   let content: React.ReactNode;
   if (restricted && needsScan) {
-    content = <RestrictedState url={tabUrl} onOpenInspect={() => setActive('element')} />;
+    content = <RestrictedState url={tabUrl} onOpenLayers={() => setActive('layers')} />;
   } else if (scanning && needsScan) {
     content = <ScanningState />;
   } else if (!scan && needsScan) {
     content = <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />;
   } else {
     switch (active) {
-      case 'element':
+      case 'layers':
         content = (
-          <ElementTab
-            inspecting={inspecting}
-            onToggle={toggleInspector}
+          <LayersTab
             error={scanError}
             ctl={ctl}
             scan={scan}
@@ -297,7 +278,7 @@ export default function App() {
           />
         );
         break;
-      case 'design':
+      case 'variables':
         content = (
           <DesignTab
             scan={scan!}
@@ -322,7 +303,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col text-base">
-      <nav role="tablist" aria-label="Panel" className="grid grid-cols-5 border-b border-line-subtle" onKeyDown={onTabKey}>
+      {/* h-10 is BAR_HEIGHT: the same strip as the bar across the page. */}
+      <nav role="tablist" aria-label="Panel" className="grid h-10 grid-cols-5 items-stretch border-b border-line-subtle" onKeyDown={onTabKey}>
         {TABS.map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -332,7 +314,7 @@ export default function App() {
             aria-controls="panel"
             tabIndex={active === key ? 0 : -1}
             onClick={() => setActive(key)}
-            className={`relative flex flex-col items-center gap-0.5 py-2 text-2xs ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-2xs ${
               active === key
                 ? 'border-b-2 border-accent font-medium text-accent'
                 : 'border-b-2 border-transparent text-ink-muted hover:text-ink'

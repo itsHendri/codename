@@ -6,8 +6,10 @@ to your agent — which can be connected, so you never paste.
 
 ## The five tabs
 
-- **Element** — the page as a tree you can pick from, and the selection you
-  picked. **Layers** lists every element with its own text beside it, searches
+Layers · Variables · Assets · Export · Changes.
+
+- **Layers** — the page as a tree you can pick from, and the selection you
+  picked. The tree lists every element with its own text beside it, searches
   by name or content, folds, hides a layer with one click, and lights a row up
   on the page as you run down it. It is the answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the
@@ -17,8 +19,8 @@ to your agent — which can be connected, so you never paste.
   selection stays put: walk the tree with the arrow keys, measure it against
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
-  instead of a literal. Plus a screen-wide eyedropper with history.
-- **Design** — the system this page runs, editable.
+  instead of a literal. Select mode lives on the bar across the page.
+- **Variables** — the system this page runs, editable.
   - **Colour** — seed colours with their OKLCH readouts, the generated 11-step
     ramps, and the semantic tokens. Each token shows the ramp step it points
     at, and clicking that opens a picker to re-point it by hand. Change a seed
@@ -42,15 +44,24 @@ to your agent — which can be connected, so you never paste.
   `DESIGN_SYSTEM.md` reference, a standalone style-guide page, or all of it as
   a ZIP.
 
-While the panel is open on a site, a thin bar sits across the top of the
-page: the Codename mark, the host, the live viewport size with the device
-presets behind it, and the modes. **Select** hovers for font, colour and
-contrast and clicks to pick an element. **Comment** marks something up: click
-an element, drag a box over anything including empty space, shift-click
+While the panel is open on a site, a bar sits across the top of the page,
+the same height as the panel's tab strip and wearing the panel's palette, so
+the two read as one tool. It pushes the page down rather than floating over
+it (a header the page itself fixes to the top of the viewport still sits
+under the bar). On it: the Codename mark, the host, the viewport named by the
+preset it matches — "Tablet · 768 × 1024", or "Custom" — with the device
+presets behind it, a **Light / Dark** switch, and the modes. Picking a preset
+resizes the window; when the display is too small for that beside the panel,
+the page is zoomed out until its CSS viewport is the preset width and the
+label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.
+**Reset** puts the window and zoom back. **Select** hovers for font, colour
+and contrast and clicks to pick an element. **Comment** marks something up:
+click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it. Click the mark to
-fold the bar to a pill. The mark in the panel's footer opens the menu: theme (dark by default,
-light, or follow the system), site access, and the agent bridge.
+fold the bar to a pill. The mark in the panel's footer opens the menu: theme
+(dark by default, light, or follow the system), site access, and the agent
+bridge.
 
 Reading the page is automatic wherever Chrome already lets the extension in:
 the tab you clicked the icon on, or a site you allowed before. A site it

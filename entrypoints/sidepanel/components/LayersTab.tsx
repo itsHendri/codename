@@ -5,7 +5,6 @@ import { contrastBadge } from '../lib/color';
 import type { InspectController, Scope } from '../lib/inspect';
 import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
-import { EyeDropperButton } from './EyeDropperButton';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
@@ -15,24 +14,21 @@ import { LayersTree } from './inspect/LayersTree';
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
 
 /**
- * The selected element, and nothing else.
+ * The page as layers, and the one you picked.
  *
  * Changes and notes used to live here too, which put the colour of a heading
  * a thousand pixels down the scroll. They belong to the page rather than to
  * the selection, so they moved to their own tab and this one starts with what
- * you came to change.
+ * you came to change. Select mode lives on the bar across the page, and only
+ * there: one switch, one place to look for it.
  */
-export function ElementTab({
-  inspecting,
-  onToggle,
+export function LayersTab({
   error,
   ctl,
   scan,
   resolved,
   mode,
 }: {
-  inspecting: boolean;
-  onToggle: () => void;
   error: string | null;
   ctl: InspectController;
   scan: ScanResult | null;
@@ -67,17 +63,9 @@ export function ElementTab({
         <p className="text-xs text-ink-muted">
           Pick a layer below, or turn on <b className="font-medium text-ink-secondary">Select</b> on
           the bar and click the page.
-          {!inspecting && (
-            <button onClick={onToggle} className="ml-1.5 text-accent hover:underline">
-              turn it on
-            </button>
-          )}
         </p>
         {error && <p className="text-xs text-warn-ink">{error}</p>}
         {layers}
-        <div className="border-t border-dashed border-line-subtle pt-3">
-          <EyeDropperButton />
-        </div>
       </div>
     );
   }
@@ -97,9 +85,6 @@ export function ElementTab({
         onText={ctl.setText}
       />
       <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
-      <div className="border-t border-dashed border-line-subtle pt-2.5">
-        <EyeDropperButton />
-      </div>
     </div>
   );
 }
