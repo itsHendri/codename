@@ -16,6 +16,7 @@ const node = (
   tag: label.split(/[.#]/)[0]!,
   selector: label,
   stable: true,
+  matches: 1,
   hidden: false,
   display: 'block',
   ...(text ? { text } : {}),
@@ -71,8 +72,23 @@ describe('ancestorsOf', () => {
 
 describe('initialCollapsed', () => {
   it('collapses deep rows that have something in them', () => {
-    // Only rows at depth >= 2 with descendants; this tree has none, so nothing.
+    // Only rows at the fold depth or deeper, with descendants; this tree has
+    // none past depth 2, so the default folds nothing.
     expect(initialCollapsed(tree)).toEqual(new Set());
     expect(initialCollapsed(tree, 1)).toEqual(new Set([1, 3]));
+  });
+
+  it('opens four levels by default and folds what is under them', () => {
+    // body > div > section > article > (p > span)
+    const deep: LayerNode[] = [
+      node(0, 0, 'body', 5),
+      node(1, 1, 'div#root', 4),
+      node(2, 2, 'section', 3),
+      node(3, 3, 'article.card', 2),
+      node(4, 4, 'p', 1),
+      node(5, 5, 'span', 0),
+    ];
+    // The article at depth 3 stays open; the paragraph at depth 4 folds.
+    expect(initialCollapsed(deep)).toEqual(new Set([4]));
   });
 });

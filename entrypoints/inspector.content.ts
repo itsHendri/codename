@@ -225,6 +225,7 @@ function buildLayers(): LayerNode[] {
       label: layerLabel(el),
       selector: sel.selector,
       stable: sel.stable,
+      matches: sel.intent.matches,
       depth,
       descendants: 0,
       hidden: cs.display === 'none' || cs.visibility === 'hidden',

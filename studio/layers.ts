@@ -17,6 +17,11 @@ export interface LayerNode {
   selector: string;
   /** false when the selector leans on :nth-of-type. */
   stable: boolean;
+  /**
+   * How many elements the class-level selector matches — `div.card` ×12.
+   * The nearest thing the page has to a component, shown as a badge.
+   */
+  matches: number;
   depth: number;
   /** How many rows after this one are inside it. */
   descendants: number;
@@ -89,7 +94,10 @@ export function ancestorsOf(nodes: LayerNode[], id: number): number[] {
   return out;
 }
 
-/** Everything collapsed except the shallowest rows, so a big page opens calm. */
-export function initialCollapsed(nodes: LayerNode[], openToDepth = 2): Set<number> {
+/**
+ * Everything collapsed except the shallowest rows, so a big page opens calm.
+ * Four levels is body → root → section → the row you wanted, on most pages.
+ */
+export function initialCollapsed(nodes: LayerNode[], openToDepth = 4): Set<number> {
   return new Set(nodes.filter((n) => n.depth >= openToDepth && n.descendants > 0).map((n) => n.id));
 }

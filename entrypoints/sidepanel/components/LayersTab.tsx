@@ -9,6 +9,7 @@ import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
 import { LayersTree } from './inspect/LayersTree';
+import { SplitPane } from './SplitPane';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -59,51 +60,41 @@ export function LayersTab({
 
   if (!el) {
     return (
-      <div className="flex flex-col gap-3 p-3">
-        <p className="text-xs text-ink-muted">
+      <div className="flex h-full min-h-0 flex-col gap-3 p-3">
+        <p className="shrink-0 text-xs text-ink-muted">
           Pick a layer below, or turn on <b className="font-medium text-ink-secondary">Select</b> on
           the bar and click the page.
         </p>
-        {error && <p className="text-xs text-warn-ink">{error}</p>}
+        {error && <p className="shrink-0 text-xs text-warn-ink">{error}</p>}
         {layers}
       </div>
     );
   }
 
+  // The tree stays in view above the selection, so the next pick is one
+  // click away rather than behind a disclosure. The handle remembers where
+  // you left it.
   return (
-    <div className="flex flex-col gap-2.5 p-3">
-      <Layers>{layers}</Layers>
-      <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-      <Header element={el} ctl={ctl} />
-      <Contrast element={el} />
-      <PropertyPanel
-        element={el}
-        scan={scan ?? NO_SCAN}
-        resolved={resolved}
-        mode={mode}
-        onChange={ctl.change}
-        onText={ctl.setText}
-      />
-      <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
-    </div>
-  );
-}
-
-/** Out of the way once something is selected, but one click from coming back. */
-function Layers({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex items-center gap-1.5 text-left"
-      >
-        <span className={`text-2xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
-        <span className="text-2xs tracking-wide text-ink-muted uppercase">Layers</span>
-      </button>
-      {open && children}
-    </div>
+    <SplitPane
+      storageKey="codename:layersSplit"
+      top={<div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-2">{layers}</div>}
+      bottom={
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+          <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
+          <Header element={el} ctl={ctl} />
+          <Contrast element={el} />
+          <PropertyPanel
+            element={el}
+            scan={scan ?? NO_SCAN}
+            resolved={resolved}
+            mode={mode}
+            onChange={ctl.change}
+            onText={ctl.setText}
+          />
+          <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
+        </div>
+      }
+    />
   );
 }
 

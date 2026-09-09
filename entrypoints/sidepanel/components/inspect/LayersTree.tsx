@@ -68,8 +68,8 @@ export function LayersTree({
     });
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5">
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -96,7 +96,7 @@ export function LayersTree({
         <div
           ref={listRef}
           onMouseLeave={() => onPeek(null)}
-          className="max-h-56 overflow-y-auto rounded-control border border-line-subtle"
+          className="min-h-0 flex-1 overflow-y-auto rounded-control border border-line-subtle"
         >
           {rows.map((node) => {
             const isSelected = node.id === selectedId;
@@ -136,6 +136,14 @@ export function LayersTree({
                     </span>
                   )}
                 </button>
+                {node.matches > 1 && (
+                  <span
+                    className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1 font-mono text-2xs text-ink-secondary"
+                    title={`${node.matches} elements share this class selector`}
+                  >
+                    ×{node.matches}
+                  </span>
+                )}
                 <button
                   onClick={() => onToggleHidden(node)}
                   aria-label={node.hidden ? 'Show' : 'Hide'}
