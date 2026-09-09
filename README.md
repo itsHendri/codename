@@ -199,7 +199,7 @@ npm install
 npm run dev        # hot reload, into dist/chrome-mv3
 npm run build      # production build → dist/chrome-mv3
 npm run compile    # type check
-npx vitest run     # engine, extraction, panel and bridge tests
+npm test           # engine, extraction, panel and bridge tests (vitest)
 npm run zip        # store-ready zip
 npm run build -w codename-bridge   # the companion, → packages/bridge/dist/cli.js
 ```

@@ -15,6 +15,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "test": "vitest run",
     "postinstall": "wxt prepare",
     "postbuild": "node scripts/check-content-scripts.mjs"
   },
