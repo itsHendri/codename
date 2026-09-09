@@ -29,7 +29,7 @@ describe('diffEdits / applyEdits', () => {
     expect(applied.spacing.basePx).toBe(6);
   });
 
-  it('drops decisions about ramps the new reading does not have', () => {
+  it('drops decisions about ramps the new reading does not have, and old semantic overrides', () => {
     const seeded = base();
     // The shape a store held before vars, colours and type existed.
     const legacy = {
@@ -41,7 +41,12 @@ describe('diffEdits / applyEdits', () => {
     };
     const applied = applyEdits(seeded, legacy as never);
     expect(applied.color.scales.find((s) => s.role === 'primary')!.seed).toBe('#123456');
-    expect(applied.color.semanticOverrides.map((o) => o.name)).toEqual(['primary']);
+    // Nothing in the panel can show or remove a semantic override now, so a
+    // stored one does not come back to keep the site marked as edited.
+    expect(applied.color.semanticOverrides).toEqual([]);
+    const edited = structuredClone(seeded);
+    edited.color.semanticOverrides = [{ name: 'primary', light: { scale: 'primary', step: 500 } }];
+    expect(isNoEdits(diffEdits(seeded, edited))).toBe(true);
   });
 
   it('keeps type, grid and radius decisions across a rescan', () => {

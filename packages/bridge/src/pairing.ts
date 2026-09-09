@@ -57,8 +57,9 @@ export function readPairingCode(path = bridgeFilePath()): { token: string; port:
   if (!file) return null;
   try {
     process.kill(file.pid, 0);
-  } catch {
-    return null;
+  } catch (err) {
+    // EPERM: the process exists but belongs to someone else — still running.
+    if ((err as NodeJS.ErrnoException).code !== 'EPERM') return null;
   }
   return { token: file.token, port: file.port };
 }

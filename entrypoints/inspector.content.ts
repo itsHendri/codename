@@ -1504,6 +1504,9 @@ function activate() {
         setHover(!!msg.on);
         break;
       case 'toggle':
+        // A shortcut on a tab whose panel is closed would light the page up
+        // with no bar and nobody listening; the bar is the sign of a panel.
+        if (!barOn) break;
         if (msg.what === 'comment') setNote(!noteOn);
         else setHover(!hoverOn);
         break;

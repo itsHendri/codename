@@ -72,7 +72,10 @@ export function diffEdits(seeded: BrandConfig, edited: BrandConfig): BrandEdits 
     const base = seeded.color.scales.find((s) => s.role === scale.role);
     if (base && base.seed.toLowerCase() !== scale.seed.toLowerCase()) edits.seeds[scale.role] = scale.seed;
   }
-  edits.semanticOverrides = edited.color.semanticOverrides;
+  // Semantic overrides are not persisted any more: the panel has no surface
+  // that shows or removes one, and a stored override kept a site marked as
+  // edited forever. The field stays in the shape so old stores still load.
+  edits.semanticOverrides = [];
 
   const baseRoles = new Map(seeded.typography.roles.map((r) => [r.role, r]));
   for (const role of edited.typography.roles) {
@@ -101,9 +104,8 @@ export function applyEdits(seeded: BrandConfig, stored: BrandEdits): BrandConfig
     const seed = edits.seeds[s.role];
     return seed ? { ...s, seed } : s;
   });
-  const semanticOverrides = edits.semanticOverrides.filter(
-    (o) => (!o.light || known.has(o.light.scale)) && (!o.dark || known.has(o.dark.scale)),
-  );
+  // Stored by an older panel; nothing can show them now, so they are let go.
+  const semanticOverrides: BrandConfig['color']['semanticOverrides'] = [];
   const roles = seeded.typography.roles.map((r) => {
     const delta = edits.type[r.role];
     return delta ? { ...r, ...delta } : r;

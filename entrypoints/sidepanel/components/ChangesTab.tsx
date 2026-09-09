@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { isEmpty, toJson, toPrompt } from '@/studio/commit';
+import { active as activeChanges } from '@/studio/changes';
 import type { ChangeSet } from '@/studio/commit';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
@@ -26,6 +27,12 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
   const prompt = useMemo(() => toPrompt(set), [set]);
   const empty = isEmpty(set);
+  // A reorder shifts what `li:nth-of-type(2)` points at, so an edit made on
+  // a positional selector may now be on a different element than it was.
+  const shifted = useMemo(() => {
+    const live = activeChanges(log);
+    return live.some((e) => e.property === 'move') && live.some((e) => e.property !== 'move' && !e.stable);
+  }, [log]);
 
   const flash = (what: string) => {
     setCopied(what);
@@ -147,6 +154,13 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
           onStatus={ctl.setCommentStatus}
           onRemove={ctl.removeComment}
         />
+
+        {shifted && (
+          <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">
+            A reorder and an edit on a positional selector are both in force, so the edit may have
+            moved to a different element. Check the selection on the page before sending.
+          </p>
+        )}
 
         {set.unreadable.length > 0 && (
           <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">

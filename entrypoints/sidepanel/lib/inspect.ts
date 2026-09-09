@@ -139,6 +139,27 @@ export function readValue(el: ElementProps, property: string): string {
   return map[property] ?? '';
 }
 
+/**
+ * One rule for everything the page holds on the panel's behalf — rules,
+ * moves, pins: send when the value changes, send again when the page comes
+ * back (the generation counter), and never send an empty value to a page
+ * that was never told anything, since it has nothing to take back.
+ */
+function usePush(tabId: number | null, generation: number, key: string, empty: boolean, send: () => void) {
+  const sent = useRef<{ tabId: number | null; key: string; generation: number } | null>(null);
+  useEffect(() => {
+    if (tabId == null) return;
+    const last = sent.current;
+    if (last && last.tabId === tabId && last.key === key && last.generation === generation) return;
+    const fresh = !last || last.tabId !== tabId || last.generation !== generation;
+    // Nothing to say to a page that has heard nothing.
+    if (empty && fresh && (!last || last.tabId !== tabId)) return;
+    sent.current = { tabId, key, generation };
+    send();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId, generation, key]);
+}
+
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
@@ -154,12 +175,10 @@ export function useInspect(
   const [holding, setHolding] = useState(false);
 
   // Pins follow the notes; pushed again after a reload, like the rules.
-  const pinsKey = JSON.stringify(pinsOf(comments));
-  useEffect(() => {
-    if (tabId == null || (!comments.length && generation === 0)) return;
-    void sendInspector(tabId, { cmd: 'pins', pins: pinsOf(comments) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId, pinsKey, generation]);
+  const pins = useMemo(() => pinsOf(comments), [comments]);
+  usePush(tabId, generation, JSON.stringify(pins), pins.length === 0, () => {
+    void sendInspector(tabId!, { cmd: 'pins', pins });
+  });
 
   const setLog = useCallback((next: ChangeLog | ((l: ChangeLog) => ChangeLog)) => {
     updateSession((s) => ({ log: typeof next === 'function' ? next(s.log) : next }));
@@ -168,20 +187,18 @@ export function useInspect(
   // Push the rules whenever they change, and again after the page reloads
   // (the generation counter), when the managed sheet has to be rebuilt.
   const rules = useMemo(() => (holding ? [] : toRules(log)), [log, holding]);
-  const rulesKey = JSON.stringify(rules);
-  const sentText = useRef<Map<string, string>>(new Map());
-  useEffect(() => {
-    if (tabId == null) return;
-    if (!rules.length && !log.entries.length) return;
-    void applyElementRules(tabId, rules).then(() => {
+  usePush(tabId, generation, JSON.stringify(rules), rules.length === 0, () => {
+    void applyElementRules(tabId!, rules).then(() => {
       // Computed values moved; show the element as it is now.
-      void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
+      void sendInspector<ElementProps | null>(tabId!, { cmd: 'read' }).then((props) => {
         if (props) updateSession({ pinned: props });
       });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId, rulesKey, generation]);
+  });
 
+  // Text is the one push that is not whole-state: an edit taken back has to
+  // be restored to its original words, which only the log remembers.
+  const sentText = useRef<Map<string, string>>(new Map());
   useEffect(() => {
     if (tabId == null) return;
     const edits = holding ? [] : toTextEdits(log);
@@ -202,16 +219,9 @@ export function useInspect(
   // Reorders, pushed whole like the rules: the page restores what it moved
   // and applies the list afresh, so undo and revert need no special case.
   const moves = useMemo(() => (holding ? [] : toMoves(log)), [log, holding]);
-  const movesKey = JSON.stringify(moves);
-  const sentMoves = useRef('');
-  useEffect(() => {
-    if (tabId == null) return;
-    if (sentMoves.current === movesKey && generation === 0) return;
-    if (!moves.length && !sentMoves.current) return;
-    sentMoves.current = movesKey;
-    void sendInspector(tabId, { cmd: 'moves', moves });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId, movesKey, generation]);
+  usePush(tabId, generation, JSON.stringify(moves), moves.length === 0, () => {
+    void sendInspector(tabId!, { cmd: 'moves', moves });
+  });
 
   const refreshLayers = useCallback(() => {
     if (tabId == null) return;
