@@ -185,6 +185,7 @@ export function VariablesTab({
           <ObservedColoursSection
             colors={scan.colors}
             engine={model.paint.colorMap}
+            mode={mode}
             colorEdits={colorEdits}
             onColor={onColor}
           />

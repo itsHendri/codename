@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ColorInfo } from '@/shared/types';
+import type { Mode } from '@/studio/engine/types';
 import { ColorField } from '../inspect/ColorField';
 
 const FOLD = 12;
@@ -15,12 +16,15 @@ const FOLD = 12;
 export function ObservedColoursSection({
   colors,
   engine,
+  mode,
   colorEdits,
   onColor,
 }: {
   colors: ColorInfo[];
   /** old hex → new hex, as the engine would paint it. */
   engine: Record<string, string>;
+  /** In dark, the engine's moves are the preview, and the chip says so. */
+  mode: Mode;
   colorEdits: Record<string, string>;
   onColor: (hex: string, value: string | null) => void;
 }) {
@@ -55,8 +59,11 @@ export function ObservedColoursSection({
                     by hand ↺
                   </button>
                 ) : engine[key] ? (
-                  <span className="shrink-0 rounded-full border border-line-subtle px-1.5 text-ink-muted" title="Moved by a seed">
-                    seed
+                  <span
+                    className="shrink-0 rounded-full border border-line-subtle px-1.5 text-ink-muted"
+                    title={mode === 'dark' ? 'Moved by the dark preview' : 'Moved by a seed'}
+                  >
+                    {mode === 'dark' ? 'dark' : 'seed'}
                   </span>
                 ) : null}
               </div>
