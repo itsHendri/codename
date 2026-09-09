@@ -164,6 +164,8 @@ export type PinnedElement = ElementProps;
 /** Panel → inspector. */
 export type InspectorCommand =
   | { cmd: 'hover'; on: boolean }
+  /** Flip a mode, from a keyboard shortcut. */
+  | { cmd: 'toggle'; what: 'select' | 'comment' }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }

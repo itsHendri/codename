@@ -375,10 +375,10 @@ function activate() {
         </button>
       </div>
       <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false">
+        <button class="mode select" role="radio" aria-checked="false" title="Select — hover to read, click to pick (Alt+S)">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg>Select
         </button>
-        <button class="mode comment" role="radio" aria-checked="false">
+        <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg>Comment
         </button>
       </div>
@@ -1377,6 +1377,10 @@ function activate() {
     switch (msg.cmd) {
       case 'hover':
         setHover(!!msg.on);
+        break;
+      case 'toggle':
+        if (msg.what === 'comment') setNote(!noteOn);
+        else setHover(!hoverOn);
         break;
       case 'select':
         select(find(msg.selector));

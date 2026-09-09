@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ScaleRole, TypeRole, TypeRoleName } from '@/studio/engine/types';
 import { regrid } from '@/studio/edits';
+import { critique } from '@/studio/critique';
 import type { DesignModel } from '../lib/designModel';
 import type { ReskinResult } from '../lib/messaging';
 import { Section } from './design/Section';
@@ -10,8 +11,9 @@ import { ObservedColoursSection } from './design/ObservedColoursSection';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
+import { CritiqueSection } from './design/CritiqueSection';
 
-type SectionKey = 'vars' | 'colours' | 'palette' | 'type' | 'space';
+type SectionKey = 'vars' | 'colours' | 'palette' | 'type' | 'space' | 'critique';
 
 /**
  * The variables this page runs on, editable.
@@ -60,6 +62,8 @@ export function VariablesTab({
     new Set<SectionKey>(['vars', 'colours', 'palette', 'type', 'space']),
   );
   const { brand, resolved, edited, dirty } = model;
+  // Against the page as read, not as edited: the edit is your answer to it.
+  const review = useMemo(() => critique(scan, model.seeded), [scan, model.seeded]);
 
   const toggle = (key: SectionKey) =>
     setOpen((prev) => {
@@ -228,6 +232,15 @@ export function VariablesTab({
           onSpacingBase={setSpacingBase}
           onRadiusBase={setRadiusBase}
         />
+      </Section>
+
+      <Section
+        title="Critique"
+        summary={review.summary}
+        open={open.has('critique')}
+        onToggle={() => toggle('critique')}
+      >
+        <CritiqueSection critique={review} />
       </Section>
     </div>
   );

@@ -253,6 +253,19 @@ row is a lifted surface rather than a block of accent. Outlined cards became
 grouped lists with hairlines where the content is a list. The eyedropper
 stopped being styled as the loudest thing on the tab.
 
+**W12. Closing the reference gaps (M).** Done, September 2026, from a pass
+over the five reference tools. Impeccable's `critique` is an MCP tool and a
+section of Variables (`studio/critique.ts`: contrast under AA with counts,
+off-grid spacing, near-duplicate colours, type strays, family and radius
+counts, unreadable sheets — facts, never a fix button). Design Mode's
+per-element layout and effects editing arrived as a Layout group (display,
+justify, align, direction, wrap) and an Effects group (opacity, shadow).
+The keyboard model the comparison called missing is Alt+S / Alt+C for the
+two modes on the bar through Chrome's commands API, rebindable at
+chrome://extensions/shortcuts, beside the arrows, Escape and ⌘Z the page
+already had. Reset on the bar takes back every override, the dark
+preview, the viewport, the split and the selection at once.
+
 **W11. The panel as a tool, not a report (L).** Done, September 2026, from
 a walk through the panel on forfontsake. Element became Layers and Design
 became Variables, with Changes last, where the hand-off is. The bar across

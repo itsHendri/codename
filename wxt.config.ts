@@ -36,5 +36,20 @@ export default defineConfig({
     action: {
       default_title: 'Open Codename',
     },
+    /**
+     * The two modes on the bar, from the keyboard. Alt rather than Cmd so
+     * they never collide with the page's own shortcuts or Chrome's; the user
+     * can rebind them at chrome://extensions/shortcuts.
+     */
+    commands: {
+      'toggle-select': {
+        suggested_key: { default: 'Alt+S' },
+        description: 'Toggle Select mode on the page',
+      },
+      'toggle-comment': {
+        suggested_key: { default: 'Alt+C' },
+        description: 'Toggle Comment mode on the page',
+      },
+    },
   },
 });

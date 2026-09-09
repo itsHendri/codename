@@ -46,6 +46,9 @@ Layers · Variables · Assets · Export · Changes.
     from the page, with off-grid strays named rather than rounded in. Moving
     the grid rescales the steps the page uses rather than inventing a ladder,
     and rewrites the paddings, margins and gaps that sit on those steps.
+  - **Critique** — what a designer would flag on the page, from what the
+    scan measured: contrast under AA with element counts, off-grid spacing,
+    near-duplicate colours, type strays. The same list the agent gets.
   The **Light / Dark** switch on the bar previews the page in the other side
   of its system: every colour on a light ramp step moves to the mirrored dark
   step, and greys invert by lightness. A preview, not a decision — it never
@@ -82,8 +85,9 @@ label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.
 and contrast and clicks to pick an element. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
-where it lands. Each mode says what it does as you enter it. Click the mark to
-fold the bar to a pill. The mark in the panel's footer opens the menu: theme
+where it lands. Each mode says what it does as you enter it, and each has a
+shortcut — **Alt+S** for Select, **Alt+C** for Comment — that you can rebind
+at `chrome://extensions/shortcuts`. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme
 (dark by default, light, or follow the system), site access, and the agent
 bridge.
 
