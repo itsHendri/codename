@@ -20,6 +20,7 @@ import {
   redo as redoLog,
   revert as revertLog,
   revertAll as revertAllLog,
+  toMoves,
   toRules,
   toTextEdits,
   undo as undoLog,
@@ -85,7 +86,12 @@ export interface InspectController {
   peekLayer(node: LayerNode | null): void;
   /** Hide a layer, or take the hiding back. */
   toggleHidden(node: LayerNode): void;
+  /** Put a layer somewhere else among its siblings: before `before`, or last. */
+  move(node: LayerNode, parent: LayerNode, before: LayerNode | null, wasBefore: LayerNode | null): void;
 }
+
+/** How a row reads in a sentence: its label, and its text when it has some. */
+const rowName = (n: LayerNode) => `\`${n.selector}\`${n.text ? ` ("${n.text.slice(0, 30)}")` : ''}`;
 
 /**
  * Four sides as the shortest shorthand that says the same thing, units kept:
@@ -202,6 +208,20 @@ export function useInspect(
     sentText.current = wanted;
   }, [tabId, log, holding, generation]);
 
+  // Reorders, pushed whole like the rules: the page restores what it moved
+  // and applies the list afresh, so undo and revert need no special case.
+  const moves = useMemo(() => (holding ? [] : toMoves(log)), [log, holding]);
+  const movesKey = JSON.stringify(moves);
+  const sentMoves = useRef('');
+  useEffect(() => {
+    if (tabId == null) return;
+    if (sentMoves.current === movesKey && generation === 0) return;
+    if (!moves.length && !sentMoves.current) return;
+    sentMoves.current = movesKey;
+    void sendInspector(tabId, { cmd: 'moves', moves });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId, movesKey, generation]);
+
   const refreshLayers = useCallback(() => {
     if (tabId == null) return;
     setLayersLoading(true);
@@ -314,6 +334,21 @@ export function useInspect(
     refreshLayers,
     selectLayer: (node) => send({ cmd: 'select', selector: node.selector }),
     peekLayer: (node) => (node ? send({ cmd: 'peek', selector: node.selector }) : send({ cmd: 'unpeek' })),
+    move: (node, parent, before, wasBefore) => {
+      if (before?.id === node.id || (before === null && wasBefore === null) || before?.id === wasBefore?.id) return;
+      setLog((l) =>
+        commit(l, {
+          selector: node.selector,
+          matches: 1,
+          stable: node.stable,
+          property: 'move',
+          from: wasBefore ? `before ${rowName(wasBefore)}` : `last in \`${parent.selector}\``,
+          to: before ? `before ${rowName(before)} in \`${parent.selector}\`` : `last in \`${parent.selector}\``,
+          move: { parent: parent.selector, before: before?.selector ?? null },
+        }),
+      );
+      window.setTimeout(refreshLayers, 160);
+    },
     toggleHidden: (node) => {
       // Hiding is an element edit like any other, so it undoes, reverts and
       // reaches the agent through the same list. Showing again is that edit

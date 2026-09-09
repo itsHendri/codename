@@ -157,6 +157,15 @@ const edit = (over: Partial<ElementChange>): ElementChange => ({
 });
 
 describe('element changes', () => {
+  it('describes a reorder as a markup change in words', () => {
+    const edits: ElementChange[] = [
+      { id: 'm1', selector: 'article.card:nth-of-type(3)', matches: 1, stable: false, property: 'move', from: 'last in `main.plate`', to: 'before `article.card:nth-of-type(1)` ("Grit") in `main.plate`', move: { parent: 'main.plate', before: 'article.card:nth-of-type(1)' }, status: 'applied', at: '2026-09-09T00:00:00.000Z' },
+    ];
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, edits));
+    expect(prompt).toContain('move it: it was last in `main.plate`; put it before `article.card:nth-of-type(1)` ("Grit") in `main.plate`');
+    expect(prompt).toContain('positional selector');
+  });
+
   it('renders a shorthand as one line, still no stylesheet', () => {
     const edits: ElementChange[] = [
       { id: 'e1', selector: '.btn', matches: 1, stable: true, property: 'padding', from: '8px 16px', to: '12px', status: 'applied', at: '2026-09-08T00:00:00.000Z' },

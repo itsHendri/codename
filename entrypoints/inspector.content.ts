@@ -678,6 +678,34 @@ function activate() {
     }
   };
 
+  /* ----- reorders: a real move in the DOM, put back before it is redone ----- */
+
+  /**
+   * Where each moved element came from, so the whole set can be restored and
+   * re-applied from the log as one declarative state, the way rules are.
+   * A framework that owns this DOM may put things back on its next render;
+   * that is why a move is a preview here and a sentence in the brief.
+   */
+  const movedFrom = new Map<Element, { parent: Node; next: Node | null }>();
+
+  const applyMoves = (moves: { selector: string; parent: string; before: string | null }[]) => {
+    for (const [el, origin] of Array.from(movedFrom).reverse()) {
+      if (el.isConnected && origin.parent instanceof Element && origin.parent.isConnected) {
+        origin.parent.insertBefore(el, origin.next && origin.next.parentNode === origin.parent ? origin.next : null);
+      }
+    }
+    movedFrom.clear();
+    for (const m of moves) {
+      const el = find(m.selector);
+      const parent = find(m.parent);
+      if (!el || !parent || el === parent || el.contains(parent)) continue;
+      const before = m.before ? find(m.before) : null;
+      if (before && before.parentNode !== parent) continue;
+      if (!movedFrom.has(el) && el.parentNode) movedFrom.set(el, { parent: el.parentNode, next: el.nextSibling });
+      parent.insertBefore(el, before);
+    }
+  };
+
   /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
 
   /** Where the card was dragged to, if it was; otherwise it follows the element. */
@@ -1508,6 +1536,10 @@ function activate() {
         layout();
         break;
       }
+      case 'moves':
+        applyMoves(msg.moves ?? []);
+        layout();
+        break;
       case 'pins':
         pins = msg.pins ?? [];
         layout();

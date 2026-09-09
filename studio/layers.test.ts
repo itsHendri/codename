@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ancestorsOf, componentsOf, initialCollapsed, visibleRows, type LayerNode } from './layers';
+import {
+  ancestorsOf,
+  childrenOf,
+  componentsOf,
+  initialCollapsed,
+  nextSiblingOf,
+  parentOf,
+  visibleRows,
+  type LayerNode,
+} from './layers';
 
 /** body > (header > h1, main > (p, ul > li)) */
 const node = (
@@ -120,5 +129,17 @@ describe('componentsOf', () => {
     const groups = componentsOf(rows);
     // A bare tag is structure, a leaf is not a component, so only .card remains.
     expect(groups.map((g) => [g.selector, g.count, g.nodes.length])).toEqual([['div.card', 3, 2]]);
+  });
+});
+
+describe('siblings', () => {
+  it('knows who a row sits inside, who sits beside it, and who comes next', () => {
+    expect(parentOf(tree, 4)!.id).toBe(3);
+    expect(parentOf(tree, 0)).toBeNull();
+    expect(childrenOf(tree, tree[0]!).map((n) => n.id)).toEqual([1, 3]);
+    expect(childrenOf(tree, tree[3]!).map((n) => n.id)).toEqual([4, 5]);
+    expect(nextSiblingOf(tree, 4)!.id).toBe(5);
+    expect(nextSiblingOf(tree, 5)).toBeNull();
+    expect(nextSiblingOf(tree, 1)!.id).toBe(3);
   });
 });

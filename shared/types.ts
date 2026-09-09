@@ -185,6 +185,8 @@ export type InspectorCommand =
   | { cmd: 'peek'; selector: string }
   | { cmd: 'unpeek' }
   | { cmd: 'text'; selector: string; text: string }
+  /** Every reorder in force, oldest first; the page restores what it moved and applies these afresh. */
+  | { cmd: 'moves'; moves: { selector: string; parent: string; before: string | null }[] }
   | { cmd: 'pins'; pins: Pin[] }
   /** Draw-a-box / click / shift-click to say what a note is about. */
   | { cmd: 'note'; on: boolean }

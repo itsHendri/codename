@@ -104,6 +104,35 @@ function recount(rows: LayerNode[]): LayerNode[] {
   return out;
 }
 
+/** The row this one sits inside, or null for the root. */
+export function parentOf(nodes: LayerNode[], id: number): LayerNode | null {
+  const at = nodes.findIndex((n) => n.id === id);
+  if (at < 0) return null;
+  const depth = nodes[at]!.depth;
+  for (let i = at - 1; i >= 0; i--) if (nodes[i]!.depth < depth) return nodes[i]!;
+  return null;
+}
+
+/** The rows directly inside `parent`, in document order. */
+export function childrenOf(nodes: LayerNode[], parent: LayerNode): LayerNode[] {
+  const at = nodes.findIndex((n) => n.id === parent.id);
+  if (at < 0) return [];
+  const out: LayerNode[] = [];
+  for (let i = at + 1; i < nodes.length && nodes[i]!.depth > parent.depth; i++) {
+    if (nodes[i]!.depth === parent.depth + 1) out.push(nodes[i]!);
+  }
+  return out;
+}
+
+/** The sibling after this row, or null when it is the last. */
+export function nextSiblingOf(nodes: LayerNode[], id: number): LayerNode | null {
+  const parent = parentOf(nodes, id);
+  if (!parent) return null;
+  const siblings = childrenOf(nodes, parent);
+  const at = siblings.findIndex((n) => n.id === id);
+  return at >= 0 ? (siblings[at + 1] ?? null) : null;
+}
+
 /** The chain from the root down to `id`, for expanding to a selection. */
 export function ancestorsOf(nodes: LayerNode[], id: number): number[] {
   const target = nodes.find((n) => n.id === id);

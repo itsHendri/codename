@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ancestorsOf, initialCollapsed, visibleRows, type LayerNode } from '@/studio/layers';
+import { ancestorsOf, initialCollapsed, nextSiblingOf, parentOf, visibleRows, type LayerNode } from '@/studio/layers';
 
 /**
  * The page as a list you can pick from.
@@ -14,6 +14,7 @@ export function LayersTree({
   onSelect,
   onPeek,
   onToggleHidden,
+  onMove,
   onRefresh,
   loading,
 }: {
@@ -22,12 +23,17 @@ export function LayersTree({
   onSelect: (node: LayerNode) => void;
   onPeek: (node: LayerNode | null) => void;
   onToggleHidden: (node: LayerNode) => void;
+  /** Drop a row before another of its siblings, or last (`before` null). */
+  onMove: (node: LayerNode, parent: LayerNode, before: LayerNode | null, wasBefore: LayerNode | null) => void;
   onRefresh: () => void;
   loading: boolean;
 }) {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState('');
   const [skipHidden, setSkipHidden] = useState(false);
+  // A drag in progress: the row being carried, and where it would land.
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [drop, setDrop] = useState<{ id: number; where: 'before' | 'after' } | null>(null);
   const hiddenCount = useMemo(() => nodes.filter((n) => n.hidden).length, [nodes]);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
@@ -68,6 +74,32 @@ export function LayersTree({
       else next.add(id);
       return next;
     });
+
+  /**
+   * Reordering by drag, among siblings only: a row can go before or after
+   * another row inside the same parent. Moving into a different parent is
+   * a bigger change than a reorder and is deliberately not offered.
+   */
+  const dropFor = (target: LayerNode, e: React.DragEvent): { id: number; where: 'before' | 'after' } | null => {
+    if (dragId === null || dragId === target.id) return null;
+    const a = parentOf(nodes, dragId);
+    const b = parentOf(nodes, target.id);
+    if (!a || !b || a.id !== b.id) return null;
+    const box = e.currentTarget.getBoundingClientRect();
+    return { id: target.id, where: e.clientY < box.top + box.height / 2 ? 'before' : 'after' };
+  };
+
+  const finishDrop = () => {
+    if (dragId !== null && drop) {
+      const node = nodes.find((n) => n.id === dragId)!;
+      const target = nodes.find((n) => n.id === drop.id)!;
+      const parent = parentOf(nodes, dragId)!;
+      const before = drop.where === 'before' ? target : nextSiblingOf(nodes, target.id);
+      onMove(node, parent, before, nextSiblingOf(nodes, node.id));
+    }
+    setDragId(null);
+    setDrop(null);
+  };
 
   /**
    * The tree from the keyboard, as a file browser works: up and down move the
@@ -155,11 +187,39 @@ export function LayersTree({
                   else rowRefs.current.delete(node.id);
                 }}
                 onMouseEnter={() => onPeek(node)}
+                draggable={!query}
+                onDragStart={(e) => {
+                  setDragId(node.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', node.selector);
+                }}
+                onDragOver={(e) => {
+                  const d = dropFor(node, e);
+                  if (!d) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (d.id !== drop?.id || d.where !== drop?.where) setDrop(d);
+                }}
+                onDragLeave={() => drop?.id === node.id && setDrop(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  finishDrop();
+                }}
+                onDragEnd={() => {
+                  setDragId(null);
+                  setDrop(null);
+                }}
                 className={`flex items-center gap-1 py-0.5 pr-1 text-2xs ${
                   isSelected
                     ? 'bg-surface-selected text-ink'
                     : 'text-ink-secondary hover:bg-surface-control'
-                } ${node.hidden ? 'opacity-50' : ''}`}
+                } ${node.hidden ? 'opacity-50' : ''} ${dragId === node.id ? 'opacity-40' : ''} ${
+                  drop?.id === node.id
+                    ? drop.where === 'before'
+                      ? 'shadow-[inset_0_2px_0_0_var(--accent)]'
+                      : 'shadow-[inset_0_-2px_0_0_var(--accent)]'
+                    : ''
+                }`}
                 style={{ paddingLeft: `${4 + node.depth * 9}px` }}
               >
                 <button

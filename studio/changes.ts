@@ -9,6 +9,12 @@
  * like edits, not frames.
  */
 
+/** Where an element was put: inside `parent`, before `before`, or last when null. */
+export interface MoveSpec {
+  parent: string;
+  before: string | null;
+}
+
 export interface ElementChange {
   id: string;
   selector: string;
@@ -16,8 +22,10 @@ export interface ElementChange {
   matches: number;
   /** false when the selector leans on :nth-of-type and will break on reorder. */
   stable: boolean;
-  /** A CSS longhand, or 'text' for an inline text edit. */
+  /** A CSS longhand, 'text' for an inline text edit, or 'move' for a reorder. */
   property: string;
+  /** For 'move': the position, in selectors; `from`/`to` carry it in words for the brief. */
+  move?: MoveSpec;
   from: string;
   /** `var(--x)` when a token was chosen; see `token`. */
   to: string;
@@ -112,11 +120,18 @@ export function active(log: ChangeLog): ElementChange[] {
   return log.entries.slice(0, log.cursor).filter((e) => e.status === 'applied');
 }
 
+/** Reorders in force, oldest first: each is applied on top of the ones before it. */
+export function toMoves(log: ChangeLog): (MoveSpec & { selector: string })[] {
+  return active(log)
+    .filter((e) => e.property === 'move' && e.move)
+    .map((e) => ({ selector: e.selector, ...e.move! }));
+}
+
 /** What the page should be told: last write wins per selector and property. */
 export function toRules(log: ChangeLog): Rule[] {
   const byKey = new Map<string, Rule>();
   for (const e of active(log)) {
-    if (e.property === 'text') continue;
+    if (e.property === 'text' || e.property === 'move') continue;
     byKey.set(`${e.selector} ${e.property}`, {
       selector: e.selector,
       property: e.property,

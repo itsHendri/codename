@@ -276,7 +276,9 @@ export function toPrompt(set: ChangeSet): string {
         lines.push(
           e.property === 'text'
             ? `  - text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
-            : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : ''}`,
+            : e.property === 'move'
+              ? `  - move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
+              : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : ''}`,
         );
       }
     }

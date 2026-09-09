@@ -217,10 +217,12 @@ and 734 rows became 535. And the positional badge does not appear per row —
 431 of those 535 have no distinctive selector, so a flag on each is noise
 rather than signal; the selection header still says it once, where it matters.
 
-Drag-to-reorder is deliberately not here. A reorder is a DOM change rather
-than a style one, and on the dev server this is built for it would be undone
-by the next render and can confuse the framework's reconciliation. If it
-comes, it comes as an instruction in the brief rather than as a live edit.
+Drag-to-reorder arrived later (W12), and the caution above shaped how: a
+row can move among its siblings only, the page performs a real DOM move as
+a preview — restored and re-applied from the log as one state, like the
+rules, so undo needs no special case — and the brief carries the move as a
+sentence about the markup's order, never as a style. A framework that owns
+the DOM may put the element back on its next render; the README says so.
 
 **W10. Ship Studio's palette, adopted (S).** Done. Rather than approximate it,
 the panel now uses Ship Studio's own values under its MIT licence, with the

@@ -65,6 +65,7 @@ export function LayersTab({
       onSelect={ctl.selectLayer}
       onPeek={ctl.peekLayer}
       onToggleHidden={ctl.toggleHidden}
+      onMove={ctl.move}
       onRefresh={ctl.refreshLayers}
       loading={ctl.layersLoading}
     />
