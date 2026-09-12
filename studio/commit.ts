@@ -18,6 +18,7 @@
  * finds several, the brief says how many rather than choosing.
  */
 
+import type { Definition } from '@/shared/protocol';
 import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
@@ -29,6 +30,14 @@ export interface TokenChange {
   name: string;
   from: string;
   to: string;
+  /**
+   * Where the bridge found this defined in the project. A find, not a guess:
+   * absent when no bridge is paired, and more than one entry means the
+   * cascade decides which applies.
+   */
+  definedAt?: Definition[];
+  /** Set when the person applied this definition to source themselves. */
+  applied?: { file: string; line: number };
   /** Where the browser loaded the defining stylesheet. A hint, not a fact. */
   source?: string;
   /** Declarations referencing this token. */
@@ -95,6 +104,8 @@ export interface CommentNote {
 export interface ChangeSet {
   site: string;
   editedAt: string;
+  /** The project a paired bridge is running in, when there is one. */
+  project?: { name: string; path: string; branch?: string };
   /** Whether this looks like a project running on your own machine. */
   local: boolean;
   tokens: TokenChange[];
@@ -167,12 +178,21 @@ export function buildChangeSet(
   comments: CommentNote[] = [],
   system: SystemChange[] = [],
   locked: string[] = [],
+  /** What a paired bridge knows: the project, where each token lives, what is already applied. */
+  repo: {
+    project?: ChangeSet['project'];
+    definitions?: Record<string, Definition[]>;
+    applied?: { name: string; file: string; line: number }[];
+  } = {},
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
+  const appliedByName = new Map((repo.applied ?? []).map((a) => [a.name, a]));
   const tokens: TokenChange[] = overrides.map((o) => {
     const prop = propByName.get(o.name);
     const alsoAt = Object.entries(prop?.atWidth ?? {}).map(([query, value]) => ({ query, value }));
+    const definedAt = repo.definitions?.[o.name];
+    const applied = appliedByName.get(o.name);
     return {
       name: o.name,
       from: o.from,
@@ -180,6 +200,8 @@ export function buildChangeSet(
       source: prop?.source,
       uses: prop?.uses,
       reason: o.reason,
+      ...(definedAt?.length ? { definedAt } : {}),
+      ...(applied ? { applied: { file: applied.file, line: applied.line } } : {}),
       ...(alsoAt.length ? { alsoAt } : {}),
       ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
     };
@@ -205,6 +227,7 @@ export function buildChangeSet(
     comments,
     unreadable: scan.unreadableSheets,
     ...(locked.length ? { locked } : {}),
+    ...(repo.project ? { project: repo.project } : {}),
   };
 }
 
@@ -260,6 +283,27 @@ export function standingRules(locked: string[] = []): string {
 }
 
 /**
+ * Where a token is defined, in one line, or nothing.
+ *
+ * One definition is named. Several are counted and listed, because which one
+ * applies is the cascade's business and picking would be the guess this
+ * whole file exists to avoid. None says nothing at all.
+ */
+export function describeDefinitions(t: TokenChange): string | null {
+  if (t.applied) return `already applied in ${t.applied.file}:${t.applied.line} — do not write this one again`;
+  const found = t.definedAt ?? [];
+  if (!found.length) return null;
+  const at = (d: Definition) => `${d.file}${d.line ? `:${d.line}` : ''}`;
+  if (found.length === 1) return `defined at ${at(found[0]!)}`;
+  const listed = found
+    .slice(0, 4)
+    .map((d) => `${at(d)}${d.context === 'root' ? '' : ` (${d.context})`}`)
+    .join(', ');
+  const more = found.length > 4 ? `, and ${found.length - 4} more` : '';
+  return `${found.length} definitions: ${listed}${more} — read them before editing; which one applies is the cascade's business`;
+}
+
+/**
  * The instruction an agent receives. Written as a brief rather than a diff: it
  * says what changed, where to look, and — because this is the failure mode that
  * matters — what not to do.
@@ -274,7 +318,10 @@ export function toPrompt(set: ChangeSet): string {
     }
   })();
 
-  lines.push(`Apply a design change I made against ${host}.`);
+  const where = set.project
+    ? `${host}, running from ${set.project.name}${set.project.branch ? ` on ${set.project.branch}` : ''}`
+    : host;
+  lines.push(`Apply a design change I made against ${where}.`);
   lines.push('');
 
   if (set.tokens.length) {
@@ -297,6 +344,8 @@ export function toPrompt(set: ChangeSet): string {
         .filter(Boolean)
         .join('; ');
       lines.push(`- \`${t.name}\`: \`${t.from}\` → \`${t.to}\`${detail ? `  (${detail})` : ''}`);
+      const position = describeDefinitions(t);
+      if (position) lines.push(`  - ${position}`);
       if (t.onlyAt) lines.push(`  - the page defines this only at ${t.onlyAt}; there is no base value, so that definition is the one to edit`);
       for (const a of t.alsoAt ?? []) {
         lines.push(`  - also defined at ${a.query} as \`${a.value}\`; left alone — decide whether it should follow`);
@@ -392,8 +441,14 @@ export function toPrompt(set: ChangeSet): string {
 
   lines.push('## Notes');
   lines.push('');
+  // Where the bridge searched the project, the positions above are the answer
+  // to "where is this defined"; telling the agent to go and find them again
+  // would send it looking for what it has already been handed.
+  const located = set.tokens.some((t) => t.definedAt?.length || t.applied);
   lines.push(
-    '- These values were read from the rendered page, so the stylesheet URLs are where the browser loaded the CSS — find the real definitions in the source.',
+    located
+      ? '- These values were read from the rendered page; the file positions above come from a search of this project. Where a token has more than one definition, read them before editing.'
+      : '- These values were read from the rendered page, so the stylesheet URLs are where the browser loaded the CSS — find the real definitions in the source.',
   );
   lines.push('- Change nothing else. Colours not listed here were deliberately left alone.');
   if (set.unreadable.length) {

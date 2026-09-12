@@ -21,6 +21,7 @@ Five tools solve adjacent problems:
 | **Agentation** | React dev overlay on your own app | Annotations only | HTTP+SSE; MCP with a blocking `watch` tool and a resolve lifecycle |
 | **Webflow** (Conf, Sept 2026) | Hosted designer; Source puts code and martech on one surface | Everything, in its own model; breakpoint canvas; style props | MCP 2.1 (GSAP interactions, CMS queries, Cloud logs); generated Agent Instructions; Agent Presence on the canvas |
 | **Framer 3** (June 2026) | Hosted designer | Everything, in its own model; agents on the canvas | In-app agent that reads styles, components and CMS; Branching |
+| **Nordcraft** (2.0, April 2026) | Hosted editor; Apache-2.0 runtime, closed editor | Everything, in its own model (pages, components, formulas, actions, workflows); style *variants* as a reorderable condition list; typed theme variables | In-editor agent that writes into the model, not into code; no MCP |
 
 They agree on three things, and Codename keeps all three:
 
@@ -41,6 +42,32 @@ re-skins pages that expose no CSS variables at all, and hands off at token
 level with usage counts. Where it is behind: no agent connection, no
 per-element editing or changes list, no undo, no comments, no keyboard model,
 and a light-only panel with no design tokens of its own.
+
+## Extension, not an app
+
+Asked in September 2026, after a survey of what the adjacent tools had
+become. Answered: **the extension stays the canvas and the companion grows**.
+
+Everything built for people who own a repo had converged on a local app that
+owns a Chromium and a terminal — Cursor's built-in browser with its visual
+editor and Design Mode, stagewise's Electron "developer browser", Ship
+Studio's Tauri window — while everything built for people who do not want a
+local environment converged on a web app over a cloud container. Onlook moved
+from Electron to the web and said plainly why: the download and the "debug
+their machine" support burden, not a limit of Electron.
+
+A desktop app would buy this project a filesystem, a terminal in the same
+window, a multi-viewport canvas and no store review. Three of those are
+already answered — the companion is the filesystem, the agent already has its
+own terminal, and the breakpoint canvas is declined by the live-page rule with
+the viewport presets and the sweep serving its purpose. What it would cost is
+the thing none of those tools have: **the user's own browser**, with their
+profile, their session, their staging and production sites. Cursor's browser
+cannot even load an extension.
+
+So the shape is the one thing nobody had built end to end: an extension for
+the canvas, and a local companion for everything an extension cannot do. W16
+is that companion growing up.
 
 ## Done
 
@@ -497,9 +524,90 @@ from the same survey: drag handles for spacing on the page (v0's Design
 Mode, Webflow's on-canvas spacing), and offering `DESIGN_SYSTEM.md` under
 the `DESIGN.md` name Stitch ships.
 
+**W16. The bridge knows the project (L).** Done, 12 September 2026, from a
+look at Nordcraft and a survey of the app-versus-plugin question (above).
+
+Nordcraft is a cloud editor that owns its whole app model and cannot sit on
+an existing repository, so it competes for a different user. What it argues
+is the useful part: its post on Cursor's visual editor says a precise edit
+should never be routed through a language model — "if we have to give the
+machine precise unambiguous instructions on what to do, why do we need an
+LLM?" That is this project's split already, and it is what made the apply
+step below worth building rather than just the lookup.
+
+- **It says which project it is in.** `readProject` reads the folder's name,
+  its git branch and whether the tree is dirty, and the hello ack carries
+  them. The Changes tab names them, the brief opens with them, and
+  `editsKey` files a local page's decisions under the project instead of its
+  origin — two apps take turns on `localhost:3000`, and one app answers to
+  `:3000` today and `:5173` tomorrow. A deployed site stays keyed by origin,
+  because the folder a terminal happens to sit in says nothing about it.
+- **It searches that project.** `findDefinitions` walks the stylesheets and
+  token files git knows about — `.gitignore` honoured, so build output and
+  dependencies are skipped — and reports every definition with its file,
+  line, value and what it sits inside: `root`, `dark`, `media` or `scoped`.
+  The result is pushed to the panel whenever the names in a change set
+  change, so the person and the agent read the same fact and the copied brief
+  carries it. `find_definition` is the agent's door to the same search, and
+  `check_tokens` now takes a path for the bridge to read rather than making
+  the agent paste a file.
+
+  This rewrites the "No file positions, on purpose" rule, and narrows it to
+  what it was always about. The reason was that the extension sees a rendered
+  page, so a line number would be a guess. The bridge read the file. So: a
+  position appears when exactly one definition exists, a count with the
+  candidates when several do, and nothing at all when there are none — and
+  the closing note stops telling the agent to go and find what it has just
+  been handed.
+- **It writes exactly one thing.** A token change with a single root-level
+  definition, alone on its line, in a stylesheet rather than a token file,
+  still holding the value it was read with, carries an **Apply** button once
+  the person ticks *Bridge may edit definitions* for that project. It
+  replaces the value text and nothing else — indentation, spacing and
+  `!important` are the file's business — through a temp file and a rename,
+  and the token leaves the brief saying it is already in source.
+  `apply_definition` is the same function under the same switch. Every other
+  case is refused with the reason and stays in the brief.
+
+  This is the one departure from "writes to source stay with the agent", and
+  it is deliberate: `--mark: #BE3A22 → #1C7F5C` has nothing left to decide,
+  and a round trip through a model can only lose. Everything with a judgement
+  in it still goes to the agent.
+- **`codename-bridge open`.** Starts the project's dev script with the
+  package manager its lockfile names, watches the output for the first
+  localhost URL, and opens it. The part of a desktop app worth having,
+  without shipping a browser to get it.
+- **Pairing, once per machine.** The bridge remembers the first extension
+  that pairs with it and refuses every other one after that; the panel, when
+  it has no pairing, asks a bridge whether it already knows this extension
+  and is given the code. A second project needs no code. The first pairing
+  is still typed, because that is what creates the pin.
+- **The hardening the audit asked for**, in the same change because it is the
+  same socket: any `chrome-extension://` origin used to be accepted; five
+  wrong codes in a minute now close the door for five; and *Agent may change
+  this page* no longer defaults on for localhost, which was a consent nobody
+  gave. It is asked once per project and remembered.
+
 ## Still to build
 
 In order.
+
+0. **Conditions (M/L).** Nordcraft's best idea, in the form this project can
+   take honestly. A condition selector on the selection — Default · Hover ·
+   Focus · Active · Dark · a width preset — with the edit recorded against
+   the condition (`ElementChange.condition`) and written into the managed
+   sheet under the matching selector or media query. A state previews without
+   `chrome.debugger`: the reskin script rewrites the page's own `:hover`,
+   `:focus` and `:active` rules that match the selection into a
+   `.codename-state-*` class in a sheet ahead of the element sheet, and the
+   inspector puts that class on the element; the managed rule is emitted as
+   `sel:hover, sel.codename-state-hover` so the real pointer still works.
+   The same walk yields a read-only "already on hover" list, so editing a
+   state is not blind. The brief groups by selector with a line per
+   condition, and names the page's own dark hook. Undo, revert and Reset need
+   no special case. Out of scope, so that Effects and motion stays one item:
+   transitions and animations, pseudo-elements, `@starting-style`, compound
+   conditions, container queries.
 
 1. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
    trigger-first interaction editor (hover, press, focus, appear, loop,
@@ -526,6 +634,21 @@ site and switching before handing one off, which git already answers for
 the primary use case.
 
 ## Known limits and open questions
+
+- The four content scripts — `inspector.content.ts` (the largest file in the
+  project), `reskin.content.ts`, `scanner.content.ts` and `background.ts` —
+  have no tests. They are the most browser-coupled code here and the hardest
+  to debug; the panel suite and the harness cover what they produce, not what
+  they do. `studio/export/designSystemMd.ts` and `studio/engine/semantics.ts`
+  are also past 800 lines and want splitting.
+- The definition search reads text, not a CSS parser: a definition written
+  inside a string, or produced by a preprocessor that the source does not
+  spell out, is not found. A file over 2MB, or a search past its budget, is
+  skipped and the result says it was truncated — so absence never proves
+  there is no definition, which is why nothing is written on absence.
+- `apply_definition` writes through a temp file and a rename, and never
+  touches git. A dev server with hot reload repaints from source within a
+  moment; one without it wants a reload, and the row says so.
 
 - The bar pushes the page with a root margin; a header the page fixes to the
   top of the viewport still sits under it. Region notes store page

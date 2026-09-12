@@ -12,13 +12,19 @@
 
 import { useSyncExternalStore } from 'react';
 import type { AgentPresence, PinnedElement, ScanResult } from '@/shared/types';
-import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
+import type {
+  Comment,
+  CommentStatus,
+  DefinitionsPayload,
+  ProjectInfo,
+  SessionState,
+} from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { FileToken } from '@/studio/tokenFile';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
-import { applyEdits, diffEdits, type BrandEdits } from '@/studio/edits';
+import { applyEdits, diffEdits, editsKey, type BrandEdits } from '@/studio/edits';
 import { loadEdits, saveEdits } from '@/studio/storage';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
 
@@ -52,8 +58,17 @@ export interface TabSession {
   revision: number;
   /** What was pressed "Send to agent" on, until the agent or the user clears it. */
   handoff: SessionState['handoff'];
-  /** Whether the agent may paint on this page. Defaults on for localhost. */
+  /** Whether the agent may paint on this page. Asked for once per project. */
   agentMayWrite: boolean;
+  /**
+   * Whether the bridge may write a variable definition in the project it is
+   * running in. Off until the person says so; the only write it ever makes.
+   */
+  bridgeMayWrite: boolean;
+  /** Where the bridge found the tokens in play, pushed whenever the set changes. */
+  definitions: DefinitionsPayload | null;
+  /** Definitions the person applied to source from here, so the brief can say so. */
+  applied: { name: string; file: string; line: number }[];
   /**
    * The agent's preview stylesheet, while it is on the page: what it holds,
    * what it reaches, since when — and the sheet itself, so a reload can put
@@ -88,6 +103,9 @@ const EMPTY: TabSession = {
   revision: 0,
   handoff: null,
   agentMayWrite: false,
+  bridgeMayWrite: false,
+  definitions: null,
+  applied: [],
   agentPreview: null,
   comments: [],
   agentLog: [],
@@ -162,10 +180,11 @@ export async function loadSession(id: number, url: string): Promise<void> {
   const stored = raw[key(id)] as Partial<Persisted> | undefined;
   const keep = stored?.scan && sameOrigin(stored.scan.url, url);
   const samePage = keep && stored.logUrl === pageKey(url);
+  const allowed = await loadConsent(keyFor(url));
   state = keep
     ? {
         ...EMPTY,
-        agentMayWrite: isLocal(url),
+        ...allowed,
         ...stored,
         // A session stored before the preview was counted held a flag here.
         agentPreview: typeof stored.agentPreview === 'object' ? stored.agentPreview : null,
@@ -176,8 +195,68 @@ export async function loadSession(id: number, url: string): Promise<void> {
         logUrl: pageKey(url),
         generation: state.generation + 1,
       }
-    : { ...EMPTY, agentMayWrite: isLocal(url), logUrl: pageKey(url), generation: state.generation + 1 };
+    : { ...EMPTY, ...allowed, logUrl: pageKey(url), generation: state.generation + 1 };
   emit();
+}
+
+/* ---------------- consent, kept per project ---------------- */
+
+const CONSENT_KEY = 'consent:';
+
+interface Consent {
+  agentMayWrite: boolean;
+  bridgeMayWrite: boolean;
+}
+
+/**
+ * What the person has allowed here before.
+ *
+ * Asked once per project rather than assumed: a page on localhost used to
+ * arrive with the agent already allowed to paint on it, which is a consent
+ * nobody gave.
+ */
+async function loadConsent(key: string): Promise<Consent> {
+  try {
+    const k = `${CONSENT_KEY}${key}`;
+    const got = await chrome.storage.local.get(k);
+    const raw = got[k] as Partial<Consent> | undefined;
+    return { agentMayWrite: raw?.agentMayWrite === true, bridgeMayWrite: raw?.bridgeMayWrite === true };
+  } catch {
+    return { agentMayWrite: false, bridgeMayWrite: false };
+  }
+}
+
+/**
+ * A definition the person applied to source from here.
+ *
+ * It leaves the brief — the agent must not write it again — and the variable
+ * override goes with it, because source now holds the value and the page will
+ * repaint from it on the next reload.
+ */
+export function markApplied(applied: { name: string; file: string; line: number }): void {
+  updateSession((s) => {
+    const vars = { ...s.varOverrides };
+    delete vars[applied.name];
+    return {
+      applied: [...s.applied.filter((a) => a.name !== applied.name), { name: applied.name, file: applied.file, line: applied.line }],
+      varOverrides: vars,
+      revision: s.revision + 1,
+    };
+  });
+  scheduleSaveEdits();
+}
+
+/** Remember an answer, so the same project does not ask again. */
+export function allow(what: keyof Consent, value: boolean): void {
+  updateSession({ [what]: value } as Partial<TabSession>);
+  const url = state.scan?.url;
+  if (!url) return;
+  const k = `${CONSENT_KEY}${keyFor(url)}`;
+  const next: Consent = {
+    agentMayWrite: what === 'agentMayWrite' ? value : state.agentMayWrite,
+    bridgeMayWrite: what === 'bridgeMayWrite' ? value : state.bridgeMayWrite,
+  };
+  void chrome.storage.local.set({ [k]: next }).catch(() => {});
 }
 
 /** Something the agent should wake up for. */
@@ -236,41 +315,80 @@ const originOf = (url: string) => {
 };
 
 /**
+ * The project the paired bridge is running in, or null. Held here rather than
+ * in the session because it belongs to the machine, not the tab: every panel
+ * in the window is talking to the same bridge.
+ */
+let project: ProjectInfo | null = null;
+
+/** Where this page's decisions are filed right now. */
+const keyFor = (url: string) => editsKey(originOf(url), project, isLocal(url));
+
+/**
+ * The bridge connected, disconnected, or moved to another folder. The edits
+ * in play may now belong under a different key, so they are read again.
+ */
+export function setProjectScope(next: ProjectInfo | null): void {
+  const before = project;
+  project = next;
+  const scan = state.scan;
+  if (!scan) return;
+  if (keyFor(scan.url) === editsKey(originOf(scan.url), before, isLocal(scan.url))) return;
+  void reloadEdits(scan.url);
+  // What was allowed for an origin was not allowed for this project.
+  void loadConsent(keyFor(scan.url)).then((allowed) => updateSession(allowed));
+}
+
+/** Reads the decisions filed under the current key and lays them over the scan. */
+async function reloadEdits(url: string): Promise<void> {
+  const scan = state.scan;
+  if (!scan) return;
+  const edits = await loadEdits(keyFor(url), originOf(url)).catch(() => null);
+  if (state.scan !== scan) return;
+  updateSession({
+    config: edits ? applyEdits(seedBrandFromScan(scan), edits) : null,
+    varOverrides: edits?.vars ?? {},
+    colorEdits: edits?.colors ?? {},
+    locks: edits?.locks ?? [],
+  });
+}
+
+/**
  * A new scan is a new reading of the page. The decisions made against this
  * site are laid back over it, so a seed you moved stays moved while
  * everything else is observed afresh.
  */
 export async function setScan(scan: ScanResult) {
-  const edits = await loadEdits(originOf(scan.url)).catch(() => null);
+  const edits = await loadEdits(keyFor(scan.url), originOf(scan.url)).catch(() => null);
   const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
   updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {}, locks: edits?.locks ?? [] });
 }
 
 /** Everything decided against this site, as the store keeps it. */
-function currentEdits(): { origin: string; edits: BrandEdits } | null {
+function currentEdits(): { key: string; edits: BrandEdits } | null {
   const { scan, config, varOverrides, colorEdits, locks } = state;
   if (!scan) return null;
   const seeded = seedBrandFromScan(scan);
   return {
-    origin: originOf(scan.url),
+    key: keyFor(scan.url),
     edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits, locks },
   };
 }
 
 /**
  * Coalesced like the session itself: a colour picker fires per frame. The
- * decision is taken at schedule time, against the origin it was made on,
+ * decision is taken at schedule time, against the key it was made under,
  * so a tab switch inside the window cannot redirect it; and it is flushed
  * when the store moves to another tab or the panel goes away.
  */
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingSave: { origin: string; edits: BrandEdits } | null = null;
+let pendingSave: { key: string; edits: BrandEdits } | null = null;
 function flushSaveEdits() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   const due = pendingSave;
   pendingSave = null;
-  if (due) void saveEdits(due.origin, due.edits).catch(() => {});
+  if (due) void saveEdits(due.key, due.edits).catch(() => {});
 }
 function scheduleSaveEdits() {
   pendingSave = currentEdits();

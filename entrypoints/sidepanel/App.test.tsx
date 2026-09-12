@@ -10,7 +10,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
-import { updateSession } from './lib/session';
+import { handleBridgeFrame } from './lib/bridge';
+import { allow, updateSession } from './lib/session';
 import { element, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -184,5 +185,73 @@ describe('the panel', () => {
     await tick(400);
     const stored = (await chrome.storage.session.get('session:1'))['session:1'] as { activeTab?: string };
     expect(stored.activeTab).toBe('changes');
+  });
+});
+
+describe('the project the bridge is running in', () => {
+  const ack = (project: { name: string; path: string; branch?: string; dirty?: boolean } | null) =>
+    handleBridgeFrame({ v: 1, id: 'a', type: 'response', replyTo: 'h', ok: true, payload: { bridgeVersion: '0.1.0', ...(project ? { project } : {}) } });
+
+  const definitions = (found: Record<string, { file: string; line: number; kind: 'css'; context: 'root' | 'media'; value: string }[]>) =>
+    handleBridgeFrame({ v: 1, id: 'd', type: 'definitions', payload: { found } });
+
+  /** A token edit in the queue, so Changes has something to show. */
+  const editAToken = async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+  };
+
+  it('names the project and its branch on Changes', async () => {
+    await act(async () => void ack({ name: 'forfontsake', path: '/Users/x/ffs', branch: 'main', dirty: true }));
+    await tick();
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('forfontsake');
+    expect(text()).toContain('main');
+    expect(text()).toContain('Bridge may edit definitions in forfontsake');
+  });
+
+  it('says nothing about a project while no bridge is paired', async () => {
+    await act(async () => void ack(null));
+    await tick();
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).not.toContain('Bridge may edit definitions');
+  });
+
+  it('shows where a token is defined, and offers Apply only once the project allows it', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () =>
+      updateSession({ varOverrides: { '--mark': '#1C7F5C' } }),
+    );
+    await act(async () => void definitions({ '--mark': [{ file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' }] }));
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('src/index.css:12');
+    const applyBefore = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Apply');
+    expect(applyBefore).toBeUndefined();
+
+    await act(async () => allow('bridgeMayWrite', true));
+    await tick();
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(true);
+  });
+
+  it('does not offer Apply when more than one definition could be the one', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+    await act(async () => allow('bridgeMayWrite', true));
+    await act(async () =>
+      void definitions({
+        '--mark': [
+          { file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' },
+          { file: 'src/dark.css', line: 4, kind: 'css', context: 'media', value: '#BE3A22' },
+        ],
+      }),
+    );
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('2 definitions — the cascade decides');
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
   });
 });

@@ -15,13 +15,19 @@ import {
   DEFAULT_PORT,
   DESIGN_FILES,
   PROTOCOL_VERSION,
+  type AppliedDefinition,
   type BridgeRequest,
+  type DefinitionsPayload,
   type DesignFile,
   type DesignSystemResult,
   type Envelope,
+  type HelloAck,
+  type PanelRequest,
+  type ProjectInfo,
   type SessionState,
 } from '@/shared/protocol';
-import { buildChangeSet, isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
+import { isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
+import type { ChangeSet } from '@/studio/commit';
 import { active } from '@/studio/changes';
 import { buildExport } from '@/studio/export/bundle';
 import { driftReport, driftToText, parseTokenFile } from '@/studio/tokenFile';
@@ -34,11 +40,12 @@ import {
   getSession,
   logAgent,
   setCommentStatus,
+  setProjectScope,
   updateSession,
   type TabSession,
 } from './session';
 
-export type BridgeStatus = 'off' | 'connecting' | 'connected' | 'unauthorized';
+export type BridgeStatus = 'off' | 'connecting' | 'connected' | 'unauthorized' | 'locked';
 
 export interface Pairing {
   token: string;
@@ -52,6 +59,8 @@ const MAX_BACKOFF = 30_000;
 
 let status: BridgeStatus = 'off';
 let pairing: Pairing | null = null;
+/** The folder the paired bridge is running in, as its hello ack named it. */
+let project: ProjectInfo | null = null;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 const setStatus = (s: BridgeStatus) => {
@@ -60,10 +69,22 @@ const setStatus = (s: BridgeStatus) => {
   emit();
 };
 
+const setProject = (p: ProjectInfo | null) => {
+  if (p?.path === project?.path && p?.branch === project?.branch && p?.dirty === project?.dirty) return;
+  project = p;
+  setProjectScope(p);
+  emit();
+};
+
 /* ---------------- the socket ---------------- */
+
+/** The bridge closes with this when too many wrong codes have been tried. */
+const TOO_MANY = 4429;
 
 let socket: WebSocket | null = null;
 let backoff = 1000;
+/** What the panel is waiting on the bridge to answer. */
+const asking = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionId = '';
 let latest: SessionState | null = null;
@@ -99,6 +120,7 @@ function connect() {
       payload: {
         token: pairing!.token,
         extensionVersion: chrome.runtime.getManifest?.().version ?? '0',
+        extensionId: chrome.runtime.id,
         sessionId,
       },
     });
@@ -109,8 +131,13 @@ function connect() {
   ws.onmessage = (e) => void onMessage(e.data as string);
   ws.onclose = (e) => {
     socket = null;
+    setProject(null);
     if (e.code === 4401) {
       setStatus('unauthorized');
+      return;
+    }
+    if (e.code === TOO_MANY) {
+      setStatus('locked');
       return;
     }
     if (!pairing) {
@@ -133,6 +160,40 @@ function disconnect() {
   setStatus(pairing ? 'connecting' : 'off');
 }
 
+/**
+ * Everything the bridge sends that is not a request: the answer to our hello,
+ * the answer to something we asked, and the definitions it found.
+ *
+ * Split out from the request path because the two have nothing to do with
+ * each other — one is the panel answering, the other the panel being
+ * answered — and because it gives a test somewhere to push a frame in.
+ */
+export function handleBridgeFrame(msg: Envelope): boolean {
+  if (msg.type === 'response') {
+    const waiting = msg.replyTo ? asking.get(msg.replyTo) : undefined;
+    if (waiting && msg.replyTo) {
+      asking.delete(msg.replyTo);
+      clearTimeout(waiting.timer);
+      if (msg.ok === false) waiting.reject(new Error(msg.error ?? 'the bridge refused'));
+      else waiting.resolve(msg.payload);
+      return true;
+    }
+    // Not something we asked for, so it is the answer to the hello. Known by
+    // its shape rather than its id, which saves holding on to the id at all.
+    const ack = msg.payload as HelloAck | undefined;
+    if (ack && typeof ack.bridgeVersion === 'string') setProject(ack.project ?? null);
+    return true;
+  }
+
+  if (msg.type === 'definitions') {
+    const payload = msg.payload as DefinitionsPayload | undefined;
+    if (payload?.found) updateSession({ definitions: payload });
+    return true;
+  }
+
+  return false;
+}
+
 async function onMessage(raw: string) {
   let msg: Envelope<BridgeRequest>;
   try {
@@ -140,6 +201,8 @@ async function onMessage(raw: string) {
   } catch {
     return;
   }
+
+  if (handleBridgeFrame(msg)) return;
   if (msg.type !== 'request' || !msg.payload) return;
   const reply = (ok: boolean, payload?: unknown, error?: string) =>
     send({ v: PROTOCOL_VERSION, id: uid(), type: 'response', replyTo: msg.id, ok, payload, error });
@@ -360,6 +423,72 @@ async function loadPairing(): Promise<void> {
   }
   emit();
   if (pairing) connect();
+  else void probe();
+}
+
+/**
+ * Ask whether a bridge on this machine already knows us.
+ *
+ * A bridge remembers the first extension that paired with it, so a second
+ * project — a new folder, a new agent, a new code — does not have to be typed
+ * in again: this asks, and a bridge that recognises the extension answers
+ * with the code. One that does not recognise it says nothing, which is the
+ * same as no bridge being there.
+ */
+let probing = false;
+export async function probe(port = DEFAULT_PORT): Promise<boolean> {
+  if (pairing || probing || typeof WebSocket === 'undefined') return false;
+  probing = true;
+  try {
+    return await new Promise<boolean>((resolve) => {
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(`ws://127.0.0.1:${port}`);
+      } catch {
+        resolve(false);
+        return;
+      }
+      const id = uid();
+      const done = (paired: boolean) => {
+        clearTimeout(timer);
+        ws.close();
+        resolve(paired);
+      };
+      const timer = setTimeout(() => done(false), 2000);
+      ws.onopen = () =>
+        ws.send(
+          JSON.stringify({
+            v: PROTOCOL_VERSION,
+            id,
+            type: 'hello',
+            payload: {
+              token: '',
+              probe: true,
+              extensionId: chrome.runtime.id,
+              extensionVersion: chrome.runtime.getManifest?.().version ?? '0',
+              sessionId,
+            },
+          }),
+        );
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(String(e.data)) as Envelope<HelloAck>;
+          const token = msg.replyTo === id && msg.ok ? msg.payload?.token : undefined;
+          if (!token) return done(false);
+          void pair(token, port);
+          done(true);
+        } catch {
+          done(false);
+        }
+      };
+      // A closed door and a bridge that does not know us look the same here,
+      // which is the point: nothing is said either way.
+      ws.onerror = () => done(false);
+      ws.onclose = () => done(false);
+    });
+  } finally {
+    probing = false;
+  }
 }
 
 export async function pair(token: string, port = DEFAULT_PORT): Promise<void> {
@@ -374,10 +503,55 @@ export async function pair(token: string, port = DEFAULT_PORT): Promise<void> {
 
 export async function forget(): Promise<void> {
   pairing = null;
+  setProject(null);
   await chrome.storage.local.remove(PAIRING_KEY);
   disconnect();
   setStatus('off');
   emit();
+}
+
+/* ---------------- asking the bridge ---------------- */
+
+const ASK_TIMEOUT_MS = 20_000;
+
+/** Puts a question to the bridge and waits for its answer. */
+function ask<T>(payload: PanelRequest): Promise<T> {
+  if (socket?.readyState !== WebSocket.OPEN) return Promise.reject(new Error('no agent is connected'));
+  const id = uid();
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      asking.delete(id);
+      reject(new Error('the bridge did not answer'));
+    }, ASK_TIMEOUT_MS);
+    asking.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
+    send({ v: PROTOCOL_VERSION, id, type: 'ask', payload });
+  });
+}
+
+/**
+ * Writes one variable definition in source, through the bridge.
+ *
+ * The only write that does not go through the agent, and the narrowest one
+ * there is: the bridge refuses anything it cannot be certain of, and the
+ * reason comes back as the error.
+ */
+export async function applyDefinition(edit: {
+  name: string;
+  from: string;
+  to: string;
+  file: string;
+  line: number;
+}): Promise<AppliedDefinition> {
+  const applied = await ask<AppliedDefinition>({ method: 'apply_definition', ...edit });
+  logAgent(`${applied.name} applied in ${applied.file}:${applied.line}`);
+  return applied;
+}
+
+/** Ask again where these properties are defined, after a source edit. */
+export async function refreshDefinitions(names: string[]): Promise<void> {
+  if (!names.length) return;
+  const found = await ask<DefinitionsPayload>({ method: 'find_definitions', names });
+  updateSession({ definitions: found });
 }
 
 /** Try again now instead of waiting out the backoff. */
@@ -407,15 +581,15 @@ const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
 };
-const snapshot = () => ({ status, pairing });
+const snapshot = () => ({ status, pairing, project });
 let memo = snapshot();
 const getSnapshot = () => {
   const next = snapshot();
-  if (next.status !== memo.status || next.pairing !== memo.pairing) memo = next;
+  if (next.status !== memo.status || next.pairing !== memo.pairing || next.project !== memo.project) memo = next;
   return memo;
 };
 
-export function useBridge(): { status: BridgeStatus; pairing: Pairing | null } {
+export function useBridge(): { status: BridgeStatus; pairing: Pairing | null; project: ProjectInfo | null } {
   useEffect(() => void start(), []);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
@@ -426,22 +600,12 @@ export function useBridgeSync(
   tabUrl: string,
   session: TabSession,
   model: DesignModel | null,
+  /** The change set the panel is already showing; the same one the agent sees. */
+  built: ChangeSet,
 ) {
   tabIdForRequests = tabId;
   modelForRequests = model;
-  const changes = useMemo(() => {
-    if (!session.scan) return null;
-    const set = buildChangeSet(
-      session.scan,
-      model?.handoff.overrides ?? [],
-      model?.handoff.colorMap ?? {},
-      active(session.log),
-      pendingNotes(session.comments),
-      model?.system ?? [],
-      session.locks,
-    );
-    return isEmpty(set) ? null : set;
-  }, [model, session.scan, session.log, session.comments, session.locks]);
+  const changes = useMemo(() => (isEmpty(built) ? null : built), [built]);
   const state = useMemo<SessionState | null>(() => {
     if (tabId == null) return null;
     let origin = '';
@@ -487,12 +651,25 @@ export function useBridgeSync(
         : null,
       comments: session.comments,
       agentMayWrite: session.agentMayWrite,
+      bridgeMayWrite: session.bridgeMayWrite,
       locks: session.locks,
       rules: standingRules(session.locks),
     };
     // Only the fields read above: an activity-log entry or a tab switch in the
     // panel must not re-render the prompt and push the same snapshot again.
-  }, [tabId, tabUrl, session.revision, session.scan, session.handoff, session.pinned, session.comments, session.agentMayWrite, session.locks, changes]);
+  }, [
+    tabId,
+    tabUrl,
+    session.revision,
+    session.scan,
+    session.handoff,
+    session.pinned,
+    session.comments,
+    session.agentMayWrite,
+    session.bridgeMayWrite,
+    session.locks,
+    changes,
+  ]);
 
   useEffect(() => {
     if (state) schedulePush(state);

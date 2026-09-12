@@ -59,6 +59,11 @@ if (!connected) {
 await call('get_changes');
 await call('get_selection');
 await call('critique');
+// What the bridge can see of the project it is running in.
+await call('find_definition', { name: ['--mark', '--ink'] });
+await call('check_tokens', { path: 'packages/bridge/scripts/fixtures/tokens.json' });
+await call('check_tokens', { path: '../outside.json' });
+await call('apply_definition', { name: '--mark', from: '#BE3A22', to: '#1C7F5C' });
 await call('get_design_system', { files: ['brand.md'] });
 {
   const resources = await client.listResources();

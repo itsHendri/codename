@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Definition } from '@/shared/protocol';
 import type { ScanResult } from '@/shared/types';
 import { buildChangeSet, isEmpty, isLocal, summariseElements, toJson, toPrompt } from './commit';
 import type { ElementChange } from './changes';
@@ -312,5 +313,90 @@ describe('toJson', () => {
   it('round-trips', () => {
     const set = buildChangeSet(scanOf(), [markOverride], {});
     expect(JSON.parse(toJson(set))).toEqual(JSON.parse(JSON.stringify(set)));
+  });
+});
+
+describe('what the bridge found in the repository', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'manual' as const };
+  const at = (file: string, line: number, context: Definition['context'] = 'root'): Definition => ({
+    file,
+    line,
+    context,
+    kind: 'css',
+    value: '#BE3A22',
+  });
+
+  it('names the position when there is exactly one', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+    });
+    expect(set.tokens[0]?.definedAt).toHaveLength(1);
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+
+  it('counts them and refuses to choose when there are several', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12), at('src/dark.css', 4, 'dark')] },
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('2 definitions');
+    expect(prompt).toContain('src/dark.css:4 (dark)');
+    expect(prompt).toContain("the cascade's business");
+  });
+
+  it('says nothing about a position when nothing was found', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: {} });
+    expect(set.tokens[0]?.definedAt).toBeUndefined();
+    expect(toPrompt(set)).not.toContain('defined at');
+  });
+
+  it('tells the agent not to write a definition the person already applied', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12 }],
+    });
+    expect(toPrompt(set)).toContain('already applied in src/index.css:12 — do not write this one again');
+  });
+
+  it('lists only the first few of many', () => {
+    const many = Array.from({ length: 7 }, (_, i) => at(`src/${i}.css`, i + 1));
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: { '--mark': many } });
+    const line = toPrompt(set).split('\n').find((l) => l.includes('definitions:'))!;
+    expect(line).toContain('and 3 more');
+    expect(line).not.toContain('src/5.css');
+  });
+
+  it('names the project and its branch in the opening line', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      project: { name: 'forfontsake', path: '/Users/x/forfontsake', branch: 'main' },
+    });
+    expect(toPrompt(set)).toContain('running from forfontsake on main');
+  });
+
+  it('still hands over no rule bodies, whatever it found', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      project: { name: 'x', path: '/x' },
+    });
+    expect(toPrompt(set)).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+});
+
+describe('the note about where values came from', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'manual' as const };
+
+  it('sends the agent looking when nothing was found', () => {
+    expect(toPrompt(buildChangeSet(scan, [override], {}))).toContain('find the real definitions in the source');
+  });
+
+  it('does not, once the project has been searched', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [{ file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' }] },
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).not.toContain('find the real definitions in the source');
+    expect(prompt).toContain('come from a search of this project');
   });
 });

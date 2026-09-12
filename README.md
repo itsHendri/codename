@@ -161,6 +161,21 @@ which is an instruction the agent can act on in source.
 
 **Copy** it, download it as JSON, or **send** it, all from the Changes tab.
 
+### Applying one yourself
+
+A token change that has exactly one definition, at the root of the cascade, in
+a stylesheet — no media query, no scoped selector, no token file — carries an
+**Apply** button once you have ticked *Bridge may edit definitions* for the
+project. It writes that one value, keeping everything else on the line, and
+the token leaves the brief with a note that it is already in source.
+
+This is the only thing written to source without your agent, and it is narrow
+on purpose. A change like `--mark: #BE3A22 → #1C7F5C` has nothing left to
+decide, and sending it through a language model buys a round trip and a chance
+to get it wrong. Everything with a judgement in it — several definitions,
+usages, components, a value that has moved since it was read — is refused with
+the reason and stays in the brief, which is where your agent picks it up.
+
 ### Connect your agent
 
 Three steps, which the Changes tab walks you through until you are paired
@@ -186,18 +201,52 @@ Three steps, which the Changes tab walks you through until you are paired
    { "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
    ```
 
-2. Start your agent. It launches the bridge, which prints a six-character
-   pairing code — to the agent, not to you. Ask the agent for it (it has a
-   `pairing_code` tool), or read it yourself:
+2. Start your agent, in the folder you are working in. It launches the bridge,
+   which prints a six-character pairing code — to the agent, not to you. Ask
+   the agent for it (it has a `pairing_code` tool), or read it yourself:
 
    ```sh
    npx codename-bridge code
    ```
 
-3. Enter the code in the panel.
+3. Enter the code in the panel. **Once per machine:** the bridge remembers the
+   extension that paired with it, and from then on the panel asks it for the
+   code itself. A second project needs no code at all.
+
+To get from a folder to a page with the panel on it in one command, in a
+second terminal:
+
+```sh
+npx codename-bridge open .
+```
+
+It starts the project's dev server (its `dev`, `start` or `serve` script, with
+the package manager your lockfile names), watches its output for the URL it
+came up on, and opens that in your browser. `--cmd "…"` says how to start it
+where the scripts do not, `--url` opens one that is already running. Your
+agent runs the bridge in its own terminal; this one only gets you to the page.
 
 The bridge runs on your machine only: an MCP server on standard input and
-output for your agent, a WebSocket on `127.0.0.1` for the panel.
+output for your agent, a WebSocket on `127.0.0.1` for the panel. It accepts
+that socket from the one extension it first paired with, and five wrong codes
+in a minute close it for five.
+
+### It knows which project you are in
+
+Because it is running in the folder, the bridge can say so: the Changes tab
+names the repository and the branch, the brief opens with them, and the
+decisions you make against a dev server are filed under the project rather
+than under `localhost:3000` — which two projects share and one project
+changes. A deployed site is still filed by its origin, since the folder your
+terminal happens to be in says nothing about it.
+
+It also searches that folder. Every custom property in the brief is looked up
+where it is really defined, and the line says what was found: `defined at
+src/index.css:12` when there is exactly one, `3 definitions: …` when the
+cascade decides between several, nothing at all when there are none. This is
+the one place a file position is honest — the extension only sees a rendered
+page, so it would be guessing; the bridge read the file. Your agent asks the
+same question with `find_definition`.
 
 The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
@@ -206,8 +255,13 @@ spacing, near-duplicate colours, type strays — as facts with numbers),
 `tokens.css`, `tokens.json`, `SKILL.md`, `DESIGN_SYSTEM.md` — so it can write
 its own design context into your repository and refresh it after a rescan),
 `get_selection`, `get_comments` with `set_status` and `reply`,
-`check_tokens` (the page against a token file the agent read from your
-repository), `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
+`check_tokens` (the page against a token file, named by a path in your project
+for the bridge to read, or passed as text),
+`find_definition` (where a custom property is defined in the project, with the
+file, line, value and whether it sits at the root of the cascade, under a
+media query or in a scoped selector) and `apply_definition` (the same single
+write the Apply button makes, under the same switch),
+`get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
 the window moves first, so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
 `point` (it names an element and a few words; the page
@@ -218,7 +272,8 @@ preview · N rules · M elements** chip with its own ✕, every element its rule
 reach carries a dashed outline, and the Changes tab shows the same row above
 the queue — never in it, since a preview is not a decision. Nothing is
 written to source through the bridge; that stays the agent's job in your
-repository, under your review. See `PRIVACY.md`.
+repository, under your review — apart from the one definition you apply
+yourself, described above. See `PRIVACY.md`.
 
 When an element edit writes a literal and exactly one of the page's own
 variables already holds that value, the brief says so and leaves the choice

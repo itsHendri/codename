@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CURSOR_MCP_JSON, DEFAULT_PORT } from '@/shared/protocol';
-import { pair, useBridge } from '../lib/bridge';
+import { pair, probe, useBridge } from '../lib/bridge';
 import { CopyIcon } from './icons';
 
 // One command: installs the codename skill and registers the bridge with Claude Code.
@@ -12,21 +12,43 @@ const LABEL: Record<string, string> = {
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
   unauthorized: 'That code did not match — check it with your agent',
+  locked: 'Too many wrong codes — wait five minutes and try again',
 };
 
 /**
- * How the panel meets the agent, in the three steps it takes, where you first
- * need it: on the tab that hands work over. Register the bridge with the
- * agent, start the agent (it launches the bridge), and type the code the
- * bridge is waiting for. The code goes to the bridge's stderr, which an agent
- * swallows, so the card says how to read it: ask the agent, or run
- * `codename-bridge code` in a terminal.
+ * How the panel meets the agent, in the steps it takes, where you first need
+ * it: on the tab that hands work over. Register the bridge with the agent,
+ * start the agent (it launches the bridge), and type the code the bridge is
+ * waiting for. The code goes to the bridge's stderr, which an agent swallows,
+ * so the card says how to read it: ask the agent, or run `codename-bridge
+ * code` in a terminal.
+ *
+ * The typing is only ever needed once per machine. After that the bridge
+ * knows this extension, and the card asks it for the code itself — which is
+ * what the button under step three does, and what the panel does on its own
+ * when it opens.
  */
 export function ConnectAgentCard() {
   const { status } = useBridge();
   const [code, setCode] = useState('');
   const [agent, setAgent] = useState<'claude' | 'cursor'>('claude');
   const [copied, setCopied] = useState(false);
+  const [looking, setLooking] = useState(false);
+  const [missed, setMissed] = useState(false);
+
+  // Opening the card is itself a reason to look: the agent may have started
+  // since the panel did.
+  useEffect(() => {
+    void probe();
+  }, []);
+
+  const look = async () => {
+    setLooking(true);
+    setMissed(false);
+    const found = await probe();
+    setLooking(false);
+    setMissed(!found);
+  };
 
   const snippet = agent === 'claude' ? CLAUDE_CMD : CURSOR_JSON;
   const copy = async () => {
@@ -69,13 +91,17 @@ export function ConnectAgentCard() {
 
       <Step n={2} title="Start your agent — it launches the bridge for you">
         <p className="text-2xs text-ink-muted">
+          In the folder you are working in. To start the dev server and open it here in one go, run{' '}
+          <code className="font-mono">npx codename-bridge open .</code> in a second terminal.
+        </p>
+        <p className="text-2xs text-ink-muted">
           The bridge prints a six-character pairing code where the agent, not you, can see it. Ask the
           agent: <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or
           run <code className="font-mono">npx codename-bridge code</code> in a terminal.
         </p>
       </Step>
 
-      <Step n={3} title="Enter the code">
+      <Step n={3} title="Enter the code, once per machine">
         <form
           className="flex gap-1.5"
           onSubmit={(e) => {
@@ -101,11 +127,18 @@ export function ConnectAgentCard() {
             Pair
           </button>
         </form>
+        <div className="flex items-center gap-2">
+          <button onClick={() => void look()} disabled={looking} className="text-2xs text-accent hover:underline disabled:opacity-40">
+            {looking ? 'Looking…' : 'Already paired on this machine? Look for the bridge'}
+          </button>
+          {missed && <span className="text-2xs text-ink-muted">Nothing answered on port {DEFAULT_PORT}.</span>}
+        </div>
       </Step>
 
       <p className="text-2xs text-ink-muted">
-        Everything stays on this machine: the bridge listens on 127.0.0.1 only. Nothing is written to
-        source through it.
+        Everything stays on this machine: the bridge listens on 127.0.0.1 only. The only thing it
+        writes to source is a variable definition you apply yourself, after you turn that on for the
+        project.
       </p>
     </div>
   );

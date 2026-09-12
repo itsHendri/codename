@@ -82,18 +82,27 @@ export async function deleteBrand(slug: string): Promise<void> {
 
 const EDITS_PREFIX = 'edits:';
 
-/** The decisions made against a site, kept so a rescan does not undo them. */
-export async function loadEdits(origin: string): Promise<BrandEdits | null> {
+/**
+ * The decisions made against a site, kept so a rescan does not undo them.
+ *
+ * `key` is what `editsKey` decided: an origin, or the project a paired bridge
+ * is running in. `fallback` is read when the key itself holds nothing, so a
+ * project that has just been named inherits what was saved under its origin;
+ * the origin's copy is left where it is rather than moved, because the same
+ * origin may be another project's tomorrow.
+ */
+export async function loadEdits(key: string, fallback?: string): Promise<BrandEdits | null> {
   if (!available()) return null;
-  const k = `${EDITS_PREFIX}${slugify(origin)}`;
+  const k = `${EDITS_PREFIX}${slugify(key)}`;
   const stored = await chrome.storage.local.get(k);
   const raw = stored[k] as Partial<BrandEdits> | undefined;
-  return raw ? normaliseEdits(raw) : null;
+  if (raw) return normaliseEdits(raw);
+  return fallback && fallback !== key ? loadEdits(fallback) : null;
 }
 
-export async function saveEdits(origin: string, edits: BrandEdits): Promise<void> {
+export async function saveEdits(key: string, edits: BrandEdits): Promise<void> {
   if (!available()) return;
-  const k = `${EDITS_PREFIX}${slugify(origin)}`;
+  const k = `${EDITS_PREFIX}${slugify(key)}`;
   if (isNoEdits(edits)) await chrome.storage.local.remove(k);
   else await chrome.storage.local.set({ [k]: edits });
 }

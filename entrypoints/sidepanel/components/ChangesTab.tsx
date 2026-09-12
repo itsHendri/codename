@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { isEmpty, toJson, toPrompt } from '@/studio/commit';
 import { active as activeChanges } from '@/studio/changes';
-import type { ChangeSet } from '@/studio/commit';
+import type { ChangeSet, TokenChange } from '@/studio/commit';
+import type { ProjectInfo } from '@/shared/protocol';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { dropAgentPreview, sendToAgent, useBridge } from '../lib/bridge';
-import { clearAgentLog } from '../lib/session';
+import { applyDefinition, dropAgentPreview, sendToAgent, useBridge } from '../lib/bridge';
+import { allow, clearAgentLog, markApplied } from '../lib/session';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
 import { ConnectAgentCard } from './ConnectAgentCard';
@@ -22,8 +23,8 @@ import { CommentList } from './inspect/Comments';
  */
 export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectController }) {
   const [copied, setCopied] = useState<string | null>(null);
-  const { status } = useBridge();
-  const { handoff, log, comments, agentPreview, agentLog, locks } = useSession();
+  const { status, project } = useBridge();
+  const { handoff, log, comments, agentPreview, agentLog, locks, bridgeMayWrite } = useSession();
   const connected = status === 'connected';
 
   const prompt = useMemo(() => toPrompt(set), [set]);
@@ -42,6 +43,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
   const presence = (
     <>
+      {project && <ProjectRow project={project} mayWrite={bridgeMayWrite} />}
       {agentPreview && <AgentPreviewRow {...agentPreview} touchesLocked={agentPreview.declares.filter((n) => locks.includes(n))} />}
       {agentLog.length > 0 && <AgentActivity entries={agentLog} />}
     </>
@@ -78,25 +80,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
               The agent edits these definitions — not the places that use them.
             </p>
             {set.tokens.map((t) => (
-              <div key={t.name} className="rounded-control border border-line-subtle px-2 py-1.5">
-                <div className="flex items-center gap-1.5">
-                  <code className="min-w-0 flex-1 truncate text-xs">{t.name}</code>
-                  {/* A spacing or type token has no colour to show. */}
-                  {hexOf(t.from) && hexOf(t.to) && (
-                    <>
-                      <Swatch color={t.from} />
-                      <span className="text-2xs text-ink-muted">→</span>
-                      <Swatch color={t.to} />
-                    </>
-                  )}
-                </div>
-                <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-muted">
-                  <span className="tabular-nums">
-                    {t.from} → {t.to}
-                  </span>
-                  {t.uses != null && <span className="ml-auto">{t.uses} uses</span>}
-                </div>
-              </div>
+              <TokenRow key={t.name} token={t} mayWrite={bridgeMayWrite} />
             ))}
           </section>
         )}
@@ -317,5 +301,114 @@ function AgentActivity({ entries }: { entries: { at: string; what: string }[] })
         </button>
       )}
     </section>
+  );
+}
+
+/**
+ * Which project the bridge is running in, and whether it may write to it.
+ *
+ * The switch is the whole consent for the one write this tool makes. Off
+ * until it is turned on, per project, and what it permits is narrow enough to
+ * state on the row: one definition, one value, nothing else.
+ */
+function ProjectRow({ project, mayWrite }: { project: ProjectInfo; mayWrite: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 border-b border-line-subtle px-3 py-2">
+      <div className="flex items-center gap-2 text-2xs">
+        <span className="uppercase tracking-wide text-ink-muted">Project</span>
+        <span className="min-w-0 truncate text-ink-secondary" title={project.path}>
+          {project.name}
+        </span>
+        {project.branch && <span className="shrink-0 font-mono text-ink-muted">{project.branch}</span>}
+        {project.dirty && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint" title="Uncommitted changes in this repository" />
+        )}
+      </div>
+      <label className="flex items-center gap-2 text-2xs text-ink-muted">
+        <input type="checkbox" checked={mayWrite} onChange={(e) => allow('bridgeMayWrite', e.target.checked)} />
+        <span>Bridge may edit definitions in {project.name}</span>
+      </label>
+    </div>
+  );
+}
+
+/**
+ * One token in the queue, with where it lives when a bridge has found out.
+ *
+ * Apply is offered only where there is nothing to decide: exactly one
+ * definition, at the root of the cascade, in a project that has been allowed.
+ * Everything else stays in the brief for the agent, which is the normal path
+ * — this is the shortcut for the case where a language model would add
+ * nothing but a round trip.
+ */
+function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const found = t.definedAt ?? [];
+  const roots = found.filter((d) => d.context === 'root' && d.line);
+  const only = roots.length === 1 && found.length === roots.length ? roots[0] : null;
+  // A token file is a definition, but not one to write into: the page reads
+  // its CSS, and the file may be exported from somewhere else entirely.
+  const writable = only && (only.kind === 'css' || only.kind === 'theme') ? only : null;
+  const canApply = Boolean(writable && mayWrite && !t.applied);
+
+  const apply = async () => {
+    if (!writable) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await applyDefinition({ name: t.name, from: t.from, to: t.to, file: writable.file, line: writable.line! });
+      markApplied({ name: t.name, file: writable.file, line: writable.line! });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-control border border-line-subtle px-2 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <code className="min-w-0 flex-1 truncate text-xs">{t.name}</code>
+        {/* A spacing or type token has no colour to show. */}
+        {hexOf(t.from) && hexOf(t.to) && (
+          <>
+            <Swatch color={t.from} />
+            <span className="text-2xs text-ink-muted">→</span>
+            <Swatch color={t.to} />
+          </>
+        )}
+      </div>
+      <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-muted">
+        <span className="tabular-nums">
+          {t.from} → {t.to}
+        </span>
+        {t.uses != null && <span className="ml-auto">{t.uses} uses</span>}
+      </div>
+      {t.applied ? (
+        <div className="mt-1 font-mono text-2xs text-ok">
+          applied in {t.applied.file}:{t.applied.line}
+        </div>
+      ) : (
+        (t.definedAt?.length ?? 0) > 0 && (
+          <div className="mt-1 flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate font-mono text-2xs text-ink-muted" title={found.map((d) => `${d.file}:${d.line ?? '?'} (${d.context})`).join('\n')}>
+              {only ? `${only.file}${only.line ? `:${only.line}` : ''}` : `${found.length} definitions — the cascade decides`}
+            </span>
+            {canApply && (
+              <button
+                onClick={() => void apply()}
+                disabled={busy}
+                className="shrink-0 rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent disabled:opacity-40"
+                title={`Write ${t.to} into ${writable!.file}:${writable!.line}`}
+              >
+                {busy ? 'Applying…' : 'Apply'}
+              </button>
+            )}
+          </div>
+        )
+      )}
+      {error && <div className="mt-1 text-2xs text-warn">{error}</div>}
+    </div>
   );
 }

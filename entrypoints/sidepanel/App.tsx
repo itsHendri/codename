@@ -88,7 +88,6 @@ export default function App() {
   const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
-  useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
@@ -109,9 +108,25 @@ export default function App() {
         pendingNotes(session.comments),
         model?.system ?? [],
         locks,
+        {
+          ...(bridge.project
+            ? {
+                project: {
+                  name: bridge.project.name,
+                  path: bridge.project.path,
+                  ...(bridge.project.branch ? { branch: bridge.project.branch } : {}),
+                },
+              }
+            : {}),
+          ...(session.definitions?.found ? { definitions: session.definitions.found } : {}),
+          ...(session.applied.length ? { applied: session.applied } : {}),
+        },
       ),
-    [scanLike, model, session.log, session.comments, locks],
+    [scanLike, model, session.log, session.comments, locks, bridge.project, session.definitions, session.applied],
   );
+  // Built once and pushed, so the badge, the Changes tab and the agent can
+  // never disagree about what is pending.
+  useBridgeSync(tabId, tabUrl, session, model, changeSet);
   const pendingCount =
     changeSet.tokens.length +
     changeSet.colors.length +
