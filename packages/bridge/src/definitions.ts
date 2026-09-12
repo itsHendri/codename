@@ -13,7 +13,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, renameSync, statSync, writeFileSync, type Dirent } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, type Dirent } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 import type { AppliedDefinition, Definition, DefinitionsPayload } from '../../../shared/protocol';
 import { pairAll, parseTokenFile } from '@/studio/tokenFile';
@@ -87,134 +88,208 @@ export function listFiles(cwd: string, run: Run = defaultRun, max = MAX_FILES): 
 }
 
 /**
- * Blanks out comments while keeping every newline, so a line number found in
- * the result is the line number in the file. A definition inside a comment is
- * not a definition.
+ * Blanks out comments while keeping every character position, so an offset
+ * into the result is an offset into the file. A definition inside a comment
+ * is not a definition.
+ *
+ * A `//` is a comment only outside strings and brackets and not straight
+ * after a colon — otherwise `url(//cdn/x.png)`, `"//a"` and `https://x` each
+ * blank the rest of their line and swallow the declarations after it.
  */
 export function stripComments(text: string): string {
-  let out = '';
+  const out: string[] = [];
   let i = 0;
+  let quote = '';
+  let depth = 0;
   while (i < text.length) {
+    const ch = text[i]!;
+    if (quote) {
+      out.push(ch);
+      if (ch === '\\' && i + 1 < text.length) {
+        out.push(text[i + 1]!);
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = '';
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      out.push(ch);
+      i++;
+      continue;
+    }
     const two = text.slice(i, i + 2);
     if (two === '/*') {
-      const end = text.indexOf('*/', i + 2);
-      const stop = end === -1 ? text.length : end + 2;
-      for (const ch of text.slice(i, stop)) out += ch === '\n' ? '\n' : ' ';
+      const at = text.indexOf('*/', i + 2);
+      const stop = at === -1 ? text.length : at + 2;
+      for (const c of text.slice(i, stop)) out.push(c === '\n' ? '\n' : ' ');
       i = stop;
-    } else if (two === '//' && !/[:\w]/.test(text[i - 1] ?? '')) {
-      // Only a line comment, never the `//` in a url — a preceding letter or
-      // colon means this is part of something else.
-      const end = text.indexOf('\n', i);
-      const stop = end === -1 ? text.length : end;
-      out += ' '.repeat(stop - i);
+    } else if (two === '//' && depth === 0 && text[i - 1] !== ':') {
+      const at = text.indexOf('\n', i);
+      const stop = at === -1 ? text.length : at;
+      out.push(' '.repeat(stop - i));
       i = stop;
     } else {
-      out += text[i];
+      if (ch === '(') depth++;
+      else if (ch === ')' && depth > 0) depth--;
+      out.push(ch);
       i++;
     }
   }
-  return out;
+  return out.join('');
 }
 
-/** What a definition sits inside, from the block headers open around it. */
+/** Selectors that put a definition at the root of the cascade. */
+const ROOT_SELECTORS = new Set([':root', 'html', ':host', ':root,html', 'html,:root']);
+
+/** What a definition sits inside, from the block heads open around it. */
 export function contextOf(open: string[]): Definition['context'] {
   const heads = open.map((h) => h.toLowerCase());
   if (heads.some((h) => h.includes('prefers-color-scheme') && h.includes('dark'))) return 'dark';
   if (heads.some((h) => h.startsWith('@media') || h.startsWith('@container') || h.startsWith('@supports'))) return 'media';
-  // A theme block is Tailwind v4's root; `:root` and a bare `html` are CSS's.
+  // `@layer`, `@theme` and the like wrap without scoping; the innermost real
+  // selector is what decides, and no selector at all means the top level.
   const selector = [...heads].reverse().find((h) => !h.startsWith('@'));
   if (selector === undefined) return 'root';
-  const cleaned = selector.replace(/[{\s]+$/, '').trim();
-  if (/^@theme\b/.test(selector)) return 'root';
-  if (cleaned === ':root' || cleaned === 'html' || cleaned === ':host' || cleaned === ':root,html' || cleaned === 'html,:root') {
-    return 'root';
-  }
-  return 'scoped';
+  const cleaned = selector.replace(/[{\s]+$/, '').trim().replace(/\s*,\s*/g, ',');
+  return ROOT_SELECTORS.has(cleaned) ? 'root' : 'scoped';
 }
 
-/** The value text of `--name:` on a line, or null when the line does not hold one. */
-export function declarationOn(line: string, name: string): { value: string; start: number; end: number } | null {
+/**
+ * Where the value of `--name` sits inside one statement, or null.
+ *
+ * `text` has already had its comments blanked. The value ends at the first
+ * `;` or `}` outside brackets and quotes, which is where the browser ends it
+ * too — so `url("a;b")` and `var(--x, a)` stay whole.
+ */
+export function declarationOn(text: string, name: string): { value: string; start: number; end: number } | null {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`(^|[\\s;{])(${escaped})\\s*:`).exec(line);
+  const match = new RegExp(`(^|[\\s;{])(${escaped})\\s*:`).exec(text);
   if (!match) return null;
-  const start = match.index + match[1]!.length + match[2]!.length;
-  const colon = line.indexOf(':', start);
+  const colon = text.indexOf(':', match.index + match[1]!.length + match[2]!.length);
   if (colon === -1) return null;
-  // The declaration runs to its semicolon, or to the end of its block.
-  let end = line.length;
-  for (let i = colon + 1, depth = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '(') depth++;
+  let end = text.length;
+  let depth = 0;
+  let quote = '';
+  for (let i = colon + 1; i < text.length; i++) {
+    const ch = text[i]!;
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '(') depth++;
     else if (ch === ')') depth--;
     else if ((ch === ';' || ch === '}') && depth <= 0) {
       end = i;
       break;
     }
   }
-  return { value: line.slice(colon + 1, end).trim(), start: colon + 1, end };
+  return { value: text.slice(colon + 1, end).trim(), start: colon + 1, end };
+}
+
+/** A definition, plus which name it is and exactly where its value sits. */
+export interface Located extends Definition {
+  name: string;
+  /** Offsets of the trimmed value text in the file. */
+  valueStart: number;
+  valueEnd: number;
 }
 
 /**
- * Every `--name:` in one CSS-like file, with the block it sits in.
+ * Every `--name:` in one CSS-like file, with the block it sits in and the
+ * span of its value.
  *
- * Walks statements rather than lines: a declaration that wraps over three
- * lines is one statement, and a block that opens halfway through a line still
- * puts what follows it in the right context.
+ * Walks statements rather than lines, so a declaration wrapped over three
+ * lines is one statement; and carries offsets rather than a line number
+ * alone, so the write path replaces exactly the text the search read. Quotes
+ * are tracked, because a `}` inside a string does not close a block.
  */
-export function definitionsInCss(text: string, names: string[], file: string): Record<string, Definition[]> {
-  const found: Record<string, Definition[]> = {};
+export function scanCss(text: string, names: string[], file: string): Located[] {
   const stripped = stripComments(text);
-  if (!names.some((n) => stripped.includes(n))) return found;
+  if (!names.some((n) => stripped.includes(n))) return [];
 
+  const found: Located[] = [];
   const open: string[] = [];
-  let buffer = '';
-  let bufferLine = 1;
+  let start = 0;
   let line = 1;
+  let statementLine = 1;
+  let quote = '';
 
-  /** A finished statement: a declaration, or the head of a block. */
-  const takeDeclaration = () => {
-    if (buffer.trim()) {
-      for (const name of names) {
-        const decl = declarationOn(buffer, name);
-        if (!decl?.value) continue;
-        (found[name] ??= []).push({
-          file,
-          line: bufferLine,
-          kind: /@theme\b/i.test(open.join(' ')) ? 'theme' : 'css',
-          context: contextOf(open),
-          value: decl.value,
-        });
-      }
+  /**
+   * The head of a block. Taken from the end of the buffer: in a `.vue` or
+   * `.astro` file everything before `</style>` is markup, not a selector, and
+   * in `.a > .b` it is the right-hand side that scopes.
+   */
+  const headOf = (raw: string) => {
+    const lastLine = raw.split('\n').pop() ?? raw;
+    return (lastLine.split('>').pop() ?? lastLine).trim();
+  };
+
+  const take = (from: number, to: number, atLine: number) => {
+    const statement = stripped.slice(from, to);
+    if (!statement.trim()) return;
+    for (const name of names) {
+      const decl = declarationOn(statement, name);
+      if (!decl?.value) continue;
+      const raw = statement.slice(decl.start, decl.end);
+      const lead = raw.length - raw.trimStart().length;
+      const trail = raw.length - raw.trimEnd().length;
+      found.push({
+        name,
+        file,
+        line: atLine,
+        kind: /@theme\b/i.test(open.join(' ')) ? 'theme' : 'css',
+        context: contextOf(open),
+        value: decl.value,
+        valueStart: from + decl.start + lead,
+        valueEnd: from + decl.end - trail,
+      });
     }
-    buffer = '';
-    bufferLine = line;
   };
 
   for (let i = 0; i < stripped.length; i++) {
     const ch = stripped[i]!;
-    if (ch === '\n') {
-      line++;
-      buffer += ch;
-      if (!buffer.trim()) bufferLine = line;
+    if (ch === '\n') line++;
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = '';
       continue;
     }
-    if (ch === '{') {
-      open.push(buffer.trim());
-      buffer = '';
-      bufferLine = line;
-    } else if (ch === '}') {
-      takeDeclaration();
-      open.pop();
-      buffer = '';
-      bufferLine = line;
-    } else if (ch === ';') {
-      takeDeclaration();
-    } else {
-      if (!buffer.trim() && !/\s/.test(ch)) bufferLine = line;
-      buffer += ch;
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{' || ch === '}' || ch === ';') {
+      if (ch === '{') open.push(headOf(stripped.slice(start, i)));
+      else {
+        take(start, i, statementLine);
+        if (ch === '}') open.pop();
+      }
+      start = i + 1;
+      statementLine = line;
+    } else if (!/\s/.test(ch) && !stripped.slice(start, i).trim()) {
+      // The statement begins at its first real character, not at the
+      // whitespace the last one left behind.
+      statementLine = line;
     }
   }
-  takeDeclaration();
+  take(start, stripped.length, statementLine);
+  return found;
+}
+
+/** Every `--name:` in one CSS-like file, keyed by name, as the protocol reports them. */
+export function definitionsInCss(text: string, names: string[], file: string): Record<string, Definition[]> {
+  const found: Record<string, Definition[]> = {};
+  for (const hit of scanCss(text, names, file)) {
+    const { name, valueStart, valueEnd, ...definition } = hit;
+    void valueStart;
+    void valueEnd;
+    (found[name] ??= []).push(definition);
+  }
   return found;
 }
 
@@ -306,11 +381,53 @@ const sameValue = (a: string, b: string): boolean =>
   a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
 
 /**
+ * A value that could only ever be a value.
+ *
+ * Everything here would end the declaration or start another one, and the
+ * consent the person gave was for one value in one definition — not for
+ * arbitrary text at that offset. An agent asking for `red; } body {…` is
+ * refused rather than trusted.
+ */
+export function badValue(to: string): string | null {
+  if (!to.trim()) return 'the new value is empty';
+  if (/[;{}]/.test(to)) return 'a value cannot contain `;`, `{` or `}`';
+  if (/[\n\r]/.test(to)) return 'a value cannot span lines';
+  if (to.includes('/*') || to.includes('*/') || to.includes('//')) return 'a value cannot contain a comment';
+  if (to.length > 500) return 'that value is too long to be one';
+  // Unbalanced brackets or an unclosed quote would swallow what follows.
+  let depth = 0;
+  let quote = '';
+  for (let i = 0; i < to.length; i++) {
+    const ch = to[i]!;
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '(') depth++;
+    else if (ch === ')' && --depth < 0) return 'that value has unbalanced brackets';
+  }
+  if (depth !== 0) return 'that value has unbalanced brackets';
+  if (quote) return 'that value has an unclosed quote';
+  return null;
+}
+
+/**
  * Writes one value into one definition, or refuses with a reason a person can
  * act on. Everything about it is narrow on purpose: this is the only write
  * the bridge ever makes.
+ *
+ * The file is searched again here rather than trusting what was found
+ * earlier, and the write uses the offsets that search returned — so a
+ * declaration that wrapped over three lines is replaced as the one thing it
+ * is, and a file that changed since the panel last heard about it is refused
+ * rather than written over.
  */
 export function applyDefinition(cwd: string, edit: ApplyEdit, opts: FindOptions = {}): AppliedDefinition {
+  const wrong = badValue(edit.to);
+  if (wrong) throw new ApplyRefused(wrong);
+
   const { found } = findDefinitions(cwd, [edit.name], opts);
   const candidates = found[edit.name] ?? [];
   if (!candidates.length) throw new ApplyRefused(`${edit.name} is not defined anywhere this bridge can see`);
@@ -340,28 +457,39 @@ export function applyDefinition(cwd: string, edit: ApplyEdit, opts: FindOptions 
   const absolute = resolveInside(cwd, edit.file);
   if (!absolute) throw new ApplyRefused(`"${edit.file}" is outside the folder this bridge is running in`);
   const text = readFileSync(absolute, 'utf8');
-  const lines = text.split('\n');
-  const index = edit.line - 1;
-  const line = lines[index];
-  if (line === undefined) throw new ApplyRefused(`${edit.file} has no line ${edit.line}`);
 
-  const decl = declarationOn(line, edit.name);
-  if (!decl) throw new ApplyRefused(`line ${edit.line} of ${edit.file} does not declare ${edit.name}`);
-  // One declaration per line, or the value being replaced is a guess.
-  if (declarationOn(line.slice(decl.end), edit.name)) {
-    throw new ApplyRefused(`line ${edit.line} of ${edit.file} declares ${edit.name} more than once`);
+  // The span comes from a fresh read of this file, so it cannot be stale
+  // against the bytes about to be written.
+  const here = scanCss(text, [edit.name], edit.file).filter((d) => d.context === 'root');
+  if (here.length !== 1) throw new ApplyRefused(`${edit.name} is no longer the only root definition in ${edit.file}`);
+  const span = here[0]!;
+  if (span.line !== edit.line || !sameValue(span.value, edit.from)) {
+    throw new ApplyRefused(`${edit.file} changed while this was being applied; nothing was written`);
   }
 
-  // Only the value text moves; the indentation, the spacing after the colon
-  // and anything else on the line are the file's business.
-  const value = line.slice(decl.start, decl.end);
-  const leading = value.slice(0, value.length - value.trimStart().length);
-  const trailing = value.slice(value.trimEnd().length);
-  lines[index] = line.slice(0, decl.start) + leading + edit.to + trailing + line.slice(decl.end);
+  const next = text.slice(0, span.valueStart) + edit.to + text.slice(span.valueEnd);
+  // A temp file and a rename, so a reader never sees half a file — wearing
+  // the permissions the original had, since the default would widen them.
+  const mode = (() => {
+    try {
+      return statSync(absolute).mode & 0o777;
+    } catch {
+      return 0o644;
+    }
+  })();
+  const temp = join(dirname(absolute), `.codename-${process.pid}-${randomBytes(4).toString('hex')}.tmp`);
+  try {
+    writeFileSync(temp, next, { mode });
+    chmodSync(temp, mode);
+    renameSync(temp, absolute);
+  } catch (err) {
+    try {
+      unlinkSync(temp);
+    } catch {
+      /* it may never have been created */
+    }
+    throw new ApplyRefused(`could not write ${edit.file}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
-  const temp = join(dirname(absolute), `.codename-${Date.now()}.tmp`);
-  writeFileSync(temp, lines.join('\n'));
-  renameSync(temp, absolute);
-
-  return { name: edit.name, file: edit.file, line: edit.line, from: target.value, to: edit.to };
+  return { name: edit.name, file: edit.file, line: edit.line, from: span.value, to: edit.to };
 }

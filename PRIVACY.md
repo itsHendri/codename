@@ -31,10 +31,12 @@ Nothing here leaves the browser.
 `codename-bridge` is a program your agent runs for you (or that you run
 yourself). It listens on `127.0.0.1` only and requires a pairing code, which
 it prints on start, hands to the agent through a `pairing_code` tool, and
-prints again for `codename-bridge code`. It accepts that socket from one
-extension: the first to pair with it, whose id it then remembers, so another
-extension on the same machine cannot connect. Five wrong codes in a minute
-close it for five. It speaks to your agent over standard input and output, on
+prints again for `codename-bridge code` and `codename-bridge open`. It accepts
+that socket from one extension: the first to pair with it, whose id it then
+remembers, so another extension cannot connect. Five wrong codes in a minute
+close it for five. The code is never given out over the socket — an extension
+id is public and an `Origin` header is only trustworthy from a real browser,
+so knowing the code stays the thing that proves who is asking. It speaks to your agent over standard input and output, on
 your machine. It writes one file outside your project,
 `~/.codename/bridge.json`, holding the code, port, extension id and its own
 process id, with owner-only permissions, and removes it on exit.

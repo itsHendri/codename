@@ -37,14 +37,12 @@ export interface HelloPayload {
   token: string;
   extensionVersion: string;
   sessionId: string;
-  /** `chrome.runtime.id`. The bridge pins the first one it pairs with. */
-  extensionId?: string;
   /**
-   * Set when the panel is asking whether a bridge is there rather than
-   * offering a code. Answered only for the pinned extension, and the answer
-   * carries the code, so a second project never asks the person to pair again.
+   * `chrome.runtime.id`. The bridge pins the first one it pairs with and
+   * refuses the rest — a narrowing, not an authentication: an Origin header
+   * is only trustworthy coming from a real browser.
    */
-  probe?: boolean;
+  extensionId?: string;
 }
 
 /**
@@ -64,8 +62,6 @@ export interface ProjectInfo {
 export interface HelloAck {
   bridgeVersion: string;
   project?: ProjectInfo;
-  /** Returned only to a successful `probe` from the pinned extension. */
-  token?: string;
 }
 
 /** An element the user has pinned in the panel. */

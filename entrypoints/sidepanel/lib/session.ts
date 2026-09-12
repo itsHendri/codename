@@ -67,8 +67,12 @@ export interface TabSession {
   bridgeMayWrite: boolean;
   /** Where the bridge found the tokens in play, pushed whenever the set changes. */
   definitions: DefinitionsPayload | null;
-  /** Definitions the person applied to source from here, so the brief can say so. */
-  applied: { name: string; file: string; line: number }[];
+  /**
+   * Definitions the person applied to source from here. The value is kept
+   * with them: the brief only says "already applied" while the token still
+   * holds the value that was written, so changing it again is a real change.
+   */
+  applied: { name: string; file: string; line: number; value: string }[];
   /**
    * The agent's preview stylesheet, while it is on the page: what it holds,
    * what it reaches, since when — and the sheet itself, so a reload can put
@@ -180,7 +184,7 @@ export async function loadSession(id: number, url: string): Promise<void> {
   const stored = raw[key(id)] as Partial<Persisted> | undefined;
   const keep = stored?.scan && sameOrigin(stored.scan.url, url);
   const samePage = keep && stored.logUrl === pageKey(url);
-  const allowed = await loadConsent(keyFor(url));
+  const allowed = await loadConsent(keyFor(url), writeKeyFor());
   state = keep
     ? {
         ...EMPTY,
@@ -211,19 +215,23 @@ interface Consent {
 /**
  * What the person has allowed here before.
  *
- * Asked once per project rather than assumed: a page on localhost used to
- * arrive with the agent already allowed to paint on it, which is a consent
- * nobody gave.
+ * Asked once rather than assumed: a page on localhost used to arrive with the
+ * agent already allowed to paint on it, which is a consent nobody gave. The
+ * two answers are filed apart, because they are about different things —
+ * painting is about this page, writing is about the folder the bridge is in.
  */
-async function loadConsent(key: string): Promise<Consent> {
-  try {
-    const k = `${CONSENT_KEY}${key}`;
-    const got = await chrome.storage.local.get(k);
-    const raw = got[k] as Partial<Consent> | undefined;
-    return { agentMayWrite: raw?.agentMayWrite === true, bridgeMayWrite: raw?.bridgeMayWrite === true };
-  } catch {
-    return { agentMayWrite: false, bridgeMayWrite: false };
-  }
+async function loadConsent(pageScope: string, writeScope: string | null): Promise<Consent> {
+  const read = async (key: string): Promise<Partial<Consent>> => {
+    try {
+      const k = `${CONSENT_KEY}${key}`;
+      const got = await chrome.storage.local.get(k);
+      return (got[k] as Partial<Consent> | undefined) ?? {};
+    } catch {
+      return {};
+    }
+  };
+  const [page, repo] = await Promise.all([read(pageScope), writeScope ? read(writeScope) : Promise.resolve<Partial<Consent>>({})]);
+  return { agentMayWrite: page.agentMayWrite === true, bridgeMayWrite: writeScope ? repo.bridgeMayWrite === true : false };
 }
 
 /**
@@ -233,12 +241,12 @@ async function loadConsent(key: string): Promise<Consent> {
  * override goes with it, because source now holds the value and the page will
  * repaint from it on the next reload.
  */
-export function markApplied(applied: { name: string; file: string; line: number }): void {
+export function markApplied(applied: { name: string; file: string; line: number; value: string }): void {
   updateSession((s) => {
     const vars = { ...s.varOverrides };
     delete vars[applied.name];
     return {
-      applied: [...s.applied.filter((a) => a.name !== applied.name), { name: applied.name, file: applied.file, line: applied.line }],
+      applied: [...s.applied.filter((a) => a.name !== applied.name), applied],
       varOverrides: vars,
       revision: s.revision + 1,
     };
@@ -248,15 +256,14 @@ export function markApplied(applied: { name: string; file: string; line: number 
 
 /** Remember an answer, so the same project does not ask again. */
 export function allow(what: keyof Consent, value: boolean): void {
-  updateSession({ [what]: value } as Partial<TabSession>);
   const url = state.scan?.url;
-  if (!url) return;
-  const k = `${CONSENT_KEY}${keyFor(url)}`;
-  const next: Consent = {
-    agentMayWrite: what === 'agentMayWrite' ? value : state.agentMayWrite,
-    bridgeMayWrite: what === 'bridgeMayWrite' ? value : state.bridgeMayWrite,
-  };
-  void chrome.storage.local.set({ [k]: next }).catch(() => {});
+  // Painting is about the page; writing is about the folder, and there is
+  // nothing to allow when no folder is known.
+  const key = what === 'bridgeMayWrite' ? writeKeyFor() : url ? keyFor(url) : null;
+  if (what === 'bridgeMayWrite' && !key) return;
+  updateSession({ [what]: value } as Partial<TabSession>);
+  if (!key) return;
+  void chrome.storage.local.set({ [`${CONSENT_KEY}${key}`]: { [what]: value } }).catch(() => {});
 }
 
 /** Something the agent should wake up for. */
@@ -325,31 +332,55 @@ let project: ProjectInfo | null = null;
 const keyFor = (url: string) => editsKey(originOf(url), project, isLocal(url));
 
 /**
- * The bridge connected, disconnected, or moved to another folder. The edits
- * in play may now belong under a different key, so they are read again.
+ * Where the permission to write to a project is filed.
+ *
+ * By the project, always — the write goes to a folder, so consent has to
+ * follow the folder and not the page. Filing it by origin let a page on a
+ * deployed site carry its answer over to whatever repository the bridge
+ * happened to move to next.
+ */
+const writeKeyFor = (): string | null => (project ? `project:${project.root ?? project.path}` : null);
+
+/** Guards a slow read against the scan or the project changing under it. */
+let scopeGeneration = 0;
+
+/**
+ * The bridge connected, disconnected, or moved to another folder.
+ *
+ * Gaining or changing a project moves where decisions are filed, so they are
+ * read again under the new key. *Losing* one does not: an agent quitting
+ * should not take the edits off the page, and re-reading under the origin
+ * would do exactly that.
  */
 export function setProjectScope(next: ProjectInfo | null): void {
   const before = project;
   project = next;
+  if (!next) return;
   const scan = state.scan;
   if (!scan) return;
   if (keyFor(scan.url) === editsKey(originOf(scan.url), before, isLocal(scan.url))) return;
-  void reloadEdits(scan.url);
-  // What was allowed for an origin was not allowed for this project.
-  void loadConsent(keyFor(scan.url)).then((allowed) => updateSession(allowed));
+  void reloadScope(scan.url);
 }
 
-/** Reads the decisions filed under the current key and lays them over the scan. */
-async function reloadEdits(url: string): Promise<void> {
+/** Reads the decisions and consents filed under the current keys, over the scan. */
+async function reloadScope(url: string): Promise<void> {
   const scan = state.scan;
+  const generation = ++scopeGeneration;
   if (!scan) return;
-  const edits = await loadEdits(keyFor(url), originOf(url)).catch(() => null);
-  if (state.scan !== scan) return;
+  // A decision made a moment ago is still sitting in the save debounce.
+  flushSaveEdits();
+  const [edits, allowed] = await Promise.all([
+    loadEdits(keyFor(url), originOf(url)).catch(() => null),
+    loadConsent(keyFor(url), writeKeyFor()),
+  ]);
+  // Another scan or another project arrived while this was reading.
+  if (generation !== scopeGeneration || state.scan !== scan) return;
   updateSession({
     config: edits ? applyEdits(seedBrandFromScan(scan), edits) : null,
     varOverrides: edits?.vars ?? {},
     colorEdits: edits?.colors ?? {},
     locks: edits?.locks ?? [],
+    ...allowed,
   });
 }
 

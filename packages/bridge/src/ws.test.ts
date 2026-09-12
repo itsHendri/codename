@@ -195,34 +195,32 @@ describe('pairing: the pin, the limiter and the probe', () => {
     later.close();
   });
 
-  it('gives the code to a probe from the pinned extension, and nothing to anyone else', async () => {
+  it('never hands the pairing code out, whoever asks and whatever they claim', async () => {
+    // An Origin header is only trustworthy from a real browser, so a socket
+    // claiming to be the pinned extension still has to know the code.
     server = await start({ pinnedExtensionId: ID });
     const ws = await connect();
-    const ack = next(ws);
-    hello(ws, { token: '', probe: true, extensionId: ID });
-    await expect(ack).resolves.toMatchObject({ ok: true, payload: { token: TOKEN } });
-    ws.close();
+    hello(ws, { token: '', extensionId: ID });
+    await expect(closed(ws)).resolves.toBe(UNAUTHORIZED);
 
-    // Nothing is pinned here, so there is no one to answer.
-    await server.close();
-    server = await start();
-    const unknown = await connect();
-    hello(unknown, { token: '', probe: true, extensionId: ID });
-    await expect(closed(unknown)).resolves.toBe(UNAUTHORIZED);
+    const guessing = await connect();
+    const seen: unknown[] = [];
+    guessing.on('message', (d) => seen.push(JSON.parse(d.toString())));
+    hello(guessing, { token: 'WRONG1', extensionId: ID });
+    await closed(guessing);
+    expect(JSON.stringify(seen)).not.toContain(TOKEN);
   });
 
-  it('does not count a refused probe against the limiter', async () => {
-    server = await start();
-    for (let i = 0; i < 6; i++) {
-      const ws = await connect();
-      hello(ws, { token: '', probe: true, extensionId: ID });
-      await closed(ws);
-    }
+  it('tells a session it is gone when its socket closes', async () => {
+    const gone: string[] = [];
+    server = await start({ onGone: (id) => gone.push(id) });
     const ws = await connect();
     const ack = next(ws);
     hello(ws, { token: TOKEN, extensionId: ID });
-    await expect(ack).resolves.toMatchObject({ ok: true });
+    await ack;
     ws.close();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(gone).toEqual(['s1']);
   });
 
   it('answers an ask, and says so when it cannot', async () => {

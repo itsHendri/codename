@@ -6,8 +6,9 @@
  * extension (see shared/protocol.ts).
  *
  * The first extension to pair is remembered, and after that it is the only
- * one the door opens for — which is also what lets a later panel ask for the
- * code instead of the person typing it.
+ * one the door opens for. That narrows who may try; it is not itself
+ * authentication, because an Origin header is only trustworthy from a real
+ * browser. The pairing code stays the gate, and is never given out.
  */
 
 import type { IncomingMessage } from 'node:http';
@@ -33,7 +34,6 @@ const helloSchema = z.object({
   extensionVersion: z.string().optional(),
   sessionId: z.string().min(1),
   extensionId: z.string().optional(),
-  probe: z.boolean().optional(),
 });
 
 /** Just enough of SessionState to key and watch it; the rest passes through. */
@@ -57,6 +57,8 @@ export interface ServerOptions {
   onAsk?: (sessionId: string, request: PanelRequest) => Promise<unknown>;
   /** Called with each state snapshot, after it is stored. */
   onState?: (sessionId: string, state: SessionState, link: Link) => void;
+  /** Called when a session's socket closes, so per-session caches can be dropped. */
+  onGone?: (sessionId: string) => void;
   bridgeVersion?: string;
   pingIntervalMs?: number;
   now?: () => number;
@@ -180,17 +182,9 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
           const claimed = hello.data.extensionId;
           const idMismatch = claimed !== undefined && originId !== null && claimed !== originId;
 
-          // A probe is "is a bridge here for me?" rather than an offer of a
-          // code. Only the extension already pinned gets an answer.
-          const probing = hello.data.probe === true;
-          const known = originId !== null && pinned !== undefined && originId === pinned;
-          const accepted = idMismatch ? false : probing ? known : hello.data.token === token;
-
-          if (!accepted) {
-            // A probe from an unknown extension is not a guess at the code, so
-            // it does not count against the limiter.
-            if (!probing && limiter.fail()) log('too many wrong pairing codes; refusing hellos for five minutes');
-            ws.close(probing ? UNAUTHORIZED : limiter.allowed() ? UNAUTHORIZED : TOO_MANY, 'unauthorized');
+          if (idMismatch || hello.data.token !== token) {
+            if (limiter.fail()) log('too many wrong pairing codes; refusing hellos for five minutes');
+            ws.close(limiter.allowed() ? UNAUTHORIZED : TOO_MANY, 'unauthorized');
             return;
           }
 
@@ -205,8 +199,6 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
           const ack: HelloAck = {
             bridgeVersion,
             ...(opts.project ? { project: opts.project() } : {}),
-            // The probe asked for the code, and it is the pinned extension asking.
-            ...(probing ? { token } : {}),
           };
           link.send({
             v: PROTOCOL_VERSION,
@@ -216,9 +208,7 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
             ok: true,
             payload: ack,
           });
-          log(
-            `session ${sessionId} ${probing ? 'paired itself' : 'paired'} (extension ${hello.data.extensionVersion ?? '?'})`,
-          );
+          log(`session ${sessionId} paired (extension ${hello.data.extensionVersion ?? '?'})`);
           return;
         }
 
@@ -256,6 +246,7 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
       ws.on('close', () => {
         if (sessionId) {
           sessions.disconnect(sessionId, link);
+          opts.onGone?.(sessionId);
           log(`session ${sessionId} disconnected`);
         }
       });

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CURSOR_MCP_JSON, DEFAULT_PORT } from '@/shared/protocol';
-import { pair, probe, useBridge } from '../lib/bridge';
+import { pair, useBridge } from '../lib/bridge';
 import { CopyIcon } from './icons';
 
 // One command: installs the codename skill and registers the bridge with Claude Code.
@@ -23,32 +23,17 @@ const LABEL: Record<string, string> = {
  * so the card says how to read it: ask the agent, or run `codename-bridge
  * code` in a terminal.
  *
- * The typing is only ever needed once per machine. After that the bridge
- * knows this extension, and the card asks it for the code itself — which is
- * what the button under step three does, and what the panel does on its own
- * when it opens.
+ * `codename-bridge open` prints the code in the terminal the person is
+ * already looking at, which is the shortest honest path to it. Handing the
+ * code out over the socket to whoever asks was tried and removed: an Origin
+ * header only means something coming from a real browser, so it would have
+ * replaced the code with a public extension id.
  */
 export function ConnectAgentCard() {
   const { status } = useBridge();
   const [code, setCode] = useState('');
   const [agent, setAgent] = useState<'claude' | 'cursor'>('claude');
   const [copied, setCopied] = useState(false);
-  const [looking, setLooking] = useState(false);
-  const [missed, setMissed] = useState(false);
-
-  // Opening the card is itself a reason to look: the agent may have started
-  // since the panel did.
-  useEffect(() => {
-    void probe();
-  }, []);
-
-  const look = async () => {
-    setLooking(true);
-    setMissed(false);
-    const found = await probe();
-    setLooking(false);
-    setMissed(!found);
-  };
 
   const snippet = agent === 'claude' ? CLAUDE_CMD : CURSOR_JSON;
   const copy = async () => {
@@ -91,17 +76,18 @@ export function ConnectAgentCard() {
 
       <Step n={2} title="Start your agent — it launches the bridge for you">
         <p className="text-2xs text-ink-muted">
-          In the folder you are working in. To start the dev server and open it here in one go, run{' '}
-          <code className="font-mono">npx codename-bridge open .</code> in a second terminal.
+          In the folder you are working in. Then, in a second terminal,{' '}
+          <code className="font-mono">npx codename-bridge open .</code> starts the dev server, opens
+          the page, and prints the pairing code.
         </p>
         <p className="text-2xs text-ink-muted">
-          The bridge prints a six-character pairing code where the agent, not you, can see it. Ask the
-          agent: <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or
-          run <code className="font-mono">npx codename-bridge code</code> in a terminal.
+          The bridge itself prints the code where the agent, not you, can see it. So ask the agent —{' '}
+          <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or run{' '}
+          <code className="font-mono">npx codename-bridge code</code>.
         </p>
       </Step>
 
-      <Step n={3} title="Enter the code, once per machine">
+      <Step n={3} title="Enter the code">
         <form
           className="flex gap-1.5"
           onSubmit={(e) => {
@@ -127,12 +113,6 @@ export function ConnectAgentCard() {
             Pair
           </button>
         </form>
-        <div className="flex items-center gap-2">
-          <button onClick={() => void look()} disabled={looking} className="text-2xs text-accent hover:underline disabled:opacity-40">
-            {looking ? 'Looking…' : 'Already paired on this machine? Look for the bridge'}
-          </button>
-          {missed && <span className="text-2xs text-ink-muted">Nothing answered on port {DEFAULT_PORT}.</span>}
-        </div>
       </Step>
 
       <p className="text-2xs text-ink-muted">

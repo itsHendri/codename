@@ -43,7 +43,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
   const presence = (
     <>
-      {project && <ProjectRow project={project} mayWrite={bridgeMayWrite} />}
+      {project && <ProjectRow project={project} mayWrite={bridgeMayWrite} local={set.local} />}
       {agentPreview && <AgentPreviewRow {...agentPreview} touchesLocked={agentPreview.declares.filter((n) => locks.includes(n))} />}
       {agentLog.length > 0 && <AgentActivity entries={agentLog} />}
     </>
@@ -311,7 +311,7 @@ function AgentActivity({ entries }: { entries: { at: string; what: string }[] })
  * until it is turned on, per project, and what it permits is narrow enough to
  * state on the row: one definition, one value, nothing else.
  */
-function ProjectRow({ project, mayWrite }: { project: ProjectInfo; mayWrite: boolean }) {
+function ProjectRow({ project, mayWrite, local }: { project: ProjectInfo; mayWrite: boolean; local: boolean }) {
   return (
     <div className="flex flex-col gap-1 border-b border-line-subtle px-3 py-2">
       <div className="flex items-center gap-2 text-2xs">
@@ -324,10 +324,16 @@ function ProjectRow({ project, mayWrite }: { project: ProjectInfo; mayWrite: boo
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint" title="Uncommitted changes in this repository" />
         )}
       </div>
-      <label className="flex items-center gap-2 text-2xs text-ink-muted">
-        <input type="checkbox" checked={mayWrite} onChange={(e) => allow('bridgeMayWrite', e.target.checked)} />
-        <span>Bridge may edit definitions in {project.name}</span>
-      </label>
+      {/* A page that is not this project's own is not evidence about it, so
+          there is nothing here to say yes to. */}
+      {local ? (
+        <label className="flex items-center gap-2 text-2xs text-ink-muted">
+          <input type="checkbox" checked={mayWrite} onChange={(e) => allow('bridgeMayWrite', e.target.checked)} />
+          <span>Bridge may edit definitions in {project.name}</span>
+        </label>
+      ) : (
+        <span className="text-2xs text-ink-muted">This page is not served from {project.name}, so nothing here is applied to it.</span>
+      )}
     </div>
   );
 }
@@ -358,7 +364,7 @@ function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolea
     setError(null);
     try {
       await applyDefinition({ name: t.name, from: t.from, to: t.to, file: writable.file, line: writable.line! });
-      markApplied({ name: t.name, file: writable.file, line: writable.line! });
+      markApplied({ name: t.name, file: writable.file, line: writable.line!, value: t.to });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

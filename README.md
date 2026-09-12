@@ -209,9 +209,7 @@ Three steps, which the Changes tab walks you through until you are paired
    npx codename-bridge code
    ```
 
-3. Enter the code in the panel. **Once per machine:** the bridge remembers the
-   extension that paired with it, and from then on the panel asks it for the
-   code itself. A second project needs no code at all.
+3. Enter the code in the panel.
 
 To get from a folder to a page with the panel on it in one command, in a
 second terminal:
@@ -220,16 +218,19 @@ second terminal:
 npx codename-bridge open .
 ```
 
-It starts the project's dev server (its `dev`, `start` or `serve` script, with
-the package manager your lockfile names), watches its output for the URL it
-came up on, and opens that in your browser. `--cmd "…"` says how to start it
-where the scripts do not, `--url` opens one that is already running. Your
-agent runs the bridge in its own terminal; this one only gets you to the page.
+It prints the pairing code where you can actually read it, starts the
+project's dev server (its `dev`, `start` or `serve` script, with the package
+manager your lockfile names), watches its output for the URL it came up on,
+and opens that in your browser. `--cmd "…"` says how to start it where the
+scripts do not, `--url` opens one that is already running. Your agent runs the
+bridge in its own terminal; this one only gets you to the page.
 
 The bridge runs on your machine only: an MCP server on standard input and
-output for your agent, a WebSocket on `127.0.0.1` for the panel. It accepts
-that socket from the one extension it first paired with, and five wrong codes
-in a minute close it for five.
+output for your agent, a WebSocket on `127.0.0.1` for the panel. It takes that
+socket from the one extension it first paired with and refuses every other,
+and five wrong codes in a minute close it for five. It never gives the code
+out over the socket, whoever asks: an extension id is public, and an `Origin`
+header only means something coming from a real browser.
 
 ### It knows which project you are in
 

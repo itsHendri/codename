@@ -577,16 +577,40 @@ step below worth building rather than just the lookup.
   package manager its lockfile names, watches the output for the first
   localhost URL, and opens it. The part of a desktop app worth having,
   without shipping a browser to get it.
-- **Pairing, once per machine.** The bridge remembers the first extension
-  that pairs with it and refuses every other one after that; the panel, when
-  it has no pairing, asks a bridge whether it already knows this extension
-  and is given the code. A second project needs no code. The first pairing
-  is still typed, because that is what creates the pin.
+- **Pairing.** The bridge remembers the first extension that pairs with it
+  and refuses every other one after that. Auto-pairing was built on top of
+  that pin — the panel asking a bridge that already knew it for the code —
+  and then removed: an `Origin` header is only trustworthy coming from a real
+  browser, and an extension id is a public constant, so it would have traded
+  a six-character secret for something anyone on the machine could type. The
+  convenience it was for is answered honestly instead: `codename-bridge open`
+  prints the code in the terminal the person is already looking at, which is
+  the thing that was actually missing.
 - **The hardening the audit asked for**, in the same change because it is the
   same socket: any `chrome-extension://` origin used to be accepted; five
   wrong codes in a minute now close the door for five; and *Agent may change
   this page* no longer defaults on for localhost, which was a consent nobody
-  gave. It is asked once per project and remembered.
+  gave. It is asked once and remembered — against the page for painting,
+  against the folder for writing, because those are consents about different
+  things.
+
+A review over the whole change then found and closed thirteen things, most of
+them in the write path, which is where they matter most. The two that could
+have damaged a file: a declaration wrapped over several lines was found as one
+statement but rewritten as one line, welding the continuation onto the new
+value; and the new value was written verbatim, so `red; } body { display:
+none` was a way to append arbitrary CSS. The scanner now carries the offsets
+of the value it read and the write splices exactly those, after re-reading the
+file; and a value carrying `;`, `{`, `}`, a newline, a comment, an unbalanced
+bracket or an unclosed quote is refused. The rest: strings and brackets are
+tracked, so `url(//cdn/x.png)`, `"}"` and `data:…;base64` no longer confuse
+the walk; `:root` inside a `.vue` or `.astro` file reads as root rather than
+scoped; the file keeps the permissions it had; a disconnecting bridge no
+longer re-reads edits under the origin and wipes the page; consent for writing
+is filed against the folder; an applied token stops claiming to be applied
+once its value moves again; a taken-back decision is no longer resurrected by
+the origin fallback; two packages in a monorepo no longer share one storage
+record; and the definition cache is dropped when a session goes.
 
 ## Still to build
 

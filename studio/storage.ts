@@ -10,7 +10,7 @@
 
 import type { BrandConfig } from './engine/types';
 import { migrateConfig } from './engine/schema';
-import { isNoEdits, normaliseEdits, type BrandEdits } from './edits';
+import { normaliseEdits, type BrandEdits } from './edits';
 
 const KEY_PREFIX = 'brand:';
 const INDEX_KEY = 'brandIndex';
@@ -86,14 +86,16 @@ const EDITS_PREFIX = 'edits:';
  * The decisions made against a site, kept so a rescan does not undo them.
  *
  * `key` is what `editsKey` decided: an origin, or the project a paired bridge
- * is running in. `fallback` is read when the key itself holds nothing, so a
- * project that has just been named inherits what was saved under its origin;
- * the origin's copy is left where it is rather than moved, because the same
- * origin may be another project's tomorrow.
+ * is running in. `fallback` is read only when the key has never been written,
+ * so a project that has just been named inherits what was saved under its
+ * origin — but a decision taken back under the project key stays taken back,
+ * because an empty record is still a record. The origin's copy is left where
+ * it is rather than moved, since the same origin may be another project's
+ * tomorrow.
  */
 export async function loadEdits(key: string, fallback?: string): Promise<BrandEdits | null> {
   if (!available()) return null;
-  const k = `${EDITS_PREFIX}${slugify(key)}`;
+  const k = `${EDITS_PREFIX}${scopeSlug(key)}`;
   const stored = await chrome.storage.local.get(k);
   const raw = stored[k] as Partial<BrandEdits> | undefined;
   if (raw) return normaliseEdits(raw);
@@ -102,9 +104,33 @@ export async function loadEdits(key: string, fallback?: string): Promise<BrandEd
 
 export async function saveEdits(key: string, edits: BrandEdits): Promise<void> {
   if (!available()) return;
-  const k = `${EDITS_PREFIX}${slugify(key)}`;
-  if (isNoEdits(edits)) await chrome.storage.local.remove(k);
-  else await chrome.storage.local.set({ [k]: edits });
+  const k = `${EDITS_PREFIX}${scopeSlug(key)}`;
+  // Written even when empty: removing the record would let the fallback
+  // resurrect what the person just took back.
+  await chrome.storage.local.set({ [k]: edits });
+}
+
+/**
+ * A storage key for one scope — an origin, or a project path.
+ *
+ * `slugify` cuts at 60 characters, which is plenty for an origin and not for
+ * a path: two packages in one monorepo would share a record, and with it
+ * every decision and consent. Anything long enough to be cut carries a short
+ * digest of the whole thing.
+ */
+export function scopeSlug(key: string): string {
+  const full = key
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (full.length <= 60) return full || 'brand';
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${full.slice(0, 52)}-${hash.toString(36)}`;
 }
 
 /** Slug that is safe as a storage key and a folder name. */

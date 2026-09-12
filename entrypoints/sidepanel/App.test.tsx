@@ -11,7 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { handleBridgeFrame } from './lib/bridge';
-import { allow, updateSession } from './lib/session';
+import { allow, getSession, updateSession } from './lib/session';
 import { element, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -253,5 +253,34 @@ describe('the project the bridge is running in', () => {
     await click(host.querySelector('#tab-changes'));
     expect(text()).toContain('2 definitions — the cascade decides');
     expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
+  });
+});
+
+describe('what happens when the bridge comes and goes', () => {
+  const ack = (project: { name: string; path: string; branch?: string } | null) =>
+    handleBridgeFrame({ v: 1, id: 'a', type: 'response', replyTo: 'h', ok: true, payload: { bridgeVersion: '0.1.0', ...(project ? { project } : {}) } });
+
+  it('leaves the edits on the page when the agent quits', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+    expect(badge()).toBe('1');
+
+    // The bridge going away is not a reason to take the work back.
+    await act(async () => void ack(null));
+    await tick(120);
+    expect(badge()).toBe('1');
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).not.toContain('Bridge may edit definitions');
+  });
+
+  it('does not offer to write to a project the page is not served from', async () => {
+    await act(async () => updateSession({ scan: { ...getSession().scan!, url: 'https://forfontsake.com/' } }));
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('not served from ffs');
+    expect(text()).not.toContain('Bridge may edit definitions');
   });
 });

@@ -96,10 +96,10 @@ export function runOpen(opts: OpenOptions): OpenResult {
   const spawnProcess = opts.spawnProcess ?? spawn;
 
   const bridge = opts.running?.() ?? null;
-  if (!bridge) {
-    log('No agent is running in this folder yet. Start Claude Code (or Cursor) here and it will launch the bridge;');
-    log('the panel then pairs itself. Carrying on with the dev server.');
-  }
+  // The bridge prints its code to an stderr the agent swallows, so this is
+  // where a person actually gets to read it.
+  if (bridge) log(`Pairing code: ${bridge.token}  (enter it in the panel, on the Changes tab)`);
+  else log('No agent is running in this folder yet. Start Claude Code or Cursor here; it launches the bridge.');
 
   const command: Command | null = opts.cmd
     ? { cmd: process.platform === 'win32' ? 'cmd' : 'sh', args: process.platform === 'win32' ? ['/c', opts.cmd] : ['-c', opts.cmd] }
@@ -131,11 +131,7 @@ export function runOpen(opts: OpenOptions): OpenResult {
       opts.onOpen?.(open);
       if (!opts.onOpen) spawnProcess(open.cmd, open.args, { stdio: 'ignore', detached: true }).unref?.();
       log(`Opened ${url}. Click the Codename icon to put the panel on it.`);
-      log(
-        bridge
-          ? '  The panel pairs itself if it has paired with this machine before; otherwise the code is above.'
-          : '  Start your agent in this folder, then enter its pairing code in the panel.',
-      );
+      log(bridge ? '  Then enter the pairing code above.' : '  Start your agent in this folder, then pair the panel with its code.');
       resolve(url);
     };
 

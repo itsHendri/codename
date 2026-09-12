@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -244,5 +244,89 @@ describe('applyDefinition', () => {
     const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
     applyDefinition(dir, edit, noGit);
     expect(listFiles(dir, noGit.run).files.filter((f) => f.includes('.tmp'))).toEqual([]);
+  });
+});
+
+describe('the traps a review found in the write path', () => {
+  const edit = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', file: 'src/index.css', line: 2 };
+
+  it('replaces a declaration that wraps over lines as the one thing it is', () => {
+    const dir = project({
+      'src/index.css': ':root {\n  --stack: system-ui, -apple-system,\n           "Segoe UI", sans-serif;\n}\n',
+    });
+    applyDefinition(
+      dir,
+      { name: '--stack', from: 'system-ui, -apple-system, "Segoe UI", sans-serif', to: 'Inter, sans-serif', file: 'src/index.css', line: 2 },
+      noGit,
+    );
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toBe(':root {\n  --stack: Inter, sans-serif;\n}\n');
+  });
+
+  it.each([
+    ['a declaration ender', 'red; } body { display: none } :root { --x: 1'],
+    ['a newline', 'red\n}'],
+    ['a comment', 'red /* sneaky */'],
+    ['an unclosed bracket', 'rgb(0,0,0'],
+    ['an unclosed quote', '"Inter'],
+    ['nothing at all', '   '],
+  ])('refuses a value carrying %s', (_, to) => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    expect(() => applyDefinition(dir, { ...edit, to }, noGit)).toThrow(ApplyRefused);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+  });
+
+  it('keeps the file permissions it found', () => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const file = join(dir, 'src/index.css');
+    chmodSync(file, 0o640);
+    applyDefinition(dir, edit, noGit);
+    expect(statSync(file).mode & 0o777).toBe(0o640);
+  });
+
+  it('reads a definition after a protocol-relative url on the same line', () => {
+    const css = ':root {\n  --logo: url(//cdn.example.com/l.png);\n  --mark: #BE3A22;\n}\n';
+    expect(definitionsInCss(css, ['--mark'], 'a.css')['--mark']?.[0]).toMatchObject({ line: 3, value: '#BE3A22' });
+  });
+
+  it('does not let a brace inside a string escape its block', () => {
+    const css = '.card {\n  --tip: "}";\n  --mark: #BE3A22;\n}\n';
+    expect(definitionsInCss(css, ['--mark'], 'a.css')['--mark']?.[0]?.context).toBe('scoped');
+  });
+
+  it('keeps a data url whole rather than splitting it on its own semicolon', () => {
+    const css = ':root {\n  --icon: url("data:image/svg+xml;base64,AAAA");\n}\n';
+    expect(definitionsInCss(css, ['--icon'], 'a.css')['--icon']?.[0]?.value).toBe('url("data:image/svg+xml;base64,AAAA")');
+  });
+
+  it.each(['page.html', 'App.vue', 'Page.astro', 'Card.svelte'])('reads :root in %s as root, not scoped', (file) => {
+    const markup = '<template>\n  <div class="card">hi</div>\n</template>\n<style>\n:root {\n  --mark: #BE3A22;\n}\n</style>\n';
+    expect(definitionsInCss(markup, ['--mark'], file)['--mark']?.[0]?.context).toBe('root');
+  });
+
+  it('still reads a scoped selector in a markup file as scoped', () => {
+    const markup = '<style>\n.card {\n  --mark: #BE3A22;\n}\n</style>\n';
+    expect(definitionsInCss(markup, ['--mark'], 'App.vue')['--mark']?.[0]?.context).toBe('scoped');
+  });
+
+  it('is not fooled by a trailing comment that repeats the property', () => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22; /* --mark: red */\n}\n' });
+    expect(applyDefinition(dir, edit, noGit).to).toBe('#1C7F5C');
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toBe(':root {\n  --mark: #1C7F5C; /* --mark: red */\n}\n');
+  });
+
+  it('leaves line endings and a missing final newline alone', () => {
+    const dir = project({ 'src/index.css': ':root {\r\n  --mark: #BE3A22;\r\n}' });
+    applyDefinition(dir, edit, noGit);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toBe(':root {\r\n  --mark: #1C7F5C;\r\n}');
+  });
+
+  it('treats a Tailwind theme block as the root', () => {
+    const css = '@theme {\n  --mark: #BE3A22;\n}\n';
+    expect(definitionsInCss(css, ['--mark'], 'app.css')['--mark']?.[0]).toMatchObject({ kind: 'theme', context: 'root' });
+  });
+
+  it('treats a layer as a wrapper rather than a scope', () => {
+    const css = '@layer base {\n  :root {\n    --mark: #BE3A22;\n  }\n}\n';
+    expect(definitionsInCss(css, ['--mark'], 'a.css')['--mark']?.[0]?.context).toBe('root');
   });
 });

@@ -157,6 +157,13 @@ function disconnect() {
   const ws = socket;
   socket = null;
   ws?.close();
+  // Nothing will answer these now; a caller waiting on one should hear so
+  // rather than sit out the timeout.
+  for (const [id, waiting] of asking) {
+    clearTimeout(waiting.timer);
+    waiting.reject(new Error('the agent bridge disconnected'));
+    asking.delete(id);
+  }
   setStatus(pairing ? 'connecting' : 'off');
 }
 
@@ -423,72 +430,6 @@ async function loadPairing(): Promise<void> {
   }
   emit();
   if (pairing) connect();
-  else void probe();
-}
-
-/**
- * Ask whether a bridge on this machine already knows us.
- *
- * A bridge remembers the first extension that paired with it, so a second
- * project — a new folder, a new agent, a new code — does not have to be typed
- * in again: this asks, and a bridge that recognises the extension answers
- * with the code. One that does not recognise it says nothing, which is the
- * same as no bridge being there.
- */
-let probing = false;
-export async function probe(port = DEFAULT_PORT): Promise<boolean> {
-  if (pairing || probing || typeof WebSocket === 'undefined') return false;
-  probing = true;
-  try {
-    return await new Promise<boolean>((resolve) => {
-      let ws: WebSocket;
-      try {
-        ws = new WebSocket(`ws://127.0.0.1:${port}`);
-      } catch {
-        resolve(false);
-        return;
-      }
-      const id = uid();
-      const done = (paired: boolean) => {
-        clearTimeout(timer);
-        ws.close();
-        resolve(paired);
-      };
-      const timer = setTimeout(() => done(false), 2000);
-      ws.onopen = () =>
-        ws.send(
-          JSON.stringify({
-            v: PROTOCOL_VERSION,
-            id,
-            type: 'hello',
-            payload: {
-              token: '',
-              probe: true,
-              extensionId: chrome.runtime.id,
-              extensionVersion: chrome.runtime.getManifest?.().version ?? '0',
-              sessionId,
-            },
-          }),
-        );
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(String(e.data)) as Envelope<HelloAck>;
-          const token = msg.replyTo === id && msg.ok ? msg.payload?.token : undefined;
-          if (!token) return done(false);
-          void pair(token, port);
-          done(true);
-        } catch {
-          done(false);
-        }
-      };
-      // A closed door and a bridge that does not know us look the same here,
-      // which is the point: nothing is said either way.
-      ws.onerror = () => done(false);
-      ws.onclose = () => done(false);
-    });
-  } finally {
-    probing = false;
-  }
 }
 
 export async function pair(token: string, port = DEFAULT_PORT): Promise<void> {
@@ -508,6 +449,14 @@ export async function forget(): Promise<void> {
   disconnect();
   setStatus('off');
   emit();
+}
+
+/** Try again now instead of waiting out the backoff. */
+export function retry() {
+  if (!pairing) return;
+  backoff = 1000;
+  disconnect();
+  connect();
 }
 
 /* ---------------- asking the bridge ---------------- */
@@ -552,14 +501,6 @@ export async function refreshDefinitions(names: string[]): Promise<void> {
   if (!names.length) return;
   const found = await ask<DefinitionsPayload>({ method: 'find_definitions', names });
   updateSession({ definitions: found });
-}
-
-/** Try again now instead of waiting out the backoff. */
-export function retry() {
-  if (!pairing) return;
-  backoff = 1000;
-  disconnect();
-  connect();
 }
 
 /* ---------------- hooks ---------------- */

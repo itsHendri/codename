@@ -22,7 +22,7 @@ import {
   TOKEN_RE,
   writeBridgeFile,
 } from './pairing';
-import { pushDefinitions } from './push';
+import { forget, pushDefinitions } from './push';
 import { Sessions } from './sessions';
 import { runOpen } from './open';
 import { runSetup, type SetupClient } from './setup';
@@ -208,6 +208,7 @@ async function main() {
       onState: (sessionId, state, link) => {
         pushDefinitions(cwd, sessionId, state, link);
       },
+      onGone: forget,
       allowNoOrigin: process.env.CODENAME_ALLOW_NO_ORIGIN === '1',
       // Comma-separated page origins, e.g. the panel harness at http://localhost:5320.
       devOrigins: (process.env.CODENAME_DEV_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean),

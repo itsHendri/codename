@@ -182,7 +182,7 @@ export function buildChangeSet(
   repo: {
     project?: ChangeSet['project'];
     definitions?: Record<string, Definition[]>;
-    applied?: { name: string; file: string; line: number }[];
+    applied?: { name: string; file: string; line: number; value: string }[];
   } = {},
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
@@ -192,7 +192,10 @@ export function buildChangeSet(
     const prop = propByName.get(o.name);
     const alsoAt = Object.entries(prop?.atWidth ?? {}).map(([query, value]) => ({ query, value }));
     const definedAt = repo.definitions?.[o.name];
-    const applied = appliedByName.get(o.name);
+    // Only while it still holds what was written: moved again, it is a change
+    // the agent has not heard about and must not be told to skip.
+    const wrote = appliedByName.get(o.name);
+    const applied = wrote && wrote.value === o.to ? wrote : undefined;
     return {
       name: o.name,
       from: o.from,

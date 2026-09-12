@@ -351,10 +351,20 @@ describe('what the bridge found in the repository', () => {
     expect(toPrompt(set)).not.toContain('defined at');
   });
 
+  it('stops saying "already applied" once the token moves again', () => {
+    const set = buildChangeSet(scan, [{ ...override, to: '#0000FF' }], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      // Applied at a different value: this is a change the agent has not heard about.
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C' }],
+    });
+    expect(toPrompt(set)).not.toContain('already applied');
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+
   it('tells the agent not to write a definition the person already applied', () => {
     const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
       definitions: { '--mark': [at('src/index.css', 12)] },
-      applied: [{ name: '--mark', file: 'src/index.css', line: 12 }],
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C' }],
     });
     expect(toPrompt(set)).toContain('already applied in src/index.css:12 — do not write this one again');
   });
