@@ -710,6 +710,14 @@ In order.
    rules open around each style rule, so a caller can read the widths or put a
    rewritten rule back where it came from.
 
+   A review of the extraction caught three behaviour changes it had not
+   intended, which is the argument for reviewing refactors rather than
+   trusting them: CSS nesting became visible to the override builder and its
+   `&` selectors were emitted as written, where `&` alone means `:root`;
+   `@page` passed the duck-typed style-rule test because it has both a
+   selector and a style; and an `@import` was followed without the media or
+   layer it was pulled in under. All three are fixed and pinned.
+
    What is left: `inspector.content.ts` is still 1,764 lines and untested, and
    it is now the largest file in the project. Its selection, traversal and
    region-note geometry are the parts that would come out cleanly. The state
