@@ -26,7 +26,9 @@ import {
   undo as undoLog,
   type ChangeLog,
 } from '@/studio/changes';
-import { applyElementRules, probeComponent, sendInspector } from './messaging';
+import { setStateHoist, applyElementRules, probeComponent, sendInspector } from './messaging';
+import type { MaybeCondition } from '@/studio/conditions';
+import type { HoistedRule } from '@/studio/conditionSheet';
 import {
   addComment as addCommentToSession,
   getSession,
@@ -47,6 +49,11 @@ export interface InspectController {
   /** Write to this element only, or to every element the class selector matches. */
   scope: Scope;
   setScope(scope: Scope): void;
+  /** The state edits are being made in; undefined is the default one. */
+  condition: MaybeCondition;
+  setCondition(condition: MaybeCondition): void;
+  /** What the page itself already does to this element in that state. Read-only. */
+  cascade: HoistedRule[];
   /** Commit a CSS longhand. `from` is read from the element; `token` names a chosen variable. */
   change(property: string, to: string, token?: string): void;
   /** Replace the element's text content. */
@@ -164,11 +171,13 @@ function usePush(tabId: number | null, generation: number, key: string, empty: b
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments'>,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode'>,
   focusedComment: string | null,
 ): InspectController {
   const { pinned: element, log, generation, comments } = session;
   const [scope, setScope] = useState<Scope>('element');
+  const [condition, setConditionState] = useState<MaybeCondition>(undefined);
+  const [cascade, setCascade] = useState<HoistedRule[]>([]);
   const [measuring, setMeasuring] = useState(false);
   const [noting, setNoting] = useState(false);
   const [layers, setLayers] = useState<LayerNode[]>([]);
@@ -188,8 +197,9 @@ export function useInspect(
   // Push the rules whenever they change, and again after the page reloads
   // (the generation counter), when the managed sheet has to be rebuilt.
   const rules = useMemo(() => (holding ? [] : toRules(log)), [log, holding]);
-  usePush(tabId, generation, JSON.stringify(rules), rules.length === 0, () => {
-    void applyElementRules(tabId!, rules).then(() => {
+  const darkPreview = session.mode === 'dark';
+  usePush(tabId, generation, JSON.stringify([rules, darkPreview]), rules.length === 0, () => {
+    void applyElementRules(tabId!, rules, darkPreview).then(() => {
       // Computed values moved; show the element as it is now.
       void sendInspector<ElementProps | null>(tabId!, { cmd: 'read' }).then((props) => {
         if (props) updateSession({ pinned: props });
@@ -265,6 +275,9 @@ export function useInspect(
           matches: wide ? element.intent.matches : element.matches,
           stable: wide ? true : element.stable,
           property,
+          // The page is being held in this state while it is chosen, so what
+          // the element paints right now is the honest `from`.
+          ...(condition ? { condition } : {}),
           from: readValue(element, property),
           to,
           token,
@@ -274,8 +287,44 @@ export function useInspect(
         }),
       );
     },
-    [element, scope, setLog],
+    [element, scope, setLog, condition],
   );
+
+  /**
+   * Choose the state to edit in.
+   *
+   * A state is held on the page by a class, so the element paints as it would
+   * under the pointer and the values read back are that state's. Dark and the
+   * widths are shown by machinery that already exists — the bar's own switch
+   * and its viewport presets — so choosing one here only says which state the
+   * next edit is about; the caller turns the page to match.
+   */
+  const setCondition = useCallback(
+    (next: MaybeCondition) => {
+      setConditionState(next);
+      setCascade([]);
+      if (tabId == null) return;
+      const state = next?.kind === 'state' ? next.state : null;
+      void sendInspector(tabId, { cmd: 'state', state });
+      void setStateHoist(tabId, state, state && element ? element.selector : null).then((found) => {
+        setCascade(found);
+        // The element paints differently now, so what the panel shows about it
+        // has to be read again.
+        void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
+          if (props) updateSession({ pinned: props });
+        });
+      });
+    },
+    [tabId, element],
+  );
+
+  // A new selection is a new set of hover rules, and the old class is gone.
+  const selector = element?.selector ?? null;
+  useEffect(() => {
+    if (tabId == null || condition?.kind !== 'state') return;
+    void setStateHoist(tabId, condition.state, selector).then(setCascade);
+    void sendInspector(tabId, { cmd: 'state', state: condition.state });
+  }, [tabId, selector, condition]);
 
   const setText = useCallback(
     (text: string) => {
@@ -316,6 +365,9 @@ export function useInspect(
     log,
     scope,
     setScope,
+    condition,
+    setCondition,
+    cascade,
     change,
     setText,
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),
@@ -331,6 +383,12 @@ export function useInspect(
     },
     measuring,
     clear: () => {
+      // Deselecting takes the class off by itself, but saying so is what
+      // keeps the panel and the page describable in the same words — and the
+      // panel must not go on claiming to be editing a state nothing is in.
+      setConditionState(undefined);
+      setCascade([]);
+      send({ cmd: 'state', state: null });
       send({ cmd: 'deselect' });
       setPinned(null);
     },

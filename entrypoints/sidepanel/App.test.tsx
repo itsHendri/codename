@@ -284,3 +284,89 @@ describe('what happens when the bridge comes and goes', () => {
     expect(text()).not.toContain('Bridge may edit definitions');
   });
 });
+
+describe('editing a state', () => {
+  const chips = () => Array.from(host.querySelectorAll('[role=radio]')).map((b) => b.textContent);
+  const chip = (label: string) =>
+    Array.from(host.querySelectorAll('[role=radio]')).find((b) => b.textContent === label) ?? null;
+
+  const selectHeading = async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick();
+  };
+
+  it('offers the states once something is selected, with the widths behind one control', async () => {
+    await selectHeading();
+    expect(chips()).toEqual(expect.arrayContaining(['default', 'hover', 'focus', 'active', 'dark']));
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]');
+    expect(widths).not.toBeNull();
+    expect(Array.from(widths!.options).map((o) => o.textContent)).toContain('≤768 · Tablet');
+  });
+
+  it('holds the page in the state and shows what it already does there', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    // The inspector was told to put the class on, and the page answered with
+    // its own hover rules.
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'state' && m.state === 'hover')).toBe(true);
+    expect(text()).toContain('Editing');
+    expect(text()).toContain('what this element paints on hover');
+    expect(text()).toContain('color: rgb(190, 58, 34)');
+  });
+
+  it('writes an edit made in a state under both the pseudo and the class', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(120);
+    const rules = stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; condition?: unknown }[];
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.condition).toMatchObject({ kind: 'state', state: 'hover' });
+    expect(badge()).toBe('1');
+  });
+
+  it('keeps a default edit and a hover edit as two changes', async () => {
+    await selectHeading();
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#00ff00' }));
+    await tick();
+    await click(chip('hover'));
+    await tick(120);
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(120);
+    expect(badge()).toBe('2');
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('hover');
+  });
+
+  it('turns the page dark when dark is the state being edited, and back again', async () => {
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
+    await click(chip('default'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'light' });
+  });
+
+  it('asks for the viewport when a width is the state being edited', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = '768';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(120);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'set-viewport' && m.preset === 'Tablet')).toBe(true);
+  });
+
+  it('lets go of the state when the selection goes', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(120);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'state').at(-1)).toMatchObject({ state: null });
+  });
+});

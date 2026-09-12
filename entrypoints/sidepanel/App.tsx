@@ -30,6 +30,7 @@ import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
 import type { TokenLengths } from '@/shared/types';
 import { buildChangeSet } from '@/studio/commit';
+import type { MaybeCondition } from '@/studio/conditions';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
@@ -168,6 +169,25 @@ export default function App() {
       if (getSession().agentPreview) void dropAgentPreview();
       // The viewport is the bar's to put back; the panel only asks.
       void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
+    }
+  }, []);
+
+  /**
+   * Turn the page to match the state being edited.
+   *
+   * A state is held by the inspector's class, but dark and the widths are
+   * what the bar already does — so picking one here asks for the same thing,
+   * and leaving it puts the page back. Without this the edit would be
+   * recorded against a state the person cannot see.
+   */
+  const showCondition = useCallback((condition: MaybeCondition) => {
+    if (condition?.kind === 'scheme') setMode('dark');
+    else if (condition?.kind === 'width') {
+      if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'set-viewport', preset: condition.preset });
+    } else {
+      // Back to the page as it really is.
+      setMode('light');
+      if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
     }
   }, []);
 
@@ -404,6 +424,7 @@ export default function App() {
             scan={scan}
             resolved={model?.resolved ?? null}
             mode={mode}
+            onShowCondition={showCondition}
           />
         );
         break;

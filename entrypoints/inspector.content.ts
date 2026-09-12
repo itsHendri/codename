@@ -529,11 +529,31 @@ function activate() {
 
   const select = (el: Element | null) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
+    // The state class belongs to the element it was put on, not to the next.
+    holdState(null);
     selected = el;
     editPinned = null;
     renderEdit();
     layout();
     announce();
+  };
+
+  /**
+   * Hold the selection in a state, by putting a class on it.
+   *
+   * The page's own `:hover` rules are re-emitted against this class by the
+   * re-skin script, so the element paints as though the pointer were on it
+   * without the debugger permission and its permanent infobar. Only one
+   * element is ever held, and only one state at a time.
+   */
+  let heldState: string | null = null;
+  const holdState = (cls: string | null) => {
+    if (heldState && selected) selected.classList.remove(heldState);
+    // A re-render may have replaced the node; take the class off anything
+    // still wearing it rather than leaving the page stuck in a state.
+    if (heldState) for (const el of Array.from(document.querySelectorAll(`.${heldState}`))) el.classList.remove(heldState);
+    heldState = cls;
+    if (cls && selected) selected.classList.add(cls);
   };
 
   const walk = (dir: 'parent' | 'child' | 'next' | 'prev') => {
@@ -1566,6 +1586,9 @@ function activate() {
         break;
       case 'deselect':
         select(null);
+        break;
+      case 'state':
+        holdState(msg.state ? `codename-state-${msg.state}` : null);
         break;
       case 'walk':
         if (msg.dir) walk(msg.dir);

@@ -3,6 +3,8 @@ import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
 import type { LengthMap } from '@/studio/reskinRules';
+import type { StateName } from '@/studio/conditions';
+import type { ConditionRule, HoistedRule } from '@/studio/conditionSheet';
 
 const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
 
@@ -141,6 +143,8 @@ export interface ReskinResult {
   rules: number;
   /** For the agent's preview: what its sheet holds and reaches. */
   preview?: { rules: number; matched: number; unreadable: number; declares: string[] };
+  /** For a state hoist: the page's own rules for that state on that element. */
+  cascade?: HoistedRule[];
 }
 
 function sendReskin(
@@ -152,7 +156,10 @@ function sendReskin(
     lengthMap?: LengthMap | null;
     css?: string;
     mode?: 'light' | 'dark';
-    rules?: { selector: string; property: string; value: string }[];
+    rules?: ConditionRule[];
+    darkPreview?: boolean;
+    state?: StateName | null;
+    selector?: string | null;
   },
 ): Promise<ReskinResult | null> {
   return sendOrInject<ReskinResult>(tabId, 'content-scripts/reskin.js', message);
@@ -197,9 +204,25 @@ export function clearAgentPreview(tabId: number): Promise<ReskinResult | null> {
 
 export function applyElementRules(
   tabId: number,
-  rules: { selector: string; property: string; value: string }[],
+  rules: ConditionRule[],
+  darkPreview = false,
 ): Promise<ReskinResult | null> {
-  return sendReskin(tabId, { type: 'elements-set', rules });
+  return sendReskin(tabId, { type: 'elements-set', rules, darkPreview });
+}
+
+/**
+ * Hold the page in a state, and hear what it already does there.
+ *
+ * The reply is the page's own rules for that state on that element, read out
+ * of the CSSOM where the panel cannot reach — facts for the panel to show,
+ * never something it edits.
+ */
+export function setStateHoist(
+  tabId: number,
+  state: StateName | null,
+  selector: string | null,
+): Promise<HoistedRule[]> {
+  return sendReskin(tabId, { type: 'state-set', state, selector }).then((r) => r?.cascade ?? []);
 }
 
 /**

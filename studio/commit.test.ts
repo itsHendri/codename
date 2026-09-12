@@ -410,3 +410,60 @@ describe('the note about where values came from', () => {
     expect(prompt).toContain('come from a search of this project');
   });
 });
+
+describe('an edit made in a state', () => {
+  const scan = scanOf();
+  const change = (over: Partial<ElementChange> = {}): ElementChange => ({
+    id: 'c1',
+    selector: '.btn',
+    matches: 3,
+    stable: true,
+    property: 'background-color',
+    from: '#fff',
+    to: '#eee',
+    status: 'applied',
+    at: new Date().toISOString(),
+    ...over,
+  });
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const tablet = { kind: 'width', preset: 'Tablet', maxWidth: 768 } as const;
+
+  it('is a separate decision from the same property in the default state', () => {
+    const edits = summariseElements([change(), change({ id: 'c2', to: '#ddd', condition: hover })]);
+    expect(edits).toHaveLength(2);
+    expect(edits.map((e) => e.to)).toEqual(['#eee', '#ddd']);
+  });
+
+  it('still collapses two scrubs of the same property in the same state', () => {
+    const edits = summariseElements([change({ condition: hover }), change({ id: 'c2', to: '#ccc', condition: hover })]);
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.to).toBe('#ccc');
+  });
+
+  it('says which state it is about, under the selector it belongs to', () => {
+    const set = buildChangeSet(scan, [], {}, [change(), change({ id: 'c2', to: '#ddd', condition: hover })]);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('- `.btn` (3 elements)');
+    expect(prompt).toContain('hover — `:hover`');
+    expect(prompt).toContain('means `:focus-visible`');
+    // The default lines keep their place and their indentation.
+    expect(prompt).toContain('  - `background-color`: `#fff` → `#eee`');
+    expect(prompt).toContain('    - `background-color`: `#fff` → `#ddd`');
+  });
+
+  it('names a width by its query', () => {
+    const set = buildChangeSet(scan, [], {}, [change({ condition: tablet })]);
+    expect(toPrompt(set)).toContain('≤768 — `@media (max-width: 768px)`');
+  });
+
+  it('leaves a brief with no states reading exactly as it did', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change()]));
+    expect(prompt).not.toContain('A line under a state heading');
+    expect(prompt).toContain('  - `background-color`: `#fff` → `#eee`');
+  });
+
+  it('still hands over no rule bodies', () => {
+    const set = buildChangeSet(scan, [], {}, [change({ condition: hover })]);
+    expect(toPrompt(set)).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+});

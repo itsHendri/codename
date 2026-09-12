@@ -219,6 +219,8 @@ export type InspectorCommand =
   | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
+  /** Hold the selection in a state by class, so its hover rules paint. Null lets go. */
+  | { cmd: 'state'; state: 'hover' | 'focus' | 'active' | null }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
   | { cmd: 'ancestor'; depth: number }
   | { cmd: 'read' }

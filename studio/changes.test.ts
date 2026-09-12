@@ -117,3 +117,49 @@ describe('derived views', () => {
     expect(toRules(log)).toEqual([{ selector: '.btn', property: 'padding-top', value: '20px' }]);
   });
 });
+
+describe('conditions in the log', () => {
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const base = { selector: '.btn', matches: 1, stable: true, property: 'color', from: '#000', to: '#111' };
+
+  it('does not coalesce across states, however fast the scrub', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 10);
+    expect(log.entries).toHaveLength(2);
+  });
+
+  it('still coalesces inside one state', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), { ...base, condition: hover }, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 10);
+    expect(log.entries).toHaveLength(1);
+    expect(log.entries[0]?.to).toBe('#222');
+  });
+
+  it('sends the default and the state rule to the page as two rules', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 1000);
+    const rules = toRules(log);
+    expect(rules).toHaveLength(2);
+    expect(rules.find((r) => r.condition)?.value).toBe('#222');
+    expect(rules.find((r) => !r.condition)?.value).toBe('#111');
+  });
+
+  it('refuses a condition on words and on markup order', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), { ...base, property: 'text', to: 'Hi', condition: hover }, t);
+    log = commit(log, { ...base, property: 'move', to: 'after .x', move: { parent: '.p', before: null }, condition: hover }, t + 1000);
+    expect(log.entries.every((e) => e.condition === undefined)).toBe(true);
+  });
+
+  it('undoes a state edit like any other', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 1000);
+    log = undo(log);
+    expect(toRules(log)).toHaveLength(1);
+    expect(toRules(log)[0]?.condition).toBeUndefined();
+  });
+});

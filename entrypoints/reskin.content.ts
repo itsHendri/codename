@@ -25,6 +25,15 @@
 
 import { lengthPx } from '@/studio/reskin';
 import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
+import { pseudosOf, type StateName } from '@/studio/conditions';
+import {
+  elementsSheet,
+  hoistState,
+  stateSheet as buildStateSheet,
+  type ConditionRule,
+  type HoistedRule,
+  type PageRule,
+} from '@/studio/conditionSheet';
 import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
 
 interface Override {
@@ -42,10 +51,16 @@ interface ApplyMessage {
   lengthMap?: LengthMap | null;
   /** A stylesheet the connected agent wants to try on the page. */
   css?: string;
-  /** Per-element edits from the Layers tab. */
-  rules?: { selector: string; property: string; value: string }[];
+  /** Per-element edits from the Layers tab, each with the state it is about. */
+  rules?: ConditionRule[];
   /** For `site-mode`: which side of the page's own theme to show. */
   mode?: 'light' | 'dark';
+  /** For `elements-set`: whether the panel is already painting the page dark. */
+  darkPreview?: boolean;
+  /** For `state-set`: the state to hold the page in, or null to let go. */
+  state?: StateName | null;
+  /** For `state-set`: the element being held, so only its rules are hoisted. */
+  selector?: string;
 }
 
 declare global {
@@ -79,7 +94,15 @@ const SITE_DARK_ID = 'codename-site-dark';
  */
 const MARKS_ID = 'codename-agent-marks';
 const MARK_COLOUR = '#6bb5ff';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID, MARKS_ID]);
+/**
+ * The page's own `:hover`/`:focus`/`:active` rules, re-emitted against a
+ * class the inspector controls. This is how a state previews with no
+ * debugger permission: the page keeps its rules, and a copy of them triggers
+ * on the class instead of on the pointer. It sits before the element sheet,
+ * so an edit made in that state still wins.
+ */
+const STATE_ID = 'codename-state';
+const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID, MARKS_ID, STATE_ID]);
 
 /** The agent's sheet, counted: rules, the elements they reach, selectors that could not be read. */
 interface PreviewInfo {
@@ -103,6 +126,7 @@ export default defineContentScript({
     let preview: HTMLStyleElement | null = null;
     let marks: HTMLStyleElement | null = null;
     let elements: HTMLStyleElement | null = null;
+    let stateStyle: HTMLStyleElement | null = null;
     let siteDark: HTMLStyleElement | null = null;
     let appliedHooks: DarkHook[] = [];
     let savedColorScheme: string | null = null;
@@ -419,22 +443,87 @@ export default defineContentScript({
       applied.clear();
       sheet?.remove();
       sheet = null;
+      stateStyle?.remove();
+      stateStyle = null;
     };
 
-    const setElements = (rules: NonNullable<ApplyMessage['rules']>) => {
+    const setElements = (rules: NonNullable<ApplyMessage['rules']>, darkPreview = false) => {
       elements?.remove();
       elements = null;
       if (!rules.length) return;
-      const bySelector = new Map<string, string[]>();
-      for (const r of rules) {
-        const list = bySelector.get(r.selector) ?? [];
-        list.push(`${r.property}:${r.value} !important`);
-        bySelector.set(r.selector, list);
-      }
+      const text = elementsSheet(rules, { darkPreview });
+      if (!text) return;
       elements = document.createElement('style');
       elements.id = ELEMENTS_ID;
-      elements.textContent = Array.from(bySelector, ([sel, decls]) => `${sel}{${decls.join(';')}}`).join('\n');
+      elements.textContent = text;
       document.head.appendChild(elements);
+    };
+
+    /* -------- holding the page in a state -------- */
+
+    /**
+     * Re-emit every rule of the page's own that styles `selector` in `state`,
+     * against our class instead of the pseudo-class.
+     *
+     * Only rules that match the element being held are taken: a page has
+     * hundreds of hover rules and re-emitting all of them would light the
+     * whole document up. The answer carries what was found, so the panel can
+     * show "already on hover" without reading the CSSOM itself.
+     */
+    const setState = async (state: StateName | null, selector: string | null): Promise<HoistedRule[]> => {
+      stateStyle?.remove();
+      stateStyle = null;
+      if (!state || !selector) return [];
+
+      let element: Element | null = null;
+      try {
+        element = document.querySelector(selector);
+      } catch {
+        element = null;
+      }
+      if (!element) return [];
+
+      const pseudos = pseudosOf(state);
+      const collected: PageRule[] = [];
+      const lists = await allRules();
+
+      const walk = (rules: CSSRuleList, groups: string[], href?: string) => {
+        for (const rule of Array.from(rules)) {
+          if (collected.length > MAX_RULES) return;
+          if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule || rule instanceof CSSLayerBlockRule) {
+            walk(rule.cssRules, [...groups, groupHead(rule)], href);
+            continue;
+          }
+          if (!(rule instanceof CSSStyleRule)) continue;
+          if (!pseudos.some((p) => rule.selectorText.includes(p))) continue;
+          collected.push({ selector: rule.selectorText, cssText: rule.style.cssText, groups, ...(href ? { source: href } : {}) });
+        }
+      };
+      for (const list of lists) walk(list, []);
+
+      // Keep only what would actually reach this element. The selector with
+      // its pseudo taken out is exactly that question, and the page answers it.
+      const el = element;
+      const hoisted = hoistState(collected, state, pseudos).filter((h) => {
+        try {
+          return el.matches(h.bare);
+        } catch {
+          // A selector this browser cannot parse reaches nothing we can prove.
+          return false;
+        }
+      });
+
+      const text = buildStateSheet(hoisted);
+      if (text) {
+        stateStyle = document.createElement('style');
+        stateStyle.id = STATE_ID;
+        stateStyle.textContent = text;
+        // Before the element sheet, so an edit made in this state still wins.
+        const first = document.head.querySelector(`#${ELEMENTS_ID}`);
+        if (first) document.head.insertBefore(stateStyle, first);
+        else document.head.appendChild(stateStyle);
+      }
+      return hoisted;
     };
 
     const setPreview = (css: string): PreviewInfo => {
@@ -507,7 +596,16 @@ export default defineContentScript({
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[]; preview?: PreviewInfo; error?: string }) => void,
+      sendResponse: (response: {
+        ok: boolean;
+        vars: number;
+        rules: number;
+        hooks?: string[];
+        preview?: PreviewInfo;
+        /** For `state-set`: the page's own rules for that state, as facts. */
+        cascade?: HoistedRule[];
+        error?: string;
+      }) => void,
     ) => {
       // A branch that throws must still answer, or the panel reads silence
       // as "not injected", re-injects, and gets silence again.
@@ -540,8 +638,14 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'elements-set') {
-        setElements(msg.rules ?? []);
+        setElements(msg.rules ?? [], msg.darkPreview === true);
         sendResponse({ ok: true, vars: applied.size, rules: msg.rules?.length ?? 0 });
+        return true;
+      }
+      if (msg?.type === 'state-set') {
+        setState(msg.state ?? null, msg.selector ?? null)
+          .then((hoisted) => sendResponse({ ok: true, vars: applied.size, rules: hoisted.length, cascade: hoisted }))
+          .catch(failed);
         return true;
       }
       if (msg?.type === 'elements-clear') {

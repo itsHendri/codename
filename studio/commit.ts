@@ -24,6 +24,7 @@ import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
 import type { ElementChange } from './changes';
+import { conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
 import type { SystemChange } from './systemDiff';
 
 export interface TokenChange {
@@ -74,6 +75,8 @@ export interface ElementEdit {
   stable: boolean;
   /** A CSS longhand, or 'text'. */
   property: string;
+  /** Which state this is about; absent is the default one. */
+  condition?: MaybeCondition;
   from: string;
   /** `var(--x)` when a token was chosen. */
   to: string;
@@ -125,7 +128,9 @@ export interface ChangeSet {
 export function summariseElements(entries: ElementChange[]): ElementEdit[] {
   const byKey = new Map<string, ElementEdit>();
   for (const e of entries) {
-    const key = `${e.selector}\u0000${e.property}`;
+    // The same property in two states is two decisions, not one overwriting
+    // the other.
+    const key = `${e.selector}\u0000${e.property}\u0000${conditionKey(e.condition)}`;
     const prev = byKey.get(key);
     if (prev) {
       prev.to = e.to;
@@ -136,6 +141,7 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
         matches: e.matches,
         stable: e.stable,
         property: e.property,
+        ...(e.condition ? { condition: e.condition } : {}),
         from: e.from,
         to: e.to,
         token: e.token,
@@ -393,6 +399,12 @@ export function toPrompt(set: ChangeSet): string {
     lines.push(
       'Each line is one property on one selector, read from the rendered page: the value before I touched it and the value I settled on. Apply the same intent in source at whatever specificity the rule already has; where the new value is `var(--x)`, use that token.',
     );
+    if (set.elements.some((e) => e.condition)) {
+      lines.push('');
+      lines.push(
+        'A line under a state heading is about that state only: `hover` means `:hover`, `focus` means `:focus-visible`, `active` means `:active`, `dark` means this page\'s own dark mode, and a width means that media query. Lines with no heading are the default state.',
+      );
+    }
     lines.push('');
     const bySelector = new Map<string, ElementEdit[]>();
     for (const e of set.elements) bySelector.set(e.selector, [...(bySelector.get(e.selector) ?? []), e]);
@@ -403,14 +415,28 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(`- \`${selector}\`${scope}${positional}`);
       // Where a dev build named the component, that is the file to open.
       if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
+      // Grouped by state, default first, so the ordinary case reads exactly
+      // as it did before conditions existed.
+      const byCondition = new Map<string, ElementEdit[]>();
       for (const e of edits) {
-        lines.push(
-          e.property === 'text'
-            ? `  - text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
-            : e.property === 'move'
-              ? `  - move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
-              : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
-        );
+        const key = conditionKey(e.condition);
+        byCondition.set(key, [...(byCondition.get(key) ?? []), e]);
+      }
+      const order = [...byCondition.keys()].sort((a, b) => (a === 'default' ? -1 : b === 'default' ? 1 : a.localeCompare(b)));
+      for (const key of order) {
+        const group = byCondition.get(key)!;
+        const condition = group[0]!.condition;
+        const indent = condition ? '    ' : '  ';
+        if (condition) lines.push(`  - ${describeCondition(condition)} — ${describeLong(condition)}`);
+        for (const e of group) {
+          lines.push(
+            e.property === 'text'
+              ? `${indent}- text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
+              : e.property === 'move'
+                ? `${indent}- move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
+                : `${indent}- \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
+          );
+        }
       }
     }
     lines.push('');

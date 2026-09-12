@@ -1,5 +1,6 @@
 import type { ChangeLog, ElementChange } from '@/studio/changes';
 import { active, canRedo, canUndo, grouped } from '@/studio/changes';
+import { describe as describeCondition, describeLong } from '@/studio/conditions';
 
 export function ChangesList({
   log,
@@ -81,6 +82,14 @@ function ChangeRow({ change: c, undone, onRevert }: { change: ElementChange; und
   const reverted = c.status === 'reverted';
   return (
     <div className={`flex items-baseline gap-1 font-mono text-2xs ${undone ? 'opacity-50' : ''}`}>
+      {c.condition && (
+        <span
+          className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1 text-2xs text-ink-secondary"
+          title={`This edit is about ${describeLong(c.condition)}`}
+        >
+          {describeCondition(c.condition)}
+        </span>
+      )}
       <span className={`min-w-0 flex-1 truncate ${reverted ? 'text-ink-faint line-through' : 'text-ink-secondary'}`} title={`${c.from} → ${c.to}`}>
         <span className="text-ink-muted">{c.property}: </span>
         {c.from} <span className="text-ink-faint">→</span> {c.to}

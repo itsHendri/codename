@@ -9,6 +9,7 @@
  * like edits, not frames.
  */
 
+import { conditionKey, type MaybeCondition } from './conditions';
 import type { ComponentOrigin } from './framework';
 
 /** Where an element was put: inside `parent`, before `before`, or last when null. */
@@ -26,6 +27,12 @@ export interface ElementChange {
   stable: boolean;
   /** A CSS longhand, 'text' for an inline text edit, or 'move' for a reorder. */
   property: string;
+  /**
+   * The state this edit is about: hover, focus, active, dark or a width.
+   * Absent is the default state, so a log written before conditions existed
+   * reads correctly.
+   */
+  condition?: MaybeCondition;
   /** For 'move': the position, in selectors; `from`/`to` carry it in words for the brief. */
   move?: MoveSpec;
   from: string;
@@ -49,6 +56,8 @@ export interface Rule {
   selector: string;
   property: string;
   value: string;
+  /** Absent for the default state. */
+  condition?: MaybeCondition;
 }
 
 /** Two commits to the same selector+property within this window are one edit. */
@@ -71,6 +80,9 @@ export function commit(
     last &&
     last.selector === change.selector &&
     last.property === change.property &&
+    // A scrub in one state is one edit; the same property in another state is
+    // a different decision and gets its own entry.
+    conditionKey(last.condition) === conditionKey(change.condition) &&
     last.status === 'applied' &&
     now - Date.parse(last.at) <= COALESCE_MS
   ) {
@@ -85,6 +97,9 @@ export function commit(
   }
   const entry: ElementChange = {
     ...change,
+    // Words and markup order are the same in every state, so a condition on
+    // one would be a promise the page cannot keep.
+    ...(change.property === 'text' || change.property === 'move' ? { condition: undefined } : {}),
     id: newId(),
     status: 'applied',
     at: new Date(now).toISOString(),
@@ -131,15 +146,19 @@ export function toMoves(log: ChangeLog): (MoveSpec & { selector: string })[] {
     .map((e) => ({ selector: e.selector, ...e.move! }));
 }
 
-/** What the page should be told: last write wins per selector and property. */
+/**
+ * What the page should be told: last write wins per selector, property and
+ * state. A colour set on hover does not replace the one set by default.
+ */
 export function toRules(log: ChangeLog): Rule[] {
   const byKey = new Map<string, Rule>();
   for (const e of active(log)) {
     if (e.property === 'text' || e.property === 'move') continue;
-    byKey.set(`${e.selector} ${e.property}`, {
+    byKey.set(`${e.selector} ${e.property} ${conditionKey(e.condition)}`, {
       selector: e.selector,
       property: e.property,
       value: e.to,
+      ...(e.condition ? { condition: e.condition } : {}),
     });
   }
   return Array.from(byKey.values());

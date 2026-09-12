@@ -143,6 +143,23 @@ export function installChrome(): StubChrome {
           return { ok: true, vars: overrides.length, rules: Object.keys((msg.colorMap as object) ?? {}).length };
         }
         if (msg?.type === 'site-mode') return { ok: true, vars: 0, rules: 0, hooks: [] };
+        if (msg?.type === 'state-set') {
+          // A page that styles its heading on hover, so the panel has
+          // something to show under the condition bar.
+          const cascade =
+            msg.state === 'hover'
+              ? [
+                  {
+                    selector: 'h1#title.codename-state-hover',
+                    bare: 'h1#title',
+                    cssText: 'color: rgb(190, 58, 34);',
+                    groups: [],
+                    onAncestor: false,
+                  },
+                ]
+              : [];
+          return { ok: true, vars: 0, rules: cascade.length, cascade };
+        }
         return { ok: true, vars: 0, rules: 0 };
       },
       connect: () => ({ onDisconnect: { addListener() {} }, disconnect() {} }),
