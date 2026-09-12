@@ -648,6 +648,28 @@ Out of scope on purpose, so that Effects and motion stays one item:
 transitions and animations, pseudo-elements, `@starting-style`, compound
 conditions (hover at 700px), and container queries.
 
+Two reviews followed, one over W17 alone and one across both workstreams,
+and closed eighteen things between them. The ones worth remembering: the
+value an edit started from was read in the default state when the selection
+changed while a state was held, which is the one fact this feature exists to
+get right; the page stayed dark or stayed narrow after a deselect, so turning
+the page now follows the condition rather than the click that set it; a held
+state previewed the page's rules from before the re-skin; the "a variable
+already holds this value" remark was computed from base values and so named
+the wrong token under dark; two widths tied in the cascade, so which won
+depended on the order the edits happened to be made in; and the panel trusted
+a truthy reply to an element read, which a generic acknowledgement from
+another build would have written into its state.
+
+**Known limits.** The widths on offer are the bar's device presets, not the
+page's own breakpoints, so a brief can name `(max-width: 768px)` for an
+element beside a token's `(max-width: 700px)` read from the page — an agent
+told to add a breakpoint the project does not have. Reading the page's own
+query list and offering those instead is the obvious next turn of this.
+A state is previewed by class, so a rule whose pseudo sits on an ancestor is
+named rather than shown, and a page that styles hover through script rather
+than CSS shows nothing.
+
 ## Still to build
 
 In order.
