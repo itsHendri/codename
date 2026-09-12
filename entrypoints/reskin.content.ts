@@ -23,8 +23,8 @@
  * a reload, a navigation or a clear returns the page to its own values.
  */
 
-import { lengthPx } from '@/studio/reskin';
-import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
+import { isLengthMapEmpty, type LengthMap } from '@/studio/reskinRules';
+import { collectOverrides } from '@/studio/scan/overrideSheet';
 import { MANAGED_SHEET_IDS } from '@/shared/types';
 import { pseudosOf, type StateName } from '@/studio/conditions';
 import {
@@ -215,80 +215,8 @@ export default defineContentScript({
 
     /* -------- hardcoded colours -------- */
 
-    const hexOf3 = (h: string) => `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toUpperCase();
-
-    /** Swap any colour in a declaration value that the map covers, alpha intact. */
-    const substitute = (value: string, map: Record<string, string>): string | null => {
-      let touched = false;
-
-      let out = value.replace(/#([0-9a-f]{3,8})\b/gi, (whole, digits: string) => {
-        // #RRGGBBAA keeps its alpha pair; #RGB expands before lookup.
-        const base =
-          digits.length === 3 || digits.length === 4
-            ? hexOf3(digits)
-            : `#${digits.slice(0, 6)}`.toUpperCase();
-        const tail = digits.length === 8 ? digits.slice(6) : digits.length === 4 ? digits[3]! : '';
-        const to = map[base];
-        if (!to) return whole;
-        touched = true;
-        return tail ? `${to}${tail}` : to;
-      });
-
-      out = out.replace(
-        /(rgba?)\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)([^)]*)\)/gi,
-        (whole, fn: string, r: string, g: string, b: string, rest: string) => {
-          const hex = `#${[r, g, b]
-            .map((n) => Number(n).toString(16).padStart(2, '0'))
-            .join('')}`.toUpperCase();
-          const to = map[hex];
-          if (!to) return whole;
-          touched = true;
-          const nr = parseInt(to.slice(1, 3), 16);
-          const ng = parseInt(to.slice(3, 5), 16);
-          const nb = parseInt(to.slice(5, 7), 16);
-          return `${fn}(${nr}, ${ng}, ${nb}${rest})`;
-        },
-      );
-
-      return touched ? out : null;
-    };
-
+    /** What a `rem` is worth on this page, for the length rewrites. */
     const rootPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
-
-    const collect = (rules: CSSRuleList, map: Record<string, string>, lengths: LengthMap | null, out: string[], rem: number) => {
-      for (const rule of Array.from(rules)) {
-        if (ruleCount++ > MAX_RULES) return;
-
-        // Grouping rules carry their condition through, so an override inherits
-        // the breakpoint or feature test the original was written under.
-        if (
-          rule instanceof CSSMediaRule ||
-          rule instanceof CSSSupportsRule ||
-          (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
-        ) {
-          const inner: string[] = [];
-          collect(rule.cssRules, map, lengths, inner, rem);
-          if (inner.length) out.push(`${groupHead(rule)}{${inner.join('')}}`);
-          continue;
-        }
-
-        if (!(rule instanceof CSSStyleRule)) continue;
-        const decls: string[] = [];
-        // The rule's own size names the role its weight and line-height belong to.
-        const ruleFontPx = lengths ? lengthPx(rule.style.getPropertyValue('font-size'), rem) : null;
-        for (const prop of Array.from(rule.style)) {
-          const value = rule.style.getPropertyValue(prop);
-          const swapped =
-            substitute(value, map) ?? (lengths ? rewriteLength(prop, value, lengths, ruleFontPx, rem) : null);
-          if (!swapped) continue;
-          // Keep their priority: an !important original needs an !important
-          // shadow to beat it, and a normal one must not become important.
-          const priority = rule.style.getPropertyPriority(prop);
-          decls.push(`${prop}:${swapped}${priority ? ' !important' : ''}`);
-        }
-        if (decls.length) out.push(`${rule.selectorText}{${decls.join(';')}}`);
-      }
-    };
 
     const rewriteRules = async (map: Record<string, string>, lengths: LengthMap | null): Promise<number> => {
       const run = ++applyRun;
@@ -299,10 +227,7 @@ export default defineContentScript({
       sheet = null;
       if (empty) return 0;
 
-      ruleCount = 0;
-      const rem = rootPx();
-      const out: string[] = [];
-      for (const rules of lists) collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out, rem);
+      const out = collectOverrides(lists, { colorMap: map, lengths, rootPx: rootPx(), limit: MAX_RULES });
       if (!out.length) return 0;
 
       sheet = document.createElement('style');

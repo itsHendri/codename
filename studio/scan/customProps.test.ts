@@ -8,7 +8,15 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CustomPropInfo } from '@/shared/types';
-import { attachDarkValues, attachWidthValues, eachStyleRule, extractCustomProps, type RuleLike } from './customProps';
+import {
+  attachDarkValues,
+  attachWidthValues,
+  eachStyleRule,
+  extractCustomProps,
+  groupHead,
+  mediaOf,
+  type RuleLike,
+} from './customProps';
 
 /**
  * A rule built by hand.
@@ -47,25 +55,28 @@ afterEach(() => {
 });
 
 describe('eachStyleRule', () => {
-  it('carries the media conditions open around a rule', () => {
+  it('carries the grouping rules open around a rule, outermost first', () => {
     const seen: [string, string[]][] = [];
-    eachStyleRule([sheet('@media (max-width: 700px) { @media print { .a { color: red } } }')], (r, media) =>
-      seen.push([r.selectorText, media]),
+    eachStyleRule([sheet('@media (max-width: 700px) { @media print { .a { color: red } } }')], (r, groups) =>
+      seen.push([r.selectorText, groups]),
     );
-    expect(seen).toEqual([['.a', ['(max-width: 700px)', 'print']]]);
+    expect(seen).toEqual([['.a', ['@media (max-width: 700px)', '@media print']]]);
   });
 
-  it('passes through the wrappers that are not conditions', () => {
+  it('carries the wrappers that are not conditions, so a rewrite can put a rule back in them', () => {
     const seen: string[][] = [];
-    eachStyleRule([sheet('@supports (display: grid) { .a { color: red } }')], (_r, media) => seen.push(media));
-    expect(seen).toEqual([[]]);
+    eachStyleRule([sheet('@supports (display: grid) { .a { color: red } }')], (_r, groups) => seen.push(groups));
+    expect(seen).toEqual([['@supports (display: grid)']]);
+    // And they are not media, so nothing reads them as a width or a scheme.
+    expect(mediaOf('@supports (display: grid)')).toBe(null);
+    expect(mediaOf('@media (max-width: 700px)')).toBe('(max-width: 700px)');
   });
 
   it('passes through a layer, which not every engine even names', () => {
     const seen: string[][] = [];
     eachStyleRule(
       [[group('@layer base {}', '', group('@media (max-width: 700px) {}', '(max-width: 700px)', styleRule('.a', {})))]],
-      (_r, media) => seen.push(media),
+      (_r, groups) => seen.push(groups.map(mediaOf).filter(Boolean) as string[]),
     );
     expect(seen).toEqual([['(max-width: 700px)']]);
   });
@@ -74,12 +85,19 @@ describe('eachStyleRule', () => {
     const seen: [string, string[]][] = [];
     eachStyleRule(
       [[styleRule('.card', { color: 'red' }, group('@media (max-width: 700px) {}', '(max-width: 700px)', styleRule('.card', { color: 'blue' })))]],
-      (r, media) => seen.push([r.selectorText, media]),
+      (r, groups) => seen.push([r.selectorText, groups]),
     );
     expect(seen).toEqual([
       ['.card', []],
-      ['.card', ['(max-width: 700px)']],
+      ['.card', ['@media (max-width: 700px)']],
     ]);
+  });
+
+  it('names a group the way it was written', () => {
+    expect(groupHead(group('@media (max-width: 700px) {}', '(max-width: 700px)'))).toBe('@media (max-width: 700px)');
+    expect(groupHead(group('@supports (display: grid) {}', '(display: grid)'))).toBe('@supports (display: grid)');
+    expect(groupHead({ cssText: '@layer base { }' })).toBe('@layer base');
+    expect(groupHead({ cssText: '@layer { }' })).toBe('@layer');
   });
 
   it('follows an @import into the sheet it pulls in', () => {

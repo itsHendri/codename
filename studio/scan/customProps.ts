@@ -45,16 +45,35 @@ const isStyleRule = (r: RuleLike): boolean => typeof r.selectorText === 'string'
 const head = (r: RuleLike): string => (r.cssText ?? '').trimStart().slice(0, 8).toLowerCase();
 
 /**
- * Every style rule in a set of lists, with the media conditions open around
- * it.
+ * The head a grouping rule was written under, so a re-emitted rule can land
+ * back in the same place: `@media (max-width: 700px)`, `@layer base`.
+ */
+export function groupHead(rule: RuleLike): string {
+  const text = (rule.cssText ?? '').trimStart();
+  const at = /^@[a-z-]+/i.exec(text)?.[0] ?? '';
+  if (!at) return '';
+  // `@layer base {` has its name in the text rather than in a condition.
+  const name = rule.conditionText ?? text.slice(at.length, text.indexOf('{') === -1 ? undefined : text.indexOf('{')).trim();
+  return name ? `${at} ${name}` : at;
+}
+
+/** The media condition a group head carries, or null when it is not a media rule. */
+export const mediaOf = (head: string): string | null =>
+  /^@media\s+/i.test(head) ? head.replace(/^@media\s+/i, '') : null;
+
+/**
+ * Every style rule in a set of lists, with the grouping rules open around it,
+ * outermost first.
  *
- * `@supports`, `@layer` and `@container` wrap without being a width or a
- * scheme, so they pass their conditions through untouched; only `@media`
- * adds one.
+ * One walk for every pass that reads a page, because the two that existed
+ * before disagreed about what to recurse into and a definition went missing
+ * in the gap. Callers take what they need from the stack: the width passes
+ * want the media conditions, the override builder wants the heads so it can
+ * put a rewritten rule back where the original was.
  */
 export function eachStyleRule(
   lists: ArrayLike<RuleLike>[],
-  visit: (rule: CSSStyleRule, media: string[]) => void,
+  visit: (rule: CSSStyleRule, groups: string[]) => void,
   limit = MAX_RULES,
 ): void {
   let visited = 0;
@@ -81,8 +100,8 @@ export function eachStyleRule(
         continue;
       }
       if (rule.cssRules?.length) {
-        const condition = head(rule).startsWith('@media') ? (rule.conditionText ?? '') : '';
-        walk(rule.cssRules, condition ? [...media, condition] : media);
+        const g = groupHead(rule);
+        walk(rule.cssRules, g ? [...media, g] : media);
       }
     }
   };
@@ -144,7 +163,8 @@ export function extractCustomProps(
  */
 export function attachDarkValues(props: CustomPropInfo[], lists: ArrayLike<RuleLike>[]): void {
   const byName = new Map(props.map((p) => [p.name, p]));
-  eachStyleRule(lists, (rule, media) => {
+  eachStyleRule(lists, (rule, groups) => {
+    const media = groups.map(mediaOf).filter((m): m is string => m !== null);
     if (!media.some(isDarkMedia) && !hasDarkHook(rule)) return;
     for (const [name, value] of declarationsOf(rule)) {
       const known = byName.get(name);
@@ -172,7 +192,8 @@ export function attachWidthValues(
   /** The first width query each name's base value was seen under, in case it has no other home. */
   const firstAt = new Map<string, string>();
 
-  eachStyleRule(lists, (rule, media) => {
+  eachStyleRule(lists, (rule, groups) => {
+    const media = groups.map(mediaOf).filter((m): m is string => m !== null);
     const widths = media.map(widthOfMedia).filter((w): w is string => w !== null);
     if (breakpoints) for (const w of widths) for (const part of w.split(' and ')) breakpoints.add(part);
 
