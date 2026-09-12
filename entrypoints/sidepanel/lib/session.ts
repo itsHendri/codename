@@ -24,6 +24,7 @@ import type { FileToken } from '@/studio/tokenFile';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
+import { normaliseCondition } from '@/studio/conditions';
 import { applyEdits, diffEdits, editsKey, type BrandEdits } from '@/studio/edits';
 import { loadEdits, saveEdits } from '@/studio/storage';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
@@ -118,6 +119,24 @@ const EMPTY: TabSession = {
   generation: 0,
 };
 
+/**
+ * A change log read back from storage, with anything it says about a state
+ * checked rather than trusted.
+ *
+ * Session storage outlives an extension reload, so a log can be written by
+ * one build and read by another. A condition this build does not recognise
+ * would otherwise be written straight into a selector — `.b` and a state
+ * called `wat` produce `.bundefined`, which invalidates the whole rule and
+ * silently paints nothing.
+ */
+function soundLog(log: ChangeLog | undefined): ChangeLog {
+  if (!log?.entries?.length) return log ?? emptyLog();
+  return {
+    ...log,
+    entries: log.entries.map((e) => (e.condition ? { ...e, condition: normaliseCondition(e.condition) } : e)),
+  };
+}
+
 const pageKey = (url: string) => url.split('#')[0] ?? url;
 const key = (id: number) => `session:${id}`;
 
@@ -195,7 +214,7 @@ export async function loadSession(id: number, url: string): Promise<void> {
         agentLog: stored.agentLog ?? [],
         locks: stored.locks ?? [],
         pinned: null,
-        log: samePage ? (stored.log ?? emptyLog()) : emptyLog(),
+        log: samePage ? soundLog(stored.log) : emptyLog(),
         logUrl: pageKey(url),
         generation: state.generation + 1,
       }

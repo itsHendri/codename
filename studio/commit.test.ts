@@ -496,3 +496,43 @@ describe('the order states appear in the brief', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 });
+
+describe('the token hint under a state', () => {
+  const scan = scanOf({
+    customProps: [
+      { name: '--surface', value: '#FFFFFF', source: 'x', uses: 4, dark: '#000000' },
+      { name: '--mark', value: '#BE3A22', source: 'x', uses: 34 },
+    ],
+  });
+  const edit = (condition?: unknown): ElementChange => ({
+    id: 'c1',
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property: 'background-color',
+    from: '#111111',
+    to: '#FFFFFF',
+    condition: condition as ElementChange['condition'],
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('names a variable holding that value in the default state', () => {
+    expect(buildChangeSet(scan, [], {}, [edit()]).elements[0]?.couldBe).toBe('--surface');
+  });
+
+  it('still names it under a state, since a state does not move a variable', () => {
+    expect(buildChangeSet(scan, [], {}, [edit({ kind: 'state', state: 'hover' })]).elements[0]?.couldBe).toBe('--surface');
+  });
+
+  it('says nothing under dark, where the same name holds something else', () => {
+    // `--surface` is #000000 in this page's dark mode, so naming it here
+    // would be a wrong fact rather than a helpful one.
+    expect(buildChangeSet(scan, [], {}, [edit({ kind: 'scheme', scheme: 'dark' })]).elements[0]?.couldBe).toBeUndefined();
+  });
+
+  it('says nothing inside a width query either', () => {
+    const set = buildChangeSet(scan, [], {}, [edit({ kind: 'width', preset: 'Tablet', maxWidth: 768 })]);
+    expect(set.elements[0]?.couldBe).toBeUndefined();
+  });
+});

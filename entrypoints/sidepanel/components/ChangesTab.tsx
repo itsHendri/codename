@@ -6,7 +6,7 @@ import type { ProjectInfo } from '@/shared/protocol';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { applyDefinition, dropAgentPreview, sendToAgent, useBridge } from '../lib/bridge';
+import { applyDefinition, dropAgentPreview, rereadSelection, sendToAgent, useBridge } from '../lib/bridge';
 import { allow, clearAgentLog, markApplied } from '../lib/session';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
@@ -365,6 +365,10 @@ function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolea
     try {
       await applyDefinition({ name: t.name, from: t.from, to: t.to, file: writable.file, line: writable.line! });
       markApplied({ name: t.name, file: writable.file, line: writable.line!, value: t.to });
+      // The override came off and source now paints it, so what the panel
+      // shows about the selection — and the `from` of the next edit — has to
+      // be read again.
+      void rereadSelection();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

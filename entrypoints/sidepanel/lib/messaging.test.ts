@@ -50,3 +50,29 @@ describe('sending to a content script', () => {
     expect(c.executeScript).not.toHaveBeenCalled();
   });
 });
+
+describe('isElementProps', () => {
+  const isElementProps = async (v: unknown) => (await import('./messaging')).isElementProps(v);
+  const real = {
+    selector: 'h1#title',
+    tag: 'h1',
+    type: { fontWeight: '600' },
+    box: { paddingTop: '8px' },
+    color: { text: '#000' },
+  };
+
+  it('accepts what the inspector actually answers with', async () => {
+    expect(await isElementProps(real)).toBe(true);
+  });
+
+  it.each([
+    ['nothing', null],
+    ['a generic acknowledgement', { ok: true, vars: 0, rules: 0 }],
+    ['a half-shaped element', { selector: 'h1', tag: 'h1' }],
+    ['a string', 'h1#title'],
+  ])('refuses %s', async (_, value) => {
+    // A content script from another build, or a page that did not understand
+    // the command, answers something truthy and shaped nothing like this.
+    expect(await isElementProps(value)).toBe(false);
+  });
+});

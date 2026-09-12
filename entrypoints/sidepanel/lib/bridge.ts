@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { ElementProps } from '@/shared/types';
 import { critique, critiqueToText } from '@/studio/critique';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
 import {
@@ -34,7 +35,7 @@ import { driftReport, driftToText, parseTokenFile } from '@/studio/tokenFile';
 import { pendingNotes } from './comments';
 import type { DesignModel } from './designModel';
 import { ALL_SECTIONS, buildBrandMd } from './exporters';
-import { applyAgentPreview, captureVisible, clearAgentPreview, cropCapture, sendInspector } from './messaging';
+import { applyAgentPreview, captureVisible, clearAgentPreview, cropCapture, isElementProps, sendInspector } from './messaging';
 import {
   addReply,
   getSession,
@@ -494,6 +495,19 @@ export async function applyDefinition(edit: {
   const applied = await ask<AppliedDefinition>({ method: 'apply_definition', ...edit });
   logAgent(`${applied.name} applied in ${applied.file}:${applied.line}`);
   return applied;
+}
+
+/**
+ * Read the selected element again.
+ *
+ * After anything that repaints the page from outside the element editor —
+ * applying a definition to source, for one — the values the panel is showing
+ * are the ones from before.
+ */
+export async function rereadSelection(): Promise<void> {
+  if (tabIdForRequests == null) return;
+  const props = await sendInspector<ElementProps | null>(tabIdForRequests, { cmd: 'read' }).catch(() => null);
+  if (isElementProps(props)) updateSession({ pinned: props });
 }
 
 /** Ask again where these properties are defined, after a source edit. */

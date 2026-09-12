@@ -45,7 +45,8 @@ What the agent can see through the bridge is what the panel shows: the
 change set, the selected element, your notes, and a screenshot of the visible
 tab when it asks for one. It can paint a preview stylesheet on the page only
 after you tick **Agent may change this page** in the panel menu — off until
-you do, remembered per project.
+you do, and remembered against the thing it is about: the project for a page
+served from one, the site's origin otherwise.
 
 ### What the bridge reads and writes in your project
 

@@ -174,14 +174,31 @@ export default defineContentScript({
       return fetched.get(href)?.cssRules ?? null;
     };
 
-    /** Every sheet's rules, own sheets left out, cross-origin ones fetched — all at once. */
-    const allRules = async (): Promise<CSSRuleList[]> => {
+    /**
+     * Every sheet's rules, cross-origin ones fetched — all at once.
+     *
+     * `skip` says which of our own sheets to leave out. The default is all of
+     * them, which is what the colour and length rewrites want: they are
+     * reading the page in order to rewrite it, and reading their own output
+     * would compound. The state hoist passes a shorter list, because it is
+     * asking a different question — what does this page paint on hover *as it
+     * stands* — and the re-skin's output is part of how it stands now.
+     */
+    const allRules = async (skip: Set<string> = OWN_SHEETS): Promise<CSSRuleList[]> => {
       const sheets = Array.from(document.styleSheets).filter(
-        (s) => !(s.ownerNode instanceof Element && OWN_SHEETS.has(s.ownerNode.id)),
+        (s) => !(s.ownerNode instanceof Element && skip.has(s.ownerNode.id)),
       );
       const lists = await Promise.all(sheets.map(readableRules));
       return lists.filter((r): r is CSSRuleList => r !== null);
     };
+
+    /**
+     * What the state hoist leaves out: itself, our element edits (which
+     * already carry both the pseudo and the class), the agent's proposal, and
+     * the outlines. The re-skin and the site's dark mode stay in, because
+     * they are the page as it is being painted right now.
+     */
+    const NOT_THE_PAGE = new Set([STATE_ID, ELEMENTS_ID, PREVIEW_ID, MARKS_ID]);
 
     /** The name a grouping rule was written under, so a re-emitted rule lands in the same layer. */
     const groupHead = (rule: CSSMediaRule | CSSSupportsRule | CSSLayerBlockRule): string =>
@@ -496,7 +513,7 @@ export default defineContentScript({
 
       const pseudos = pseudosOf(state);
       const collected: PageRule[] = [];
-      const lists = await allRules();
+      const lists = await allRules(NOT_THE_PAGE);
       // Another pick arrived while the sheets were being read.
       if (mine !== stateToken) return [];
 

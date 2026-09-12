@@ -402,6 +402,43 @@ describe('editing a state', () => {
     expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'state')).toBe(false);
   });
 
+  it('puts the page back when the selection goes, not just the panel', async () => {
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
+
+    // Deselecting drops the condition, so the page has to come back out of
+    // dark — otherwise the next edit is read off a page nothing says is dark.
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'light' });
+  });
+
+  it('puts the viewport back when the selection goes', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = '768';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(150);
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(150);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'reset-viewport')).toBe(true);
+  });
+
+  it('reads the page again when a variable moves under a held state', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(150);
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+    // The hoist copies the page's own rules, and this changes what they say.
+    await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+    await tick(200);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBeGreaterThan(before);
+  });
+
   it('lets go of the state when the selection goes', async () => {
     await selectHeading();
     await click(chip('hover'));

@@ -35,15 +35,12 @@ export function LayersTab({
   scan,
   resolved,
   mode,
-  onShowCondition,
 }: {
   error: string | null;
   ctl: InspectController;
   scan: ScanResult | null;
   resolved: ResolvedTokens | null;
   mode: Mode;
-  /** Turn the page to match a condition the person picked: dark, or a width. */
-  onShowCondition?: (condition: MaybeCondition) => void;
 }) {
   const el = ctl.element;
 
@@ -100,7 +97,7 @@ export function LayersTab({
       bottom={
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
           <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-          <Header element={el} ctl={ctl} onShowCondition={onShowCondition} />
+          <Header element={el} ctl={ctl} />
           <Contrast element={el} />
           <PropertyPanel
             element={el}
@@ -155,15 +152,7 @@ function Note({
   );
 }
 
-function Header({
-  element: el,
-  ctl,
-  onShowCondition,
-}: {
-  element: ElementProps;
-  ctl: InspectController;
-  onShowCondition?: (condition: MaybeCondition) => void;
-}) {
+function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
   const [copied, setCopied] = useState(false);
   const many = el.intent.matches > 1;
   // What the edits will target: this one element, or everything its class selector matches.
@@ -262,7 +251,7 @@ function Header({
           measure
         </button>
       </div>
-      <ConditionBar ctl={ctl} onShow={onShowCondition} />
+      <ConditionBar ctl={ctl} />
     </div>
   );
 }
@@ -280,13 +269,10 @@ function Header({
  * and it is fixed because the page's own rules sit underneath ours. An order
  * someone chose here would be a promise this cannot keep.
  */
-function ConditionBar({ ctl, onShow }: { ctl: InspectController; onShow?: (condition: MaybeCondition) => void }) {
-  const pick = (condition: MaybeCondition) => {
-    ctl.setCondition(condition);
-    // Dark and the widths are shown by the bar's own switch and presets; the
-    // state ones the inspector holds by class.
-    onShow?.(condition);
-  };
+function ConditionBar({ ctl }: { ctl: InspectController }) {
+  // Choosing is all that happens here. Turning the page into the state
+  // follows the condition itself, so deselecting puts the page back too.
+  const pick = (condition: MaybeCondition) => ctl.setCondition(condition);
   const current = ctl.condition;
   const key = conditionKey(current);
   const widths = widthConditions();

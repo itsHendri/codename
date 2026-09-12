@@ -176,11 +176,20 @@ export default function App() {
    * Turn the page to match the state being edited.
    *
    * A state is held by the inspector's class, but dark and the widths are
-   * what the bar already does — so picking one here asks for the same thing,
-   * and leaving it puts the page back. Without this the edit would be
-   * recorded against a state the person cannot see.
+   * what the bar already does — so choosing one asks for the same thing, and
+   * leaving it puts the page back.
+   *
+   * Driven by the condition itself rather than by the click that set it:
+   * deselecting also drops the condition, and hanging this off the chip meant
+   * the page stayed dark, or stayed narrow, with nothing left on screen
+   * saying so — and the next edit was then read off a page in a state the
+   * panel no longer believed it was in.
    */
-  const showCondition = useCallback((condition: MaybeCondition) => {
+  const condition = ctl.condition;
+  const turned = useRef(false);
+  useEffect(() => {
+    if (!condition && !turned.current) return;
+    turned.current = Boolean(condition);
     if (condition?.kind === 'scheme') setMode('dark');
     else if (condition?.kind === 'width') {
       if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'set-viewport', preset: condition.preset });
@@ -189,7 +198,7 @@ export default function App() {
       setMode('light');
       if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
     }
-  }, []);
+  }, [condition]);
 
   const restricted = isRestricted(tabUrl);
 
@@ -424,7 +433,6 @@ export default function App() {
             scan={scan}
             resolved={model?.resolved ?? null}
             mode={mode}
-            onShowCondition={showCondition}
           />
         );
         break;

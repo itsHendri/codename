@@ -163,3 +163,21 @@ describe('conditions in the log', () => {
     expect(toRules(log)[0]?.condition).toBeUndefined();
   });
 });
+
+describe('a log read back from storage', () => {
+  it('keeps a condition it recognises', () => {
+    const hover = { kind: 'state', state: 'hover' } as const;
+    const log = commit(emptyLog(), { selector: '.b', matches: 1, stable: true, property: 'color', from: '#0', to: '#1', condition: hover });
+    const back = JSON.parse(JSON.stringify(log)) as typeof log;
+    expect(normaliseCondition(back.entries[0]?.condition)).toEqual(hover);
+    expect(toRules(back)[0]?.condition).toEqual(hover);
+  });
+
+  it('turns one it does not into the default state rather than a broken selector', () => {
+    // A log written by another build. `.b` with a state called `wat` renders
+    // `.bundefined`, which invalidates the whole rule and paints nothing.
+    expect(normaliseCondition({ kind: 'state', state: 'wat' })).toBeUndefined();
+    expect(selectorFor('.b', normaliseCondition({ kind: 'state', state: 'wat' }))).toBe('.b');
+  });
+});
+import { normaliseCondition, selectorFor } from './conditions';

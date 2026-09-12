@@ -1,4 +1,4 @@
-import type { AgentPresence, InspectorCommand } from '@/shared/types';
+import type { AgentPresence, ElementProps, InspectorCommand } from '@/shared/types';
 import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@/studio/framework';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
@@ -136,6 +136,20 @@ interface ReskinOverride {
  * injecting on failure avoids both a redundant inject on every keystroke and a
  * separate "is it there?" round trip.
  */
+/**
+ * Whether a reply really is an element, rather than merely truthy.
+ *
+ * `sendInspector` is typed on what the command is supposed to answer, but the
+ * reply crosses a message boundary: a content script from an older build, or
+ * a generic `{ok:true}` from a page that did not understand the command, is
+ * shaped nothing like this and would be written straight into the panel's
+ * state to crash on first read.
+ */
+export function isElementProps(value: unknown): value is ElementProps {
+  const v = value as Partial<ElementProps> | null;
+  return Boolean(v && typeof v.selector === 'string' && typeof v.tag === 'string' && v.type && v.box && v.color);
+}
+
 export interface ReskinResult {
   /** Custom properties overridden on the root. */
   vars: number;

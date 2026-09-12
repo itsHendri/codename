@@ -253,6 +253,11 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
   const rootFontSize = scan.rootFontSize ?? 16;
   return edits.map((e) => {
     if (e.token || e.property === 'text' || e.property === 'move') return e;
+    // The index holds each variable's base value. Under the page's dark mode
+    // or inside a width query the same name may hold something else, and
+    // naming it would be a wrong fact rather than a helpful one — so nothing
+    // is said. A state does not change a variable's value, so it still can.
+    if (e.condition && e.condition.kind !== 'state') return e;
     const holder = tokenHolding(index, e.property, e.to, rootFontSize);
     return holder ? { ...e, couldBe: holder } : e;
   });

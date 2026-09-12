@@ -26,7 +26,7 @@ import {
   undo as undoLog,
   type ChangeLog,
 } from '@/studio/changes';
-import { setStateHoist, applyElementRules, probeComponent, sendInspector } from './messaging';
+import { setStateHoist, applyElementRules, isElementProps, probeComponent, sendInspector } from './messaging';
 import type { MaybeCondition } from '@/studio/conditions';
 import type { HoistedRule } from '@/studio/conditionSheet';
 import {
@@ -171,7 +171,7 @@ function usePush(tabId: number | null, generation: number, key: string, empty: b
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode'>,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits'>,
   focusedComment: string | null,
 ): InspectController {
   const { pinned: element, log, generation, comments } = session;
@@ -202,7 +202,7 @@ export function useInspect(
     void applyElementRules(tabId!, rules, darkPreview).then(() => {
       // Computed values moved; show the element as it is now.
       void sendInspector<ElementProps | null>(tabId!, { cmd: 'read' }).then((props) => {
-        if (props) updateSession({ pinned: props });
+        if (isElementProps(props)) updateSession({ pinned: props });
       });
     });
   });
@@ -317,6 +317,10 @@ export function useInspect(
    */
   const state = condition?.kind === 'state' ? condition.state : null;
   const selector = element?.selector ?? null;
+  // The hoist copies the page's own rules as they stand, and a re-skin
+  // changes what they say. Without this the element would go on previewing
+  // the hover colour it had before the variable moved.
+  const painted = JSON.stringify([session.varOverrides, session.colorEdits, session.mode]);
   const held = useRef(false);
   useEffect(() => {
     if (tabId == null) return;
@@ -329,13 +333,13 @@ export function useInspect(
       if (!live) return;
       setCascade(found);
       void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
-        if (live && props) updateSession({ pinned: props });
+        if (live && isElementProps(props)) updateSession({ pinned: props });
       });
     });
     return () => {
       live = false;
     };
-  }, [tabId, selector, state, generation]);
+  }, [tabId, selector, state, generation, painted]);
 
   const setText = useCallback(
     (text: string) => {
