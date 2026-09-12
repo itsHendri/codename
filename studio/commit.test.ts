@@ -467,3 +467,32 @@ describe('an edit made in a state', () => {
     expect(toPrompt(set)).not.toMatch(/\{[^}]*:[^}]*\}/);
   });
 });
+
+describe('the order states appear in the brief', () => {
+  const scan = scanOf();
+  const at = (condition: unknown, to: string): ElementChange => ({
+    id: `c${to}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property: 'color',
+    from: '#000',
+    to,
+    condition: condition as ElementChange['condition'],
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('is the order the page applies them in, not alphabetical', () => {
+    const set = buildChangeSet(scan, [], {}, [
+      at({ kind: 'state', state: 'hover' }, '#4'),
+      at({ kind: 'scheme', scheme: 'dark' }, '#3'),
+      at({ kind: 'width', preset: 'Mobile S', maxWidth: 375 }, '#2'),
+      at({ kind: 'width', preset: 'Laptop', maxWidth: 1280 }, '#1'),
+      at(undefined, '#0'),
+    ]);
+    const prompt = toPrompt(set);
+    const order = ['#0', '#1', '#2', '#3', '#4'].map((v) => prompt.indexOf(v));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});

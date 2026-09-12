@@ -113,7 +113,7 @@ export function hoistState(rules: PageRule[], state: StateName, pseudos: string[
     for (const part of parts) {
       const where = lastPseudoPosition(part, pseudos);
       if (where === null) continue;
-      const bare = (part.slice(0, where.index) + part.slice(where.index + where.length)).trim();
+      const bare = bareSelector(part, pseudos);
       if (!where.onLastCompound) {
         ancestorParts.push(part);
         ancestorBare.push(bare);
@@ -126,7 +126,7 @@ export function hoistState(rules: PageRule[], state: StateName, pseudos: string[
     if (taken.length) {
       out.push({
         selector: taken.join(', '),
-        bare: takenBare.join(', '),
+        bare: takenBare.filter(Boolean).join(', '),
         cssText: rule.cssText,
         groups: rule.groups ?? [],
         ...(rule.source ? { source: rule.source } : {}),
@@ -135,7 +135,7 @@ export function hoistState(rules: PageRule[], state: StateName, pseudos: string[
     } else if (ancestorParts.length) {
       out.push({
         selector: ancestorParts.join(', '),
-        bare: ancestorBare.join(', '),
+        bare: ancestorBare.filter(Boolean).join(', '),
         cssText: rule.cssText,
         groups: rule.groups ?? [],
         ...(rule.source ? { source: rule.source } : {}),
@@ -155,6 +155,37 @@ export function stateSheet(hoisted: HoistedRule[]): string {
       return h.groups.reduceRight((inner, head) => `${head}{${inner}}`, body);
     })
     .join('\n');
+}
+
+/**
+ * A selector reduced to "which elements could this ever be about".
+ *
+ * Every state pseudo goes, not only the one that was matched: `.a:hover
+ * .b:hover` reaches `.b` whenever both are hovered, and asking the page
+ * whether `.b` matches `.a:hover .b` would answer no unless a pointer really
+ * were there. Pseudo-elements go too, since `matches('.x::before')` is not a
+ * question the DOM will answer at all. A part that is nothing but a pseudo
+ * (`:hover` alone) becomes `*`, which is what it meant.
+ */
+export function bareSelector(part: string, pseudos: string[]): string {
+  let out = part;
+  // Longest first, so `:focus-visible` is not half-eaten by `:focus`.
+  const targets = [...pseudos].sort((a, b) => b.length - a.length);
+  for (const pseudo of targets) {
+    for (;;) {
+      const at = topLevelOccurrences(out, pseudo).filter((i) => {
+        const after = out[i + pseudo.length];
+        return !(after && /[a-z-]/i.test(after));
+      });
+      if (!at.length) break;
+      const index = at[0]!;
+      out = out.slice(0, index) + out.slice(index + pseudo.length);
+    }
+  }
+  // `::before`, `::selection`, and the four legacy single-colon spellings.
+  out = out.replace(/::[a-z-]+(\([^)]*\))?/gi, '').replace(/:(before|after|first-line|first-letter)\b/gi, '');
+  const trimmed = out.trim().replace(/\s+/g, ' ');
+  return trimmed && trimmed !== '>' ? trimmed : '*';
 }
 
 /* ---------------- the small amount of selector parsing this needs ---------------- */

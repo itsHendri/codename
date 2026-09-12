@@ -470,7 +470,18 @@ export default defineContentScript({
      * whole document up. The answer carries what was found, so the panel can
      * show "already on hover" without reading the CSSOM itself.
      */
+    /**
+     * Which `state-set` is the current one.
+     *
+     * Reading the page's sheets can wait on the background for a cross-origin
+     * fetch, so two clicks in quick succession overlap. Without this the
+     * slower answer would append its sheet after the faster one and orphan a
+     * `<style>` node that nothing would ever remove.
+     */
+    let stateToken = 0;
+
     const setState = async (state: StateName | null, selector: string | null): Promise<HoistedRule[]> => {
+      const mine = ++stateToken;
       stateStyle?.remove();
       stateStyle = null;
       if (!state || !selector) return [];
@@ -486,10 +497,15 @@ export default defineContentScript({
       const pseudos = pseudosOf(state);
       const collected: PageRule[] = [];
       const lists = await allRules();
+      // Another pick arrived while the sheets were being read.
+      if (mine !== stateToken) return [];
 
+      // Every rule visited, not every rule kept: a page with fifty thousand
+      // rules and no hover styles would otherwise walk all of them.
+      let visited = 0;
       const walk = (rules: CSSRuleList, groups: string[], href?: string) => {
         for (const rule of Array.from(rules)) {
-          if (collected.length > MAX_RULES) return;
+          if (++visited > MAX_RULES) return;
           if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule || rule instanceof CSSLayerBlockRule) {
             walk(rule.cssRules, [...groups, groupHead(rule)], href);
             continue;
@@ -499,7 +515,10 @@ export default defineContentScript({
           collected.push({ selector: rule.selectorText, cssText: rule.style.cssText, groups, ...(href ? { source: href } : {}) });
         }
       };
-      for (const list of lists) walk(list, []);
+      for (const list of lists) {
+        if (visited > MAX_RULES) break;
+        walk(list, []);
+      }
 
       // Keep only what would actually reach this element. The selector with
       // its pseudo taken out is exactly that question, and the page answers it.
@@ -513,6 +532,8 @@ export default defineContentScript({
         }
       });
 
+      // One last look: the await above gave another pick time to arrive.
+      if (mine !== stateToken) return [];
       const text = buildStateSheet(hoisted);
       if (text) {
         stateStyle = document.createElement('style');

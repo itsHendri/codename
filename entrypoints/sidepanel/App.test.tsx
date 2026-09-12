@@ -361,6 +361,47 @@ describe('editing a state', () => {
     expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'set-viewport' && m.preset === 'Tablet')).toBe(true);
   });
 
+  it('reads the element again when the selection changes while a state is held', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    const before = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'read').length;
+
+    // A different element, still in hover: its values — and the `from` of the
+    // next edit — have to be that state's, not its resting ones.
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ selector: 'h2.card-title' }) }));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'read').length).toBeGreaterThan(before);
+    expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ selector: 'h2.card-title', state: 'hover' });
+  });
+
+  it('puts the state back on the page after a reload', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+
+    // What a reload looks like to the panel: the managed sheets are gone and
+    // have to be pushed again.
+    await act(async () => updateSession((prev) => ({ generation: prev.generation + 1 })));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBeGreaterThan(before);
+  });
+
+  it('asks the page to do the work once per pick, not twice', async () => {
+    await selectHeading();
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+    await click(chip('hover'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBe(before + 1);
+  });
+
+  it('says nothing to a page that has never been put into a state', async () => {
+    await selectHeading();
+    expect(stub.sent.some((m) => m.type === 'state-set')).toBe(false);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'state')).toBe(false);
+  });
+
   it('lets go of the state when the selection goes', async () => {
     await selectHeading();
     await click(chip('hover'));
@@ -368,5 +409,7 @@ describe('editing a state', () => {
     await click(host.querySelector('[aria-label="Deselect element"]'));
     await tick(120);
     expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'state').at(-1)).toMatchObject({ state: null });
+    // And the hoisted sheet goes with it, rather than sitting in the page.
+    expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ state: null, selector: null });
   });
 });

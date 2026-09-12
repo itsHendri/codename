@@ -24,7 +24,7 @@ import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
 import type { ElementChange } from './changes';
-import { conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
+import { cascadeOrder, conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
 import type { SystemChange } from './systemDiff';
 
 export interface TokenChange {
@@ -422,7 +422,12 @@ export function toPrompt(set: ChangeSet): string {
         const key = conditionKey(e.condition);
         byCondition.set(key, [...(byCondition.get(key) ?? []), e]);
       }
-      const order = [...byCondition.keys()].sort((a, b) => (a === 'default' ? -1 : b === 'default' ? 1 : a.localeCompare(b)));
+      // The same order the sheet uses, so the brief describes the cascade
+      // the person was looking at: default, then widths, then dark, then the
+      // states.
+      const order = [...byCondition.keys()].sort(
+        (a, b) => cascadeOrder(byCondition.get(a)![0]!.condition) - cascadeOrder(byCondition.get(b)![0]!.condition),
+      );
       for (const key of order) {
         const group = byCondition.get(key)!;
         const condition = group[0]!.condition;

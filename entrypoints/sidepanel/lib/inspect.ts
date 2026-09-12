@@ -293,38 +293,49 @@ export function useInspect(
   /**
    * Choose the state to edit in.
    *
-   * A state is held on the page by a class, so the element paints as it would
-   * under the pointer and the values read back are that state's. Dark and the
-   * widths are shown by machinery that already exists — the bar's own switch
-   * and its viewport presets — so choosing one here only says which state the
-   * next edit is about; the caller turns the page to match.
+   * Only the choice is made here. Turning the page into that state — the
+   * class, the hoisted rules, re-reading the element — happens in one place
+   * below, because doing it here as well meant every click walked the page's
+   * stylesheets twice and left two `state-set` messages racing each other.
    */
-  const setCondition = useCallback(
-    (next: MaybeCondition) => {
-      setConditionState(next);
-      setCascade([]);
-      if (tabId == null) return;
-      const state = next?.kind === 'state' ? next.state : null;
-      void sendInspector(tabId, { cmd: 'state', state });
-      void setStateHoist(tabId, state, state && element ? element.selector : null).then((found) => {
-        setCascade(found);
-        // The element paints differently now, so what the panel shows about it
-        // has to be read again.
-        void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
-          if (props) updateSession({ pinned: props });
-        });
-      });
-    },
-    [tabId, element],
-  );
+  const setCondition = useCallback((next: MaybeCondition) => {
+    setConditionState(next);
+    setCascade([]);
+  }, []);
 
-  // A new selection is a new set of hover rules, and the old class is gone.
+  /**
+   * Put the page into the chosen state, and read the element back.
+   *
+   * Runs on a new state, a new selection, and a reload (the generation
+   * counter), which is what the managed sheets already do — without it the
+   * bar would go on claiming "hover" over a page that had forgotten.
+   *
+   * The element must be read again afterwards: the whole point is that the
+   * values shown, and the `from` of the next edit, are that state's. An
+   * out-of-order answer is dropped rather than shown, since the walk can take
+   * a moment on a large page and a person can click faster than that.
+   */
+  const state = condition?.kind === 'state' ? condition.state : null;
   const selector = element?.selector ?? null;
+  const held = useRef(false);
   useEffect(() => {
-    if (tabId == null || condition?.kind !== 'state') return;
-    void setStateHoist(tabId, condition.state, selector).then(setCascade);
-    void sendInspector(tabId, { cmd: 'state', state: condition.state });
-  }, [tabId, selector, condition]);
+    if (tabId == null) return;
+    // Nothing to say to a page that has never been put into a state.
+    if (!state && !held.current) return;
+    held.current = state !== null;
+    let live = true;
+    void sendInspector(tabId, { cmd: 'state', state });
+    void setStateHoist(tabId, state, state ? selector : null).then((found) => {
+      if (!live) return;
+      setCascade(found);
+      void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
+        if (live && props) updateSession({ pinned: props });
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [tabId, selector, state, generation]);
 
   const setText = useCallback(
     (text: string) => {
@@ -383,12 +394,11 @@ export function useInspect(
     },
     measuring,
     clear: () => {
-      // Deselecting takes the class off by itself, but saying so is what
-      // keeps the panel and the page describable in the same words — and the
-      // panel must not go on claiming to be editing a state nothing is in.
+      // The effect above takes the class off and drops the hoisted sheet when
+      // the condition goes; without this the panel would go on claiming to be
+      // editing a state nothing is in.
       setConditionState(undefined);
       setCascade([]);
-      send({ cmd: 'state', state: null });
       send({ cmd: 'deselect' });
       setPinned(null);
     },

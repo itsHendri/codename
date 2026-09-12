@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import type { Condition } from './conditions';
 import {
@@ -172,5 +173,46 @@ describe('the bare selector a hoisted rule carries', () => {
 
   it('keeps a bare part for each taken part of a list', () => {
     expect(hoistState([rule('.a:hover, .b:hover')], 'hover', [':hover'])[0]?.bare).toBe('.a, .b');
+  });
+});
+
+describe('what the bare selector has to survive', () => {
+  const rule = (selector: string): PageRule => ({ selector, cssText: 'color: blue;' });
+  const bareOf = (selector: string, state: 'hover' | 'focus' = 'hover', pseudos = [':hover']) =>
+    hoistState([rule(selector)], state, pseudos)[0]?.bare;
+
+  it('takes every state pseudo out, not only the matched one', () => {
+    // `.a:hover .b` would only match while a pointer really was on `.a`.
+    expect(bareOf('.a:hover .b:hover')).toBe('.a .b');
+  });
+
+  it('takes pseudo-elements out, since the DOM will not match on them', () => {
+    expect(bareOf('.x:hover::before')).toBe('.x');
+    expect(bareOf('.x:hover::selection')).toBe('.x');
+    expect(bareOf('.x:hover:before')).toBe('.x');
+  });
+
+  it('reads a bare pseudo as "any element"', () => {
+    expect(bareOf(':hover')).toBe('*');
+  });
+
+  it('does not let one malformed part of a list take the valid one with it', () => {
+    // `.a:hover, :hover` used to leave a trailing comma, and `matches` threw
+    // on the whole thing — losing the half that was fine.
+    const out = hoistState([rule('.a:hover, :hover')], 'hover', [':hover'])[0];
+    expect(out?.bare).toBe('.a, *');
+    expect(out?.selector).toBe('.a.codename-state-hover, .codename-state-hover');
+  });
+
+  it('does not half-eat the longer spelling of focus', () => {
+    expect(bareOf('.x:focus-visible', 'focus', [':focus-visible', ':focus'])).toBe('.x');
+  });
+
+  it('is a selector the DOM can actually be asked about', () => {
+    for (const s of ['.a:hover .b:hover', '.x:hover::before', ':hover', '.a:hover, :hover', '.a:hover > .b:hover']) {
+      const bare = hoistState([rule(s)], 'hover', [':hover'])[0]?.bare ?? '';
+      // Throws on an invalid selector, which is exactly the failure being pinned.
+      expect(() => document.querySelector(bare)).not.toThrow();
+    }
   });
 });

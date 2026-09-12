@@ -132,3 +132,21 @@ describe('stateClass', () => {
     expect(stateClass('hover')).toBe('codename-state-hover');
   });
 });
+
+describe('two widths at once', () => {
+  const wide: Condition = { kind: 'width', preset: 'Laptop', maxWidth: 1280 };
+  const narrow: Condition = { kind: 'width', preset: 'Mobile S', maxWidth: 375 };
+
+  it('puts the narrower query last, so it wins where both match', () => {
+    // At 320px both media queries apply and both rules are !important at the
+    // same specificity, so source order is the whole story.
+    expect(cascadeOrder(narrow)).toBeGreaterThan(cascadeOrder(wide));
+  });
+
+  it('keeps every width between the default and dark', () => {
+    for (const w of [wide, narrow]) {
+      expect(cascadeOrder(w)).toBeGreaterThan(cascadeOrder(undefined));
+      expect(cascadeOrder(w)).toBeLessThan(cascadeOrder({ kind: 'scheme', scheme: 'dark' }));
+    }
+  });
+});

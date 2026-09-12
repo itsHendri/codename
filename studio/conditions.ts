@@ -85,10 +85,20 @@ export function mediaFor(condition: MaybeCondition, darkPreview = false): string
 /**
  * Where a condition's rules go in the managed sheet: later wins, so this is
  * least specific first. Stated rather than chosen, see the note at the top.
+ *
+ * Two widths both match at a narrow viewport, and they are the same
+ * specificity, so the narrower one has to come last or a rule written for
+ * phones would lose to one written for tablets. Widths therefore sort
+ * descending inside their own band rather than tying, which is what a
+ * hand-written stylesheet does too.
  */
 export function cascadeOrder(condition: MaybeCondition): number {
   if (!condition) return 0;
-  if (condition.kind === 'width') return 1;
+  if (condition.kind === 'width') {
+    // 1.0 for the widest, approaching 2 as they narrow, so every width still
+    // sits between the default and dark.
+    return 1 + 1 / (1 + condition.maxWidth);
+  }
   if (condition.kind === 'scheme') return 2;
   return 3;
 }
