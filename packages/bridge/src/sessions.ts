@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { PROTOCOL_VERSION } from '../../../shared/protocol';
-import type { BridgeRequest, Envelope, SessionState } from '../../../shared/protocol';
+import type { BridgeRequest, Envelope, ProjectInfo, SessionState } from '../../../shared/protocol';
 
 export interface Link {
   send(envelope: Envelope): void;
@@ -24,6 +24,8 @@ export interface SessionSummary {
   connected: boolean;
   /** Tokens the person locked on this page; the rules resource says the same in words. */
   locks: string[];
+  /** The folder this bridge is running in, when it could read one. */
+  project?: ProjectInfo;
 }
 
 export interface WatchResult {
@@ -55,6 +57,8 @@ export interface Session {
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 export class Sessions {
+  /** The folder the bridge runs in, so `list_sessions` can name it. */
+  project?: ProjectInfo;
   private readonly byId = new Map<string, Session>();
   /** The session that most recently pushed state. */
   private currentId: string | null = null;
@@ -132,6 +136,7 @@ export class Sessions {
       revision: s.state?.revision ?? null,
       connected: s.link !== null,
       locks: s.state?.locks ?? [],
+      ...(this.project ? { project: this.project } : {}),
     }));
   }
 

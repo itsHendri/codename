@@ -10,10 +10,12 @@
  * Handing over the resolved CSS invites it to stamp a hex across forty
  * components, which is the thing a token system exists to prevent.
  *
- * **No file positions.** The extension sees the rendered page, not the repo; it
- * would be guessing at line numbers. The agent has the repo and can find a
- * definition properly. What it gets instead is the stylesheet URL the browser
- * loaded — a hint, labelled as one.
+ * **No guessed file positions.** The extension sees the rendered page, not the
+ * repo, so nothing here is derived from a stylesheet URL beyond what it is: a
+ * hint about where the browser loaded some CSS. A position appears in a brief
+ * only when the bridge, which runs inside the project, has searched the files
+ * and found exactly one definition. That is a find, not a guess; where it
+ * finds several, the brief says how many rather than choosing.
  */
 
 import type { ScanResult } from '@/shared/types';
@@ -245,7 +247,9 @@ export function standingRules(locked: string[] = []): string {
     'Codename hands you design changes a person made against a live page.',
     '',
     '- Edit the definition of each token named; never replace its usages, and never paste a rendered stylesheet into source.',
-    '- Values were read from the rendered page. The stylesheet URLs are where the browser loaded the CSS; find the real definitions in the repository.',
+    '- Values were read from the rendered page. The stylesheet URLs are where the browser loaded the CSS; find the real definitions in the repository, or call `find_definition` and this bridge will search it for you.',
+    '- A line already named "defined at file:line" was found in the repository, not guessed. Where a brief says a token has several definitions, read them before editing: which one wins is the cascade\'s business.',
+    '- A token the person applied themselves is already in source and says so in the brief; do not write it again.',
     '- Change nothing that is not named. Colours and tokens left out of a brief were left alone on purpose.',
     '- A preview you paint with apply_css is a proposal, not a change; it needs the person\'s consent in the panel menu, they can see and clear it, and only source edits count.',
   ];
