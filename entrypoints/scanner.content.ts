@@ -12,8 +12,8 @@ import type {
   ValueTally,
 } from '@/shared/types';
 import { isManagedSheet } from '@/shared/types';
+import { attachDarkValues, attachWidthValues, extractCustomProps } from '@/studio/scan/customProps';
 import { countFocusOutlineRemoved } from '@/studio/a11y';
-import { hookFromSelector, isDarkMedia, widthOfMedia } from '@/studio/siteMode';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -41,9 +41,10 @@ async function scanPage(): Promise<ScanResult> {
   const css = await gatherCss();
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
-  attachDarkValues(customProps, css.fetched);
+  const lists = pageRuleLists(css.fetched);
+  attachDarkValues(customProps, lists);
   const breakpoints = new Set<string>();
-  attachWidthValues(customProps, css.fetched, breakpoints);
+  attachWidthValues(customProps, lists, breakpoints);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -472,145 +473,19 @@ function addColor(
 
 /* ---------------- Custom properties ---------------- */
 
-function extractCustomProps(
-  sheets: { href: string | null; text: string }[],
-  allCss: string,
-): CustomPropInfo[] {
-  const map = new Map<string, { value: string; source?: string }>();
-  for (const sheet of sheets) {
-    for (const m of sheet.text.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)[;}]/g)) {
-      const name = m[1]!;
-      if (map.has(name)) continue; // first definition wins, as the cascade did
-      map.set(name, { value: m[2]!.trim(), source: sheet.href ?? undefined });
-    }
-  }
-  return Array.from(map, ([name, { value, source }]) => ({
-    name,
-    value,
-    source,
-    // Blast radius: how many declarations lean on this token.
-    uses: allCss.split(`var(${name}`).length - 1,
-  }));
-}
-
 /**
- * The value each variable takes under the page's own dark mode. The scan keeps
- * the first definition as the cascade would in light; this reads the sheets
- * again through the object model and takes the last definition found under a
- * dark media query or a dark theme hook, which is what the cascade does there.
+ * The page's own rule lists: what it serves, plus what had to be fetched
+ * because the browser would not let us read it in place.
+ *
+ * The only part of reading custom properties that needs a browser. What is
+ * done with the rules lives in `studio/scan/customProps.ts`, where it can be
+ * tested against a stylesheet rather than against a page.
  */
-function attachDarkValues(props: CustomPropInfo[], fetched: { href: string; text: string }[]) {
-  const byName = new Map(props.map((p) => [p.name, p]));
-  const walk = (rules: CSSRuleList, inDark: boolean) => {
-    for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSMediaRule) {
-        walk(rule.cssRules, inDark || isDarkMedia(rule.conditionText));
-        continue;
-      }
-      if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
-        walk(rule.cssRules, inDark);
-        continue;
-      }
-      if (!(rule instanceof CSSStyleRule)) continue;
-      const dark = inDark || rule.selectorText.split(',').some((s) => hookFromSelector(s.trim()) !== null);
-      if (!dark) continue;
-      for (const prop of Array.from(rule.style)) {
-        if (!prop.startsWith('--')) continue;
-        const known = byName.get(prop);
-        const value = rule.style.getPropertyValue(prop).trim();
-        if (known && value && value !== known.value) known.dark = value;
-      }
-    }
-  };
-  eachRuleList(fetched, (rules) => walk(rules, false));
-}
-
-/**
- * The value each variable takes inside a width media query, where it differs
- * from its base value. The regex pass above cannot see nesting, so a
- * `--gap: 12px` under `(max-width: 700px)` was either dropped or, when it was
- * the only definition, taken for the base. This reads the object model the
- * way the dark pass does, and records the redefinition under its condition;
- * last definition wins, as the cascade does at that width. Dark blocks and
- * dark-hooked rules are left to the dark pass, so a value is filed once.
- */
-function attachWidthValues(
-  props: CustomPropInfo[],
-  fetched: { href: string; text: string }[],
-  /** Every width query the page writes, collected on the same walk. */
-  breakpoints?: Set<string>,
-) {
-  const byName = new Map(props.map((p) => [p.name, p]));
-  /** Names defined somewhere outside any width query: they have a base value. */
-  const outside = new Set<string>();
-  /** The first width query each name's base value was seen under, in case it has no other home. */
-  const firstAt = new Map<string, string>();
-  const walk = (rules: CSSRuleList, width: string | null) => {
-    for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSMediaRule) {
-        if (isDarkMedia(rule.conditionText)) continue;
-        const own = widthOfMedia(rule.conditionText);
-        // The page's own breakpoints, whether or not they move a variable:
-        // these are the widths it was actually designed at.
-        if (own && breakpoints) for (const part of own.split(' and ')) breakpoints.add(part);
-        walk(rule.cssRules, own ? (width ? `${width} and ${own}` : own) : width);
-        continue;
-      }
-      if (
-        rule instanceof CSSSupportsRule ||
-        (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) ||
-        (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule)
-      ) {
-        walk(rule.cssRules, width);
-        continue;
-      }
-      // A sheet pulled in by `@import` is not in `document.styleSheets`, so
-      // this is the only place its rules are reachable at all.
-      if (typeof CSSImportRule !== 'undefined' && rule instanceof CSSImportRule) {
-        try {
-          if (rule.styleSheet) walk(rule.styleSheet.cssRules, width);
-        } catch {
-          /* cross-origin: the fetched text covers it */
-        }
-        continue;
-      }
-      if (!(rule instanceof CSSStyleRule)) continue;
-      if (rule.selectorText.split(',').some((s) => hookFromSelector(s.trim()) !== null)) continue;
-      // Nested CSS: a media query written inside a style rule.
-      if (rule.cssRules?.length) walk(rule.cssRules, width);
-      for (const prop of Array.from(rule.style)) {
-        if (!prop.startsWith('--')) continue;
-        const known = byName.get(prop);
-        const value = rule.style.getPropertyValue(prop).trim();
-        if (!known || !value) continue;
-        if (!width) {
-          outside.add(prop);
-          continue;
-        }
-        if (value === known.value) {
-          if (!firstAt.has(prop)) firstAt.set(prop, width);
-          continue;
-        }
-        known.atWidth = { ...known.atWidth, [width]: value };
-      }
-    }
-  };
-  eachRuleList(fetched, (rules) => walk(rules, null));
-  for (const [name, at] of firstAt) {
-    const known = byName.get(name);
-    if (known && !outside.has(name)) known.onlyAt = at;
-  }
-}
-
-/**
- * Every rule list the page has: the document's own sheets through the object
- * model, and the cross-origin ones re-parsed from the text the background
- * fetched, since the page cannot read those itself.
- */
-function eachRuleList(fetched: { href: string; text: string }[], visit: (rules: CSSRuleList) => void) {
+function pageRuleLists(fetched: { href: string; text: string }[]): CSSRuleList[] {
+  const lists: CSSRuleList[] = [];
   for (const sheet of pageSheets()) {
     try {
-      visit(sheet.cssRules);
+      lists.push(sheet.cssRules);
     } catch {
       /* cross-origin: read below from the fetched text */
     }
@@ -619,14 +494,14 @@ function eachRuleList(fetched: { href: string; text: string }[], visit: (rules: 
     try {
       const parsed = new CSSStyleSheet();
       parsed.replaceSync(text);
-      visit(parsed.cssRules);
+      lists.push(parsed.cssRules);
     } catch {
       /* unparsable text */
     }
   }
+  return lists;
 }
 
-/** Give extracted colors the site's own token names when a custom property resolves to them. */
 function attachVarNames(colors: ColorInfo[], props: CustomPropInfo[]) {
   const byHex = new Map<string, string[]>();
   for (const p of props) {
