@@ -12,7 +12,7 @@ import {
 
 const hover: Condition = { kind: 'state', state: 'hover' };
 const dark: Condition = { kind: 'scheme', scheme: 'dark' };
-const tablet: Condition = { kind: 'width', preset: 'Tablet', maxWidth: 768 };
+const tablet: Condition = { kind: 'width', preset: 'Tablet', dir: 'max' as const, px: 768 };
 
 describe('elementsSheet', () => {
   it('writes a default rule the way it always did', () => {

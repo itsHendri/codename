@@ -426,7 +426,7 @@ describe('an edit made in a state', () => {
     ...over,
   });
   const hover = { kind: 'state', state: 'hover' } as const;
-  const tablet = { kind: 'width', preset: 'Tablet', maxWidth: 768 } as const;
+  const tablet = { kind: 'width', preset: 'Tablet', dir: 'max' as const, px: 768 } as const;
 
   it('is a separate decision from the same property in the default state', () => {
     const edits = summariseElements([change(), change({ id: 'c2', to: '#ddd', condition: hover })]);
@@ -487,8 +487,8 @@ describe('the order states appear in the brief', () => {
     const set = buildChangeSet(scan, [], {}, [
       at({ kind: 'state', state: 'hover' }, '#4'),
       at({ kind: 'scheme', scheme: 'dark' }, '#3'),
-      at({ kind: 'width', preset: 'Mobile S', maxWidth: 375 }, '#2'),
-      at({ kind: 'width', preset: 'Laptop', maxWidth: 1280 }, '#1'),
+      at({ kind: 'width', preset: 'Mobile S', dir: 'max' as const, px: 375 }, '#2'),
+      at({ kind: 'width', preset: 'Laptop', dir: 'max' as const, px: 1280 }, '#1'),
       at(undefined, '#0'),
     ]);
     const prompt = toPrompt(set);
@@ -532,7 +532,7 @@ describe('the token hint under a state', () => {
   });
 
   it('says nothing inside a width query either', () => {
-    const set = buildChangeSet(scan, [], {}, [edit({ kind: 'width', preset: 'Tablet', maxWidth: 768 })]);
+    const set = buildChangeSet(scan, [], {}, [edit({ kind: 'width', preset: 'Tablet', dir: 'max' as const, px: 768 })]);
     expect(set.elements[0]?.couldBe).toBeUndefined();
   });
 });

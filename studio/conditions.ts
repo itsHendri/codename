@@ -26,7 +26,13 @@ export type StateName = 'hover' | 'focus' | 'active';
 export type Condition =
   | { kind: 'state'; state: StateName }
   | { kind: 'scheme'; scheme: 'dark' }
-  | { kind: 'width'; preset: string; maxWidth: number };
+  /**
+   * A width the page is written against. `dir` is which side of it: `max` is
+   * "this width and narrower", `min` is "this width and wider" — a page
+   * written mobile-first says everything in `min`, and offering it `max`
+   * would be offering it a vocabulary it does not use.
+   */
+  | { kind: 'width'; preset: string; dir: 'max' | 'min'; px: number };
 
 /** The default state, written as the absence of a condition. */
 export type MaybeCondition = Condition | undefined;
@@ -48,7 +54,7 @@ export function conditionKey(condition: MaybeCondition): string {
   if (!condition) return 'default';
   if (condition.kind === 'state') return `state:${condition.state}`;
   if (condition.kind === 'scheme') return 'scheme:dark';
-  return `width:${condition.maxWidth}`;
+  return `width:${condition.dir}:${condition.px}`;
 }
 
 /** The class the inspector puts on an element to hold it in a state. */
@@ -75,7 +81,7 @@ export function selectorFor(selector: string, condition: MaybeCondition): string
 
 /** The at-rule a condition's rules sit inside, or null for none. */
 export function mediaFor(condition: MaybeCondition, darkPreview = false): string | null {
-  if (condition?.kind === 'width') return `@media (max-width: ${condition.maxWidth}px)`;
+  if (condition?.kind === 'width') return `@media (${condition.dir}-width: ${condition.px}px)`;
   // While the panel is previewing dark, the page is being painted as dark
   // whatever the browser thinks, so the query would never match.
   if (condition?.kind === 'scheme') return darkPreview ? null : '@media (prefers-color-scheme: dark)';
@@ -95,9 +101,13 @@ export function mediaFor(condition: MaybeCondition, darkPreview = false): string
 export function cascadeOrder(condition: MaybeCondition): number {
   if (!condition) return 0;
   if (condition.kind === 'width') {
-    // 1.0 for the widest, approaching 2 as they narrow, so every width still
-    // sits between the default and dark.
-    return 1 + 1 / (1 + condition.maxWidth);
+    // Max-widths take the lower half of the band and min-widths the upper,
+    // so a page mixing the two still has one order. Inside each half the one
+    // that applies to fewer widths comes last: narrower for `max`, wider for
+    // `min`, which is what a hand-written stylesheet does.
+    return condition.dir === 'max'
+      ? 1 + 0.5 / (1 + condition.px)
+      : 1.5 + (0.5 * condition.px) / (1 + condition.px);
   }
   if (condition.kind === 'scheme') return 2;
   return 3;
@@ -108,7 +118,7 @@ export function describe(condition: MaybeCondition): string {
   if (!condition) return 'default';
   if (condition.kind === 'state') return condition.state;
   if (condition.kind === 'scheme') return 'dark';
-  return `≤${condition.maxWidth}`;
+  return `${condition.dir === 'max' ? '≤' : '≥'}${condition.px}`;
 }
 
 /** The longer form, for a brief that has to stand on its own. */
@@ -116,7 +126,7 @@ export function describeLong(condition: MaybeCondition): string {
   if (!condition) return 'the default state';
   if (condition.kind === 'state') return `\`${PSEUDO[condition.state]}\``;
   if (condition.kind === 'scheme') return "the page's own dark mode";
-  return `\`@media (max-width: ${condition.maxWidth}px)\``;
+  return `\`@media (${condition.dir}-width: ${condition.px}px)\``;
 }
 
 /** The pseudo-classes a state's preview has to hoist off the page's own rules. */
@@ -126,11 +136,23 @@ export function pseudosOf(state: StateName): string[] {
   return state === 'focus' ? [':focus-visible', ':focus'] : [PSEUDO[state]];
 }
 
-/** The pixel width of a `(max-width: …)` query, or null for anything else. */
-export function maxWidthOf(query: string): number | null {
-  const m = /^\(\s*max-width:\s*([\d.]+)px\s*\)$/i.exec(query.trim());
-  const px = m ? Number(m[1]) : NaN;
-  return Number.isFinite(px) && px > 0 ? px : null;
+/**
+ * The widest and narrowest a window can usefully be asked for.
+ *
+ * `@media (max-width: 5000px)` is an "always" wrapper rather than a
+ * breakpoint, and no display can deliver it: the page would be zoomed past
+ * the floor the browser allows and the viewport would not be what was asked
+ * for. Offering it would be offering something that cannot be shown.
+ */
+export const WIDTH_RANGE = { min: 200, max: 2560 };
+
+/** The direction and pixel width of a width query, or null for anything else. */
+export function widthOf(query: string): { dir: 'max' | 'min'; px: number } | null {
+  const m = /^\(\s*(max|min)-width:\s*([\d.]+)px\s*\)$/i.exec(query.trim());
+  if (!m) return null;
+  const px = Number(m[2]);
+  if (!Number.isFinite(px) || px < WIDTH_RANGE.min || px > WIDTH_RANGE.max) return null;
+  return { dir: m[1]!.toLowerCase() as 'max' | 'min', px };
 }
 
 /**
@@ -144,18 +166,26 @@ export function maxWidthOf(query: string): number | null {
  * labelled as the devices they are.
  */
 export function widthConditions(breakpoints?: string[]): Condition[] {
-  const own = (breakpoints ?? [])
-    .map((q) => ({ query: q, px: maxWidthOf(q) }))
-    .filter((w): w is { query: string; px: number } => w.px !== null)
-    .sort((a, b) => a.px - b.px);
+  const seen = new Set<string>();
+  const own: Condition[] = [];
+  for (const query of breakpoints ?? []) {
+    const w = widthOf(query);
+    if (!w) continue;
+    const key = `${w.dir}:${w.px}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    own.push({ kind: 'width', preset: `${w.px}px`, dir: w.dir, px: w.px });
+  }
   if (own.length) {
     // A page with dozens of breakpoints is offering a menu, not a choice.
-    return own.slice(0, 8).map(({ px }) => ({ kind: 'width', preset: `${px}px`, maxWidth: px }));
+    own.sort((a, b) => (a.kind === 'width' && b.kind === 'width' ? a.px - b.px : 0));
+    return own.slice(0, 8);
   }
   return DEVICE_PRESETS.filter((p) => p.kind !== 'desktop').map((p) => ({
     kind: 'width',
     preset: p.name,
-    maxWidth: p.width,
+    dir: 'max',
+    px: p.width,
   }));
 }
 
@@ -165,8 +195,9 @@ export function normaliseCondition(raw: unknown): MaybeCondition {
   const c = raw as Partial<Condition> & { state?: string; scheme?: string; maxWidth?: number; preset?: string };
   if (c.kind === 'state' && STATES.includes(c.state as StateName)) return { kind: 'state', state: c.state as StateName };
   if (c.kind === 'scheme' && c.scheme === 'dark') return { kind: 'scheme', scheme: 'dark' };
-  if (c.kind === 'width' && typeof c.maxWidth === 'number' && c.maxWidth > 0) {
-    return { kind: 'width', preset: typeof c.preset === 'string' ? c.preset : `${c.maxWidth}px`, maxWidth: c.maxWidth };
+  if (c.kind === 'width' && typeof c.px === 'number' && c.px > 0) {
+    const dir = c.dir === 'min' ? 'min' : 'max';
+    return { kind: 'width', preset: typeof c.preset === 'string' ? c.preset : `${c.px}px`, dir, px: c.px };
   }
   return undefined;
 }

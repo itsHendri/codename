@@ -97,7 +97,7 @@ export function LayersTab({
       bottom={
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
           <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-          <Header element={el} ctl={ctl} breakpoints={scan?.breakpoints} />
+          <Header element={el} ctl={ctl} />
           <Contrast element={el} />
           <PropertyPanel
             element={el}
@@ -152,15 +152,7 @@ function Note({
   );
 }
 
-function Header({
-  element: el,
-  ctl,
-  breakpoints,
-}: {
-  element: ElementProps;
-  ctl: InspectController;
-  breakpoints?: string[];
-}) {
+function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
   const [copied, setCopied] = useState(false);
   const many = el.intent.matches > 1;
   // What the edits will target: this one element, or everything its class selector matches.
@@ -259,7 +251,7 @@ function Header({
           measure
         </button>
       </div>
-      <ConditionBar ctl={ctl} breakpoints={breakpoints} />
+      <ConditionBar ctl={ctl} />
     </div>
   );
 }
@@ -277,13 +269,13 @@ function Header({
  * and it is fixed because the page's own rules sit underneath ours. An order
  * someone chose here would be a promise this cannot keep.
  */
-function ConditionBar({ ctl, breakpoints }: { ctl: InspectController; breakpoints?: string[] }) {
+function ConditionBar({ ctl }: { ctl: InspectController }) {
   // Choosing is all that happens here. Turning the page into the state
   // follows the condition itself, so deselecting puts the page back too.
   const pick = (condition: MaybeCondition) => ctl.setCondition(condition);
   const current = ctl.condition;
   const key = conditionKey(current);
-  const widths = widthConditions(breakpoints);
+  const widths = ctl.widths;
   // A device name means the page told us nothing and these are a guess; its
   // own breakpoints are named by the width itself.
   const guessed = !widths.some((w) => w.kind === 'width' && w.preset.endsWith('px'));
@@ -314,12 +306,8 @@ function ConditionBar({ ctl, breakpoints }: { ctl: InspectController; breakpoint
         {/* One control rather than five chips: a 360px panel has better uses
             for the room, and the widths are a list of one kind of thing. */}
         <select
-          value={current?.kind === 'width' ? String(current.maxWidth) : ''}
-          onChange={(e) => {
-            const px = Number(e.target.value);
-            const found = widths.find((w) => w.kind === 'width' && w.maxWidth === px);
-            pick(found ?? undefined);
-          }}
+          value={current?.kind === 'width' ? conditionKey(current) : ''}
+          onChange={(e) => pick(widths.find((w) => conditionKey(w) === e.target.value))}
           aria-label="Width to edit at"
           title={
             guessed
@@ -335,8 +323,8 @@ function ConditionBar({ ctl, breakpoints }: { ctl: InspectController; breakpoint
           <option value="">width…</option>
           {widths.map((w) =>
             w.kind === 'width' ? (
-              <option key={w.maxWidth} value={w.maxWidth}>
-                ≤{w.maxWidth}
+              <option key={conditionKey(w)} value={conditionKey(w)}>
+                {describeCondition(w)}
                 {guessed ? ` · ${w.preset}` : ''}
               </option>
             ) : null,
@@ -355,7 +343,7 @@ function ConditionBar({ ctl, breakpoints }: { ctl: InspectController; breakpoint
               ? `on ${current.state}`
               : current.kind === 'scheme'
                 ? 'in dark mode'
-                : `at ${current.maxWidth}px and under`}
+                : `at ${current.px}px and ${current.dir === 'max' ? 'under' : 'over'}`}
             .
           </div>
           {current.kind === 'state' && (

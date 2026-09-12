@@ -24,6 +24,19 @@ export default defineContentScript({
   },
 });
 
+/**
+ * The page's own stylesheets.
+ *
+ * Everything that reads the page goes through here, because our own sheets
+ * are not the page: a width edit writes a media query, the dark preview
+ * copies the page's dark rules into daylight, and reading either back would
+ * teach the next scan that the page does something the panel did. A scan is a
+ * reading of the page, not of what we did to it.
+ */
+function pageSheets(): CSSStyleSheet[] {
+  return Array.from(document.styleSheets).filter((sheet) => !isManagedSheet(sheet));
+}
+
 async function scanPage(): Promise<ScanResult> {
   const css = await gatherCss();
   const sampled = sampleComputedStyles();
@@ -50,7 +63,7 @@ async function scanPage(): Promise<ScanResult> {
     shape: sampled.shape,
     cssText: css.text,
     unreadableSheets: css.unreadable,
-    stats: { elementsSampled: sampled.count, styleSheets: document.styleSheets.length },
+    stats: { elementsSampled: sampled.count, styleSheets: pageSheets().length },
     a11y: { ...sampled.a11y, focusOutlineRemoved: countFocusOutlineRemoved(css.text) },
   };
 }
@@ -74,7 +87,7 @@ async function gatherCss(): Promise<{
   // Readable sheets first, in document order; the rest are fetched together
   // and slotted back where they were.
   const slots: ({ href: string | null; text: string } | { pending: string })[] = [];
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of pageSheets()) {
     try {
       const text = Array.from(sheet.cssRules) // throws on cross-origin sheets
         .map((r) => r.cssText)
@@ -130,7 +143,7 @@ function classifyService(urls: string[]): FontFaceInfo['service'] {
 
 function extractFontFaces(): FontFaceInfo[] {
   const byFamily = new Map<string, { weights: Set<string>; styles: Set<string>; urls: Set<string> }>();
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of pageSheets()) {
     let rules: CSSRuleList;
     try {
       rules = sheet.cssRules;
@@ -543,12 +556,28 @@ function attachWidthValues(
         walk(rule.cssRules, own ? (width ? `${width} and ${own}` : own) : width);
         continue;
       }
-      if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
+      if (
+        rule instanceof CSSSupportsRule ||
+        (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) ||
+        (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule)
+      ) {
         walk(rule.cssRules, width);
+        continue;
+      }
+      // A sheet pulled in by `@import` is not in `document.styleSheets`, so
+      // this is the only place its rules are reachable at all.
+      if (typeof CSSImportRule !== 'undefined' && rule instanceof CSSImportRule) {
+        try {
+          if (rule.styleSheet) walk(rule.styleSheet.cssRules, width);
+        } catch {
+          /* cross-origin: the fetched text covers it */
+        }
         continue;
       }
       if (!(rule instanceof CSSStyleRule)) continue;
       if (rule.selectorText.split(',').some((s) => hookFromSelector(s.trim()) !== null)) continue;
+      // Nested CSS: a media query written inside a style rule.
+      if (rule.cssRules?.length) walk(rule.cssRules, width);
       for (const prop of Array.from(rule.style)) {
         if (!prop.startsWith('--')) continue;
         const known = byName.get(prop);
@@ -579,10 +608,7 @@ function attachWidthValues(
  * fetched, since the page cannot read those itself.
  */
 function eachRuleList(fetched: { href: string; text: string }[], visit: (rules: CSSRuleList) => void) {
-  for (const sheet of Array.from(document.styleSheets)) {
-    // Our own sheets are not the page. Reading them back would let an edit
-    // made in the panel come round again as something the page does.
-    if (isManagedSheet(sheet)) continue;
+  for (const sheet of pageSheets()) {
     try {
       visit(sheet.cssRules);
     } catch {

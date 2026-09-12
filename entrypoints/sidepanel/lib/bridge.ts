@@ -288,7 +288,14 @@ async function handle(req: BridgeRequest): Promise<unknown> {
       if (win.id == null) throw new Error('no window');
       if (req.viewport) {
         if (tabId == null) throw new Error('no tab');
-        const r = await sendInspector<{ ok: boolean; error?: string }>(tabId, { cmd: 'set-viewport', preset: req.viewport });
+        // A brief names a media query, so a width is what an agent has to
+        // hand; a preset name is the other way of saying one.
+        const px = /^(\d+(?:\.\d+)?)(?:px)?$/i.exec(req.viewport.trim());
+        const r = await sendInspector<{ ok: boolean; error?: string }>(tabId, {
+          cmd: 'set-viewport',
+          preset: req.viewport,
+          ...(px ? { width: Number(px[1]) } : {}),
+        });
         if (!r) throw new Error('the page could not be reached');
         if (!r.ok) throw new Error(r.error ?? 'the window could not be resized');
         // The window has moved; give the page a moment to lay out at the new width.

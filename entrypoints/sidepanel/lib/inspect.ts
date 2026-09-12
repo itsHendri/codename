@@ -27,7 +27,7 @@ import {
   type ChangeLog,
 } from '@/studio/changes';
 import { setStateHoist, applyElementRules, isElementProps, probeComponent, sendInspector } from './messaging';
-import type { MaybeCondition } from '@/studio/conditions';
+import { conditionKey, widthConditions, type Condition, type MaybeCondition } from '@/studio/conditions';
 import type { HoistedRule } from '@/studio/conditionSheet';
 import {
   addComment as addCommentToSession,
@@ -54,6 +54,8 @@ export interface InspectController {
   setCondition(condition: MaybeCondition): void;
   /** What the page itself already does to this element in that state. Read-only. */
   cascade: HoistedRule[];
+  /** The widths this page is written against, which is what may be chosen. */
+  widths: Condition[];
   /** Commit a CSS longhand. `from` is read from the element; `token` names a chosen variable. */
   change(property: string, to: string, token?: string): void;
   /** Replace the element's text content. */
@@ -171,7 +173,7 @@ function usePush(tabId: number | null, generation: number, key: string, empty: b
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits'>,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits' | 'scan'>,
   focusedComment: string | null,
 ): InspectController {
   const { pinned: element, log, generation, comments } = session;
@@ -304,6 +306,23 @@ export function useInspect(
   }, []);
 
   /**
+   * A width is only a width this page has.
+   *
+   * The widths on offer come from the page's own stylesheets, so a scan — the
+   * first one, or one after navigating — can change the list under a choice
+   * already made. Left alone the control would quietly show nothing while
+   * edits went on being filed at a width this page never mentions, which is
+   * the exact thing reading the page's breakpoints was meant to prevent.
+   */
+  const offered = useMemo(() => widthConditions(session.scan?.breakpoints), [session.scan?.breakpoints]);
+  useEffect(() => {
+    if (condition?.kind !== 'width') return;
+    if (offered.some((w) => conditionKey(w) === conditionKey(condition))) return;
+    setConditionState(undefined);
+    setCascade([]);
+  }, [offered, condition]);
+
+  /**
    * Put the page into the chosen state, and read the element back.
    *
    * Runs on a new state, a new selection, and a reload (the generation
@@ -383,6 +402,7 @@ export function useInspect(
     condition,
     setCondition,
     cascade,
+    widths: offered,
     change,
     setText,
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),

@@ -669,13 +669,20 @@ is not a device and has no height. A page that declares none falls back to
 the bar's device presets, which say in the control's title that they are a
 guess rather than the page's own.
 
+Both sides of a width are offered, because a page written mobile-first says
+everything in `min-width` and offering it `max-width` would be offering a
+vocabulary it does not use. The agent's `get_screenshot` takes the same
+widths, since a brief naming `(max-width: 700px)` is no use if the only way
+to look at it is the nearest phone.
+
 **Known limits.** A state is previewed by class, so a rule whose pseudo sits
 on an ancestor is named rather than shown, and a page that styles hover
 through script rather than CSS shows nothing. A page with more than eight
 breakpoints has the list cut at eight, narrowest first. A width query written
-in `em`, or as a range (`width <= 40em`), is not offered — only
-`(max-width: Npx)` is, because that is the one the viewport can be set to
-without guessing at a root font size.
+in `em`, or as a range, is not offered — only a plain pixel width is, because
+that is the one the viewport can be set to without guessing at a root font
+size — and nor is one outside 200–2560px, since no display delivers it and
+the browser's zoom floor means the page would not be at the width asked for.
 
 ## Still to build
 

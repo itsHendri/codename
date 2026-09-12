@@ -20,6 +20,7 @@ import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
+import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
 
 declare global {
@@ -1365,10 +1366,16 @@ function activate() {
     zoom = r.zoom ?? 1;
     canReset = !!r.canReset;
     renderBar();
+    const got = r.viewport?.width ?? p.width;
+    // Claiming the breakpoints read true when the zoom could not reach the
+    // width would be the one thing this is not allowed to do.
+    const exact = Math.abs(got - p.width) <= 1;
     showHint(
       zoom === 1
         ? `<b>${p.name}</b> — the window is now ${p.width} × ${p.height}.`
-        : `<b>${p.name}</b> — the display is too small for ${p.width}px beside the panel, so the page is zoomed to ${Math.round(zoom * 100)}%. Its CSS viewport is ${r.viewport?.width ?? p.width} wide, so breakpoints read true.`,
+        : exact
+          ? `<b>${p.name}</b> — the display is too small for ${p.width}px beside the panel, so the page is zoomed to ${Math.round(zoom * 100)}%. Its CSS viewport is ${got} wide, so breakpoints read true.`
+          : `<b>${p.name}</b> — the display could not give ${p.width}px even zoomed out; the page is ${got} wide, so breakpoints at ${p.width} do not read true.`,
     );
     return true;
   };
@@ -1649,12 +1656,19 @@ function activate() {
           resetViewport(true).then((ok) => done(ok, ok ? undefined : 'the window could not be put back'), (e) => done(false, String(e)));
           return true;
         }
+        const asked = msg.width;
+        if (typeof asked === 'number' && (asked < WIDTH_RANGE.min || asked > WIDTH_RANGE.max)) {
+          // No display delivers this, and the browser's zoom floor means the
+          // page would not be at the width that was asked for.
+          done(false, `a viewport of ${asked}px cannot be shown; ask for ${WIDTH_RANGE.min}–${WIDTH_RANGE.max}px`);
+          return true;
+        }
         // A width with no device behind it — one of the page's own
         // breakpoints — keeps the height the window already has, since the
         // thing being asked for is a width.
         const preset =
-          typeof msg.width === 'number' && msg.width > 0
-            ? { name: msg.preset || `${msg.width}px`, width: msg.width, height: innerHeight }
+          typeof asked === 'number'
+            ? { name: msg.preset || `${asked}px`, width: asked, height: innerHeight }
             : DEVICE_PRESETS.find((p) => p.name === msg.preset);
         if (!preset) {
           done(false, `no preset named ${msg.preset}`);

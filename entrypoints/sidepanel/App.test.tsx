@@ -356,7 +356,7 @@ describe('editing a state', () => {
     await selectHeading();
     const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
     await act(async () => {
-      widths.value = '700';
+      widths.value = 'width:max:700';
       widths.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await tick(120);
@@ -422,7 +422,7 @@ describe('editing a state', () => {
     await selectHeading();
     const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
     await act(async () => {
-      widths.value = '700';
+      widths.value = 'width:max:700';
       widths.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await tick(150);
@@ -440,6 +440,28 @@ describe('editing a state', () => {
     await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
     await tick(200);
     expect(stub.sent.filter((m) => m.type === 'state-set').length).toBeGreaterThan(before);
+  });
+
+  it('drops a width the page turns out not to have', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = 'width:max:700';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(150);
+    expect(text()).toContain('at 700px and under');
+
+    // A rescan, or a navigation, and this page is written against something
+    // else entirely. The choice cannot survive that.
+    await act(async () =>
+      updateSession((prev) => ({ scan: { ...prev.scan!, breakpoints: ['(min-width: 1024px)'] } })),
+    );
+    await tick(150);
+    expect(text()).not.toContain('at 700px and under');
+    const after = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    expect(after.value).toBe('');
+    expect(Array.from(after.options).map((o) => o.textContent?.trim())).toEqual(['width…', '≥1024']);
   });
 
   it('lets go of the state when the selection goes', async () => {

@@ -304,11 +304,16 @@ export function createMcpServer(
     'get_screenshot',
     {
       description:
-        'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG. Pass `selector` to scroll the first match into view and crop to its box, to check one component after a change. Pass `viewport` to move the window to one of the bar\'s presets first (the page is zoomed where the display is too small, so its CSS viewport still reads true) — call once per width to review a change at every breakpoint — and `reset` to put the window back when you are done.',
+        'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG. Pass `selector` to scroll the first match into view and crop to its box, to check one component after a change. Pass `viewport` to move the window first (the page is zoomed where the display is too small, so its CSS viewport still reads true) — call once per width to review a change at every breakpoint — and `reset` to put the window back when you are done. A viewport can be one of the bar\'s device presets or a bare CSS width like `700` or `700px`, which is what a brief means when it names a media query: review the change at the width the page is actually written against, not at the nearest phone.',
       inputSchema: {
         session,
         selector: z.string().optional().describe('A CSS selector; the capture is cropped to the first match.'),
-        viewport: z.enum(VIEWPORTS).optional().describe(`One of ${DEVICE_PRESETS.map((p) => `${p.name} (${p.width}×${p.height})`).join(', ')}, or reset.`),
+        viewport: z
+          .string()
+          .optional()
+          .describe(
+            `A width in CSS pixels ("700" or "700px"), or one of ${DEVICE_PRESETS.map((p) => `${p.name} (${p.width}×${p.height})`).join(', ')}, or reset.`,
+          ),
       },
     },
     guard(async ({ session, viewport, selector }) => {
