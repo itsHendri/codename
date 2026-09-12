@@ -25,6 +25,7 @@
 
 import { lengthPx } from '@/studio/reskin';
 import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
+import { MANAGED_SHEET_IDS } from '@/shared/types';
 import { pseudosOf, type StateName } from '@/studio/conditions';
 import {
   elementsSheet,
@@ -102,7 +103,9 @@ const MARK_COLOUR = '#6bb5ff';
  * so an edit made in that state still wins.
  */
 const STATE_ID = 'codename-state';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID, MARKS_ID, STATE_ID]);
+// The same list the scanner refuses to read, so the two agree about what is
+// ours and what is the page's.
+const OWN_SHEETS = new Set<string>(MANAGED_SHEET_IDS);
 
 /** The agent's sheet, counted: rules, the elements they reach, selectors that could not be read. */
 interface PreviewInfo {

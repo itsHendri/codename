@@ -308,6 +308,29 @@ export interface TokenLengths {
   type: Record<string, string>;
 }
 
+/**
+ * The stylesheets this extension puts on a page.
+ *
+ * Anything reading the page has to leave them out, or it reads its own
+ * output back: a width edit written into `codename-elements` would otherwise
+ * show up in the next scan as a breakpoint the page owns, and the page would
+ * appear to have been designed at a width the person had just invented.
+ */
+export const MANAGED_SHEET_IDS = [
+  'codename-reskin',
+  'codename-agent-preview',
+  'codename-elements',
+  'codename-site-dark',
+  'codename-agent-marks',
+  'codename-state',
+] as const;
+
+/** Whether a stylesheet is one of ours. */
+export const isManagedSheet = (sheet: { ownerNode?: unknown }): boolean => {
+  const node = sheet.ownerNode as Element | null | undefined;
+  return Boolean(node && 'id' in node && (MANAGED_SHEET_IDS as readonly string[]).includes(node.id));
+};
+
 export const DEVICE_PRESETS = [
   { name: 'Mobile S', width: 375, height: 667, kind: 'phone' },
   { name: 'Mobile L', width: 430, height: 932, kind: 'phone' },

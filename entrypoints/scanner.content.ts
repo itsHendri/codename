@@ -11,6 +11,7 @@ import type {
   SvgAsset,
   ValueTally,
 } from '@/shared/types';
+import { isManagedSheet } from '@/shared/types';
 import { countFocusOutlineRemoved } from '@/studio/a11y';
 import { hookFromSelector, isDarkMedia, widthOfMedia } from '@/studio/siteMode';
 
@@ -579,6 +580,9 @@ function attachWidthValues(
  */
 function eachRuleList(fetched: { href: string; text: string }[], visit: (rules: CSSRuleList) => void) {
   for (const sheet of Array.from(document.styleSheets)) {
+    // Our own sheets are not the page. Reading them back would let an edit
+    // made in the panel come round again as something the page does.
+    if (isManagedSheet(sheet)) continue;
     try {
       visit(sheet.cssRules);
     } catch {
