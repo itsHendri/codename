@@ -283,6 +283,7 @@ export function standingRules(locked: string[] = []): string {
     '- A line already named "defined at file:line" was found in the repository, not guessed. Where a brief says a token has several definitions, read them before editing: which one wins is the cascade\'s business.',
     '- A token the person applied themselves is already in source and says so in the brief; do not write it again.',
     '- Change nothing that is not named. Colours and tokens left out of a brief were left alone on purpose.',
+    '- An element line under a state heading is about that state only — `:hover`, `:focus-visible`, `:active`, the page\'s own dark mode, or a max-width query. Put it where that state is written, not on the base rule.',
     '- A preview you paint with apply_css is a proposal, not a change; it needs the person\'s consent in the panel menu, they can see and clear it, and only source edits count.',
   ];
   if (locked.length) {
