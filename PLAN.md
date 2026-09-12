@@ -661,14 +661,21 @@ depended on the order the edits happened to be made in; and the panel trusted
 a truthy reply to an element read, which a generic acknowledgement from
 another build would have written into its state.
 
-**Known limits.** The widths on offer are the bar's device presets, not the
-page's own breakpoints, so a brief can name `(max-width: 768px)` for an
-element beside a token's `(max-width: 700px)` read from the page — an agent
-told to add a breakpoint the project does not have. Reading the page's own
-query list and offering those instead is the obvious next turn of this.
-A state is previewed by class, so a rule whose pseudo sits on an ancestor is
-named rather than shown, and a page that styles hover through script rather
-than CSS shows nothing.
+The widths on offer are the page's own. The scan keeps every width query its
+stylesheets are written against (`ScanResult.breakpoints`, collected on the
+walk that already looked for variables redefined under one), and the bar
+offers those; `set-viewport` takes a bare width for them, since a breakpoint
+is not a device and has no height. A page that declares none falls back to
+the bar's device presets, which say in the control's title that they are a
+guess rather than the page's own.
+
+**Known limits.** A state is previewed by class, so a rule whose pseudo sits
+on an ancestor is named rather than shown, and a page that styles hover
+through script rather than CSS shows nothing. A page with more than eight
+breakpoints has the list cut at eight, narrowest first. A width query written
+in `em`, or as a range (`width <= 40em`), is not offered — only
+`(max-width: Npx)` is, because that is the one the viewport can be set to
+without guessing at a root font size.
 
 ## Still to build
 
