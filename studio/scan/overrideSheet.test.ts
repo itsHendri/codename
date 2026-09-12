@@ -133,3 +133,35 @@ describe('collectOverrides', () => {
     expect(collectOverrides([sheet(many)], { colorMap: MAP, limit: 5 }).join('').match(/color/g)).toHaveLength(5);
   });
 });
+
+describe('a page using native CSS nesting', () => {
+  /** happy-dom does not parse nesting into child rules, so these are built. */
+  const nested = (selectorText: string, decls: Record<string, string>, ...cssRules: unknown[]) => ({
+    cssText: `${selectorText} {}`,
+    selectorText,
+    style: Object.assign(Object.keys(decls), { getPropertyValue: (k: string) => decls[k] ?? '', getPropertyPriority: () => '' }),
+    cssRules,
+  });
+
+  it('resolves a nested selector instead of emitting it as written', () => {
+    // `&:hover` on its own is `:scope:hover`, which at the top level of a
+    // sheet is `:root:hover` — hovering anywhere on the page. And `& .inner`
+    // would paint every `.inner` in the document, not this card's.
+    const out = collectOverrides(
+      [
+        [
+          nested(
+            '.card',
+            { color: '#BE3A22' },
+            nested('&:hover', { color: '#BE3A22' }),
+            nested('& .inner', { color: '#BE3A22' }),
+          ),
+        ],
+      ] as never,
+      { colorMap: MAP },
+    );
+    expect(out.join('')).not.toContain('&');
+    expect(out.join('')).toContain(':is(.card):hover{color:#1C7F5C}');
+    expect(out.join('')).toContain(':is(.card) .inner{color:#1C7F5C}');
+  });
+});

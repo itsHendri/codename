@@ -15,6 +15,7 @@ import {
   extractCustomProps,
   groupHead,
   mediaOf,
+  resolveNested,
   type RuleLike,
 } from './customProps';
 
@@ -215,5 +216,76 @@ describe('attachWidthValues', () => {
       sheet('@media (max-width: 900px) { @media (min-width: 400px) { :root { --gap: 12px } } }'),
     ]);
     expect(Object.keys(p[0]?.atWidth ?? {})[0]).toContain('and');
+  });
+});
+
+describe('resolveNested', () => {
+  it('leaves a top-level selector alone', () => {
+    expect(resolveNested([], '.card')).toBe('.card');
+  });
+
+  it('puts the parent where the ampersand is', () => {
+    expect(resolveNested(['.card'], '&:hover')).toBe(':is(.card):hover');
+    expect(resolveNested(['.card'], '&.active &')).toBe(':is(.card).active :is(.card)');
+  });
+
+  it('reads a nested selector with no ampersand as a descendant', () => {
+    expect(resolveNested(['.card'], '.inner')).toBe(':is(.card) .inner');
+  });
+
+  it('folds a chain from the outside in', () => {
+    expect(resolveNested(['.card', '.inner'], '&:hover')).toBe(':is(:is(.card) .inner):hover');
+  });
+
+  it('keeps a parent selector list from changing what the child outranks', () => {
+    // `:is()` takes the specificity of its most specific argument, which is
+    // what nesting does; plain concatenation would not.
+    expect(resolveNested(['.a, .b'], '&:hover')).toBe(':is(.a, .b):hover');
+  });
+});
+
+describe('what is not a style rule, whatever its shape', () => {
+  it('refuses @page, which has both a selectorText and a style', () => {
+    const seen: string[] = [];
+    eachStyleRule(
+      [[{ cssText: '@page :first { margin: 10px }', selectorText: ':first', style: {} as CSSStyleDeclaration }]],
+      (r) => seen.push(r.selectorText),
+    );
+    expect(seen).toEqual([]);
+  });
+
+  it('walks a keyframes block without taking its steps for rules', () => {
+    const seen: string[] = [];
+    eachStyleRule(
+      [[group('@keyframes fade {}', '', { cssText: '0% { opacity: 0 }', style: {} as CSSStyleDeclaration })]],
+      (r) => seen.push(r.selectorText),
+    );
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('an @import that carries its own conditions', () => {
+  const imported = (extra: Partial<RuleLike>): RuleLike => ({
+    cssText: '@import url("a.css");',
+    styleSheet: { cssRules: [styleRule('.i', {})] },
+    ...extra,
+  });
+
+  it('keeps the media it was pulled in under', () => {
+    const seen: string[][] = [];
+    eachStyleRule([[imported({ media: { mediaText: 'print' } })]], (_r, groups) => seen.push(groups));
+    expect(seen).toEqual([['@media print']]);
+  });
+
+  it('keeps the layer it was pulled in under', () => {
+    const seen: string[][] = [];
+    eachStyleRule([[imported({ layerName: 'base' })]], (_r, groups) => seen.push(groups));
+    expect(seen).toEqual([['@layer base']]);
+  });
+
+  it('adds nothing for a plain import', () => {
+    const seen: string[][] = [];
+    eachStyleRule([[imported({ media: { mediaText: 'all' } })]], (_r, groups) => seen.push(groups));
+    expect(seen).toEqual([[]]);
   });
 });

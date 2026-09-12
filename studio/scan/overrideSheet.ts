@@ -12,7 +12,7 @@
 
 import { lengthPx } from '../reskin';
 import { isLengthMapEmpty, rewriteLength, type LengthMap } from '../reskinRules';
-import { eachStyleRule, MAX_RULES, type RuleLike } from './customProps';
+import { eachStyleRule, MAX_RULES, resolveNested, type RuleLike } from './customProps';
 
 /** `#abc` → `#AABBCC`, so a three-digit hex can be looked up like any other. */
 const expand3 = (digits: string): string =>
@@ -96,7 +96,7 @@ export function collectOverrides(lists: ArrayLike<RuleLike>[], opts: CollectOpti
 
   eachStyleRule(
     lists,
-    (rule, groups) => {
+    (rule, groups, parents) => {
       const decls: string[] = [];
       // The rule's own size names the role its weight and line-height belong to.
       const ruleFontPx = useLengths ? lengthPx(rule.style.getPropertyValue('font-size'), rootPx) : null;
@@ -117,7 +117,9 @@ export function collectOverrides(lists: ArrayLike<RuleLike>[], opts: CollectOpti
         openKey = key;
         open = groups;
       }
-      buffer.push(`${rule.selectorText}{${decls.join(';')}}`);
+      // A nested rule's selector is relative to the one it sits in. Emitted
+      // as written, `&:hover` would mean `:root:hover` out here.
+      buffer.push(`${resolveNested(parents, rule.selectorText)}{${decls.join(';')}}`);
     },
     limit,
   );

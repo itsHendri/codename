@@ -37,12 +37,53 @@ export interface RuleLike {
   style?: CSSStyleDeclaration;
   /** A conditional group rule's condition, e.g. `(max-width: 700px)`. */
   conditionText?: string;
-  /** An `@import` rule's sheet. */
+  /** An `@import` rule's sheet, and the conditions it pulls it in under. */
   styleSheet?: { cssRules?: ArrayLike<RuleLike> | null } | null;
+  media?: { mediaText?: string } | null;
+  layerName?: string | null;
 }
 
-const isStyleRule = (r: RuleLike): boolean => typeof r.selectorText === 'string' && r.style != null;
+/**
+ * A style rule, rather than something that merely looks like one.
+ *
+ * `@page` has both a `selectorText` and a `style`, so shape alone is not
+ * enough: an at-rule is never a style rule, whatever it carries. Getting this
+ * wrong emitted `{margin:24px}` — a qualified rule with no selector — into a
+ * sheet meant for the page.
+ */
+const isStyleRule = (r: RuleLike): boolean =>
+  typeof r.selectorText === 'string' && r.style != null && !(r.cssText ?? '').trimStart().startsWith('@');
+
 const head = (r: RuleLike): string => (r.cssText ?? '').trimStart().slice(0, 8).toLowerCase();
+
+/**
+ * A nested selector, resolved against the rule it is written inside.
+ *
+ * This is what the CSS nesting spec says a nested rule means, and it has to
+ * be done before a selector is re-emitted anywhere else: `&:hover` written
+ * inside `.card` is `.card:hover`, but on its own `&` is `:scope`, which at
+ * the top level of a stylesheet is `:root`. Re-emitting it verbatim turns a
+ * rule about one card into a rule about the whole document.
+ */
+export function resolveNested(parents: string[], selector: string): string {
+  if (!parents.length) return selector;
+  // Fold the chain from the outside in, so each level is resolved against the
+  // one above it before the child is resolved against that.
+  let resolved = parents[0]!;
+  for (const child of parents.slice(1)) resolved = combine(resolved, child);
+  return combine(resolved, selector);
+}
+
+/**
+ * One level of nesting. `:is()` is how the spec defines the parent reference,
+ * and it takes the specificity of its most specific argument, which is what
+ * nesting does — so a selector list for a parent cannot quietly change what
+ * the child outranks.
+ */
+function combine(parent: string, child: string): string {
+  const ref = `:is(${parent})`;
+  return child.includes('&') ? child.replace(/&/g, ref) : `${ref} ${child}`;
+}
 
 /**
  * The head a grouping rule was written under, so a re-emitted rule can land
@@ -73,27 +114,35 @@ export const mediaOf = (head: string): string | null =>
  */
 export function eachStyleRule(
   lists: ArrayLike<RuleLike>[],
-  visit: (rule: CSSStyleRule, groups: string[]) => void,
+  visit: (rule: CSSStyleRule, groups: string[], parents: string[]) => void,
   limit = MAX_RULES,
 ): void {
   let visited = 0;
-  const walk = (rules: ArrayLike<RuleLike>, media: string[]) => {
+  const walk = (rules: ArrayLike<RuleLike>, media: string[], parents: string[]) => {
     for (const rule of Array.from(rules)) {
       if (++visited > limit) return;
       if (!rule) continue;
 
       if (isStyleRule(rule)) {
-        visit(rule as unknown as CSSStyleRule, media);
-        // Nested CSS: a media query written inside a style rule.
-        if (rule.cssRules?.length) walk(rule.cssRules, media);
+        visit(rule as unknown as CSSStyleRule, media, parents);
+        // Nested CSS: a rule written inside this one, whose selector is
+        // relative to it.
+        if (rule.cssRules?.length) walk(rule.cssRules, media, [...parents, rule.selectorText!]);
         continue;
       }
       // A sheet reached by `@import` is not in `document.styleSheets`, so
-      // this is the only place its rules can be seen at all.
+      // this is the only place its rules can be seen at all. Its own
+      // conditions come with it: `@import … print` means those rules are for
+      // print, and dropping that would apply them everywhere.
       if (head(rule).startsWith('@import')) {
         try {
           const inner = rule.styleSheet?.cssRules;
-          if (inner?.length) walk(inner, media);
+          if (!inner?.length) continue;
+          const conditions = [...media];
+          if (typeof rule.layerName === 'string') conditions.push(rule.layerName ? `@layer ${rule.layerName}` : '@layer');
+          const mediaText = rule.media?.mediaText?.trim();
+          if (mediaText && mediaText !== 'all') conditions.push(`@media ${mediaText}`);
+          walk(inner, conditions, parents);
         } catch {
           /* cross-origin: the fetched text covers it */
         }
@@ -101,13 +150,13 @@ export function eachStyleRule(
       }
       if (rule.cssRules?.length) {
         const g = groupHead(rule);
-        walk(rule.cssRules, g ? [...media, g] : media);
+        walk(rule.cssRules, g ? [...media, g] : media, parents);
       }
     }
   };
   for (const list of lists) {
     if (visited > limit) break;
-    walk(list, []);
+    walk(list, [], []);
   }
 }
 
