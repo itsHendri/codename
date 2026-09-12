@@ -148,7 +148,9 @@ collects into one brief.
 It is written at token level: `--mark: #BE3A22 → #1C7F5C (34 usages)` tells an
 agent to edit one definition, where a rendered stylesheet would invite it to
 stamp a hex across forty components. Element edits are one line per selector
-and property, before and after. Notes name the element they are about.
+and property, before and after, grouped by the state they are about — `hover`
+means `:hover`, `dark` means the page's own dark mode, a width means that
+media query. Notes name the element they are about.
 
 Colour edits reach the page through its own variables, or by rewriting the
 rules that hold a literal. Type and spacing edits move variables where a

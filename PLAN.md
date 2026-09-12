@@ -612,32 +612,63 @@ once its value moves again; a taken-back decision is no longer resurrected by
 the origin fallback; two packages in a monorepo no longer share one storage
 record; and the definition cache is dropped when a session goes.
 
+**W17. Conditions (M/L).** Done, 12 September 2026. Nordcraft's best idea, in
+the form this project can take honestly. A condition bar under the selection
+— default, hover, focus, active, dark, a width — records the edit against the
+state (`ElementChange.condition`), writes it into the managed sheet under the
+matching selector or media query, and groups the brief's lines by state with
+a sentence saying what each means. Undo, revert and Reset needed no special
+case.
+
+A state is held by a class rather than by `chrome.debugger`, which was
+rejected for its permanent infobar: `reskin.content.ts` reads the page's own
+`:hover` rules out of the CSSOM, rewrites the pseudo into
+`.codename-state-hover`, and the inspector puts that class on the selection.
+Both the pseudo and the class are written into the managed rule, so the edit
+shows while the panel holds the element *and* when a person hovers it for
+real. A rule whose pseudo sits on an ancestor (`.card:hover .title`) cannot
+be previewed by holding the descendant, so it is reported instead. Dark and
+the widths reuse what exists — the bar's switch and its viewport presets —
+so picking one turns the page rather than letting the panel claim a state
+nobody can see.
+
+**The order is fixed, and that is the deliberate departure.** Nordcraft's
+list is reorderable, and honestly so: there, the list *is* the stylesheet.
+Here the page's own rules sit underneath and ours go on top, so an order
+someone chose in the panel would be a promise this cannot keep. It is stated
+instead: default, width, dark, state.
+
+The two hard parts live in `studio/conditionSheet.ts` as pure string
+functions rather than inside the content script, which is the only reason the
+selector cases are checked at all — a pseudo inside `:not()`, `:focus` that
+is really `:focus-visible`, a list where one part carries the pseudo and the
+rest do not, a rule nested in a layer inside a media query.
+
+Out of scope on purpose, so that Effects and motion stays one item:
+transitions and animations, pseudo-elements, `@starting-style`, compound
+conditions (hover at 700px), and container queries.
+
 ## Still to build
 
 In order.
 
-0. **Conditions (M/L).** Nordcraft's best idea, in the form this project can
-   take honestly. A condition selector on the selection — Default · Hover ·
-   Focus · Active · Dark · a width preset — with the edit recorded against
-   the condition (`ElementChange.condition`) and written into the managed
-   sheet under the matching selector or media query. A state previews without
-   `chrome.debugger`: the reskin script rewrites the page's own `:hover`,
-   `:focus` and `:active` rules that match the selection into a
-   `.codename-state-*` class in a sheet ahead of the element sheet, and the
-   inspector puts that class on the element; the managed rule is emitted as
-   `sel:hover, sel.codename-state-hover` so the real pointer still works.
-   The same walk yields a read-only "already on hover" list, so editing a
-   state is not blind. The brief groups by selector with a line per
-   condition, and names the page's own dark hook. Undo, revert and Reset need
-   no special case. Out of scope, so that Effects and motion stays one item:
-   transitions and animations, pseudo-elements, `@starting-style`, compound
-   conditions, container queries.
-
 1. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
-   trigger-first interaction editor (hover, press, focus, appear, loop,
-   scroll) with a shared easing curve. The largest remaining chunk, and the
-   one that needs the most new engine surface.
-2. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
+   trigger-first interaction editor with a shared easing curve. The largest
+   remaining chunk, and the one that needs the most new engine surface.
+   W17 took half of its premise — the triggers themselves are conditions
+   now, and the panel can hold an element in one — so what is left is the
+   part that was always the real work: the transition between two states
+   rather than the states, and the effects that have no home in
+   `BrandConfig` yet.
+2. **Tests under the content scripts (M).** `inspector.content.ts` (1,700
+   lines), `reskin.content.ts`, `scanner.content.ts` and `background.ts` have
+   no test file between them, and they are the hardest code here to debug.
+   W17 shows the shape of the answer rather than the answer: its two hard
+   parts went into `studio/conditionSheet.ts` as pure functions and are
+   covered, while the CSSOM walk and the class toggle around them still are
+   not. The same split would work for the scanner's walk and the re-skin's
+   rule rewriting.
+3. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
    the agent asks the panel what is wrong with the page and gets the contrast
    pairs under AA with element counts, the off-grid spacing, the
    near-duplicate colours, the type-ladder strays, the font-family and radius
