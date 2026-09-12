@@ -696,14 +696,26 @@ In order.
    part that was always the real work: the transition between two states
    rather than the states, and the effects that have no home in
    `BrandConfig` yet.
-2. **Tests under the content scripts (M).** `inspector.content.ts` (1,700
-   lines), `reskin.content.ts`, `scanner.content.ts` and `background.ts` have
-   no test file between them, and they are the hardest code here to debug.
-   W17 shows the shape of the answer rather than the answer: its two hard
-   parts went into `studio/conditionSheet.ts` as pure functions and are
-   covered, while the CSSOM walk and the class toggle around them still are
-   not. The same split would work for the scanner's walk and the re-skin's
-   rule rewriting.
+2. **Tests under the content scripts (M).** Started, 12 September 2026. The
+   two passes that read a page's custom properties and the sheet that repaints
+   a page with no variables moved into `studio/scan/` and have 38 tests
+   between them, against real stylesheets where happy-dom can parse them and
+   hand-built rules where it cannot (it turns `@layer` into nothing and does
+   not support nested CSS at all — which is why the walk is structural rather
+   than `instanceof`, and why it is more robust in a browser too).
+
+   The two passes had duplicated their walk without sharing it, which is how a
+   media query nested inside a style rule came to be visible to one and
+   invisible to the other. There is one walker now, carrying the grouping
+   rules open around each style rule, so a caller can read the widths or put a
+   rewritten rule back where it came from.
+
+   What is left: `inspector.content.ts` is still 1,764 lines and untested, and
+   it is now the largest file in the project. Its selection, traversal and
+   region-note geometry are the parts that would come out cleanly. The state
+   hoist's CSSOM walk in `reskin.content.ts` is the other one — its rewriting
+   half is already pure in `studio/conditionSheet.ts`, but the walk that feeds
+   it is not.
 3. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
    the agent asks the panel what is wrong with the page and gets the contrast
    pairs under AA with element counts, the off-grid spacing, the
