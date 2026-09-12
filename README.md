@@ -357,6 +357,15 @@ the harness, start it with `CODENAME_DEV_ORIGINS=http://localhost:5320`, or
 run `packages/bridge/scripts/e2e.mjs`, which spawns the bridge as an agent
 would and drives every tool once a panel pairs.
 
+`.harness/public/page.html` is a small page with the awkward shapes in it — a
+dark media query, a theme hook, a layer, a breakpoint, hardcoded colours
+beside variables — to try the content scripts against. They are served from
+built copies, so refresh them before trusting what you see:
+
+```sh
+npm run harness:scripts
+```
+
 ## Architecture
 
 - **WXT + React + TypeScript + Tailwind v4**, Manifest V3. Side panel only —

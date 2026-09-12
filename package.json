@@ -17,7 +17,8 @@
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "wxt prepare",
-    "postbuild": "node scripts/check-content-scripts.mjs"
+    "postbuild": "node scripts/check-content-scripts.mjs",
+    "harness:scripts": "npm run build && cp dist/chrome-mv3/content-scripts/*.js .harness/public/"
   },
   "dependencies": {
     "@projectwallace/css-analyzer": "^9.9.3",
