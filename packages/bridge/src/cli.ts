@@ -19,6 +19,7 @@ import {
   writeBridgeFile,
 } from './pairing';
 import { Sessions } from './sessions';
+import { runSetup, type SetupClient } from './setup';
 import { startServer } from './ws';
 
 const log = (line: string) => process.stderr.write(`${line}\n`);
@@ -29,8 +30,12 @@ Runs the local companion for the codename extension: an MCP server on stdio
 for your agent and a WebSocket on 127.0.0.1 for the panel.
 
 Usage: codename-bridge [--port N] [--keep-token]
+       codename-bridge setup [--client claude|cursor|none] [--skills-dir DIR] [--print]
        codename-bridge code
 
+  setup           Install the codename skill into your agent's skills folder
+                  (~/.claude/skills/codename) and register the bridge with
+                  Claude Code, or print what to paste for Cursor. Safe to rerun.
   code            Print the pairing code of the bridge that is running, and exit.
                   Your agent starts the bridge and swallows what it prints, so
                   this is how you read the code — or ask the agent for it.
@@ -53,6 +58,32 @@ function printCode(): never {
   }
   process.stdout.write(`${running.token}\n`);
   process.exit(0);
+}
+
+/** `codename-bridge setup`: a person at a terminal, so it talks on stdout. */
+function setupCli(argv: string[]): never {
+  let client: SetupClient = 'claude';
+  let skillsDir: string | undefined;
+  let print = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] ?? '';
+    if (arg === '--client') client = (argv[++i] ?? '') as SetupClient;
+    else if (arg.startsWith('--client=')) client = arg.slice('--client='.length) as SetupClient;
+    else if (arg === '--skills-dir') skillsDir = argv[++i];
+    else if (arg.startsWith('--skills-dir=')) skillsDir = arg.slice('--skills-dir='.length);
+    else if (arg === '--print') print = true;
+    else {
+      log(`unknown argument: ${arg}\n`);
+      process.stderr.write(HELP);
+      process.exit(2);
+    }
+  }
+  if (!['claude', 'cursor', 'none'].includes(client)) {
+    log(`--client must be claude, cursor or none, not ${client}`);
+    process.exit(2);
+  }
+  const r = runSetup({ client, skillsDir, print, log: (line) => process.stdout.write(`${line}\n`) });
+  process.exit(r.registration === 'failed' ? 1 : 0);
 }
 
 interface Args {
@@ -91,6 +122,7 @@ function parseArgs(argv: string[]): Args {
 
 async function main() {
   if (process.argv[2] === 'code') printCode();
+  if (process.argv[2] === 'setup') setupCli(process.argv.slice(3));
   const args = parseArgs(process.argv.slice(2));
   const filePath = bridgeFilePath();
   const previous = readBridgeFile(filePath);

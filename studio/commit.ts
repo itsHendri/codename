@@ -17,6 +17,8 @@
  */
 
 import type { ScanResult } from '@/shared/types';
+import { describeOrigin, type ComponentOrigin } from './framework';
+import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
 import type { ElementChange } from './changes';
 import type { SystemChange } from './systemDiff';
@@ -31,6 +33,14 @@ export interface TokenChange {
   uses?: number;
   /** Whether the value sat on a ramp or was carried along by hue. */
   reason: Override['reason'];
+  /**
+   * Where the page defines this token again under a width media query, and
+   * to what. The edit leaves these alone; the agent needs to know they exist
+   * so it does not miss an override the page still applies at that width.
+   */
+  alsoAt?: { query: string; value: string }[];
+  /** Set when the page defines this token only under a width media query; `from` is its value there. */
+  onlyAt?: string;
 }
 
 export interface ColorChange {
@@ -57,6 +67,17 @@ export interface ElementEdit {
   /** `var(--x)` when a token was chosen. */
   to: string;
   token?: string;
+  /**
+   * The component the page's own dev build says rendered this. Not a guess
+   * from the markup: React, Vue and Angular dev builds each name it, and a
+   * built site names nothing, in which case this is absent.
+   */
+  component?: ComponentOrigin;
+  /**
+   * A page variable that already holds exactly this value, where the edit
+   * wrote the literal anyway. The agent is told, and decides.
+   */
+  couldBe?: string;
 }
 
 /** A note the user pinned, in the form the agent works from. */
@@ -83,6 +104,8 @@ export interface ChangeSet {
   comments: CommentNote[];
   /** Stylesheets that could not be read, so the count may be short. */
   unreadable: string[];
+  /** Tokens the person locked: keep their definitions as they are, whatever else follows. */
+  locked?: string[];
 }
 
 /** Collapse a log into one edit per selector and property, in first-touched order. */
@@ -103,6 +126,7 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
         from: e.from,
         to: e.to,
         token: e.token,
+        ...(e.component ? { component: e.component } : {}),
       });
     }
   }
@@ -130,7 +154,8 @@ export function isLocal(url: string): boolean {
 }
 
 /** The little a hand-off needs to know about the page; a full scan has all of it. */
-export type ScanLike = Pick<ScanResult, 'url' | 'cssText' | 'customProps' | 'unreadableSheets'>;
+export type ScanLike = Pick<ScanResult, 'url' | 'cssText' | 'customProps' | 'unreadableSheets'> &
+  Partial<Pick<ScanResult, 'rootFontSize'>>;
 
 export function buildChangeSet(
   scan: ScanLike,
@@ -139,11 +164,13 @@ export function buildChangeSet(
   elements: ElementChange[] = [],
   comments: CommentNote[] = [],
   system: SystemChange[] = [],
+  locked: string[] = [],
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
   const tokens: TokenChange[] = overrides.map((o) => {
     const prop = propByName.get(o.name);
+    const alsoAt = Object.entries(prop?.atWidth ?? {}).map(([query, value]) => ({ query, value }));
     return {
       name: o.name,
       from: o.from,
@@ -151,6 +178,8 @@ export function buildChangeSet(
       source: prop?.source,
       uses: prop?.uses,
       reason: o.reason,
+      ...(alsoAt.length ? { alsoAt } : {}),
+      ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
     };
   });
 
@@ -170,10 +199,29 @@ export function buildChangeSet(
     tokens,
     colors,
     system,
-    elements: summariseElements(elements),
+    elements: withTokenHints(summariseElements(elements), scan),
     comments,
     unreadable: scan.unreadableSheets,
+    ...(locked.length ? { locked } : {}),
   };
+}
+
+/**
+ * Mark the edits that wrote a literal where one of the page's own variables
+ * already holds that exact value. Not a correction — the person may have
+ * meant the literal — but a fact the agent should have before it edits
+ * source. The index is built once, because this runs on every keystroke of a
+ * drag.
+ */
+function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
+  if (!edits.length) return edits;
+  const index = buildValueIndex({ customProps: scan.customProps, rootFontSize: scan.rootFontSize });
+  const rootFontSize = scan.rootFontSize ?? 16;
+  return edits.map((e) => {
+    if (e.token || e.property === 'text' || e.property === 'move') return e;
+    const holder = tokenHolding(index, e.property, e.to, rootFontSize);
+    return holder ? { ...e, couldBe: holder } : e;
+  });
 }
 
 export function isEmpty(set: ChangeSet): boolean {
@@ -184,6 +232,27 @@ export function isEmpty(set: ChangeSet): boolean {
     set.elements.length === 0 &&
     set.comments.length === 0
   );
+}
+
+/**
+ * The rules that hold whatever the brief says, written once so the agent has
+ * them before it asks for anything. The bridge hands this to every connected
+ * agent as its instructions and as a resource; the brief repeats the ones
+ * that apply to the change in hand.
+ */
+export function standingRules(locked: string[] = []): string {
+  const lines = [
+    'Codename hands you design changes a person made against a live page.',
+    '',
+    '- Edit the definition of each token named; never replace its usages, and never paste a rendered stylesheet into source.',
+    '- Values were read from the rendered page. The stylesheet URLs are where the browser loaded the CSS; find the real definitions in the repository.',
+    '- Change nothing that is not named. Colours and tokens left out of a brief were left alone on purpose.',
+    '- A preview you paint with apply_css is a proposal, not a change; it needs the person\'s consent in the panel menu, they can see and clear it, and only source edits count.',
+  ];
+  if (locked.length) {
+    lines.push(`- Keep these tokens exactly as they are, whatever a brief touches: ${locked.map((n) => `\`${n}\``).join(', ')}.`);
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -224,6 +293,10 @@ export function toPrompt(set: ChangeSet): string {
         .filter(Boolean)
         .join('; ');
       lines.push(`- \`${t.name}\`: \`${t.from}\` → \`${t.to}\`${detail ? `  (${detail})` : ''}`);
+      if (t.onlyAt) lines.push(`  - the page defines this only at ${t.onlyAt}; there is no base value, so that definition is the one to edit`);
+      for (const a of t.alsoAt ?? []) {
+        lines.push(`  - also defined at ${a.query} as \`${a.value}\`; left alone — decide whether it should follow`);
+      }
     }
     lines.push('');
   }
@@ -272,13 +345,15 @@ export function toPrompt(set: ChangeSet): string {
       const scope = first.matches > 1 ? ` (${first.matches} elements)` : '';
       const positional = first.stable ? '' : ' — positional selector, find the element by its content';
       lines.push(`- \`${selector}\`${scope}${positional}`);
+      // Where a dev build named the component, that is the file to open.
+      if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
       for (const e of edits) {
         lines.push(
           e.property === 'text'
             ? `  - text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
             : e.property === 'move'
               ? `  - move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
-              : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : ''}`,
+              : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
         );
       }
     }
@@ -299,6 +374,15 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(`${i + 1}. ${c.about} — ${c.id}${positional}`);
       lines.push(`   ${c.text.replace(/\n/g, '\n   ')}`);
     });
+    lines.push('');
+  }
+
+  if (set.locked?.length) {
+    lines.push(`## Keep as is — ${set.locked.length}`);
+    lines.push('');
+    lines.push('I locked these tokens. Leave their definitions exactly as they are, whatever the changes above touch.');
+    lines.push('');
+    for (const name of set.locked) lines.push(`- \`${name}\``);
     lines.push('');
   }
 

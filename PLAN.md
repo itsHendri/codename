@@ -19,6 +19,8 @@ Five tools solve adjacent problems:
 | **Stacki** (stacki.build) | Electron desktop, Astro only | Component props, drag components, design variables | ⇧⌘C copies file:line pointers |
 | **Impeccable** | Skills + CLI + hooks, no UI | 23 agent commands, 61 deterministic design-defect rules | Runs inside the agent |
 | **Agentation** | React dev overlay on your own app | Annotations only | HTTP+SSE; MCP with a blocking `watch` tool and a resolve lifecycle |
+| **Webflow** (Conf, Sept 2026) | Hosted designer; Source puts code and martech on one surface | Everything, in its own model; breakpoint canvas; style props | MCP 2.1 (GSAP interactions, CMS queries, Cloud logs); generated Agent Instructions; Agent Presence on the canvas |
+| **Framer 3** (June 2026) | Hosted designer | Everything, in its own model; agents on the canvas | In-app agent that reads styles, components and CMS; Branching |
 
 They agree on three things, and Codename keeps all three:
 
@@ -99,8 +101,40 @@ How a variable is matched, and nothing else is touched:
   brand wash (0.033) and its neutrals (≤0.016).
 
 ### Known limits
-- Only the first definition of a variable is captured, so a value defined again
-  under `.dark` or a media query is invisible. Scope-aware capture is not built.
+- The base value of a variable is its first definition in document order. A
+  redefinition under the page's dark mode lands in `dark`, one under a width
+  media query in `atWidth`, and a variable defined *only* inside width
+  queries carries `onlyAt`; the width passes read `max-width`/`min-width`
+  and the range syntax, not `orientation` or container queries.
+- The presence outlines are a stylesheet (`codename-agent-marks`) with
+  `outline … !important` on the agent's own selectors, so while a preview is
+  up those elements show the dashed mark instead of their focus ring; a rule
+  that sets its own outline is left unmarked so the proposal shows. Reach is
+  what applies at the moment of `apply_css`: a rule under a media query the
+  window does not meet counts as a rule but reaches nothing, and the marks
+  do not follow a later resize. A rule on `:root` or `body` outlines the
+  whole page, which is honest if loud.
+- Component provenance is only as good as the build: a production bundle
+  names nothing, React 19 dropped file and line from its fibers so the name
+  travels without a position, and Svelte exposes no reliable hook at all.
+  The probe needs `world: 'MAIN'` injection, so a page whose main world
+  refuses the script says nothing; that path is the one part of this that
+  the harness cannot prove and a real Chrome must.
+- The token file is matched by name and by value. A variable and a token
+  that share neither cannot be paired, and a name that two tokens could
+  answer to is left unpaired rather than guessed.
+- The element crop assumes the capture's scale is its width over the
+  viewport's; a page-fixed bar or a scrollbar changes neither, but a
+  capture during a zoom animation could. The heading-skip count is over
+  document order, not the accessibility tree, and the target-size count
+  treats any block-level link as a control. The focus count reads
+  stylesheet text: `:focus:not(:focus-visible)` is exempt, but a ring
+  rebuilt with `box-shadow` after `outline: none` still counts as removed,
+  which the message allows for.
+- The sweep's `set-viewport` answers when the window has moved, then waits
+  a fixed 400ms before the capture; a page that lays out slowly at a new
+  width may be caught mid-way. `captureVisibleTab` still needs the icon to
+  have been clicked on the tab.
 - An inline root override outranks every author rule for that element — but a
   page whose theme is scoped to a descendant (`.theme-dark .card`) will not
   fully follow.
@@ -328,6 +362,141 @@ says how to pair: a Connect agent button, a three-step card on Changes, a
 `pairing_code` MCP tool and a `codename-bridge code` subcommand, because the
 code went to a stderr the agent swallows.
 
+**W13. What Webflow Conf and Framer 3 taught (M).** Done, September 2026,
+from a pass over the two keynotes and the Framer 3 launch. Three of their
+announcements were validation: Campaigns' "paste a URL and an agent pulls
+your colours, fonts and UI elements" is `seedFromScan`; generated Agent
+Instructions are `brand.md` and the skill bundle; Framer's "point the agent
+at a layer" and "audit inconsistent styling" are the selection tools and
+`critique`. Three named gaps that the code confirmed, and each is closed:
+
+- **Agent Presence.** An `apply_css` used to leave one trace: the Reset
+  count going from 0 to 1, indistinguishable from a seed drag. Now the
+  reskin script reads the agent's sheet back through a detached
+  `CSSStyleSheet`, counts its rules and the elements they reach (a selector
+  the page cannot query is counted, not guessed), and paints a dashed
+  outline on each; the bar wears an "Agent preview · N rules · M elements"
+  chip with its own ✕; Changes shows the same row above the queue, never in
+  it (a preview is not a decision, the dark rule again); the tool's reply
+  says what it reached; and a read-only `point` tool lets the agent scroll
+  to an element, light it up and show a note, the way a teammate points at
+  a screen. None of it bumps `revision`.
+- **Agent Instructions generation.** The agent could not fetch the system
+  the panel had extracted. `get_design_system` returns `brand.md`,
+  `tokens.css`, `tokens.json`, `SKILL.md` and `DESIGN_SYSTEM.md` — the same
+  files Export produces — with `scannedAt`, so an agent writes its own
+  `.claude/skills/<host>/` and refreshes it after a rescan.
+- **The breakpoint canvas's real point: missed overrides.** The variable
+  pass was a regex over sheet text where the first definition wins, so a
+  `--gap: 12px` inside `(max-width: 700px)` was dropped. A second pass over
+  the object model, modelled on the dark one, records `atWidth` per
+  condition where the value differs; Variables shows a `≤700` chip; the
+  brief adds "also defined at (max-width: 700px) as `12px`; left alone —
+  decide whether it should follow" under the token. A variable the page
+  defines only under a query is marked `onlyAt` rather than passed off as a
+  base value. The canvas itself stays declined: the live-page rule holds,
+  and this is the need it served.
+
+A second pass the same day closed the two items first recorded as
+optional. **Breakpoint sweep:** `get_screenshot` takes a `viewport` — one of
+the bar's presets, or `reset` — and a `set-viewport` inspector command that
+answers once the background has moved the window and set the zoom, then a
+short settle, then the capture; the agent reviews its change at every width
+without a canvas. **Token locks:** a lock on a page variable (kept with the
+per-site edits) takes it out of every override — seed, scale, hand value —
+in the preview and the brief, which ends with "Keep as is" naming them; the
+reskin script reports the custom properties an agent's sheet declares, so
+`apply_css` answers "the sheet redefines `--mark`, which the user locked"
+and the Changes row says "touches locked". Nothing is blocked: the preview
+stays up, the agent is told. And the agent's sheet now survives a reload the
+way the re-skin does, while the consent that let it on still holds.
+
+**W14. The second look at Webflow and Framer (M).** Done, 11 September
+2026, from their MCP and external-agent docs rather than the keynotes.
+Webflow captures "visual snapshots of elements", so `get_screenshot` takes
+a `selector`: a `locate` command scrolls the first match into view and
+answers with its box after a frame, and the panel crops the capture to it
+with a small margin. Webflow "provides a site's Agent Instructions to
+connected agents automatically", so the standing rules
+(`studio/commit.ts` `standingRules`) go out as the bridge's MCP
+instructions, as the `codename://rules` resource carrying the current
+page's locks, and the design files as `codename://design-system/{file}`;
+`list_sessions` names the locks too. Framer's `npx @framer/agent setup`
+installs skills locally and needs no server config, so `codename-bridge
+setup` writes the `codename` skill into `~/.claude/skills` and runs
+`claude mcp add`, or prints what to paste for Cursor; the Connect card's
+first step is now that one line. Webflow "records the changes that agents
+make in the site's activity log", so the panel keeps an agent activity
+list — every bridge request in a few words, refusals included — under the
+presence row on Changes; history, not changes. And Framer's agent audits
+"accessibility issues", so the scanner counts, on the walk it already
+makes, images with no alt attribute, heading levels that skip, controls
+under 24×24px (inline text links exempt) and `:focus { outline: none }`
+rules, and the critique states them with their totals. Declined on the
+record: splitting tools further (fifteen small ones already), agent
+branches (git), markdown-for-agents, the model picker, style props and
+slot restrictions.
+
+A review pass over W13 and W14 (eight angles, ten verified findings) then
+closed what it found: locks now also take the variable's own hex out of the
+colour map, so a locked token cannot be repainted by a hand colour edit or
+a seed move; the tab id reaches React only after its session has loaded,
+so one tab's agent preview is never re-pushed onto the next; `set-viewport`
+answers honestly when the window could not move; `locate` and `point`
+scroll instantly and read the box at once; a preview's reach is what applies
+now and never marks over its own outline; the design-system resources are
+listed only once a page has been read and refuse with a typed error before
+that; and the standing rules have one home in `studio/commit.ts`, imported
+by the bridge's instructions and by the installed skill. The bridge state
+memo now depends on the fields it reads, so an activity entry no longer
+re-renders the prompt and pushes an identical snapshot.
+
+**W15. The low-code survey (M).** Done, 11 September 2026, from nine tools
+rather than two keynotes. Chrome DevTools MCP is the finding that shapes the
+rest: an official server gives any agent screenshots, DOM snapshots,
+evaluation, emulation and Lighthouse for free, so generic browser control is
+no longer worth building here and the bridge's tools stay design-semantic.
+
+Three things were worth taking. **Component provenance** (stagewise's
+element context, Onlook's instrumentation): the panel asks the page's own
+world what rendered an element, through a probe injected with
+`world: 'MAIN'` (`probeSource` in `studio/framework.ts`) — React's dev-only
+`_debugOwner`, including the plain record a server component leaves there;
+Vue's owning instance from `__vnode.ctx`, with the file its compiler
+stamped on it; Angular's dev-mode global; and the attributes a Vite
+inspector plugin writes, which are the one source an isolated world can
+read for itself. The selection header names it, the brief carries it as
+"rendered by X, as React's dev build names it", and `get_selection` hands
+it over. The rule holds in the form that matters: nothing is inferred from
+class names, and a production build — where the names are minified — says
+nothing. **The token file** (Penpot's and Figma's native DTCG over MCP):
+`studio/tokenFile.ts` reads a DTCG file or a flat map of custom properties
+and reports drift as facts — variables that have drifted from their token,
+colours in no token, tokens nothing reaches — in the Variables tab and
+through a `check_tokens` MCP tool. Pairing looks both ways: a variable two
+tokens answer to is left alone, and so is a token two variables answer to.
+
+Builder Fusion's **Style Strict Mode** was built as a "tokens first" switch
+that rewrote a literal into `var(--x)`, and then removed. A review found
+four ways it silently wrote a wrong edit: a variable scoped to `.card` does
+not resolve elsewhere, so the property fell back to its initial value; a
+`16px` radius could take a font-size token's name, since every px-equal
+variable matched and the tie-break was alphabetical; a value scrubbed back
+to where it started no longer cancelled out; and the colour match used a
+perceptual tolerance, so a token could render a different colour than the
+one picked, or a stale one if the variable had since been edited. What
+survives is the half that was always safe — the brief remarking that a
+single variable already holds this exact value — which is advice to a
+reader rather than a rewrite behind their back.
+
+Declined on the record: writing to source from the panel (Onlook,
+stagewise, Fusion all do; the rule keeps writes with the agent), a
+developer browser (stagewise's Electron pivot), and generation from
+prompts, sketches or screenshots (Stitch, Subframe, v0). Not yet built,
+from the same survey: drag handles for spacing on the page (v0's Design
+Mode, Webflow's on-canvas spacing), and offering `DESIGN_SYSTEM.md` under
+the `DESIGN.md` name Stitch ships.
+
 ## Still to build
 
 In order.
@@ -343,11 +512,18 @@ In order.
    counts — `studio/critique.ts`, deterministic, numbers attached.
 
 ### Deferred, on purpose
-Ship Studio's breakpoint canvas needs an iframe canvas, which the live-page
-rule excludes; viewport presets on the bar are the answer instead. In-panel
-chat waits until the bridge has earned it. Firefox build and store listing
-are packaging, not product. Components stay as a strip of repeating
-selectors until a real grouping earns a section.
+Ship Studio's and Webflow's breakpoint canvas needs an iframe canvas, which
+the live-page rule excludes; viewport presets on the bar are the answer
+instead, and W13's `atWidth` reading covers the overrides it was for.
+In-panel chat (and Framer's model picker with it) waits until the bridge
+has earned it. Firefox build and store listing are packaging, not product.
+Components stay as a strip of repeating selectors until a real grouping
+earns a section.
+
+From the W13 pass, recorded rather than built: **named explorations**
+(Framer Branching, Webflow Releases) — saving override sets under a name per
+site and switching before handing one off, which git already answers for
+the primary use case.
 
 ## Known limits and open questions
 

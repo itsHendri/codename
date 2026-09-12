@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import {
+  applyAgentPreview,
   attachBar,
-  clearAgentPreview,
   ensureHostAccess,
   getActiveTab,
   isRestricted,
@@ -16,6 +16,7 @@ import {
   loadSession,
   setColorEdit,
   setConfig,
+  setLock,
   setMode,
   setPinned,
   setScan,
@@ -23,7 +24,7 @@ import {
   updateSession,
   useSession,
 } from './lib/session';
-import { useBridge, useBridgeSync } from './lib/bridge';
+import { dropAgentPreview, useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
@@ -77,14 +78,14 @@ export default function App() {
 
   // The session outlives whichever tab is showing: an edit made in Variables is
   // still there, and still painted on the page, after a detour through Layers.
-  const { scan, config, mode, live, varOverrides, colorEdits, darkVia } = session;
+  const { scan, config, mode, live, varOverrides, colorEdits, darkVia, locks } = session;
   // The engine mirrors its ramps only when the page has no dark mode of its
   // own; where it has one, that is what Dark shows, and the system stays light.
   const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
   const lookRef = useRef<BarLook>({ theme, mode, resettable: 0 });
-  const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits);
+  const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
   useBridgeSync(tabId, tabUrl, session, model);
@@ -107,8 +108,9 @@ export default function App() {
         activeChanges(session.log),
         pendingNotes(session.comments),
         model?.system ?? [],
+        locks,
       ),
-    [scanLike, model, session.log, session.comments],
+    [scanLike, model, session.log, session.comments, locks],
   );
   const pendingCount =
     changeSet.tokens.length +
@@ -130,7 +132,13 @@ export default function App() {
     model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' || session.agentPreview
       ? Math.max(1, overrideCount)
       : 0;
-  const look: BarLook = { theme, mode, resettable, darkVia };
+  const look: BarLook = {
+    theme,
+    mode,
+    resettable,
+    darkVia,
+    agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
+  };
   lookRef.current = look;
 
   /** Every override goes, and the preview with it; the page reads as itself. Notes are not overrides. */
@@ -142,10 +150,7 @@ export default function App() {
     resetSplit(LAYERS_SPLIT_KEY);
     if (tabIdRef.current != null) {
       // The agent's preview sheet is an override too, whoever painted it.
-      if (getSession().agentPreview) {
-        void clearAgentPreview(tabIdRef.current);
-        updateSession({ agentPreview: false });
-      }
+      if (getSession().agentPreview) void dropAgentPreview();
       // The viewport is the bar's to put back; the panel only asks.
       void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
     }
@@ -157,10 +162,13 @@ export default function App() {
     const tab = await getActiveTab();
     if (!tab?.id) return;
     tabIdRef.current = tab.id;
-    setTabId(tab.id);
-    setTabUrl(tab.url ?? '');
+    // The session lands before React learns the tab, so no effect keyed on
+    // the tab id runs against the previous tab's session (it used to re-push
+    // one tab's agent preview onto the next).
     // A stored session is kept only while the tab is still on that origin.
     await loadSession(tab.id, tab.url ?? '');
+    setTabId(tab.id);
+    setTabUrl(tab.url ?? '');
     setScanning(false);
     setScanError(null);
     setNeedsAccess(false);
@@ -219,6 +227,8 @@ export default function App() {
         else ctlRef.current.change(edit.property, edit.to);
       } else if (msg?.type === 'panel-focus') {
         setActive('layers');
+      } else if (msg?.type === 'agent-clear') {
+        void dropAgentPreview();
       } else if (msg?.type === 'reset-all') {
         resetAll();
       } else if (msg?.type === 'mode-changed') {
@@ -247,9 +257,23 @@ export default function App() {
   // The in-page bar appears as soon as the site is reachable: a scan means
   // access was granted. It goes when the panel does, through its port. It is
   // told again whenever the panel's palette or the mode switch changes.
+  // The agent's sheet is an override too: after a reload it goes back on the
+  // page like the re-skin does, while the consent that let it on still holds.
+  const agentCss = session.agentPreview?.css ?? null;
   useEffect(() => {
-    if (tabId != null && scan && !restricted) void attachBar(tabId, { theme, mode, resettable, darkVia });
-  }, [tabId, scan, restricted, theme, mode, resettable, darkVia]);
+    if (tabId == null || !agentCss) return;
+    if (!session.agentMayWrite) {
+      void dropAgentPreview();
+      return;
+    }
+    void applyAgentPreview(tabId, agentCss);
+    // Only a reload or a new tab re-pushes; the css itself was pushed by the bridge when it arrived.
+  }, [tabId, session.generation]);
+  const agentRules = session.agentPreview?.rules ?? null;
+  const agentMatched = session.agentPreview?.matched ?? null;
+  useEffect(() => {
+    if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
+  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched]);
 
   // Dark on the bar asks the page for its own dark mode first — its dark
   // media rules hoisted, its theme hook set — and only when it has none does
@@ -389,6 +413,8 @@ export default function App() {
             onResetAll={resetAll}
             onVar={setVarOverride}
             onColor={setColorEdit}
+            locks={locks}
+            onLock={setLock}
           />
         );
         break;

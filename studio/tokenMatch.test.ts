@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asReference, suggestTokens, toPx } from './tokenMatch';
+import { asReference, buildValueIndex, kindForProperty, suggestTokens, toPx, tokenHolding } from './tokenMatch';
 
 const scan = {
   rootFontSize: 16,
@@ -56,5 +56,55 @@ describe('suggestTokens', () => {
   it('converts rem with the page root size, not an assumed 16', () => {
     const s = suggestTokens('length', '30px', { ...scan, rootFontSize: 20 });
     expect(s.map((x) => x.name)).toEqual(['--space-6']);
+  });
+});
+
+describe('kindForProperty', () => {
+  it('knows which properties take which kind of token, and which take none', () => {
+    expect(kindForProperty('color')).toBe('color');
+    expect(kindForProperty('border-top-color')).toBe('color');
+    expect(kindForProperty('padding-left')).toBe('length');
+    expect(kindForProperty('font-size')).toBe('length');
+    expect(kindForProperty('box-shadow')).toBe('shadow');
+    expect(kindForProperty('font-family')).toBe('font');
+    // Nothing the page holds in a variable we can compare honestly.
+    expect(kindForProperty('display')).toBeNull();
+    expect(kindForProperty('text')).toBeNull();
+  });
+});
+
+describe('tokenHolding', () => {
+  const scan = {
+    customProps: [
+      { name: '--mark', value: '#BE3A22' },
+      { name: '--space-2', value: '16px' },
+    ],
+    rootFontSize: 16,
+  };
+  const index = buildValueIndex(scan);
+
+  it('names the one variable this page uses for the value, across units', () => {
+    expect(tokenHolding(index, 'color', '#BE3A22')).toBe('--mark');
+    expect(tokenHolding(index, 'padding-top', '1rem')).toBe('--space-2');
+  });
+
+  it('is exact, not perceptual: this is reported as a fact, not offered as a choice', () => {
+    expect(tokenHolding(index, 'color', '#BE3A25')).toBeNull();
+  });
+
+  it('says nothing when several variables hold the value, because the page has not said which', () => {
+    const many = buildValueIndex({
+      customProps: [
+        { name: '--radius-md', value: '16px' },
+        { name: '--space-4', value: '16px' },
+      ],
+      rootFontSize: 16,
+    });
+    expect(tokenHolding(many, 'border-radius', '16px')).toBeNull();
+  });
+
+  it('says nothing for a reference or a property with no comparable token', () => {
+    expect(tokenHolding(index, 'color', 'var(--mark)')).toBeNull();
+    expect(tokenHolding(index, 'display', 'flex')).toBeNull();
   });
 });

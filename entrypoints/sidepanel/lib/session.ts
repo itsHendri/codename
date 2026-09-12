@@ -11,9 +11,10 @@
  */
 
 import { useSyncExternalStore } from 'react';
-import type { PinnedElement, ScanResult } from '@/shared/types';
+import type { AgentPresence, PinnedElement, ScanResult } from '@/shared/types';
 import type { Comment, CommentStatus, SessionState } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
+import type { FileToken } from '@/studio/tokenFile';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
@@ -39,6 +40,10 @@ export interface TabSession {
   varOverrides: Record<string, string>;
   /** Observed colours set by hand: old hex (upper case) → new hex. */
   colorEdits: Record<string, string>;
+  /** Page variables to keep as they are, whatever else moves. Per site, like the edits. */
+  locks: string[];
+  /** A design token file to hold the page up against: its name and what was read out of it. */
+  tokenFile: { name: string; tokens: FileToken[] } | null;
   pinned: PinnedElement | null;
   /**
    * Moves on intent — a hand-off, a comment, a pin — never on a drag tick.
@@ -49,9 +54,15 @@ export interface TabSession {
   handoff: SessionState['handoff'];
   /** Whether the agent may paint on this page. Defaults on for localhost. */
   agentMayWrite: boolean;
-  /** Whether the agent's preview stylesheet is on the page right now. */
-  agentPreview: boolean;
+  /**
+   * The agent's preview stylesheet, while it is on the page: what it holds,
+   * what it reaches, since when — and the sheet itself, so a reload can put
+   * it back the way the re-skin is put back.
+   */
+  agentPreview: (AgentPresence & { at: string; css: string; declares: string[] }) | null;
   comments: Comment[];
+  /** What the agent did through the bridge, latest last: previews, pointers, captures, comment moves. */
+  agentLog: { at: string; what: string }[];
   /** Element edits, kept per page (url without hash). */
   log: ChangeLog;
   logUrl: string;
@@ -71,12 +82,15 @@ const EMPTY: TabSession = {
   activeTab: 'layers',
   varOverrides: {},
   colorEdits: {},
+  locks: [],
+  tokenFile: null,
   pinned: null,
   revision: 0,
   handoff: null,
   agentMayWrite: false,
-  agentPreview: false,
+  agentPreview: null,
   comments: [],
+  agentLog: [],
   log: emptyLog(),
   logUrl: '',
   generation: 0,
@@ -108,7 +122,11 @@ function schedulePersist() {
   persistTimer = setTimeout(() => {
     persistTimer = null;
     const { pinned: _pinned, generation: _generation, ...rest } = state;
-    void chrome.storage.session.set({ [key(id)]: rest satisfies Persisted });
+    // A quota overflow would otherwise be an unhandled rejection and the
+    // session would silently stop being kept.
+    void chrome.storage.session.set({ [key(id)]: rest satisfies Persisted }).catch((err) => {
+      console.warn('[codename] the session could not be kept:', err);
+    });
   }, 300);
 }
 
@@ -149,6 +167,10 @@ export async function loadSession(id: number, url: string): Promise<void> {
         ...EMPTY,
         agentMayWrite: isLocal(url),
         ...stored,
+        // A session stored before the preview was counted held a flag here.
+        agentPreview: typeof stored.agentPreview === 'object' ? stored.agentPreview : null,
+        agentLog: stored.agentLog ?? [],
+        locks: stored.locks ?? [],
         pinned: null,
         log: samePage ? (stored.log ?? emptyLog()) : emptyLog(),
         logUrl: pageKey(url),
@@ -221,17 +243,17 @@ const originOf = (url: string) => {
 export async function setScan(scan: ScanResult) {
   const edits = await loadEdits(originOf(scan.url)).catch(() => null);
   const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
-  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {} });
+  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {}, locks: edits?.locks ?? [] });
 }
 
 /** Everything decided against this site, as the store keeps it. */
 function currentEdits(): { origin: string; edits: BrandEdits } | null {
-  const { scan, config, varOverrides, colorEdits } = state;
+  const { scan, config, varOverrides, colorEdits, locks } = state;
   if (!scan) return null;
   const seeded = seedBrandFromScan(scan);
   return {
     origin: originOf(scan.url),
-    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits },
+    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits, locks },
   };
 }
 
@@ -268,6 +290,28 @@ export function setConfig(config: BrandConfig | null) {
 }
 
 /** Set one of the page's own variables by hand, or take that back with null. */
+const AGENT_LOG_MAX = 40;
+
+/** Note something the agent did, for the activity list; not a change, never in the brief. */
+export function logAgent(what: string) {
+  updateSession((s) => ({ agentLog: [...(s.agentLog ?? []), { at: new Date().toISOString(), what }].slice(-AGENT_LOG_MAX) }));
+}
+
+export function clearAgentLog() {
+  updateSession({ agentLog: [] });
+}
+
+/** Lock a page variable so nothing moves it, or let it go again. A locked variable's hand-set value is dropped. */
+export function setLock(name: string, locked: boolean) {
+  updateSession((s) => {
+    const locks = locked ? Array.from(new Set([...s.locks, name])) : s.locks.filter((n) => n !== name);
+    if (!locked) return { locks };
+    const { [name]: _dropped, ...varOverrides } = s.varOverrides;
+    return { locks, varOverrides };
+  });
+  scheduleSaveEdits();
+}
+
 export function setVarOverride(name: string, to: string | null) {
   updateSession((s) => {
     const next = { ...s.varOverrides };

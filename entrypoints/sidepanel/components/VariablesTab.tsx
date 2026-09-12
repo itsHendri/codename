@@ -7,13 +7,16 @@ import type { DesignModel } from '../lib/designModel';
 import type { ReskinResult } from '../lib/messaging';
 import { Section } from './design/Section';
 import { PageVariablesSection } from './design/PageVariablesSection';
+import { TokenFileSection } from './design/TokenFileSection';
+import { driftReport } from '@/studio/tokenFile';
+import { useSession } from '../lib/session';
 import { ObservedColoursSection } from './design/ObservedColoursSection';
 import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
 import { CritiqueSection } from './design/CritiqueSection';
 
-type SectionKey = 'vars' | 'colours' | 'palette' | 'type' | 'space' | 'critique';
+type SectionKey = 'vars' | 'colours' | 'palette' | 'type' | 'space' | 'critique' | 'tokenFile';
 
 /**
  * The variables this page runs on, editable.
@@ -42,6 +45,8 @@ export function VariablesTab({
   onResetAll,
   onVar,
   onColor,
+  locks,
+  onLock,
 }: {
   scan: ScanResult;
   model: DesignModel;
@@ -57,6 +62,8 @@ export function VariablesTab({
   onResetAll: () => void;
   onVar: (name: string, value: string | null) => void;
   onColor: (hex: string, value: string | null) => void;
+  locks: string[];
+  onLock: (name: string, locked: boolean) => void;
 }) {
   // All open. A collapsed section with a summary reads as a fact rather
   // than a door, which is exactly how the editable type ladder went unnoticed.
@@ -66,6 +73,15 @@ export function VariablesTab({
   const { brand, resolved, edited, dirty } = model;
   // Against the page as read, not as edited: the edit is your answer to it.
   const review = useMemo(() => critique(scan, model.seeded), [scan, model.seeded]);
+  // One reading, shown in the section and summarised on its header. A file
+  // can hold thousands of tokens, so it is compared only while the section
+  // is open rather than to fill in a line nobody has asked to see.
+  const { tokenFile } = useSession();
+  const wantDrift = tokenFile && open.has('tokenFile');
+  const drift = useMemo(
+    () => (wantDrift ? driftReport(scan, tokenFile.tokens, tokenFile.name) : null),
+    [wantDrift, scan, tokenFile],
+  );
 
   const toggle = (key: SectionKey) =>
     setOpen((prev) => {
@@ -181,7 +197,9 @@ export function VariablesTab({
             engine={model.paint.overrides}
             mode={mode}
             varOverrides={varOverrides}
+            locks={locks}
             onVar={onVar}
+            onLock={onLock}
           />
         </Section>
       )}
@@ -245,6 +263,15 @@ export function VariablesTab({
         onToggle={() => toggle('critique')}
       >
         <CritiqueSection critique={review} />
+      </Section>
+
+      <Section
+        title="Token file"
+        summary={tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'none loaded'}
+        open={open.has('tokenFile')}
+        onToggle={() => toggle('tokenFile')}
+      >
+        <TokenFileSection report={drift} />
       </Section>
     </div>
   );

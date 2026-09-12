@@ -26,9 +26,10 @@ import {
   undo as undoLog,
   type ChangeLog,
 } from '@/studio/changes';
-import { applyElementRules, sendInspector } from './messaging';
+import { applyElementRules, probeComponent, sendInspector } from './messaging';
 import {
   addComment as addCommentToSession,
+  getSession,
   removeComment as removeCommentFromSession,
   setCommentStatus as setStatusInSession,
   setPinned,
@@ -196,6 +197,24 @@ export function useInspect(
     });
   });
 
+  // What rendered the selection, from the page's own world. Keyed on the
+  // selector, so it runs once per selection rather than on every re-read;
+  // an element whose attributes already named it is not asked again.
+  const probed = useRef<string | null>(null);
+  useEffect(() => {
+    const selector = element?.selector;
+    if (tabId == null || !selector || element?.component) return;
+    if (probed.current === selector) return;
+    probed.current = selector;
+    void probeComponent(tabId, selector).then((component) => {
+      if (!component) return;
+      // The selection may have moved on while the page was answering.
+      const current = getSession().pinned;
+      if (current?.selector !== selector || current.component) return;
+      updateSession({ pinned: { ...current, component } });
+    });
+  }, [tabId, element?.selector, element?.component]);
+
   // Text is the one push that is not whole-state: an edit taken back has to
   // be restored to its original words, which only the log remembers.
   const sentText = useRef<Map<string, string>>(new Map());
@@ -249,6 +268,9 @@ export function useInspect(
           from: readValue(element, property),
           to,
           token,
+          // An edit widened to every match belongs to no one component, so
+          // the name of the one that was clicked would be a wrong fact.
+          ...(!wide && element.component ? { component: element.component } : {}),
         }),
       );
     },
@@ -266,6 +288,7 @@ export function useInspect(
           property: 'text',
           from: element.text ?? '',
           to: text,
+          ...(element.component ? { component: element.component } : {}),
         }),
       );
     },

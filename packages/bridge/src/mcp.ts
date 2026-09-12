@@ -4,10 +4,14 @@
  * ChangeSet, and none of them ever renders a stylesheet from one.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { standingRules } from '../../../studio/commit';
 import { z } from 'zod';
-import type { CommentStatus, ScreenshotResult } from '../../../shared/protocol';
+import { DESIGN_FILES, type CommentStatus, type DesignSystemResult, type ScreenshotResult } from '../../../shared/protocol';
+import { DEVICE_PRESETS } from '../../../shared/types';
+
+const VIEWPORTS = ['reset', ...DEVICE_PRESETS.map((p) => p.name)] as ['reset', ...string[]];
 import type { Sessions } from './sessions';
 
 export const MAX_WATCH_MS = 25_000;
@@ -33,6 +37,15 @@ const guard =
     }
   };
 
+/** The rules as the panel renders them with no locks; the resource carries the live version. */
+const STANDING_RULES = standingRules();
+
+const mimeOf = (file: string) => (file.endsWith('.md') ? 'text/markdown' : file.endsWith('.json') ? 'application/json' : 'text/css');
+
+const INSTRUCTIONS = `${STANDING_RULES}
+
+How to work: call \`watch\` in a loop; when it reports a hand-off, call \`get_changes\`, apply the brief to source, then \`clear\` the hand-off. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
+
 export interface McpOptions {
   /** The code the panel must be given to pair with this bridge. */
   pairingCode?: string;
@@ -43,8 +56,54 @@ export function createMcpServer(
   version: string,
   opts: McpOptions = {},
 ): { server: McpServer; tools: string[] } {
-  const server = new McpServer({ name: 'codename', version });
+  const server = new McpServer({ name: 'codename', version }, { instructions: INSTRUCTIONS });
   const tools: string[] = [];
+
+  // The rules reach the agent without a tool call: as the server's
+  // instructions above, and as resources a client can load into context.
+  server.registerResource(
+    'rules',
+    'codename://rules',
+    {
+      title: 'Codename rules',
+      description: 'The standing rules for applying a Codename brief, including any tokens the person locked on the current page.',
+      mimeType: 'text/markdown',
+    },
+    async (uri) => {
+      const current = sessions.current();
+      const text = current?.state?.rules || STANDING_RULES;
+      return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text }] };
+    },
+  );
+  server.registerResource(
+    'design-system',
+    new ResourceTemplate('codename://design-system/{file}', {
+      // Advertised only once a panel has read a page, so a client that reads
+      // everything it is shown at startup is not handed five errors.
+      list: async () => ({
+        resources: sessions.current()?.state?.scanSummary
+          ? DESIGN_FILES.map((file) => ({
+              uri: `codename://design-system/${file}`,
+              name: file,
+              mimeType: mimeOf(file),
+              description: 'The design system the panel read off the current page, as Export would write it.',
+            }))
+          : [],
+      }),
+    }),
+    { title: 'Design system files', description: 'brand.md, tokens.css, tokens.json, SKILL.md and DESIGN_SYSTEM.md for the current page.' },
+    async (uri, { file }) => {
+      const name = String(file) as (typeof DESIGN_FILES)[number];
+      if (!DESIGN_FILES.includes(name)) throw new McpError(ErrorCode.InvalidParams, `no such file: ${name}; one of ${DESIGN_FILES.join(', ')}`);
+      if (!sessions.current()?.state?.scanSummary) {
+        throw new McpError(ErrorCode.InvalidParams, 'no panel has read a page yet; open the Codename panel on a tab, pair it, and try again');
+      }
+      const result = (await sessions.sendRequest(undefined, { method: 'design_system', files: [name] })) as DesignSystemResult;
+      const found = result.files.find((f) => f.path === name);
+      if (!found) throw new McpError(ErrorCode.InvalidParams, `${name} is not available for this page yet`);
+      return { contents: [{ uri: uri.href, mimeType: mimeOf(name), text: found.content }] };
+    },
+  );
   const register: McpServer['registerTool'] = (name, config, cb) => {
     tools.push(name);
     return server.registerTool(name, config, cb);
@@ -130,17 +189,70 @@ export function createMcpServer(
   );
 
   register(
+    'check_tokens',
+    {
+      description:
+        "Hold the page up against a design token file from the repository — W3C DTCG JSON as Penpot, Figma and Tokens Studio export it, or a flat map of custom properties. Read the file yourself and pass its contents. Returns three kinds of fact: variables whose value has drifted from the token of the same name, colours the page paints that no token holds, and tokens nothing on this page reaches. The file is not automatically right; say which differences you are acting on and which you are leaving.",
+      inputSchema: {
+        session,
+        file: z
+          .string()
+          .max(2_000_000)
+          .describe('The token file\'s contents, as JSON text. Up to 2MB; a design token file is far smaller.'),
+        name: z.string().optional().describe('What to call it in the report, e.g. "design/tokens.json".'),
+      },
+    },
+    guard(async ({ session, file, name }) => {
+      const result = (await sessions.sendRequest(session, { method: 'check_tokens', file, name })) as { text: string };
+      return text(result.text);
+    }),
+  );
+
+  register(
+    'get_design_system',
+    {
+      description:
+        'The design system the panel read off the page, as files: brand.md (fonts, colours by usage, spacing, the page\'s own variables, and what a designer would flag), tokens.css, tokens.json (W3C DTCG), SKILL.md and DESIGN_SYSTEM.md. Write them into the repo as design context — for example `.claude/skills/<host>/SKILL.md` with DESIGN_SYSTEM.md beside it — and call again after the user rescans; `scannedAt` says when the page was read. Pass `files` to fetch only some.',
+      inputSchema: {
+        session,
+        files: z.array(z.enum(DESIGN_FILES)).optional().describe('Which files to return. Defaults to all of them.'),
+      },
+    },
+    guard(async ({ session, files }) => {
+      const result = (await sessions.sendRequest(session, { method: 'design_system', files })) as DesignSystemResult;
+      const when = new Date(result.scannedAt).toISOString();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Design system of ${result.url}, read ${when}. ${result.files.length} file(s): ${result.files.map((f) => f.path).join(', ')}.`,
+          },
+          ...result.files.map((f) => ({ type: 'text' as const, text: `=== ${f.path} — ${f.note} ===\n${f.content}` })),
+        ],
+      };
+    }),
+  );
+
+  register(
     'get_screenshot',
     {
-      description: 'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG.',
-      inputSchema: { session },
+      description:
+        'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG. Pass `selector` to scroll the first match into view and crop to its box, to check one component after a change. Pass `viewport` to move the window to one of the bar\'s presets first (the page is zoomed where the display is too small, so its CSS viewport still reads true) — call once per width to review a change at every breakpoint — and `reset` to put the window back when you are done.',
+      inputSchema: {
+        session,
+        selector: z.string().optional().describe('A CSS selector; the capture is cropped to the first match.'),
+        viewport: z.enum(VIEWPORTS).optional().describe(`One of ${DEVICE_PRESETS.map((p) => `${p.name} (${p.width}×${p.height})`).join(', ')}, or reset.`),
+      },
     },
-    guard(async ({ session }) => {
-      const shot = (await sessions.sendRequest(session, { method: 'screenshot' })) as ScreenshotResult;
+    guard(async ({ session, viewport, selector }) => {
+      const shot = (await sessions.sendRequest(session, { method: 'screenshot', viewport, selector }, 20_000)) as ScreenshotResult;
       return {
         content: [
           { type: 'image', data: shot.png, mimeType: 'image/png' },
-          { type: 'text', text: `${shot.width}x${shot.height} px` },
+          {
+            type: 'text',
+            text: `${shot.width}x${shot.height} px${shot.selector ? `, cropped to ${shot.selector} (${shot.matches ?? 1} ${shot.matches === 1 ? 'match' : 'matches'}, first shown)` : ''}`,
+          },
         ],
       };
     }),
@@ -156,8 +268,22 @@ export function createMcpServer(
     guard(async ({ css, session }) => {
       const state = sessions.getState(session);
       if (!state.agentMayWrite) return fail('the user has not allowed the agent to change this page; ask them to enable it in the panel menu');
-      await sessions.sendRequest(session, { method: 'apply_css', css });
-      return text('applied');
+      const r = (await sessions.sendRequest(session, { method: 'apply_css', css })) as {
+        rules?: number;
+        matched?: number;
+        unreadable?: number;
+        touchesLocked?: string[];
+      };
+      const rules = r?.rules ?? 0;
+      const matched = r?.matched ?? 0;
+      const unreadable = r?.unreadable ?? 0;
+      const locked = r?.touchesLocked ?? [];
+      return text(
+        `applied: ${rules} ${rules === 1 ? 'rule' : 'rules'} reaching ${matched} ${matched === 1 ? 'element' : 'elements'}` +
+          (unreadable ? `; ${unreadable} selector(s) the page could not read` : '') +
+          '. The user sees a chip on the bar and a dashed outline on each of them until you call clear.' +
+          (locked.length ? ` Note: the sheet redefines ${locked.join(', ')}, which the user locked (keep as is) — the preview stays up, but do not change ${locked.length === 1 ? 'that definition' : 'those definitions'} in source.` : ''),
+      );
     }),
   );
 
@@ -176,12 +302,30 @@ export function createMcpServer(
   register(
     'get_selection',
     {
-      description: 'The element the user has pinned in the panel: a selector (with how many elements it matches), tag, text, bounding box and a few computed styles.',
+      description:
+        "The element the user has pinned in the panel: a selector (with how many elements it matches), tag, text, bounding box and a few computed styles. `component` is present when the page's own dev build names what rendered it (React, Vue, Angular, or a build plugin's attribute) — that is the file to open; it is absent on a production build and never guessed from markup.",
       inputSchema: { session },
     },
     guard(({ session }) => {
       const state = sessions.getState(session);
       return state.selection ? json(state.selection) : text('nothing is selected');
+    }),
+  );
+
+  register(
+    'point',
+    {
+      description:
+        'Point at an element the way a teammate would: the page scrolls to it, outlines it for a moment, and shows your note on the bar. Read-only and needs no consent; use it to say "look here" before or after a change. Returns how many elements the selector matched.',
+      inputSchema: {
+        selector: z.string().describe('A CSS selector; the first match is pointed at.'),
+        note: z.string().max(200).optional().describe('A few words, shown beside the pointer.'),
+        session,
+      },
+    },
+    guard(async ({ selector, note, session }) => {
+      const r = (await sessions.sendRequest(session, { method: 'point', selector, note })) as { matched: number };
+      return text(r.matched ? `pointing at ${selector} (${r.matched} ${r.matched === 1 ? 'match' : 'matches'})` : `nothing on the page matches ${selector}; the user was told`);
     }),
   );
 

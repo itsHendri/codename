@@ -112,5 +112,84 @@ export function suggestTokens(
   );
 }
 
+/**
+ * Which kind of token a CSS property takes, or null where the page holds
+ * nothing comparable. One map, so the panel, the edit funnel and the brief
+ * all agree about what `padding-top` is.
+ */
+export function kindForProperty(property: string): MatchKind | null {
+  const p = property.trim().toLowerCase();
+  if (p === 'font-family') return 'font';
+  if (p === 'box-shadow') return 'shadow';
+  if (p === 'color' || p === 'background' || p === 'fill' || p === 'stroke' || p.endsWith('-color')) return 'color';
+  if (
+    /^(padding|margin|gap|row-gap|column-gap|width|height|min-width|min-height|max-width|max-height|top|right|bottom|left|font-size|line-height|letter-spacing|border-radius|border-width)/.test(p)
+  ) {
+    return 'length';
+  }
+  return null;
+}
+
+/**
+ * The page's variables indexed by the value they hold, so asking "does this
+ * page already have a name for this?" is a lookup rather than a scan. Built
+ * once per reading of the page; the suggestion chips still use
+ * `suggestTokens`, which answers a different question — what is *near* — and
+ * is worth the search because a person is reading the answer.
+ */
+export type ValueIndex = Map<string, string[]>;
+
+/** The key a value is filed under: colours by hex, lengths by px, the rest by their text. */
+function valueKey(kind: MatchKind, value: string, rootFontSize: number): string | null {
+  if (kind === 'color') {
+    const hex = hexOf(value);
+    return hex ? `c:${hex.toUpperCase()}` : null;
+  }
+  if (kind === 'length') {
+    const px = toPx(value, rootFontSize);
+    return px === null ? null : `l:${px}`;
+  }
+  return `s:${normalise(value)}`;
+}
+
+export function buildValueIndex(scan: Pick<ScanResult, 'customProps' | 'rootFontSize'>): ValueIndex {
+  const rootFontSize = scan.rootFontSize ?? 16;
+  const index: ValueIndex = new Map();
+  for (const prop of scan.customProps) {
+    for (const kind of ['color', 'length', 'other'] as const) {
+      const key = valueKey(kind as MatchKind, prop.value, rootFontSize);
+      if (!key) continue;
+      const names = index.get(key);
+      if (names) names.push(prop.name);
+      else index.set(key, [prop.name]);
+    }
+  }
+  return index;
+}
+
+/**
+ * The one variable this page already uses for this exact value, or null.
+ *
+ * Exact means exact here — the same hex, the same length — not the
+ * perceptual tolerance the chips use, because this answer is reported as a
+ * fact rather than offered as a choice. And it answers only when a single
+ * variable holds the value: where three do, the page has not said which one
+ * means this, and naming one of them would be a guess.
+ */
+export function tokenHolding(
+  index: ValueIndex,
+  property: string,
+  value: string,
+  rootFontSize = 16,
+): string | null {
+  if (!value || value.includes('var(')) return null;
+  const kind = kindForProperty(property);
+  if (!kind) return null;
+  const key = valueKey(kind, value, rootFontSize);
+  if (!key) return null;
+  const names = index.get(key);
+  return names?.length === 1 ? names[0]! : null;
+}
+
 /** The CSS a chosen suggestion writes: a reference, not the value. */
 export const asReference = (s: TokenSuggestion): string => (s.source === 'page' ? `var(${s.name})` : s.value);

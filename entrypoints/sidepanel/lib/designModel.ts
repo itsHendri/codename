@@ -9,15 +9,7 @@ import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ResolvedTokens } from '@/studio/engine/types';
 import { resolveTokens } from '@/studio/engine/resolve';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
-import {
-  buildColorMap,
-  buildLengthMap,
-  buildLengthReskin,
-  buildReskin,
-  manualOverrides,
-  mergeOverrides,
-  type Override,
-} from '@/studio/reskin';
+import { buildColorMap, buildLengthMap, buildLengthReskin, buildReskin, hexOf, manualOverrides, mergeOverrides, type Override } from '@/studio/reskin';
 import { isLengthMapEmpty, type LengthMap } from '@/studio/reskinRules';
 import { diffSystem, type SystemChange } from '@/studio/systemDiff';
 import { applyReskin, type ReskinResult } from './messaging';
@@ -59,6 +51,7 @@ export function useDesignModel(
   mode: Mode,
   varOverrides: Record<string, string>,
   colorEdits: Record<string, string>,
+  locks: string[] = [],
 ): DesignModel | null {
   // The reading of the page changes only when the page is read again; a
   // colour picker firing per frame must not re-derive it, or resolve the
@@ -77,18 +70,30 @@ export function useDesignModel(
     const edited = config !== null;
     const manual = manualOverrides(varOverrides, scan.customProps);
     const colours = prune(colorEdits);
+    // A locked variable is one the person said to keep: no seed, scale or
+    // hand value moves it, in the preview or in the brief — and neither does
+    // a colour rewrite, since the rule that defines it holds its hex.
+    const locked = new Set(locks);
+    const unlocked = (list: Override[]) => (locked.size ? list.filter((o) => !locked.has(o.name)) : list);
+    const lockedHex = new Set(
+      scan.customProps.filter((p) => locked.has(p.name)).map((p) => hexOf(p.value)?.toUpperCase()).filter((h): h is string => !!h),
+    );
+    const withoutLocked = (map: Record<string, string>) =>
+      lockedHex.size ? Object.fromEntries(Object.entries(map).filter(([from]) => !lockedHex.has(from.toUpperCase()))) : map;
 
     const paintFor = (target: Mode, withSystem: boolean): Paint => ({
-      overrides: mergeOverrides(
-        withSystem
-          ? [
-              ...buildReskin(scan.customProps, baseline, resolved, target),
-              ...buildLengthReskin(scan.customProps, baseline, resolved, scan.rootFontSize),
-            ]
-          : [],
-        manual,
+      overrides: unlocked(
+        mergeOverrides(
+          withSystem
+            ? [
+                ...buildReskin(scan.customProps, baseline, resolved, target),
+                ...buildLengthReskin(scan.customProps, baseline, resolved, scan.rootFontSize),
+              ]
+            : [],
+          manual,
+        ),
       ),
-      colorMap: { ...(withSystem ? buildColorMap(scan.colors, baseline, resolved, target) : {}), ...colours },
+      colorMap: withoutLocked({ ...(withSystem ? buildColorMap(scan.colors, baseline, resolved, target) : {}), ...colours }),
     });
 
     // In dark the engine has something to paint even before any edit.
@@ -107,7 +112,7 @@ export function useDesignModel(
       lengthMap: isLengthMapEmpty(lengthMap) ? null : lengthMap,
       system: edited ? diffSystem(seeded, brand) : [],
     };
-  }, [scan, seed, config, mode, varOverrides, colorEdits]);
+  }, [scan, seed, config, mode, varOverrides, colorEdits, locks]);
 }
 
 /**

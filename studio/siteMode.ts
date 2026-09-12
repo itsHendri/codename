@@ -63,3 +63,35 @@ export function hookFromSelector(selector: string): DarkHook | null {
 }
 
 export const hookKey = (h: DarkHook): string => (h.kind === 'class' ? `.${h.name}` : `[${h.name}="${h.value}"]`);
+
+/* ---------------- breakpoints ---------------- */
+
+const WIDTH_FEATURE = /\(\s*(max|min)-width\s*:\s*([^)]+?)\s*\)/gi;
+const WIDTH_RANGE = /\(\s*(?:([\d.]+\w*)\s*([<>]=?)\s*)?width(?:\s*([<>]=?)\s*([\d.]+\w*))?\s*\)/gi;
+
+/**
+ * The width a media condition scopes to, written one way, or null when it
+ * has none. `screen and (max-width: 700px)` is `(max-width: 700px)`; the
+ * range form `(width <= 700px)` reads the same. A dark query is not a
+ * breakpoint even when it carries one: that value belongs to the dark
+ * reading, and reporting it here too would say a variable changes at a
+ * width when it changes with the scheme.
+ */
+export function widthOfMedia(condition: string): string | null {
+  if (DARK_MEDIA.test(condition) || LIGHT_MEDIA.test(condition)) return null;
+  const parts: string[] = [];
+  for (const m of condition.matchAll(WIDTH_FEATURE)) parts.push(`(${m[1]!.toLowerCase()}-width: ${m[2]!.trim()})`);
+  for (const m of condition.matchAll(WIDTH_RANGE)) {
+    const [, lo, loOp, hiOp, hi] = m;
+    if (lo && loOp) parts.push(`(${loOp.startsWith('<') ? 'min' : 'max'}-width: ${lo})`);
+    if (hi && hiOp) parts.push(`(${hiOp.startsWith('<') ? 'max' : 'min'}-width: ${hi})`);
+  }
+  return parts.length ? parts.join(' and ') : null;
+}
+
+/** `(max-width: 700px)` as a chip reads `≤700`; anything else keeps its words. */
+export function widthLabel(query: string): string {
+  const m = /^\((max|min)-width:\s*([\d.]+)(px)?\)$/.exec(query);
+  if (m) return `${m[1] === 'max' ? '≤' : '≥'}${m[2]}`;
+  return query;
+}

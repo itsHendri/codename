@@ -59,7 +59,18 @@ if (!connected) {
 await call('get_changes');
 await call('get_selection');
 await call('critique');
+await call('get_design_system', { files: ['brand.md'] });
+{
+  const resources = await client.listResources();
+  console.log('resources:', resources.resources.map((r) => r.uri).join(', '));
+  const rules = await client.readResource({ uri: 'codename://rules' });
+  console.log(`\n> codename://rules\n${rules.contents[0]?.text?.slice(0, 400)}`);
+}
 await call('get_screenshot');
+await call('get_screenshot', { selector: 'h1' });
+await call('get_screenshot', { viewport: 'Mobile S' });
+await call('get_screenshot', { viewport: 'reset' });
+await call('point', { selector: 'h1', note: 'Starting with the heading' });
 await call('apply_css', { css: 'body { outline: 4px solid #59a6ff !important }' });
 await call('clear', { what: 'preview' });
 console.log('\nwatching for a hand-off (press "Send to agent" in the panel)…');

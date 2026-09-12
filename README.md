@@ -23,7 +23,17 @@ Layers · Variables · Assets · Export · Changes.
   about the markup: where it was, where to put it. Undoable like any edit. It is the
   answer to selecting something with
   no distinctive selector, which is most of a real page. Below it, the
-  selection, and what you can change about it. Colour and
+  selection, and what you can change about it. Where the page is a dev build
+  that still knows, the header names the component that rendered the element.
+  A content script cannot see this — a framework's bookkeeping lives on the
+  page's own objects, which an isolated world does not share — so the panel
+  asks the page itself and reads back a name: React's dev-only record of
+  which component rendered what, Vue's owning instance and the file its
+  compiler stamped on it, Angular's dev-mode global, or the attribute a Vite
+  inspector plugin wrote. A production build has none of that and says
+  nothing, which is right: its names are minified, and a minified name
+  presented as a fact is worse than silence. The brief carries whatever came
+  back, so the agent knows which file to open. Colour and
   type are open at the top, because that is what you came for; spacing,
   layout (display, flex direction, justify, align, wrap), size, radius,
   border, effects (opacity, shadow) and text collapse behind a one-line
@@ -36,9 +46,15 @@ Layers · Variables · Assets · Export · Changes.
   while **Preview on page** is on.
   - **Page variables** — the custom properties the page's own stylesheets
     define, under the names it gave them (`--ink`, `--paper`, `--mark`),
-    grouped by what they hold, with how many declarations use each. Type a
+    grouped by what they hold, with how many declarations use each. A
+    variable the page defines again under a width media query wears a chip
+    (`≤700`) with that value; the edit leaves it alone and the brief says so,
+    so the agent decides whether the breakpoint should follow. Type a
     value and the page repaints; the brief gets one line: the name, what it
-    was, what it should be.
+    was, what it should be. **Lock** a variable and nothing moves it — no
+    seed, no scale, no hand value — the brief ends with "Keep as is" naming
+    it, and an agent preview that redefines it is called out rather than
+    blocked.
   - **Colours on the page** — every colour it paints with, named or not, with
     where it is used and how often. On a page with no variables this is the
     handle: setting one rewrites the rules that hold the literal.
@@ -56,9 +72,20 @@ Layers · Variables · Assets · Export · Changes.
     from the page, with off-grid strays named rather than rounded in. Moving
     the grid rescales the steps the page uses rather than inventing a ladder,
     and rewrites the paddings, margins and gaps that sit on those steps.
+  - **Token file** — hold the page up against a design token file: W3C DTCG
+    JSON as Penpot, Figma and Tokens Studio export it, or a plain map of
+    custom properties. Three kinds of fact come back — variables whose value
+    has drifted from the token of the same name, colours the page paints that
+    no token holds, and tokens nothing on this page reaches. The file is not
+    automatically right, so nothing here offers to make the page match it.
+    Your agent asks for the same comparison with `check_tokens`.
   - **Critique** — what a designer would flag on the page, from what the
     scan measured: contrast under AA with element counts, off-grid spacing,
-    near-duplicate colours, type strays. The same list the agent gets.
+    near-duplicate colours, type strays; and what a screen reader or a
+    keyboard would meet: images with no alt attribute, heading levels that
+    skip, controls under 24×24px (inline text links exempt), rules that
+    remove the focus outline. Counts with their totals, never a fix. The
+    same list the agent gets.
   The **Light / Dark** switch on the bar shows the page's own dark mode where
   it has one — its `prefers-color-scheme: dark` rules are re-emitted without
   the media query and the theme hook its stylesheet uses (`html.dark`,
@@ -139,7 +166,15 @@ which is an instruction the agent can act on in source.
 Three steps, which the Changes tab walks you through until you are paired
 (**Connect agent** in the footer takes you there):
 
-1. Register the bridge with your agent, once:
+1. Register the bridge with your agent, once. The short way installs the
+   `codename` skill into `~/.claude/skills` and registers the bridge with
+   Claude Code in one go (`--client cursor` prints what to paste instead):
+
+   ```sh
+   npx codename-bridge setup
+   ```
+
+   The long way, by hand:
 
    ```sh
    claude mcp add codename -- npx codename-bridge
@@ -167,11 +202,39 @@ output for your agent, a WebSocket on `127.0.0.1` for the panel.
 The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
 spacing, near-duplicate colours, type strays — as facts with numbers),
+`get_design_system` (the extracted system as files — `brand.md`,
+`tokens.css`, `tokens.json`, `SKILL.md`, `DESIGN_SYSTEM.md` — so it can write
+its own design context into your repository and refresh it after a rescan),
 `get_selection`, `get_comments` with `set_status` and `reply`,
-`get_screenshot`, and — once you tick *Agent may change this page* —
-`apply_css` to paint a preview on the tab. Nothing is written to source
-through the bridge; that stays the agent's job in your repository, under
-your review. See `PRIVACY.md`.
+`check_tokens` (the page against a token file the agent read from your
+repository), `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
+the window moves first, so the agent can review a change at every width; with
+a `selector`, the capture is cropped to that element),
+`point` (it names an element and a few words; the page
+scrolls there, lights it up for a moment and shows the note on the bar), and
+— once you tick *Agent may change this page* — `apply_css` to paint a preview
+on the tab. While that preview is up you can see it: the bar wears an **Agent
+preview · N rules · M elements** chip with its own ✕, every element its rules
+reach carries a dashed outline, and the Changes tab shows the same row above
+the queue — never in it, since a preview is not a decision. Nothing is
+written to source through the bridge; that stays the agent's job in your
+repository, under your review. See `PRIVACY.md`.
+
+When an element edit writes a literal and exactly one of the page's own
+variables already holds that value, the brief says so and leaves the choice
+with you. It stays a remark rather than a rewrite: a variable declared on
+`.card` does not resolve on a `<section>`, and three variables holding `16px`
+do not agree about what `16px` means, so the panel never swaps one in behind
+your back.
+
+The rules reach the agent before it asks: the bridge sends them as its MCP
+instructions, serves them as the `codename://rules` resource (with the tokens
+you locked on the current page), and serves the design files as
+`codename://design-system/brand.md` and friends, so a client that loads
+resources has the context without a tool call. Everything the agent does
+through the bridge — previews, pointers, captures, comment moves — is listed
+under **Agent activity** on the Changes tab; history, not changes, so Reset
+leaves it alone.
 
 ## The rule the extraction obeys
 

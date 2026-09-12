@@ -12,5 +12,7 @@ export const makeState = (sessionId: string, revision: number, patch: Partial<Se
   selection: null,
   comments: [],
   agentMayWrite: false,
+  locks: [],
+  rules: '',
   ...patch,
 });

@@ -72,7 +72,23 @@ const ELEMENTS_ID = 'codename-elements';
  * in daylight. The site's dark mode, shown without the debugger permission.
  */
 const SITE_DARK_ID = 'codename-site-dark';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID]);
+/**
+ * Where the agent's preview lands: a dashed outline on every element its
+ * rules reach, so what it is doing is visible the way a teammate's cursor
+ * is. Comes and goes with the preview.
+ */
+const MARKS_ID = 'codename-agent-marks';
+const MARK_COLOUR = '#6bb5ff';
+const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID, MARKS_ID]);
+
+/** The agent's sheet, counted: rules, the elements they reach, selectors that could not be read. */
+interface PreviewInfo {
+  rules: number;
+  matched: number;
+  unreadable: number;
+  /** Custom properties the sheet sets, so the panel can say when one is locked. */
+  declares: string[];
+}
 /** A pathological page shouldn't hang the panel; stop well before that. */
 const MAX_RULES = 20000;
 
@@ -85,6 +101,7 @@ export default defineContentScript({
     const root = document.documentElement;
     let sheet: HTMLStyleElement | null = null;
     let preview: HTMLStyleElement | null = null;
+    let marks: HTMLStyleElement | null = null;
     let elements: HTMLStyleElement | null = null;
     let siteDark: HTMLStyleElement | null = null;
     let appliedHooks: DarkHook[] = [];
@@ -420,20 +437,77 @@ export default defineContentScript({
       document.head.appendChild(elements);
     };
 
-    const setPreview = (css: string) => {
+    const setPreview = (css: string): PreviewInfo => {
       preview?.remove();
       preview = null;
-      if (!css.trim()) return;
+      marks?.remove();
+      marks = null;
+      const info: PreviewInfo = { rules: 0, matched: 0, unreadable: 0, declares: [] };
+      if (!css.trim()) return info;
       preview = document.createElement('style');
       preview.id = PREVIEW_ID;
       preview.textContent = css;
       document.head.appendChild(preview);
+      // Read the sheet back to say what it reaches. A selector the page cannot
+      // query is counted as unreadable rather than guessed at.
+      const reached = new Set<Element>();
+      const selectors: string[] = [];
+      // Reach is what applies now: a rule under a media or supports condition
+      // the page does not meet at this moment is counted as a rule but reaches
+      // nothing and is not marked. A rule that sets its own outline is not
+      // marked either, or the mark would paint over the very thing it proposes.
+      const walk = (rules: CSSRuleList, applies: boolean) => {
+        for (const rule of Array.from(rules)) {
+          if (rule instanceof CSSMediaRule) {
+            walk(rule.cssRules, applies && matchMedia(rule.conditionText).matches);
+            continue;
+          }
+          if (rule instanceof CSSSupportsRule) {
+            walk(rule.cssRules, applies && CSS.supports(rule.conditionText));
+            continue;
+          }
+          if (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) {
+            walk(rule.cssRules, applies);
+            continue;
+          }
+          if (!(rule instanceof CSSStyleRule)) continue;
+          info.rules++;
+          let ownOutline = false;
+          for (const prop of Array.from(rule.style)) {
+            if (prop.startsWith('--') && !info.declares.includes(prop)) info.declares.push(prop);
+            if (prop === 'outline' || prop.startsWith('outline-')) ownOutline = true;
+          }
+          if (!applies) continue;
+          try {
+            const els = document.querySelectorAll(rule.selectorText);
+            els.forEach((el) => reached.add(el));
+            if (!ownOutline && !selectors.includes(rule.selectorText)) selectors.push(rule.selectorText);
+          } catch {
+            info.unreadable++;
+          }
+        }
+      };
+      try {
+        const parsed = new CSSStyleSheet();
+        parsed.replaceSync(css);
+        walk(parsed.cssRules, true);
+      } catch {
+        info.unreadable++;
+      }
+      info.matched = reached.size;
+      if (selectors.length) {
+        marks = document.createElement('style');
+        marks.id = MARKS_ID;
+        marks.textContent = `${selectors.join(',\n')}{outline:1.5px dashed ${MARK_COLOUR} !important;outline-offset:2px !important}`;
+        document.head.appendChild(marks);
+      }
+      return info;
     };
 
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[]; error?: string }) => void,
+      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[]; preview?: PreviewInfo; error?: string }) => void,
     ) => {
       // A branch that throws must still answer, or the panel reads silence
       // as "not injected", re-injects, and gets silence again.
@@ -456,8 +530,8 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'reskin-preview') {
-        setPreview(msg.css ?? '');
-        sendResponse({ ok: true, vars: applied.size, rules: preview ? 1 : 0 });
+        const agent = setPreview(msg.css ?? '');
+        sendResponse({ ok: true, vars: applied.size, rules: agent.rules, preview: agent });
         return true;
       }
       if (msg?.type === 'reskin-preview-clear') {

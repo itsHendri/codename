@@ -9,12 +9,13 @@
  * which are meant to be clicked.
  */
 
-import type { ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
+import type { AgentPresence, ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
 import { viewportLabel } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
 import { paddingShorthand } from '@/studio/boxModel';
+import { componentOf } from '@/studio/framework';
 import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
@@ -133,7 +134,10 @@ function readProps(el: Element): ElementProps {
   for (let node: Element | null = el; node && node !== document.documentElement; node = node.parentElement) {
     breadcrumb.unshift({ tag: node.tagName.toLowerCase(), selector: buildSelector(node).selector });
   }
+  // What rendered it, if the dev build still knows. A built site answers nothing.
+  const component = componentOf(el);
   return {
+    ...(component ? { component } : {}),
     selector: sel.selector,
     matches: sel.matches,
     stable: sel.stable,
@@ -264,6 +268,17 @@ function buildLayers(): LayerNode[] {
   return out;
 }
 
+/** The first match and how many there are; a selector the page cannot parse is no match. */
+function findAll(selector: string | undefined): { first: Element | null; matches: number } {
+  if (!selector) return { first: null, matches: 0 };
+  try {
+    const all = document.querySelectorAll(selector);
+    return { first: all[0] ?? null, matches: all.length };
+  } catch {
+    return { first: null, matches: 0 };
+  }
+}
+
 function find(selector: string | undefined): Element | null {
   if (!selector) return null;
   try {
@@ -328,6 +343,11 @@ function activate() {
       .bar .reset { cursor: pointer; padding: 3px 9px; border-radius: 4px; border: 1px solid ${d.accent}; color: ${d.accent}; background: transparent; font: inherit; font-weight: 600; white-space: nowrap; }
       .bar .reset:hover { background: ${d.accentWash}; }
       .bar .reset span { margin-left: 5px; font-weight: 500; color: ${d.cardMuted}; }
+      .bar .agent { display: flex; align-items: center; gap: 6px; padding: 3px 5px 3px 9px; border-radius: 4px; border: 1px dashed ${d.accent}; color: ${d.cardInk}; background: transparent; font: inherit; white-space: nowrap; cursor: default; }
+      .bar .agent i { width: 7px; height: 7px; border-radius: 50%; background: ${d.accent}; }
+      .bar .agent span { color: ${d.cardMuted}; font-weight: 500; }
+      .bar .agent button { border: 0; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; padding: 0 3px; }
+      .bar .agent button:hover { color: ${d.cardInk}; }
       .bar .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 150px; padding: 4px; background: ${d.cardBg}; border: 1px solid ${d.cardLine}; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; }
       .bar .menu button { text-align: left; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; display: flex; gap: 8px; }
       .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
@@ -382,7 +402,8 @@ function activate() {
       <span class="host"></span>
       <button class="size" title="Viewport presets"></button>
       <span class="spacer"></span>
-      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
+      <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits, the agent's preview — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
+      <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page">✕</button></div>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
@@ -432,6 +453,7 @@ function activate() {
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
+  const barAgent = bar.querySelector<HTMLElement>('.agent')!;
   const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
@@ -464,6 +486,8 @@ function activate() {
   };
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
+  /** What the connected agent is previewing, for the chip; null when nothing. */
+  let agent: AgentPresence | null = null;
   /** How the dark preview is being shown, as the panel last said. */
   let darkVia: 'site' | 'mirror' | null = null;
   /** The page's zoom, as the background last reported it. 1 until asked. */
@@ -1239,6 +1263,10 @@ function activate() {
     // A resized or zoomed viewport is an override too, and only the bar knows about it.
     barReset.classList.toggle('hidden', resettable === 0 && !canReset);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
+    barAgent.classList.toggle('hidden', !agent);
+    if (agent) {
+      barAgent.querySelector('span')!.textContent = `· ${agent.rules} ${agent.rules === 1 ? 'rule' : 'rules'} · ${agent.matched} ${agent.matched === 1 ? 'element' : 'elements'}`;
+    }
   };
 
   /** The zoom lives in the browser, not the page; ask before trusting the label. */
@@ -1267,6 +1295,7 @@ function activate() {
    * nobody can explain.
    */
   let hintTimer = 0;
+  let pointTimer = 0;
   const showHint = (html: string | null) => {
     window.clearTimeout(hintTimer);
     if (!html) {
@@ -1305,8 +1334,14 @@ function activate() {
       inner: { width: innerWidth, height: innerHeight },
       outer: { width: outerWidth, height: outerHeight },
     });
-    if (!r) return showHint('The panel could not reach the browser to resize the window.');
-    if (!r.ok) return showHint(`<b>${p.name}</b> — ${escapeHtml(r.error ?? 'the window could not be resized')}`);
+    if (!r) {
+      showHint('The panel could not reach the browser to resize the window.');
+      return false;
+    }
+    if (!r.ok) {
+      showHint(`<b>${p.name}</b> — ${escapeHtml(r.error ?? 'the window could not be resized')}`);
+      return false;
+    }
     zoom = r.zoom ?? 1;
     canReset = !!r.canReset;
     renderBar();
@@ -1315,15 +1350,20 @@ function activate() {
         ? `<b>${p.name}</b> — the window is now ${p.width} × ${p.height}.`
         : `<b>${p.name}</b> — the display is too small for ${p.width}px beside the panel, so the page is zoomed to ${Math.round(zoom * 100)}%. Its CSS viewport is ${r.viewport?.width ?? p.width} wide, so breakpoints read true.`,
     );
+    return true;
   };
 
   const resetViewport = async (quiet = false) => {
     const r = await ask<ResizeReply>({ type: 'reset-viewport' });
-    if (!r?.ok) return showHint(`Reset — ${escapeHtml(r?.error ?? 'the window could not be put back')}`);
+    if (!r?.ok) {
+      showHint(`Reset — ${escapeHtml(r?.error ?? 'the window could not be put back')}`);
+      return false;
+    }
     zoom = r.zoom ?? 1;
     canReset = false;
     renderBar();
     if (!quiet) showHint('<b>Reset</b> — the window and zoom are back where they were.');
+    return true;
   };
 
   const openMenu = () => {
@@ -1399,9 +1439,15 @@ function activate() {
     send({ type: 'mode-changed', mode });
     showHint(mode === 'dark' ? '<b>Dark</b> — looking for the page\'s own dark mode…' : null);
   };
+  barAgent.querySelector('button')!.addEventListener('click', () => {
+    agent = null;
+    renderBar();
+    send({ type: 'agent-clear' });
+  });
   barReset.addEventListener('click', () => {
     barMode = 'light';
     resettable = 0;
+    agent = null;
     const viewport = canReset;
     renderBar();
     // The selection goes too, so the card and the outline leave with the overrides.
@@ -1555,6 +1601,55 @@ function activate() {
       case 'unpeek':
         if (!hoverOn) hovBox.classList.add('hidden');
         break;
+      case 'locate': {
+        const { first: el, matches } = findAll(msg.selector);
+        if (!el) {
+          sendResponse({ ok: false, matches, error: `nothing on the page matches ${msg.selector}` });
+          return true;
+        }
+        // An instant scroll lands before the next line, whatever the page's
+        // scroll-behavior says, so the box is where the capture will find it.
+        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+        const r = el.getBoundingClientRect();
+        sendResponse({
+          ok: true,
+          matches,
+          rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+          viewport: { width: innerWidth, height: innerHeight },
+        });
+        return true;
+      }
+      case 'set-viewport': {
+        // The agent wants a width; answer once the window has moved so a capture can follow.
+        const done = (ok: boolean, error?: string) => sendResponse({ ok, zoom, canReset, error });
+        if (msg.preset === 'reset') {
+          resetViewport(true).then((ok) => done(ok, ok ? undefined : 'the window could not be put back'), (e) => done(false, String(e)));
+          return true;
+        }
+        const preset = DEVICE_PRESETS.find((p) => p.name === msg.preset);
+        if (!preset) {
+          done(false, `no preset named ${msg.preset}`);
+          return true;
+        }
+        pickPreset(preset).then((ok) => done(ok, ok ? undefined : 'the window could not be resized'), (e) => done(false, String(e)));
+        return true;
+      }
+      case 'point': {
+        // The agent says "look here": the way a teammate would point at the screen.
+        const { first: el, matches: matched } = findAll(msg.selector);
+        if (el) {
+          el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+          hovBox.classList.remove('hidden');
+          place(hovBox, rectOf(el));
+          window.clearTimeout(pointTimer);
+          pointTimer = window.setTimeout(() => {
+            if (!hoverOn) hovBox.classList.add('hidden');
+          }, 2600);
+        }
+        if (barOn) showHint(`<b>Agent</b> — ${msg.note ? escapeHtml(msg.note) : 'look here'}${el ? '' : ' (nothing on the page matches that selector)'}`);
+        sendResponse({ ok: true, matched });
+        return true;
+      }
       case 'text': {
         const el = find(msg.selector);
         if (el && msg.text !== undefined) el.textContent = msg.text;
@@ -1582,6 +1677,7 @@ function activate() {
         if (msg.theme) applyBarTheme(msg.theme);
         if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
+        if (msg.agent !== undefined) agent = msg.agent;
         if (msg.darkVia !== undefined && msg.darkVia !== darkVia) {
           darkVia = msg.darkVia;
           if (darkVia === 'site') showHint("<b>Dark</b> — this is the page's own dark mode, switched on from its stylesheet. Light puts it back.");

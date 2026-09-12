@@ -10,6 +10,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
+import { updateSession } from './lib/session';
 import { element, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -98,6 +99,69 @@ describe('the panel', () => {
     await tick(120);
     expect(text()).toContain('read from this page');
     expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'light', resettable: 0 });
+  });
+
+  it('shows the agent\'s preview on the bar and in Changes, and never in the brief', async () => {
+    await act(async () => updateSession({ agentPreview: { rules: 4, matched: 27, at: new Date().toISOString(), css: '.card{}', declares: [] } }));
+    await tick(120);
+    const bar = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1);
+    expect(bar).toMatchObject({ agent: { rules: 4, matched: 27 }, resettable: 1 });
+    // A preview is not a decision: the badge stays at zero.
+    expect(badge()).toBe('0');
+
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('Agent preview');
+    expect(text()).toContain('4 rules · 27 elements');
+
+    const clear = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Clear') ?? null;
+    await click(clear);
+    await tick(120);
+    expect(stub.sent.some((m) => m.type === 'reskin-preview-clear')).toBe(true);
+    expect(text()).not.toContain('Agent preview');
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ agent: null, resettable: 0 });
+  });
+
+  it('lists what the agent did, as history rather than changes', async () => {
+    await act(async () =>
+      updateSession({
+        agentLog: [
+          { at: new Date().toISOString(), what: 'pointed at .card — “these”' },
+          { at: new Date().toISOString(), what: 'painted a preview: 2 rule(s) reaching 4 element(s)' },
+        ],
+      }),
+    );
+    await tick(60);
+    expect(badge()).toBe('0');
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('Agent activity');
+    expect(text()).toContain('painted a preview: 2 rule(s) reaching 4 element(s)');
+    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'clear') ?? null);
+    await tick(60);
+    expect(text()).not.toContain('Agent activity');
+  });
+
+  it('locks a page variable so nothing moves it', async () => {
+    await click(host.querySelector('#tab-variables'));
+    expect(host.querySelector('input[aria-label="--mark value"]')).not.toBeNull();
+    await click(host.querySelector('button[aria-label="Lock --mark"]'));
+    await tick(60);
+    expect(host.querySelector('input[aria-label="--mark value"]')).toBeNull();
+    expect(host.querySelector('button[aria-label="Unlock --mark"]')?.textContent).toBe('locked');
+    // A lock is a decision about the page, kept with the other edits.
+    await tick(400);
+    const saved = (await (globalThis as unknown as { chrome: { storage: { local: { get: () => Promise<Record<string, unknown>> } } } }).chrome.storage.local.get()) ?? {};
+    const edits = Object.entries(saved).find(([k]) => k.startsWith('edits:'))?.[1] as { locks?: string[] } | undefined;
+    expect(edits?.locks).toEqual(['--mark']);
+    // A colour edit of the locked variable's own hex does not reach the page or the badge.
+    await act(async () => updateSession({ colorEdits: { '#BE3A22': '#1C7F5C' } }));
+    await tick(200);
+    const lastPaint = stub.sent.filter((m) => m.type === 'reskin-apply').at(-1) as { colorMap?: Record<string, string> } | undefined;
+    expect(lastPaint?.colorMap?.['#BE3A22']).toBeUndefined();
+    expect(badge()).toBe('0');
+    await act(async () => updateSession({ colorEdits: {} }));
+    await click(host.querySelector('button[aria-label="Unlock --mark"]'));
+    await tick(60);
+    expect(host.querySelector('input[aria-label="--mark value"]')).not.toBeNull();
   });
 
   it('lets a page variable be set by hand and lists it as a change', async () => {

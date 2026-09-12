@@ -48,6 +48,14 @@ export interface ExportSections {
   rawVars: boolean;
 }
 
+export const ALL_SECTIONS: ExportSections = {
+  colors: true,
+  typography: true,
+  spacing: true,
+  shadows: true,
+  rawVars: true,
+};
+
 export function buildBrandMd(scan: ScanResult, sections: ExportSections): string {
   const lines: string[] = [];
   const host = new URL(scan.url).hostname;

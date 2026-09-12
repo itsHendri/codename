@@ -5,6 +5,7 @@ import { contrastBadge } from '../lib/color';
 import type { InspectController, Scope } from '../lib/inspect';
 import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
+import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
@@ -174,6 +175,14 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
         {many && (
           <span className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary">
             ×{el.intent.matches}
+          </span>
+        )}
+        {el.component && (
+          <span
+            className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary"
+            title={`${describeOrigin(el.component)}. Read from the page's dev build, not guessed from the markup.`}
+          >
+            {el.component.name}
           </span>
         )}
         {!el.stable && (

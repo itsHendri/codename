@@ -1,4 +1,5 @@
 import type {
+  A11yUsage,
   ColorInfo,
   ContrastPair,
   CustomPropInfo,
@@ -10,7 +11,8 @@ import type {
   SvgAsset,
   ValueTally,
 } from '@/shared/types';
-import { hookFromSelector, isDarkMedia } from '@/studio/siteMode';
+import { countFocusOutlineRemoved } from '@/studio/a11y';
+import { hookFromSelector, isDarkMedia, widthOfMedia } from '@/studio/siteMode';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -26,6 +28,7 @@ async function scanPage(): Promise<ScanResult> {
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
   attachDarkValues(customProps, css.fetched);
+  attachWidthValues(customProps, css.fetched);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -45,8 +48,10 @@ async function scanPage(): Promise<ScanResult> {
     cssText: css.text,
     unreadableSheets: css.unreadable,
     stats: { elementsSampled: sampled.count, styleSheets: document.styleSheets.length },
+    a11y: { ...sampled.a11y, focusOutlineRemoved: countFocusOutlineRemoved(css.text) },
   };
 }
+
 
 /* ---------------- CSS acquisition ---------------- */
 
@@ -256,6 +261,9 @@ function sampleComputedStyles() {
   const radiusMap = new Map<string, number>();
   const shadowMap = new Map<string, number>();
   const spacingMap = new Map<string, number>();
+  const a11y = { images: 0, imagesWithoutAlt: 0, targets: 0, smallTargets: 0 };
+  const headingSkips = new Map<string, { from: number; to: number; count: number }>();
+  let lastHeading = 0;
 
   // The page's base backgrounds are design tokens too — the walker below starts inside <body>.
   for (const rootEl of [document.documentElement, document.body]) {
@@ -332,6 +340,36 @@ function sampleComputedStyles() {
       }
     }
 
+    // Accessibility facts, on the same walk. Counted, never judged here.
+    const tagName = el.tagName.toLowerCase();
+    if (tagName === 'img') {
+      a11y.images++;
+      if (!el.hasAttribute('alt')) a11y.imagesWithoutAlt++;
+    }
+    if (/^h[1-6]$/.test(tagName)) {
+      const level = Number(tagName[1]);
+      if (lastHeading && level > lastHeading + 1) {
+        const key = `${lastHeading}>${level}`;
+        const skip = headingSkips.get(key) ?? { from: lastHeading, to: level, count: 0 };
+        skip.count++;
+        headingSkips.set(key, skip);
+      }
+      lastHeading = level;
+    }
+    const role = el.getAttribute('role');
+    const isControl =
+      tagName === 'button' ||
+      tagName === 'select' ||
+      tagName === 'textarea' ||
+      (tagName === 'input' && (el as HTMLInputElement).type !== 'hidden') ||
+      role === 'button' ||
+      // An inline link in running text is exempt from the target size; a block one is not.
+      ((tagName === 'a' || role === 'link') && el.hasAttribute('href') && cs.display !== 'inline');
+    if (isControl) {
+      a11y.targets++;
+      if (rect.width < 24 || rect.height < 24) a11y.smallTargets++;
+    }
+
     // Shape and rhythm. Same walk — a second pass over 2500 elements would
     // double the cost of a scan for data the first pass already has in hand.
     const radius = cs.borderRadius;
@@ -386,7 +424,12 @@ function sampleComputedStyles() {
     spacing: rank(spacingMap),
   };
 
-  return { fontUsage, colors, gradients, contrastPairs, count, svgBgValues, shape };
+  const a11yUsage: Omit<A11yUsage, 'focusOutlineRemoved'> = {
+    ...a11y,
+    headingSkips: Array.from(headingSkips.values()).sort((a, b) => b.count - a.count),
+  };
+
+  return { fontUsage, colors, gradients, contrastPairs, count, svgBgValues, shape, a11y: a11yUsage };
 }
 
 function bump(map: Map<string, number>, value: string) {
@@ -463,9 +506,71 @@ function attachDarkValues(props: CustomPropInfo[], fetched: { href: string; text
       }
     }
   };
+  eachRuleList(fetched, (rules) => walk(rules, false));
+}
+
+/**
+ * The value each variable takes inside a width media query, where it differs
+ * from its base value. The regex pass above cannot see nesting, so a
+ * `--gap: 12px` under `(max-width: 700px)` was either dropped or, when it was
+ * the only definition, taken for the base. This reads the object model the
+ * way the dark pass does, and records the redefinition under its condition;
+ * last definition wins, as the cascade does at that width. Dark blocks and
+ * dark-hooked rules are left to the dark pass, so a value is filed once.
+ */
+function attachWidthValues(props: CustomPropInfo[], fetched: { href: string; text: string }[]) {
+  const byName = new Map(props.map((p) => [p.name, p]));
+  /** Names defined somewhere outside any width query: they have a base value. */
+  const outside = new Set<string>();
+  /** The first width query each name's base value was seen under, in case it has no other home. */
+  const firstAt = new Map<string, string>();
+  const walk = (rules: CSSRuleList, width: string | null) => {
+    for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSMediaRule) {
+        if (isDarkMedia(rule.conditionText)) continue;
+        const own = widthOfMedia(rule.conditionText);
+        walk(rule.cssRules, own ? (width ? `${width} and ${own}` : own) : width);
+        continue;
+      }
+      if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
+        walk(rule.cssRules, width);
+        continue;
+      }
+      if (!(rule instanceof CSSStyleRule)) continue;
+      if (rule.selectorText.split(',').some((s) => hookFromSelector(s.trim()) !== null)) continue;
+      for (const prop of Array.from(rule.style)) {
+        if (!prop.startsWith('--')) continue;
+        const known = byName.get(prop);
+        const value = rule.style.getPropertyValue(prop).trim();
+        if (!known || !value) continue;
+        if (!width) {
+          outside.add(prop);
+          continue;
+        }
+        if (value === known.value) {
+          if (!firstAt.has(prop)) firstAt.set(prop, width);
+          continue;
+        }
+        known.atWidth = { ...known.atWidth, [width]: value };
+      }
+    }
+  };
+  eachRuleList(fetched, (rules) => walk(rules, null));
+  for (const [name, at] of firstAt) {
+    const known = byName.get(name);
+    if (known && !outside.has(name)) known.onlyAt = at;
+  }
+}
+
+/**
+ * Every rule list the page has: the document's own sheets through the object
+ * model, and the cross-origin ones re-parsed from the text the background
+ * fetched, since the page cannot read those itself.
+ */
+function eachRuleList(fetched: { href: string; text: string }[], visit: (rules: CSSRuleList) => void) {
   for (const sheet of Array.from(document.styleSheets)) {
     try {
-      walk(sheet.cssRules, false);
+      visit(sheet.cssRules);
     } catch {
       /* cross-origin: read below from the fetched text */
     }
@@ -474,7 +579,7 @@ function attachDarkValues(props: CustomPropInfo[], fetched: { href: string; text
     try {
       const parsed = new CSSStyleSheet();
       parsed.replaceSync(text);
-      walk(parsed.cssRules, false);
+      visit(parsed.cssRules);
     } catch {
       /* unparsable text */
     }

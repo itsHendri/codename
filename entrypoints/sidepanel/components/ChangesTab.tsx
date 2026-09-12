@@ -5,7 +5,8 @@ import type { ChangeSet } from '@/studio/commit';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { sendToAgent, useBridge } from '../lib/bridge';
+import { dropAgentPreview, sendToAgent, useBridge } from '../lib/bridge';
+import { clearAgentLog } from '../lib/session';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
 import { ConnectAgentCard } from './ConnectAgentCard';
@@ -22,7 +23,7 @@ import { CommentList } from './inspect/Comments';
 export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectController }) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status } = useBridge();
-  const { handoff, log, comments } = useSession();
+  const { handoff, log, comments, agentPreview, agentLog, locks } = useSession();
   const connected = status === 'connected';
 
   const prompt = useMemo(() => toPrompt(set), [set]);
@@ -39,9 +40,17 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
     setTimeout(() => setCopied(null), 1600);
   };
 
+  const presence = (
+    <>
+      {agentPreview && <AgentPreviewRow {...agentPreview} touchesLocked={agentPreview.declares.filter((n) => locks.includes(n))} />}
+      {agentLog.length > 0 && <AgentActivity entries={agentLog} />}
+    </>
+  );
+
   if (empty && log.entries.length === 0 && comments.length === 0) {
     return (
       <div className="flex flex-col">
+        {presence}
         <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
           <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
           <p className="max-w-60 text-sm text-ink-muted">
@@ -60,6 +69,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
   return (
     <div className="flex flex-col">
+      {presence}
       <div className="flex flex-col gap-4 p-3">
         {set.tokens.length > 0 && (
           <section className="flex flex-col gap-1.5">
@@ -228,5 +238,84 @@ function SectionHead({ title, count }: { title: string; count: number }) {
 function Swatch({ color }: { color: string }) {
   return (
     <span className="h-3 w-3 shrink-0 rounded-sm border border-line" style={{ background: color }} />
+  );
+}
+
+/**
+ * What the agent is painting right now, with a way to take it off. It sits
+ * above the queue and not in it: a preview is not a decision, so it never
+ * enters the brief — the same rule as the dark preview.
+ */
+function AgentPreviewRow({ rules, matched, at, touchesLocked }: { rules: number; matched: number; at: string; touchesLocked: string[] }) {
+  const when = new Date(at);
+  const time = Number.isNaN(when.getTime()) ? '' : when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return (
+    <div
+      className="flex flex-col gap-0.5 border-b border-line-subtle px-3 py-2 text-xs"
+      title="The agent's preview stylesheet is on the page. The dashed outlines are what it reaches. It is not part of the brief."
+    >
+      <div className="flex items-center gap-2">
+        <i className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
+        <span className="shrink-0 text-ink-secondary">Agent preview</span>
+        <span className="min-w-0 truncate font-mono text-2xs text-ink-muted">
+          {rules} {rules === 1 ? 'rule' : 'rules'} · {matched} {matched === 1 ? 'element' : 'elements'}
+          {time ? ` · ${time}` : ''}
+        </span>
+        <button
+          onClick={() => void dropAgentPreview()}
+          className="ml-auto shrink-0 rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent"
+        >
+          Clear
+        </button>
+      </div>
+      {touchesLocked.length > 0 && (
+        <div
+          className="pl-4 font-mono text-2xs text-accent"
+          title="The preview redefines a variable you locked. It stays a preview; the agent was told to keep the definition."
+        >
+          touches locked {touchesLocked.join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the agent did through the bridge, so "what did it just do" has an
+ * answer without reading a terminal. History, not changes: nothing here is
+ * in the brief, and Reset leaves it alone like the notes.
+ */
+function AgentActivity({ entries }: { entries: { at: string; what: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const shown = [...entries].reverse().slice(0, open ? entries.length : 4);
+  const time = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  return (
+    <section className="flex flex-col gap-1 border-b border-line-subtle px-3 py-2">
+      <div className="flex items-center gap-2 text-2xs tracking-wide text-ink-muted">
+        <span className="uppercase">Agent activity</span>
+        <span className="font-mono">{entries.length}</span>
+        <button onClick={() => clearAgentLog()} className="ml-auto text-2xs text-ink-muted hover:text-ink-secondary">
+          clear
+        </button>
+      </div>
+      <ul className="flex flex-col gap-0.5">
+        {shown.map((e, i) => (
+          <li key={`${e.at}-${i}`} className="flex gap-2 text-2xs">
+            <span className="shrink-0 font-mono text-ink-faint">{time(e.at)}</span>
+            <span className="min-w-0 truncate text-ink-secondary" title={e.what}>
+              {e.what}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {entries.length > 4 && (
+        <button onClick={() => setOpen((v) => !v)} className="self-start text-2xs text-accent hover:underline">
+          {open ? 'show fewer' : `show all ${entries.length}`}
+        </button>
+      )}
+    </section>
   );
 }

@@ -11,9 +11,14 @@
 
 import type { ChangeSet } from '@/studio/commit';
 import type { CommentTarget } from '@/studio/annotations';
+import type { ComponentOrigin } from '@/studio/framework';
 
 export const PROTOCOL_VERSION = 1 as const;
 export const DEFAULT_PORT = 9612;
+
+/** How an agent client is pointed at the bridge; the panel's Connect card and `setup` print the same. */
+export const CLAUDE_REGISTER_ARGS = ['mcp', 'add', 'codename', '--', 'npx', 'codename-bridge'] as const;
+export const CURSOR_MCP_JSON = '{ "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }';
 
 export interface Envelope<T = unknown> {
   v: typeof PROTOCOL_VERSION;
@@ -44,6 +49,8 @@ export interface SelectedElement {
   rect?: { x: number; y: number; width: number; height: number };
   /** Computed values worth a glance: font, colours, box. Free-form on purpose. */
   computed: Record<string, string>;
+  /** What the page's dev build says rendered it; absent on a built site. */
+  component?: ComponentOrigin;
 }
 
 export type CommentStatus = 'pending' | 'acknowledged' | 'resolved' | 'dismissed';
@@ -84,15 +91,41 @@ export interface SessionState {
   comments: Comment[];
   /** The user's consent for the agent to paint on this page. */
   agentMayWrite: boolean;
+  /** Tokens the person locked: keep as is, whatever a brief touches. */
+  locks: string[];
+  /** The standing rules, rendered by the panel, for the agent to read before it asks for anything. */
+  rules: string;
 }
 
 /* ---------------- bridge → extension ---------------- */
 
+/** The files the panel can hand an agent as design context; the same ones Export produces. */
+export const DESIGN_FILES = ['brand.md', 'tokens.css', 'tokens.json', 'SKILL.md', 'DESIGN_SYSTEM.md'] as const;
+export type DesignFile = (typeof DESIGN_FILES)[number];
+
+export interface DesignSystemResult {
+  url: string;
+  /** When the page was read; the agent compares it with what it wrote last time. */
+  scannedAt: number;
+  files: { path: DesignFile; content: string; note: string }[];
+}
+
 export type BridgeRequest =
-  | { method: 'screenshot' }
+  /**
+   * `viewport` names a preset on the bar (or `reset`); the window moves first,
+   * then the capture. `selector` scrolls the first match into view and crops
+   * the capture to its box.
+   */
+  | { method: 'screenshot'; viewport?: string; selector?: string }
   /** What a designer would flag on the page, from what the scan measured. */
   | { method: 'critique' }
+  /** The page held up against a design token file the agent read from the repository. */
+  | { method: 'check_tokens'; file: string; name?: string }
+  /** The extracted system as files, so the agent can write its own instructions. */
+  | { method: 'design_system'; files?: DesignFile[] }
   | { method: 'apply_css'; css: string }
+  /** "Look here": the page scrolls to the element, lights it up and shows the note. Read-only. */
+  | { method: 'point'; selector: string; note?: string }
   | { method: 'clear'; what: 'preview' | 'handoff' }
   | { method: 'set_status'; id: string; status: CommentStatus }
   | { method: 'reply'; id: string; text: string };
@@ -102,6 +135,9 @@ export interface ScreenshotResult {
   png: string;
   width: number;
   height: number;
+  /** Set when the capture was cropped to an element. */
+  selector?: string;
+  matches?: number;
 }
 
 export type MessageType = 'hello' | 'state' | 'request' | 'response';

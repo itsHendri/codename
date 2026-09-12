@@ -100,6 +100,75 @@ describe('toPrompt', () => {
     expect(prompt).toContain('#1C7F5C');
   });
 
+  it('names the component a dev build says rendered the element, and how it knows', () => {
+    const edit = {
+      id: '1',
+      selector: '.btn',
+      matches: 3,
+      stable: true,
+      property: 'color',
+      from: '#111',
+      to: '#222',
+      status: 'applied' as const,
+      at: '',
+    };
+    const withOrigin = toPrompt(
+      buildChangeSet(scanOf(), [], {}, [{ ...edit, component: { name: 'PriceCard', via: 'react' as const } }]),
+    );
+    expect(withOrigin).toContain("rendered by PriceCard, as React's dev build names it");
+    // A built site names nothing, and then the brief says nothing either.
+    expect(toPrompt(buildChangeSet(scanOf(), [], {}, [edit]))).not.toContain('rendered by');
+  });
+
+  it('says when a literal edit had one of the page own variables available', () => {
+    const edit = {
+      id: '1',
+      selector: '.btn',
+      matches: 1,
+      stable: true,
+      property: 'color',
+      from: '#111111',
+      to: '#be3a22',
+      status: 'applied' as const,
+      at: '',
+    };
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, [edit]));
+    expect(prompt).toContain('this page defines `--mark` with that value');
+    // An edit that chose the token says so instead, and is not second-guessed.
+    const chosen = toPrompt(buildChangeSet(scanOf(), [], {}, [{ ...edit, to: 'var(--mark)', token: '--mark' }]));
+    expect(chosen).toContain('the token `--mark`');
+    expect(chosen).not.toContain('this page defines');
+  });
+
+  it('tells the agent which tokens to keep as they are', () => {
+    const prompt = toPrompt(buildChangeSet(scanOf(), [markOverride], {}, [], [], [], ['--ink', '--paper']));
+    expect(prompt).toContain('## Keep as is — 2');
+    expect(prompt).toContain('- `--ink`');
+    expect(prompt).toContain('- `--paper`');
+    // Locks alone are not a change.
+    expect(isEmpty(buildChangeSet(scanOf(), [], {}, [], [], [], ['--ink']))).toBe(true);
+  });
+
+  it('says when a token has no base value because the page defines it only under a breakpoint', () => {
+    const scan = scanOf({ customProps: [{ name: '--mark', value: '#7a2416', uses: 3, onlyAt: '(max-width: 700px)' }] });
+    const prompt = toPrompt(buildChangeSet(scan, [{ ...markOverride, from: '#7A2416' }], {}));
+    expect(prompt).toContain('defines this only at (max-width: 700px)');
+  });
+
+  it('names where a token is defined again under a breakpoint, and leaves it alone', () => {
+    const scan = scanOf({
+      customProps: [
+        { name: '--mark', value: '#be3a22', uses: 34, atWidth: { '(max-width: 700px)': '#7a2416' } },
+      ],
+    });
+    const set = buildChangeSet(scan, [markOverride], {});
+    expect(set.tokens[0]!.alsoAt).toEqual([{ query: '(max-width: 700px)', value: '#7a2416' }]);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('also defined at (max-width: 700px) as `#7a2416`; left alone');
+    // Still a value, never a rule.
+    expect(prompt).not.toMatch(/\{[^}]*color\s*:/);
+  });
+
   it('never hands over a resolved stylesheet', () => {
     const prompt = toPrompt(buildChangeSet(scanOf(), [markOverride], {}));
     // The failure this whole format exists to avoid.

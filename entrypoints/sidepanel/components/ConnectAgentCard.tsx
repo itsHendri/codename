@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { DEFAULT_PORT } from '@/shared/protocol';
+import { CURSOR_MCP_JSON, DEFAULT_PORT } from '@/shared/protocol';
 import { pair, useBridge } from '../lib/bridge';
 import { CopyIcon } from './icons';
 
-const CLAUDE_CMD = 'claude mcp add codename -- npx codename-bridge';
-const CURSOR_JSON = '{ "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }';
+// One command: installs the codename skill and registers the bridge with Claude Code.
+const CLAUDE_CMD = 'npx codename-bridge setup';
+const CURSOR_JSON = CURSOR_MCP_JSON;
 
 const LABEL: Record<string, string> = {
   off: 'Not connected',

@@ -9,6 +9,8 @@
  * like edits, not frames.
  */
 
+import type { ComponentOrigin } from './framework';
+
 /** Where an element was put: inside `parent`, before `before`, or last when null. */
 export interface MoveSpec {
   parent: string;
@@ -31,6 +33,8 @@ export interface ElementChange {
   to: string;
   /** The token whose value was chosen, so the brief can say so. */
   token?: string;
+  /** The component the dev build says rendered this, when it says. */
+  component?: ComponentOrigin;
   status: 'pending' | 'applied' | 'reverted';
   at: string;
 }

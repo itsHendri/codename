@@ -10,16 +10,9 @@ import {
   buildTokensJson,
   consistencyStats,
   download,
+  ALL_SECTIONS,
   type ExportSections,
 } from '../lib/exporters';
-
-const ALL_SECTIONS: ExportSections = {
-  colors: true,
-  typography: true,
-  spacing: true,
-  shadows: true,
-  rawVars: true,
-};
 
 type PresetKey = 'ai' | 'style-dictionary' | 'system' | 'full' | 'custom';
 

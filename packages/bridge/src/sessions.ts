@@ -22,6 +22,8 @@ export interface SessionSummary {
   local: boolean | null;
   revision: number | null;
   connected: boolean;
+  /** Tokens the person locked on this page; the rules resource says the same in words. */
+  locks: string[];
 }
 
 export interface WatchResult {
@@ -129,6 +131,7 @@ export class Sessions {
       local: s.state?.tab.local ?? null,
       revision: s.state?.revision ?? null,
       connected: s.link !== null,
+      locks: s.state?.locks ?? [],
     }));
   }
 

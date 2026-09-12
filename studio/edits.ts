@@ -28,6 +28,11 @@ export interface BrandEdits {
   type: Partial<Record<TypeRoleName, TypeEdit>>;
   spacingBasePx?: number;
   radiusBasePx?: number;
+  /**
+   * Page variables the person locked: the engine leaves them alone, the brief
+   * says "keep as is", and an agent preview that redefines one is named.
+   */
+  locks?: string[];
 }
 
 export const noEdits = (): BrandEdits => ({
@@ -36,6 +41,7 @@ export const noEdits = (): BrandEdits => ({
   vars: {},
   colors: {},
   type: {},
+  locks: [],
 });
 
 /** A stored object from before a field existed still has to load. */
@@ -51,7 +57,8 @@ export const isNoEdits = (e: BrandEdits): boolean =>
   Object.keys(e.colors ?? {}).length === 0 &&
   Object.keys(e.type ?? {}).length === 0 &&
   e.spacingBasePx === undefined &&
-  e.radiusBasePx === undefined;
+  e.radiusBasePx === undefined &&
+  (e.locks ?? []).length === 0;
 
 /**
  * Moving the grid rescales the steps the page uses, keeping their shape: a

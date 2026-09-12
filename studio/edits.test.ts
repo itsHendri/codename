@@ -90,3 +90,11 @@ describe('regrid', () => {
     expect(regrid({ basePx: 4, blessed: [4, 8, 24] }, 6)).toEqual({ basePx: 6, blessed: [6, 12, 36] });
   });
 });
+
+describe('locks', () => {
+  it('load as an empty list from a store that predates them, and count as an edit once set', () => {
+    expect(normaliseEdits({ seeds: {}, semanticOverrides: [], vars: {}, colors: {}, type: {} }).locks).toEqual([]);
+    expect(isNoEdits(normaliseEdits(null))).toBe(true);
+    expect(isNoEdits({ ...noEdits(), locks: ['--ink'] })).toBe(false);
+  });
+});

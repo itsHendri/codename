@@ -1,4 +1,5 @@
-import type { InspectorCommand } from '@/shared/types';
+import type { AgentPresence, InspectorCommand } from '@/shared/types';
+import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@/studio/framework';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
 import type { LengthMap } from '@/studio/reskinRules';
@@ -79,6 +80,8 @@ export interface BarLook {
   resettable: number;
   /** How the dark preview is being shown, for the bar's hint. */
   darkVia?: 'site' | 'mirror' | null;
+  /** What the agent is previewing, for the chip; null when nothing. */
+  agent?: AgentPresence | null;
 }
 
 /**
@@ -114,6 +117,7 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     mode: look.mode,
     resettable: look.resettable,
     darkVia: look.darkVia ?? null,
+    agent: look.agent ?? null,
   });
 }
 
@@ -135,6 +139,8 @@ export interface ReskinResult {
   vars: number;
   /** Rules re-emitted for pages that hardcode their colours. */
   rules: number;
+  /** For the agent's preview: what its sheet holds and reaches. */
+  preview?: { rules: number; matched: number; unreadable: number; declares: string[] };
 }
 
 function sendReskin(
@@ -194,6 +200,64 @@ export function applyElementRules(
   rules: { selector: string; property: string; value: string }[],
 ): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'elements-set', rules });
+}
+
+/**
+ * What rendered an element, according to the page's own world.
+ *
+ * A content script cannot see this: `__reactFiber$…`, `__vueParentComponent`
+ * and `window.ng` are expandos on the page's own wrappers, and the isolated
+ * world gets different ones. So the probe is injected with `world: 'MAIN'`,
+ * where it reads those and returns plain strings — nothing live crosses back
+ * — and the judging happens here.
+ */
+export async function probeComponent(tabId: number, selector: string): Promise<ComponentOrigin | null> {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: probeSource,
+      args: [selector],
+    });
+    return refineProbe(result?.result as RawProbe | null | undefined);
+  } catch {
+    // A page that refuses injection (a restricted URL, a strict CSP on the
+    // main world) simply does not say; it is not an error worth showing.
+    return null;
+  }
+}
+
+/**
+ * Crop a capture to an element's box. The capture is in device pixels and the
+ * box in CSS pixels, so the scale between them is the capture's width over
+ * the viewport's; a little margin keeps a shadow or an outline in the frame.
+ */
+export async function cropCapture(
+  shot: { png: string; width: number; height: number },
+  rect: { x: number; y: number; width: number; height: number },
+  viewport: { width: number; height: number },
+  marginCss = 8,
+): Promise<{ png: string; width: number; height: number }> {
+  const scale = viewport.width > 0 ? shot.width / viewport.width : 1;
+  const x = Math.max(0, Math.floor((rect.x - marginCss) * scale));
+  const y = Math.max(0, Math.floor((rect.y - marginCss) * scale));
+  const w = Math.min(shot.width - x, Math.ceil((rect.width + marginCss * 2) * scale));
+  const h = Math.min(shot.height - y, Math.ceil((rect.height + marginCss * 2) * scale));
+  if (w <= 0 || h <= 0) throw new Error('the element is outside the visible page');
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('screenshot could not be decoded'));
+    img.src = `data:image/png;base64,${shot.png}`;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no canvas');
+  ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+  const url = canvas.toDataURL('image/png');
+  return { png: url.slice(url.indexOf(',') + 1), width: w, height: h };
 }
 
 /** PNG of the visible tab in a window, as base64 without the data-URL prefix. */

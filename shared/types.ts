@@ -1,4 +1,5 @@
 import type { CommentTarget, Pin } from '@/studio/annotations';
+import type { ComponentOrigin } from '@/studio/framework';
 import type { OverlayTheme } from './theme';
 import type { Mode } from '@/studio/engine/types';
 
@@ -66,6 +67,18 @@ export interface CustomPropInfo {
    * block or a theme hook like `html.dark` — when the page defines one.
    */
   dark?: string;
+  /**
+   * Its value inside width media queries, keyed by the condition written one
+   * way (`(max-width: 700px)`), where it differs from the value above. A token
+   * change that ignores these misses an override the page will still apply.
+   */
+  atWidth?: Record<string, string>;
+  /**
+   * Set when every definition of this variable sits under a width media
+   * query, so `value` is really the value at this condition and the page has
+   * no base value for it. The chip and the brief say so instead of hiding it.
+   */
+  onlyAt?: string;
 }
 
 /** A CSS value observed on the page, with how often it was seen. */
@@ -88,6 +101,24 @@ export interface ShapeUsage {
   spacing: ValueTally[];
 }
 
+/**
+ * Accessibility facts the same walk can count. Each is a number with the
+ * total it is out of, so the critique can say "3 of 40" rather than "some".
+ */
+export interface A11yUsage {
+  images: number;
+  /** `<img>` with no alt attribute at all; an empty alt is a decision and is not counted. */
+  imagesWithoutAlt: number;
+  /** A heading level more than one below the heading before it, in document order. */
+  headingSkips: { from: number; to: number; count: number }[];
+  /** Buttons, inputs, selects and block-level links: the controls a target size applies to. */
+  targets: number;
+  /** Those under 24×24 CSS px. Inline text links are exempt and not counted. */
+  smallTargets: number;
+  /** Rules that set `outline: none` or `outline: 0` on a `:focus` selector, in the readable CSS. */
+  focusOutlineRemoved: number;
+}
+
 export interface ScanResult {
   url: string;
   title: string;
@@ -108,6 +139,8 @@ export interface ScanResult {
   /** hrefs of cross-origin sheets that could not be read in-page */
   unreadableSheets: string[];
   stats: { elementsSampled: number; styleSheets: number };
+  /** Absent in a scan from before these were counted. */
+  a11y?: A11yUsage;
 }
 
 /** One element, read from the page: enough to show, edit and describe it. */
@@ -163,6 +196,11 @@ export interface ElementProps {
   /** Present only when the element's own children are text. */
   text: string | null;
   contrastRatio: number | null;
+  /**
+   * The component that rendered this, where the framework's dev build says
+   * so. Absent on a production build, and never inferred from class names.
+   */
+  component?: ComponentOrigin;
 }
 
 /** Kept for the pinned card until it is rebuilt on ElementProps. */
@@ -197,13 +235,36 @@ export type InspectorCommand =
   | { cmd: 'note'; on: boolean }
   | { cmd: 'measure'; on: boolean }
   /** Show the bar. `theme` is the panel's palette; `mode` is which way the Light/Dark switch sits. */
-  | { cmd: 'bar'; on: boolean; theme?: OverlayTheme; mode?: Mode; resettable?: number; darkVia?: 'site' | 'mirror' | null }
+  | {
+      cmd: 'bar';
+      on: boolean;
+      theme?: OverlayTheme;
+      mode?: Mode;
+      resettable?: number;
+      darkVia?: 'site' | 'mirror' | null;
+      /** What the connected agent is previewing on the page right now, for the chip. */
+      agent?: AgentPresence | null;
+    }
+  /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
+  | { cmd: 'point'; selector: string; note?: string }
+  /** Pick a viewport preset by name, or put the window back; answers once the window has moved. */
+  | { cmd: 'set-viewport'; preset: string }
+  /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
+  | { cmd: 'locate'; selector: string }
   /** Put the window and zoom back where they were before the first preset. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };
 
+/** The agent's preview sheet, counted: how many rules it holds and how many elements they reach. */
+export interface AgentPresence {
+  rules: number;
+  matched: number;
+}
+
 export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
+  /** The chip on the bar: take the agent's preview off the page. */
+  | { type: 'agent-clear' }
   | { type: 'element-selected'; data: ElementProps | null }
   | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
   | { type: 'pin-clicked'; id: string }

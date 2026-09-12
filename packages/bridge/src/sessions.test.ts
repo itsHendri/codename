@@ -36,7 +36,7 @@ describe('Sessions', () => {
     s.update('a', makeState('a', 3));
     s.disconnect('a', link);
     expect(s.list()).toEqual([
-      { sessionId: 'a', url: 'http://localhost:3000/a', title: 'a', local: true, revision: 3, connected: false },
+      { sessionId: 'a', url: 'http://localhost:3000/a', title: 'a', local: true, revision: 3, connected: false, locks: [] },
     ]);
   });
 

@@ -115,3 +115,33 @@ describe('critique', () => {
     expect(partial.findings.some((f) => f.kind === 'coverage')).toBe(true);
   });
 });
+
+describe('accessibility facts', () => {
+  it('counts what a screen reader or a keyboard would meet, with totals', () => {
+    const scan = scanOf({
+      a11y: {
+        images: 40,
+        imagesWithoutAlt: 3,
+        headingSkips: [{ from: 2, to: 4, count: 3 }],
+        targets: 30,
+        smallTargets: 5,
+        focusOutlineRemoved: 2,
+      },
+    });
+    const c = critique(scan, seedBrandFromScan(scan));
+    const kinds = c.findings.map((f) => f.kind);
+    expect(kinds).toEqual(expect.arrayContaining(['alt', 'headings', 'targets', 'focus']));
+    expect(c.findings.find((f) => f.kind === 'alt')).toMatchObject({ level: 'fail' });
+    expect(c.findings.find((f) => f.kind === 'alt')?.message).toContain('3 of 40 images');
+    expect(c.findings.find((f) => f.kind === 'headings')?.message).toContain('h2 → h4 ×3');
+    expect(c.findings.find((f) => f.kind === 'targets')?.message).toContain('5 of 30 controls are under 24×24px');
+    expect(c.findings.find((f) => f.kind === 'focus')).toMatchObject({ level: 'fail' });
+    // Nothing is suggested; the text says what is, not what to do.
+    expect(critiqueToText(c, 'localhost')).not.toMatch(/you should|instead use/i);
+  });
+
+  it('says nothing about accessibility when a scan predates the counts', () => {
+    const c = critique(scanOf(), seedBrandFromScan(scanOf()));
+    expect(c.findings.some((f) => ['alt', 'headings', 'targets', 'focus'].includes(f.kind))).toBe(false);
+  });
+});

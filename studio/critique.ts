@@ -14,7 +14,10 @@ import { differenceEuclidean, parse } from 'culori';
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig } from './engine/types';
 
-export type FindingKind = 'contrast' | 'spacing' | 'colour' | 'type' | 'fonts' | 'radius' | 'coverage';
+export type FindingKind = 'contrast' | 'spacing' | 'colour' | 'type' | 'fonts' | 'radius' | 'alt' | 'headings' | 'targets' | 'focus' | 'coverage';
+
+/** WCAG 2.5.8: the minimum target size, in CSS px. */
+export const MIN_TARGET_PX = 24;
 
 export interface Finding {
   kind: FindingKind;
@@ -151,6 +154,45 @@ export function critique(scan: ScanResult, brand: BrandConfig): Critique {
       message: `${distinctRadii.length} distinct corner radii (${distinctRadii.join(', ')}px); a scale usually holds three or four.`,
       detail: { radii: distinctRadii },
     });
+  }
+
+  // Accessibility: counted on the same walk. Facts a screen reader or a
+  // keyboard would meet, with the totals they are out of.
+  const a11y = scan.a11y;
+  if (a11y) {
+    if (a11y.imagesWithoutAlt > 0) {
+      findings.push({
+        kind: 'alt',
+        level: 'fail',
+        message: `${a11y.imagesWithoutAlt} of ${a11y.images} images have no alt attribute at all — a screen reader reads the file name or nothing. An empty alt marks decoration; a missing one is an omission.`,
+        detail: { images: a11y.images, withoutAlt: a11y.imagesWithoutAlt },
+      });
+    }
+    if (a11y.headingSkips.length) {
+      const shown = a11y.headingSkips.slice(0, MAX_PER_KIND);
+      findings.push({
+        kind: 'headings',
+        level: 'warn',
+        message: `Heading levels skip: ${shown.map((s) => `h${s.from} → h${s.to} ×${s.count}`).join(', ')} — an outline with a gap reads as a missing section.`,
+        detail: { skips: shown },
+      });
+    }
+    if (a11y.smallTargets > 0) {
+      findings.push({
+        kind: 'targets',
+        level: 'warn',
+        message: `${a11y.smallTargets} of ${a11y.targets} controls are under ${MIN_TARGET_PX}×${MIN_TARGET_PX}px (buttons, inputs, standalone links); inline text links are exempt and were not counted.`,
+        detail: { targets: a11y.targets, small: a11y.smallTargets, minPx: MIN_TARGET_PX },
+      });
+    }
+    if (a11y.focusOutlineRemoved > 0) {
+      findings.push({
+        kind: 'focus',
+        level: 'fail',
+        message: `${a11y.focusOutlineRemoved} rule(s) remove the outline on :focus, so a keyboard user cannot see where they are unless another style stands in.`,
+        detail: { rules: a11y.focusOutlineRemoved },
+      });
+    }
   }
 
   // Coverage: what the scan could not see.
