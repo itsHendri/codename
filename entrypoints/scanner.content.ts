@@ -28,7 +28,8 @@ async function scanPage(): Promise<ScanResult> {
   const sampled = sampleComputedStyles();
   const customProps = extractCustomProps(css.sheets, css.text);
   attachDarkValues(customProps, css.fetched);
-  attachWidthValues(customProps, css.fetched);
+  const breakpoints = new Set<string>();
+  attachWidthValues(customProps, css.fetched, breakpoints);
   attachVarNames(sampled.colors, customProps);
 
   return {
@@ -37,6 +38,7 @@ async function scanPage(): Promise<ScanResult> {
     scannedAt: Date.now(),
     rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
+    breakpoints: [...breakpoints].sort(),
     fontFaces: extractFontFaces(),
     fontUsage: sampled.fontUsage,
     colors: sampled.colors,
@@ -518,7 +520,12 @@ function attachDarkValues(props: CustomPropInfo[], fetched: { href: string; text
  * last definition wins, as the cascade does at that width. Dark blocks and
  * dark-hooked rules are left to the dark pass, so a value is filed once.
  */
-function attachWidthValues(props: CustomPropInfo[], fetched: { href: string; text: string }[]) {
+function attachWidthValues(
+  props: CustomPropInfo[],
+  fetched: { href: string; text: string }[],
+  /** Every width query the page writes, collected on the same walk. */
+  breakpoints?: Set<string>,
+) {
   const byName = new Map(props.map((p) => [p.name, p]));
   /** Names defined somewhere outside any width query: they have a base value. */
   const outside = new Set<string>();
@@ -529,6 +536,9 @@ function attachWidthValues(props: CustomPropInfo[], fetched: { href: string; tex
       if (rule instanceof CSSMediaRule) {
         if (isDarkMedia(rule.conditionText)) continue;
         const own = widthOfMedia(rule.conditionText);
+        // The page's own breakpoints, whether or not they move a variable:
+        // these are the widths it was actually designed at.
+        if (own && breakpoints) for (const part of own.split(' and ')) breakpoints.add(part);
         walk(rule.cssRules, own ? (width ? `${width} and ${own}` : own) : width);
         continue;
       }

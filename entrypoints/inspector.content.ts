@@ -1346,7 +1346,7 @@ function activate() {
     canReset?: boolean;
   }
 
-  const pickPreset = async (p: (typeof DEVICE_PRESETS)[number]) => {
+  const pickPreset = async (p: { name: string; width: number; height: number }) => {
     // The page sends what it can see; the background knows the window and the zoom.
     const r = await ask<ResizeReply>({
       type: 'resize-window',
@@ -1649,7 +1649,13 @@ function activate() {
           resetViewport(true).then((ok) => done(ok, ok ? undefined : 'the window could not be put back'), (e) => done(false, String(e)));
           return true;
         }
-        const preset = DEVICE_PRESETS.find((p) => p.name === msg.preset);
+        // A width with no device behind it — one of the page's own
+        // breakpoints — keeps the height the window already has, since the
+        // thing being asked for is a width.
+        const preset =
+          typeof msg.width === 'number' && msg.width > 0
+            ? { name: msg.preset || `${msg.width}px`, width: msg.width, height: innerHeight }
+            : DEVICE_PRESETS.find((p) => p.name === msg.preset);
         if (!preset) {
           done(false, `no preset named ${msg.preset}`);
           return true;

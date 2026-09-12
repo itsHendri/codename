@@ -13,6 +13,8 @@ export const forfontsake: ScanResult = {
   title: 'forfontsake',
   scannedAt: 1788800000000,
   viewport: { width: 1280, height: 800, dpr: 2 },
+  // The page's own breakpoint, which is not one of the bar's device presets.
+  breakpoints: ['(max-width: 700px)'],
   fontFaces: [],
   fontUsage: [
     {

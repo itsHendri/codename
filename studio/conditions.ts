@@ -126,13 +126,38 @@ export function pseudosOf(state: StateName): string[] {
   return state === 'focus' ? [':focus-visible', ':focus'] : [PSEUDO[state]];
 }
 
-/** The width conditions on offer, from the same presets the bar uses. */
-export const widthConditions = (): Condition[] =>
-  DEVICE_PRESETS.filter((p) => p.kind !== 'desktop').map((p) => ({
+/** The pixel width of a `(max-width: …)` query, or null for anything else. */
+export function maxWidthOf(query: string): number | null {
+  const m = /^\(\s*max-width:\s*([\d.]+)px\s*\)$/i.exec(query.trim());
+  const px = m ? Number(m[1]) : NaN;
+  return Number.isFinite(px) && px > 0 ? px : null;
+}
+
+/**
+ * The widths on offer.
+ *
+ * The page's own breakpoints when it has any, because those are the widths it
+ * was actually designed at — offering a device preset instead invited a brief
+ * to name `768px` for an element beside the `700px` the page really uses, and
+ * an agent to add a breakpoint the project does not have. Where the page has
+ * none to read, the bar's device presets are the only sensible guess and are
+ * labelled as the devices they are.
+ */
+export function widthConditions(breakpoints?: string[]): Condition[] {
+  const own = (breakpoints ?? [])
+    .map((q) => ({ query: q, px: maxWidthOf(q) }))
+    .filter((w): w is { query: string; px: number } => w.px !== null)
+    .sort((a, b) => a.px - b.px);
+  if (own.length) {
+    // A page with dozens of breakpoints is offering a menu, not a choice.
+    return own.slice(0, 8).map(({ px }) => ({ kind: 'width', preset: `${px}px`, maxWidth: px }));
+  }
+  return DEVICE_PRESETS.filter((p) => p.kind !== 'desktop').map((p) => ({
     kind: 'width',
     preset: p.name,
     maxWidth: p.width,
   }));
+}
 
 /** A condition read back from storage, or undefined if it is not one. */
 export function normaliseCondition(raw: unknown): MaybeCondition {

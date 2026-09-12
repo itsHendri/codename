@@ -97,7 +97,7 @@ export function LayersTab({
       bottom={
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
           <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-          <Header element={el} ctl={ctl} />
+          <Header element={el} ctl={ctl} breakpoints={scan?.breakpoints} />
           <Contrast element={el} />
           <PropertyPanel
             element={el}
@@ -152,7 +152,15 @@ function Note({
   );
 }
 
-function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
+function Header({
+  element: el,
+  ctl,
+  breakpoints,
+}: {
+  element: ElementProps;
+  ctl: InspectController;
+  breakpoints?: string[];
+}) {
   const [copied, setCopied] = useState(false);
   const many = el.intent.matches > 1;
   // What the edits will target: this one element, or everything its class selector matches.
@@ -251,7 +259,7 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
           measure
         </button>
       </div>
-      <ConditionBar ctl={ctl} />
+      <ConditionBar ctl={ctl} breakpoints={breakpoints} />
     </div>
   );
 }
@@ -269,13 +277,16 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
  * and it is fixed because the page's own rules sit underneath ours. An order
  * someone chose here would be a promise this cannot keep.
  */
-function ConditionBar({ ctl }: { ctl: InspectController }) {
+function ConditionBar({ ctl, breakpoints }: { ctl: InspectController; breakpoints?: string[] }) {
   // Choosing is all that happens here. Turning the page into the state
   // follows the condition itself, so deselecting puts the page back too.
   const pick = (condition: MaybeCondition) => ctl.setCondition(condition);
   const current = ctl.condition;
   const key = conditionKey(current);
-  const widths = widthConditions();
+  const widths = widthConditions(breakpoints);
+  // A device name means the page told us nothing and these are a guess; its
+  // own breakpoints are named by the width itself.
+  const guessed = !widths.some((w) => w.kind === 'width' && w.preset.endsWith('px'));
   const ancestors = ctl.cascade.filter((c) => c.onAncestor);
   const own = ctl.cascade.filter((c) => !c.onAncestor);
 
@@ -310,7 +321,11 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
             pick(found ?? undefined);
           }}
           aria-label="Width to edit at"
-          title="Edit inside a max-width media query"
+          title={
+            guessed
+              ? 'This page declares no width queries, so these are the bar\'s device presets'
+              : "The widths this page's own stylesheets are written against"
+          }
           className={`shrink-0 rounded-full border px-1.5 py-0.5 text-2xs ${
             current?.kind === 'width'
               ? 'border-accent bg-accent-soft text-accent'
@@ -321,7 +336,8 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
           {widths.map((w) =>
             w.kind === 'width' ? (
               <option key={w.maxWidth} value={w.maxWidth}>
-                ≤{w.maxWidth} · {w.preset}
+                ≤{w.maxWidth}
+                {guessed ? ` · ${w.preset}` : ''}
               </option>
             ) : null,
           )}

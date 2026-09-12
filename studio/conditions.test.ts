@@ -4,6 +4,7 @@ import {
   conditionKey,
   describe as describeCondition,
   describeLong,
+  maxWidthOf,
   mediaFor,
   normaliseCondition,
   pseudosOf,
@@ -148,5 +149,34 @@ describe('two widths at once', () => {
       expect(cascadeOrder(w)).toBeGreaterThan(cascadeOrder(undefined));
       expect(cascadeOrder(w)).toBeLessThan(cascadeOrder({ kind: 'scheme', scheme: 'dark' }));
     }
+  });
+});
+
+describe('where the widths come from', () => {
+  it('reads a max-width query', () => {
+    expect(maxWidthOf('(max-width: 700px)')).toBe(700);
+    expect(maxWidthOf('(max-width:700px)')).toBe(700);
+  });
+
+  it.each([['a min-width', '(min-width: 700px)'], ['no unit', '(max-width: 40em)'], ['a compound', '(max-width: 700px) and (min-width: 300px)'], ['nonsense', 'wat']])(
+    'refuses %s',
+    (_, query) => {
+      expect(maxWidthOf(query)).toBe(null);
+    },
+  );
+
+  it("offers the page's own breakpoints when it has any, narrowest first", () => {
+    const widths = widthConditions(['(max-width: 900px)', '(max-width: 600px)', '(min-width: 1200px)']);
+    expect(widths.map((c) => (c.kind === 'width' ? c.maxWidth : 0))).toEqual([600, 900]);
+  });
+
+  it("falls back to the device presets for a page that declares none", () => {
+    expect(widthConditions([]).map((c) => (c.kind === 'width' ? c.preset : ''))).toContain('Tablet');
+    expect(widthConditions(undefined).length).toBeGreaterThan(0);
+  });
+
+  it('does not offer a page a menu of every breakpoint it has', () => {
+    const many = Array.from({ length: 20 }, (_, i) => `(max-width: ${(i + 1) * 100}px)`);
+    expect(widthConditions(many)).toHaveLength(8);
   });
 });

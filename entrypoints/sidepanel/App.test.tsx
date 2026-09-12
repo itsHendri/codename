@@ -300,7 +300,9 @@ describe('editing a state', () => {
     expect(chips()).toEqual(expect.arrayContaining(['default', 'hover', 'focus', 'active', 'dark']));
     const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]');
     expect(widths).not.toBeNull();
-    expect(Array.from(widths!.options).map((o) => o.textContent)).toContain('≤768 · Tablet');
+    // This page declares one breakpoint of its own, so that is what is
+    // offered — not a device preset it was never written against.
+    expect(Array.from(widths!.options).map((o) => o.textContent?.trim())).toEqual(['width…', '≤700']);
   });
 
   it('holds the page in the state and shows what it already does there', async () => {
@@ -354,11 +356,12 @@ describe('editing a state', () => {
     await selectHeading();
     const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
     await act(async () => {
-      widths.value = '768';
+      widths.value = '700';
       widths.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await tick(120);
-    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'set-viewport' && m.preset === 'Tablet')).toBe(true);
+    // The width travels, not just a preset name: 700px is not a device.
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'set-viewport' && m.width === 700)).toBe(true);
   });
 
   it('reads the element again when the selection changes while a state is held', async () => {
@@ -419,7 +422,7 @@ describe('editing a state', () => {
     await selectHeading();
     const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
     await act(async () => {
-      widths.value = '768';
+      widths.value = '700';
       widths.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await tick(150);

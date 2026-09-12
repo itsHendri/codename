@@ -124,6 +124,12 @@ export interface ScanResult {
   title: string;
   scannedAt: number;
   viewport: { width: number; height: number; dpr: number };
+  /**
+   * The width queries this page's own stylesheets are written against, e.g.
+   * `(max-width: 700px)`. The widths it was actually designed at, which are
+   * not the same list as a browser's device presets.
+   */
+  breakpoints?: string[];
   fontFaces: FontFaceInfo[];
   fontUsage: FontUsage[];
   colors: ColorInfo[];
@@ -250,7 +256,12 @@ export type InspectorCommand =
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
   /** Pick a viewport preset by name, or put the window back; answers once the window has moved. */
-  | { cmd: 'set-viewport'; preset: string }
+  /**
+   * `preset` names one of the bar's devices, or `reset`. `width` asks for a
+   * bare CSS width instead — the page's own breakpoints are not devices and
+   * have no height of their own, so the window keeps the one it has.
+   */
+  | { cmd: 'set-viewport'; preset: string; width?: number }
   /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
   | { cmd: 'locate'; selector: string }
   /** Put the window and zoom back where they were before the first preset. */

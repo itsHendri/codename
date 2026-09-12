@@ -192,7 +192,9 @@ export default function App() {
     turned.current = Boolean(condition);
     if (condition?.kind === 'scheme') setMode('dark');
     else if (condition?.kind === 'width') {
-      if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'set-viewport', preset: condition.preset });
+      if (tabIdRef.current != null) {
+        void sendInspector(tabIdRef.current, { cmd: 'set-viewport', preset: condition.preset, width: condition.maxWidth });
+      }
     } else {
       // Back to the page as it really is.
       setMode('light');
