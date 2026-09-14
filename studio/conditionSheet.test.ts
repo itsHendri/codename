@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Condition } from './conditions';
 import {
+  collectStateRules,
   elementsSheet,
   hoistState,
   lastPseudoPosition,
@@ -214,5 +215,39 @@ describe('what the bare selector has to survive', () => {
       // Throws on an invalid selector, which is exactly the failure being pinned.
       expect(() => document.querySelector(bare)).not.toThrow();
     }
+  });
+});
+
+describe('collectStateRules', () => {
+  /** happy-dom does not parse nesting into child rules, so the rules are built. */
+  const style = (selectorText: string, cssText: string, ...cssRules: unknown[]) => ({
+    cssText: `${selectorText} { ${cssText} }`,
+    selectorText,
+    style: Object.assign([], { cssText, getPropertyValue: () => '' }),
+    cssRules,
+  });
+
+  it('finds a hover written with native nesting, resolved against its parent', () => {
+    // The walk this replaced never went inside a style rule, so this page was
+    // told it styles nothing on hover.
+    const lists = [[style('.btn', 'background: #fff;', style('&:hover', 'background: #333;'))]] as never;
+    const found = collectStateRules(lists, [':hover']);
+    expect(found).toEqual([{ selector: ':is(.btn):hover', cssText: 'background: #333;', groups: [] }]);
+  });
+
+  it('carries what it finds all the way to a sheet that paints the held element', () => {
+    const lists = [[style('.btn', 'background: #fff;', style('&:hover', 'background: #333;'))]] as never;
+    const hoisted = hoistState(collectStateRules(lists, [':hover']), 'hover', [':hover']);
+    expect(hoisted[0]).toMatchObject({ selector: ':is(.btn).codename-state-hover', bare: ':is(.btn)', onAncestor: false });
+    expect(stateSheet(hoisted)).toBe(':is(.btn).codename-state-hover{background: #333;}');
+  });
+
+  it('still reads a hover written the ordinary way, from a real stylesheet', () => {
+    const el = document.createElement('style');
+    el.textContent = '.link:hover { color: red } .link { color: blue }';
+    document.head.appendChild(el);
+    const found = collectStateRules([document.styleSheets[document.styleSheets.length - 1]!.cssRules], [':hover']);
+    expect(found.map((r) => r.selector)).toEqual(['.link:hover']);
+    el.remove();
   });
 });

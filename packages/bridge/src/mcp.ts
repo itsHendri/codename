@@ -262,7 +262,17 @@ export function createMcpServer(
           'the user has not allowed this bridge to edit definitions in this project; ask them to turn on "Bridge may edit definitions" on the Changes tab, or edit the file yourself',
         );
       }
-      const { found } = findDefinitions(cwd, [name]);
+      if (!state.tab?.local) {
+        throw new Error(
+          'the page open in the panel is not served from this machine, so this bridge will not write to the project on its account; edit the file yourself',
+        );
+      }
+      const { found, truncated } = findDefinitions(cwd, [name]);
+      if (truncated) {
+        throw new Error(
+          `the search for ${name} stopped before it had read the whole project, so it cannot say there is only one definition; call find_definition and edit the right one yourself`,
+        );
+      }
       const roots = (found[name] ?? []).filter((d) => d.context === 'root');
       const target = roots[0];
       if (roots.length !== 1 || !target?.line) {

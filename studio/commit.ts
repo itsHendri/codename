@@ -37,6 +37,11 @@ export interface TokenChange {
    * cascade decides which applies.
    */
   definedAt?: Definition[];
+  /**
+   * Set when the search that produced `definedAt` stopped before reading the
+   * whole project, so what it found is not everything there is.
+   */
+  definedAtPartial?: boolean;
   /** Set when the person applied this definition to source themselves. */
   applied?: { file: string; line: number };
   /** Where the browser loaded the defining stylesheet. A hint, not a fact. */
@@ -188,6 +193,8 @@ export function buildChangeSet(
   repo: {
     project?: ChangeSet['project'];
     definitions?: Record<string, Definition[]>;
+    /** The search behind `definitions` stopped early; what it found is not everything. */
+    definitionsTruncated?: boolean;
     applied?: { name: string; file: string; line: number; value: string }[];
   } = {},
 ): ChangeSet {
@@ -209,7 +216,7 @@ export function buildChangeSet(
       source: prop?.source,
       uses: prop?.uses,
       reason: o.reason,
-      ...(definedAt?.length ? { definedAt } : {}),
+      ...(definedAt?.length ? { definedAt, ...(repo.definitionsTruncated ? { definedAtPartial: true } : {}) } : {}),
       ...(applied ? { applied: { file: applied.file, line: applied.line } } : {}),
       ...(alsoAt.length ? { alsoAt } : {}),
       ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
@@ -309,13 +316,18 @@ export function describeDefinitions(t: TokenChange): string | null {
   const found = t.definedAt ?? [];
   if (!found.length) return null;
   const at = (d: Definition) => `${d.file}${d.line ? `:${d.line}` : ''}`;
-  if (found.length === 1) return `defined at ${at(found[0]!)}`;
+  // A search that stopped early found these, not necessarily all of them, and
+  // "defined at" alone would state the one as the only one.
+  const partial = t.definedAtPartial
+    ? ' — the search stopped before it had read the whole project, so there may be others'
+    : '';
+  if (found.length === 1) return `${partial ? 'found' : 'defined'} at ${at(found[0]!)}${partial}`;
   const listed = found
     .slice(0, 4)
     .map((d) => `${at(d)}${d.context === 'root' ? '' : ` (${d.context})`}`)
     .join(', ');
   const more = found.length > 4 ? `, and ${found.length - 4} more` : '';
-  return `${found.length} definitions: ${listed}${more} — read them before editing; which one applies is the cascade's business`;
+  return `${found.length} definitions: ${listed}${more} — read them before editing; which one applies is the cascade's business${partial}`;
 }
 
 /**

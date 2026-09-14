@@ -8,7 +8,8 @@ const LABEL: Record<BridgeStatus, string> = {
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
   unauthorized: 'Wrong pairing code',
-  locked: 'Too many wrong codes — wait five minutes',
+  locked: 'Too many wrong codes — trying again when the bridge opens',
+  'other-extension': 'Paired with another copy of Codename — run npx codename-bridge unpin',
 };
 
 /** The dot beside the site name: there when the agent can see the panel. */
@@ -17,7 +18,7 @@ export function BridgeDot({ status }: { status: BridgeStatus }) {
   const cls =
     status === 'connected'
       ? 'bg-ok'
-      : status === 'unauthorized' || status === 'locked'
+      : status === 'unauthorized' || status === 'locked' || status === 'other-extension'
         ? 'bg-warn'
         : 'bg-ink-faint animate-pulse';
   return <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} title={`Agent bridge: ${LABEL[status]}`} />;

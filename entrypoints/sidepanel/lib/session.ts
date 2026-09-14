@@ -224,7 +224,20 @@ export async function loadSession(id: number, url: string): Promise<void> {
 
 /* ---------------- consent, kept per project ---------------- */
 
-const CONSENT_KEY = 'consent:';
+/**
+ * Each answer has its own key.
+ *
+ * On a local page the page's scope and the project's scope are the same
+ * string, so one record holding both answers meant saving either one wiped
+ * the other: allowing the bridge to write quietly took back the agent's
+ * permission to paint, and the reverse.
+ */
+const CONSENT_KEYS: Record<keyof Consent, string> = {
+  agentMayWrite: 'consent:paint:',
+  bridgeMayWrite: 'consent:write:',
+};
+/** Where both answers used to live, together; still read so nothing given is lost. */
+const LEGACY_CONSENT_KEY = 'consent:';
 
 interface Consent {
   agentMayWrite: boolean;
@@ -236,21 +249,27 @@ interface Consent {
  *
  * Asked once rather than assumed: a page on localhost used to arrive with the
  * agent already allowed to paint on it, which is a consent nobody gave. The
- * two answers are filed apart, because they are about different things —
- * painting is about this page, writing is about the folder the bridge is in.
+ * two answers are about different things — painting is about this page,
+ * writing is about the folder the bridge is in — so each is read from its own
+ * scope.
  */
 async function loadConsent(pageScope: string, writeScope: string | null): Promise<Consent> {
-  const read = async (key: string): Promise<Partial<Consent>> => {
+  const read = async (what: keyof Consent, scope: string): Promise<boolean> => {
     try {
-      const k = `${CONSENT_KEY}${key}`;
-      const got = await chrome.storage.local.get(k);
-      return (got[k] as Partial<Consent> | undefined) ?? {};
+      const own = `${CONSENT_KEYS[what]}${scope}`;
+      const legacy = `${LEGACY_CONSENT_KEY}${scope}`;
+      const got = await chrome.storage.local.get([own, legacy]);
+      if (typeof got[own] === 'boolean') return got[own] as boolean;
+      return (got[legacy] as Partial<Consent> | undefined)?.[what] === true;
     } catch {
-      return {};
+      return false;
     }
   };
-  const [page, repo] = await Promise.all([read(pageScope), writeScope ? read(writeScope) : Promise.resolve<Partial<Consent>>({})]);
-  return { agentMayWrite: page.agentMayWrite === true, bridgeMayWrite: writeScope ? repo.bridgeMayWrite === true : false };
+  const [agentMayWrite, bridgeMayWrite] = await Promise.all([
+    read('agentMayWrite', pageScope),
+    writeScope ? read('bridgeMayWrite', writeScope) : Promise.resolve(false),
+  ]);
+  return { agentMayWrite, bridgeMayWrite };
 }
 
 /**
@@ -282,7 +301,7 @@ export function allow(what: keyof Consent, value: boolean): void {
   if (what === 'bridgeMayWrite' && !key) return;
   updateSession({ [what]: value } as Partial<TabSession>);
   if (!key) return;
-  void chrome.storage.local.set({ [`${CONSENT_KEY}${key}`]: { [what]: value } }).catch(() => {});
+  void chrome.storage.local.set({ [`${CONSENT_KEYS[what]}${key}`]: value }).catch(() => {});
 }
 
 /** Something the agent should wake up for. */
@@ -366,15 +385,17 @@ let scopeGeneration = 0;
 /**
  * The bridge connected, disconnected, or moved to another folder.
  *
- * Gaining or changing a project moves where decisions are filed, so they are
- * read again under the new key. *Losing* one does not: an agent quitting
- * should not take the edits off the page, and re-reading under the origin
- * would do exactly that.
+ * Only a *different* project moves where decisions are filed. Losing the
+ * bridge does not: the agent restarting takes the bridge with it for a few
+ * seconds, and filing whatever the person did in those seconds under the
+ * origin — then reading the project's older record back when the bridge
+ * returned — silently threw those edits away. The last project known stays
+ * the scope until another one is named.
  */
 export function setProjectScope(next: ProjectInfo | null): void {
+  if (!next) return;
   const before = project;
   project = next;
-  if (!next) return;
   const scan = state.scan;
   if (!scan) return;
   if (keyFor(scan.url) === editsKey(originOf(scan.url), before, isLocal(scan.url))) return;

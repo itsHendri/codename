@@ -12,7 +12,9 @@ const LABEL: Record<string, string> = {
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
   unauthorized: 'That code did not match — check it with your agent',
-  locked: 'Too many wrong codes — wait five minutes and try again',
+  locked: 'Too many wrong codes — the panel tries again by itself once the bridge opens, in five minutes',
+  'other-extension':
+    'This bridge paired with a different copy of Codename, such as a development build. Run npx codename-bridge unpin, then enter the code again.',
 };
 
 /**

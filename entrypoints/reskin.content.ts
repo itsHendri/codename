@@ -30,10 +30,10 @@ import { pseudosOf, type StateName } from '@/studio/conditions';
 import {
   elementsSheet,
   hoistState,
+  collectStateRules,
   stateSheet as buildStateSheet,
   type ConditionRule,
   type HoistedRule,
-  type PageRule,
 } from '@/studio/conditionSheet';
 import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
 
@@ -440,30 +440,10 @@ export default defineContentScript({
       if (!element) return [];
 
       const pseudos = pseudosOf(state);
-      const collected: PageRule[] = [];
       const lists = await allRules(NOT_THE_PAGE);
       // Another pick arrived while the sheets were being read.
       if (mine !== stateToken) return [];
-
-      // Every rule visited, not every rule kept: a page with fifty thousand
-      // rules and no hover styles would otherwise walk all of them.
-      let visited = 0;
-      const walk = (rules: CSSRuleList, groups: string[], href?: string) => {
-        for (const rule of Array.from(rules)) {
-          if (++visited > MAX_RULES) return;
-          if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule || rule instanceof CSSLayerBlockRule) {
-            walk(rule.cssRules, [...groups, groupHead(rule)], href);
-            continue;
-          }
-          if (!(rule instanceof CSSStyleRule)) continue;
-          if (!pseudos.some((p) => rule.selectorText.includes(p))) continue;
-          collected.push({ selector: rule.selectorText, cssText: rule.style.cssText, groups, ...(href ? { source: href } : {}) });
-        }
-      };
-      for (const list of lists) {
-        if (visited > MAX_RULES) break;
-        walk(list, []);
-      }
+      const collected = collectStateRules(lists, pseudos, MAX_RULES);
 
       // Keep only what would actually reach this element. The selector with
       // its pseudo taken out is exactly that question, and the page answers it.

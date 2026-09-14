@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync, type FSWatcher } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { ChangeSet } from '@/studio/commit';
 import type { DefinitionsPayload, Envelope } from '../../../shared/protocol';
@@ -76,5 +79,58 @@ describe('pushDefinitions', () => {
   it('sends nothing for a page with no named tokens', () => {
     expect(pushDefinitions('/repo', 's1', makeState('s1', 1), link, { find })).toBe(false);
     expect(sent).toEqual([]);
+  });
+});
+
+describe('keeping positions true after the file changes', () => {
+  const sent: Envelope[] = [];
+  const link = { send: (e: Envelope) => sent.push(e) };
+
+  beforeEach(() => {
+    sent.length = 0;
+    forget('s2');
+  });
+
+  it('searches again when a file that answered is saved, with the same names in play', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codename-push-'));
+    writeFileSync(join(dir, 'a.css'), ':root {\n  --mark: #000;\n}\n');
+    let line = 2;
+    const find = (): DefinitionsPayload => ({ found: { '--mark': [{ file: 'a.css', line, kind: 'css', context: 'root', value: '#000' }] } });
+    let fire: (() => void) | null = null;
+    const watch = (_path: string, onChange: () => void) => {
+      fire = onChange;
+      return { close() {}, on() { return this; } } as unknown as FSWatcher;
+    };
+
+    const state = makeState('s2', 1, { changes: changeSet({ tokens: [token('--mark')] }) });
+    pushDefinitions(dir, 's2', state, link, { find, watch, settleMs: 0 });
+    expect(sent).toHaveLength(1);
+
+    // The agent adds three lines above the definition and saves.
+    line = 5;
+    fire!();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ payload: { found: { '--mark': [{ line: 5 }] } } });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('stops watching once the session is gone', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codename-push-'));
+    writeFileSync(join(dir, 'a.css'), ':root { --mark: #000; }');
+    let closed = 0;
+    let fire: (() => void) | null = null;
+    const watch = (_p: string, onChange: () => void) => {
+      fire = onChange;
+      return { close: () => void closed++, on() { return this; } } as unknown as FSWatcher;
+    };
+    const find = (): DefinitionsPayload => ({ found: { '--mark': [{ file: 'a.css', line: 1, kind: 'css', context: 'root', value: '#000' }] } });
+    pushDefinitions(dir, 's2', makeState('s2', 1, { changes: changeSet({ tokens: [token('--mark')] }) }), link, { find, watch, settleMs: 0 });
+    forget('s2');
+    expect(closed).toBe(1);
+    fire!();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sent).toHaveLength(1);
+    rmSync(dir, { recursive: true, force: true });
   });
 });

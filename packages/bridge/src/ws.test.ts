@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 import type { Envelope } from '../../../shared/protocol';
 import { Sessions } from './sessions';
 import { makeState } from './test-helpers';
-import { envelopeSchema, extensionIdOf, originAllowed, startServer, TOO_MANY, UNAUTHORIZED, type BridgeServer } from './ws';
+import { envelopeSchema, extensionIdOf, originAllowed, OTHER_EXTENSION, startServer, TOO_MANY, UNAUTHORIZED, type BridgeServer } from './ws';
 
 describe('envelopeSchema', () => {
   it('accepts a valid envelope', () => {
@@ -32,11 +32,11 @@ describe('originAllowed', () => {
     expect(originAllowed(undefined, true)).toBe(true);
   });
 
-  it('admits only the pinned extension once there is one', () => {
-    expect(originAllowed('chrome-extension://abc', false, [], 'abc')).toBe(true);
-    expect(originAllowed('chrome-extension://other', false, [], 'abc')).toBe(false);
-    // A dev origin is named explicitly, so a pin does not shut the harness out.
-    expect(originAllowed('http://localhost:5320', false, ['http://localhost:5320'], 'abc')).toBe(true);
+  it('opens the socket to any extension, and to a dev origin named explicitly', () => {
+    // Which extension is decided after the hello, where it can be answered in
+    // words rather than as a refused upgrade the panel cannot read.
+    expect(originAllowed('chrome-extension://other', false)).toBe(true);
+    expect(originAllowed('http://localhost:5320', false, ['http://localhost:5320'])).toBe(true);
   });
 
   it('reads the id out of an origin', () => {
@@ -164,9 +164,44 @@ describe('pairing: the pin, the limiter and the probe', () => {
     ws.close();
   });
 
-  it('refuses a second extension once one has paired', async () => {
+  it('tells a second copy of the extension so, in a code the panel can show', async () => {
     server = await start({ pinnedExtensionId: ID });
-    await expect(connect('chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')).rejects.toThrow();
+    const ws = await connect('chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz');
+    // Even with the right code: it is not a guess, and it must not be a way to test codes.
+    hello(ws, { token: TOKEN });
+    await expect(closed(ws)).resolves.toBe(OTHER_EXTENSION);
+    expect(sessions.list()).toEqual([]);
+  });
+
+  it('does not count another copy of the extension against the limiter', async () => {
+    server = await start({ pinnedExtensionId: ID });
+    for (let i = 0; i < 6; i++) {
+      const ws = await connect('chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz');
+      hello(ws, { token: 'WRONG1' });
+      await closed(ws);
+    }
+    const ours = await connect();
+    const ack = next(ours);
+    hello(ours, { token: TOKEN, extensionId: ID });
+    await expect(ack).resolves.toMatchObject({ ok: true });
+    ours.close();
+  });
+
+  it('lets a new copy pair once the pin is removed, without restarting', async () => {
+    let stored: string | undefined = ID;
+    server = await start({ readPin: () => stored, onPin: (id) => (stored = id) });
+    const other = 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
+    const refused = await connect(`chrome-extension://${other}`);
+    hello(refused, { token: TOKEN });
+    await expect(closed(refused)).resolves.toBe(OTHER_EXTENSION);
+
+    stored = undefined; // what `codename-bridge unpin` does to the file
+    const ws = await connect(`chrome-extension://${other}`);
+    const ack = next(ws);
+    hello(ws, { token: TOKEN, extensionId: other });
+    await expect(ack).resolves.toMatchObject({ ok: true });
+    expect(stored).toBe(other);
+    ws.close();
   });
 
   it('refuses a hello whose claimed id is not the origin it came from', async () => {
@@ -184,8 +219,11 @@ describe('pairing: the pin, the limiter and the probe', () => {
       await closed(ws);
     }
     const locked = await connect();
+    const reason = new Promise<string>((r) => locked.once('close', (_code, why) => r(why.toString())));
     hello(locked, { token: TOKEN });
     await expect(closed(locked)).resolves.toBe(TOO_MANY);
+    // Says how long, so a panel holding the right code can come back by itself.
+    await expect(reason).resolves.toBe(`retry-after:${5 * 60_000}`);
 
     clock += 5 * 60_000;
     const later = await connect();

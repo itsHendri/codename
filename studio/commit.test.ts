@@ -536,3 +536,25 @@ describe('the token hint under a state', () => {
     expect(set.elements[0]?.couldBe).toBeUndefined();
   });
 });
+
+describe('a definition search that stopped early', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'exact' as const };
+  const at = { file: 'src/index.css', line: 12, kind: 'css' as const, context: 'root' as const, value: '#BE3A22' };
+
+  it('does not call the one it found the only one', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at] },
+      definitionsTruncated: true,
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).not.toContain('defined at src/index.css:12');
+    expect(prompt).toContain('found at src/index.css:12');
+    expect(prompt).toContain('may be others');
+  });
+
+  it('says "defined at" when the search was complete', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: { '--mark': [at] } });
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+});

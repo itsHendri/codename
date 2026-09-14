@@ -330,3 +330,15 @@ describe('the traps a review found in the write path', () => {
     expect(definitionsInCss(css, ['--mark'], 'a.css')['--mark']?.[0]?.context).toBe('root');
   });
 });
+
+describe('a search that did not finish', () => {
+  it('is not proof of a single definition, so nothing is written', () => {
+    // The file cap is one: the search reads a.css, never reaches b.css, and
+    // would otherwise call a.css the only root definition.
+    const dir = project({ 'a.css': ':root {\n  --mark: #BE3A22;\n}\n', 'b.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    expect(() =>
+      applyDefinition(dir, { name: '--mark', from: '#BE3A22', to: '#1C7F5C', file: 'a.css', line: 2 }, { ...noGit, maxFiles: 1 }),
+    ).toThrow(/stopped before/);
+    expect(readFileSync(join(dir, 'a.css'), 'utf8')).toContain('#BE3A22');
+  });
+});

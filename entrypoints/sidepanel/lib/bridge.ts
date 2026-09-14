@@ -46,7 +46,7 @@ import {
   type TabSession,
 } from './session';
 
-export type BridgeStatus = 'off' | 'connecting' | 'connected' | 'unauthorized' | 'locked';
+export type BridgeStatus = 'off' | 'connecting' | 'connected' | 'unauthorized' | 'locked' | 'other-extension';
 
 export interface Pairing {
   token: string;
@@ -81,6 +81,19 @@ const setProject = (p: ProjectInfo | null) => {
 
 /** The bridge closes with this when too many wrong codes have been tried. */
 const TOO_MANY = 4429;
+/** The bridge closes with this when it paired with a different copy of the extension. */
+const OTHER_EXTENSION = 4403;
+/** A little past the bridge's own lockout, so the first try back is not refused too. */
+const LOCKOUT_MARGIN_MS = 1_000;
+
+/** Nothing will answer these now; a caller waiting on one should hear so. */
+function settleAsks(why: string) {
+  for (const [id, waiting] of asking) {
+    clearTimeout(waiting.timer);
+    waiting.reject(new Error(why));
+    asking.delete(id);
+  }
+}
 
 let socket: WebSocket | null = null;
 let backoff = 1000;
@@ -131,14 +144,32 @@ function connect() {
   };
   ws.onmessage = (e) => void onMessage(e.data as string);
   ws.onclose = (e) => {
+    // A socket let go on purpose — pair, retry, forget — has already been
+    // replaced or turned off, and its late close must not tear down the one
+    // that took its place (which it used to, then open a duplicate).
+    if (socket !== ws) return;
     socket = null;
     setProject(null);
+    // A bridge that went away mid-question will never answer it, and waiting
+    // out the timeout left an Apply button saying "Applying…" for twenty seconds.
+    settleAsks('the agent bridge disconnected');
     if (e.code === 4401) {
       setStatus('unauthorized');
       return;
     }
+    if (e.code === OTHER_EXTENSION) {
+      setStatus('other-extension');
+      return;
+    }
     if (e.code === TOO_MANY) {
       setStatus('locked');
+      // The lockout is not this panel's doing when it holds the right code, so
+      // it comes back by itself once the door opens rather than staying out.
+      const wait = Number(/retry-after:(\d+)/.exec(e.reason ?? '')?.[1]);
+      if (pairing && Number.isFinite(wait)) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, wait + LOCKOUT_MARGIN_MS);
+      }
       return;
     }
     if (!pairing) {
@@ -158,13 +189,7 @@ function disconnect() {
   const ws = socket;
   socket = null;
   ws?.close();
-  // Nothing will answer these now; a caller waiting on one should hear so
-  // rather than sit out the timeout.
-  for (const [id, waiting] of asking) {
-    clearTimeout(waiting.timer);
-    waiting.reject(new Error('the agent bridge disconnected'));
-    asking.delete(id);
-  }
+  settleAsks('the agent bridge disconnected');
   setStatus(pairing ? 'connecting' : 'off');
 }
 
@@ -550,6 +575,9 @@ const getSnapshot = () => {
   if (next.status !== memo.status || next.pairing !== memo.pairing || next.project !== memo.project) memo = next;
   return memo;
 };
+
+/** The same store `useBridge` reads, for code that is not a component. */
+export const bridgeStatus = (): BridgeStatus => status;
 
 export function useBridge(): { status: BridgeStatus; pairing: Pairing | null; project: ProjectInfo | null } {
   useEffect(() => void start(), []);

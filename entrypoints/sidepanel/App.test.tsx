@@ -11,7 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { handleBridgeFrame } from './lib/bridge';
-import { allow, getSession, updateSession } from './lib/session';
+import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
 import { element, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -209,6 +209,62 @@ describe('the project the bridge is running in', () => {
     expect(text()).toContain('forfontsake');
     expect(text()).toContain('main');
     expect(text()).toContain('Bridge may edit definitions in forfontsake');
+  });
+
+  it('keeps both consents when both are given, rather than one erasing the other', async () => {
+    // On a local page the page's scope and the project's are the same string,
+    // which is how saving one answer used to wipe the other.
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(120);
+    await act(async () => allow('agentMayWrite', true));
+    await act(async () => allow('bridgeMayWrite', true));
+    await tick();
+    const stored = await chrome.storage.local.get([
+      'consent:paint:project:/Users/x/ffs',
+      'consent:write:project:/Users/x/ffs',
+    ]);
+    expect(stored).toEqual({
+      'consent:paint:project:/Users/x/ffs': true,
+      'consent:write:project:/Users/x/ffs': true,
+    });
+    await act(async () => loadSession(1, 'http://localhost:5173/'));
+    expect(getSession()).toMatchObject({ agentMayWrite: true, bridgeMayWrite: true });
+  });
+
+  it('keeps an edit made while the bridge was away when it comes back', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(150);
+    // Something already decided while paired, so the project has a record.
+    await act(async () => setVarOverride('--ink', '#222222'));
+    await tick(400);
+
+    // The agent restarts and takes the bridge with it: the panel forgets the
+    // project it was told about, which is what a closing socket does.
+    await act(async () => void ack(null));
+    await act(async () => setVarOverride('--mark', '#1C7F5C'));
+    // Past the save debounce, so the edit is on disk under whatever key applied.
+    await tick(400);
+
+    // Back again, naming the same project.
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(200);
+    expect(getSession().varOverrides).toEqual({ '--ink': '#222222', '--mark': '#1C7F5C' });
+  });
+
+  it('offers no Apply on a page that is not served locally, whatever was allowed', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () => allow('bridgeMayWrite', true));
+    await act(async () =>
+      updateSession((prev) => ({ scan: { ...prev.scan!, url: 'https://forfontsake.com/' }, varOverrides: { '--mark': '#1C7F5C' } })),
+    );
+    await act(async () => void definitions({ '--mark': [{ file: 'src/index.css', line: 2, kind: 'css', context: 'root', value: '#BE3A22' }] }));
+    await tick(150);
+    await click(host.querySelector('#tab-changes'));
+    // The row is there, with its position — only the write is withheld.
+    expect(text()).toContain('src/index.css:2');
+    expect(getSession().bridgeMayWrite).toBe(true);
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
   });
 
   it('says nothing about a project while no bridge is paired', async () => {
@@ -462,6 +518,33 @@ describe('editing a state', () => {
     const after = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
     expect(after.value).toBe('');
     expect(Array.from(after.options).map((o) => o.textContent?.trim())).toEqual(['width…', '≥1024']);
+  });
+
+  it('leaves the dark preview and the viewport alone when a state is picked', async () => {
+    // The person turned on Dark themselves, on the bar.
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await selectHeading();
+    const bars = () => stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar');
+    const before = bars().length;
+
+    await click(chip('hover'));
+    await tick(150);
+    await click(chip('default'));
+    await tick(150);
+
+    // Neither pick said anything about the mode, and nothing reset the window.
+    expect(bars().slice(before).every((m) => m.mode === 'dark')).toBe(true);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'reset-viewport')).toBe(false);
+  });
+
+  it('puts the mode back to what it was, not to light, after editing in dark', async () => {
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    await click(chip('default'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
   });
 
   it('lets go of the state when the selection goes', async () => {

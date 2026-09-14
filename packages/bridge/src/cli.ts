@@ -39,6 +39,7 @@ Usage: codename-bridge [--port N] [--keep-token]
        codename-bridge setup [--client claude|cursor|none] [--skills-dir DIR] [--print]
        codename-bridge open [DIR] [--cmd "…"] [--url URL] [--browser NAME]
        codename-bridge code
+       codename-bridge unpin
 
   setup           Install the codename skill into your agent's skills folder
                   (~/.claude/skills/codename) and register the bridge with
@@ -49,6 +50,11 @@ Usage: codename-bridge [--port N] [--keep-token]
   code            Print the pairing code of the bridge that is running, and exit.
                   Your agent starts the bridge and swallows what it prints, so
                   this is how you read the code — or ask the agent for it.
+  unpin           Forget which copy of the extension this bridge paired with.
+                  The bridge only answers the first one it pairs with; run this
+                  after switching between a development build and the store
+                  one, then pair again. Takes effect on a running bridge too.
+                  ($CODENAME_EXTENSION_ID pins one by hand instead.)
   --port N        Port for the panel socket (default ${DEFAULT_PORT}, or $CODENAME_PORT)
   --keep-token    Reuse the pairing code from ~/.codename/bridge.json
   --version       Print the version
@@ -67,6 +73,20 @@ function printCode(): never {
     process.exit(1);
   }
   process.stdout.write(`${running.token}\n`);
+  process.exit(0);
+}
+
+/** `codename-bridge unpin`: for a person at a terminal, so it talks on stdout. */
+function unpinCli(): never {
+  const path = bridgeFilePath();
+  const file = readBridgeFile(path);
+  if (!file?.extensionId) {
+    process.stdout.write('no extension is pinned; any copy of the extension can pair with its code\n');
+    process.exit(0);
+  }
+  const { extensionId, ...rest } = file;
+  writeBridgeFile(path, rest);
+  process.stdout.write(`unpinned ${extensionId}; the next copy of the extension to pair with the code becomes the one\n`);
   process.exit(0);
 }
 
@@ -170,6 +190,7 @@ function parseArgs(argv: string[]): Args {
 
 async function main() {
   if (process.argv[2] === 'code') printCode();
+  if (process.argv[2] === 'unpin') unpinCli();
   if (process.argv[2] === 'setup') setupCli(process.argv.slice(3));
   if (process.argv[2] === 'open') return openCli(process.argv.slice(3));
   const args = parseArgs(process.argv.slice(2));
@@ -186,6 +207,9 @@ async function main() {
     if (request.method === 'find_definitions') return findDefinitions(cwd, request.names);
     const state: SessionState | null = sessions.get(sessionId).state;
     if (!state?.bridgeMayWrite) throw new Error('this project has not been allowed to take edits from the panel');
+    // The consent is kept per project, so it is still on when the same tab
+    // has moved to a deployed site; a value read there is not this folder's.
+    if (!state.tab?.local) throw new Error('the page is not served from this machine, so nothing read from it is written to this project');
     const applied: AppliedDefinition = applyDefinition(cwd, request);
     log(`applied ${applied.name}: ${applied.from} → ${applied.to} in ${applied.file}:${applied.line}`);
     return applied;
@@ -199,6 +223,8 @@ async function main() {
       sessions,
       bridgeVersion: pkg.version,
       pinnedExtensionId: process.env.CODENAME_EXTENSION_ID || previous?.extensionId,
+      // Read from the file for each hello, so `unpin` reaches this process.
+      readPin: () => process.env.CODENAME_EXTENSION_ID || readBridgeFile(filePath)?.extensionId,
       onPin: (extensionId) => {
         const file = readBridgeFile(filePath);
         if (file && file.pid === process.pid) writeBridgeFile(filePath, { ...file, extensionId });

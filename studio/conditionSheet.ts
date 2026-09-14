@@ -9,6 +9,7 @@
  */
 
 import { cascadeOrder, conditionKey, mediaFor, selectorFor, stateClass, type MaybeCondition, type StateName } from './conditions';
+import { eachStyleRule, MAX_RULES, resolveNested, type RuleLike } from './scan/customProps';
 
 export interface ConditionRule {
   selector: string;
@@ -60,6 +61,31 @@ export interface PageRule {
   groups?: string[];
   /** Where it came from, for the read-only list the panel shows. */
   source?: string;
+}
+
+/**
+ * The page's own rules that mention one of `pseudos`, as the hoist needs them.
+ *
+ * The same walk every other reading of the page uses, so it sees what they
+ * see — and in particular a rule written with native nesting. The walk this
+ * replaced never went inside a style rule, so on a page that writes
+ * `.btn { &:hover { … } }` it found nothing, held the element in no state,
+ * and told the person "this page adds nothing on hover" when it plainly did.
+ * A nested selector is resolved against its parents before anything else
+ * reads it, since `&:hover` on its own means `:root:hover`.
+ */
+export function collectStateRules(lists: ArrayLike<RuleLike>[], pseudos: string[], limit = MAX_RULES): PageRule[] {
+  const collected: PageRule[] = [];
+  eachStyleRule(
+    lists,
+    (rule, groups, parents) => {
+      const selector = resolveNested(parents, rule.selectorText);
+      if (!pseudos.some((p) => selector.includes(p))) return;
+      collected.push({ selector, cssText: rule.style.cssText, groups });
+    },
+    limit,
+  );
+  return collected;
 }
 
 /** A rule rewritten so it applies to an element wearing the state class. */

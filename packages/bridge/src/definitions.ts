@@ -428,7 +428,15 @@ export function applyDefinition(cwd: string, edit: ApplyEdit, opts: FindOptions 
   const wrong = badValue(edit.to);
   if (wrong) throw new ApplyRefused(wrong);
 
-  const { found } = findDefinitions(cwd, [edit.name], opts);
+  const { found, truncated } = findDefinitions(cwd, [edit.name], opts);
+  // "Exactly one" is only proven by a search that read everything. One that
+  // stopped at its file cap or its time budget may have walked past a second
+  // root definition, and the later one would go on winning.
+  if (truncated) {
+    throw new ApplyRefused(
+      `the search for ${edit.name} stopped before it had read the whole project, so it cannot say this is the only definition; edit it yourself`,
+    );
+  }
   const candidates = found[edit.name] ?? [];
   if (!candidates.length) throw new ApplyRefused(`${edit.name} is not defined anywhere this bridge can see`);
 

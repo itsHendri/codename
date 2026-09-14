@@ -30,7 +30,7 @@ import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
 import type { TokenLengths } from '@/shared/types';
 import { buildChangeSet } from '@/studio/commit';
-import type { MaybeCondition } from '@/studio/conditions';
+import type { Mode } from '@/studio/engine/types';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
@@ -120,6 +120,7 @@ export default function App() {
               }
             : {}),
           ...(session.definitions?.found ? { definitions: session.definitions.found } : {}),
+          ...(session.definitions?.truncated ? { definitionsTruncated: true } : {}),
           ...(session.applied.length ? { applied: session.applied } : {}),
         },
       ),
@@ -186,19 +187,33 @@ export default function App() {
    * panel no longer believed it was in.
    */
   const condition = ctl.condition;
-  const turned = useRef(false);
+  /**
+   * What this effect itself changed, and what the page was before it did.
+   * Only that is ever undone: a hover chip is not a reason to switch off a
+   * dark preview or a viewport the person chose on the bar, and leaving the
+   * dark condition puts the mode back to what it was, not to light.
+   */
+  const turned = useRef<{ scheme: Mode | null; width: boolean }>({ scheme: null, width: false });
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   useEffect(() => {
-    if (!condition && !turned.current) return;
-    turned.current = Boolean(condition);
-    if (condition?.kind === 'scheme') setMode('dark');
-    else if (condition?.kind === 'width') {
-      if (tabIdRef.current != null) {
-        void sendInspector(tabIdRef.current, { cmd: 'set-viewport', preset: condition.preset, width: condition.px });
-      }
-    } else {
-      // Back to the page as it really is.
-      setMode('light');
-      if (tabIdRef.current != null) void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
+    const was = turned.current;
+    const tab = tabIdRef.current;
+
+    if (condition?.kind === 'scheme') {
+      if (was.scheme === null) was.scheme = modeRef.current;
+      setMode('dark');
+    } else if (was.scheme !== null) {
+      setMode(was.scheme);
+      was.scheme = null;
+    }
+
+    if (condition?.kind === 'width') {
+      was.width = true;
+      if (tab != null) void sendInspector(tab, { cmd: 'set-viewport', preset: condition.preset, width: condition.px });
+    } else if (was.width) {
+      was.width = false;
+      if (tab != null) void sendInspector(tab, { cmd: 'reset-viewport' });
     }
   }, [condition]);
 

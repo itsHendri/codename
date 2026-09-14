@@ -49,6 +49,11 @@ export interface ServerOptions {
   devOrigins?: string[];
   /** The extension this bridge has paired with before, if any. */
   pinnedExtensionId?: string;
+  /**
+   * Reads the pin afresh for each hello, so `codename-bridge unpin` reaches a
+   * bridge that is already running. Falls back to `pinnedExtensionId`.
+   */
+  readPin?: () => string | undefined;
   /** Called the first time an extension pairs, so the id can be remembered. */
   onPin?: (extensionId: string) => void;
   /** The folder the bridge is running in, read fresh for each hello. */
@@ -71,6 +76,14 @@ export interface BridgeServer {
 }
 
 export const UNAUTHORIZED = 4401;
+/**
+ * The socket came from a different copy of the extension than the one this
+ * bridge paired with. Its own code, rather than a refused upgrade, because a
+ * refused upgrade reaches the panel as a bare 1006 and it would retry forever
+ * with nothing on screen — which is what happened to anyone who paired a dev
+ * build and then installed the store one.
+ */
+export const OTHER_EXTENSION = 4403;
 export { TOO_MANY };
 
 /** The extension id in a `chrome-extension://abc…` origin, or null. */
@@ -80,19 +93,15 @@ export function extensionIdOf(origin: string | undefined): string | null {
   return /^[a-p]{32}$/.test(id) ? id : (id || null);
 }
 
-export function originAllowed(
-  origin: string | undefined,
-  allowNoOrigin: boolean,
-  devOrigins: string[] = [],
-  pinned?: string,
-): boolean {
+/**
+ * Whether a socket may open at all: an extension, a named dev origin, or no
+ * origin when that was asked for. Which extension is decided after the hello,
+ * where it can be answered in words.
+ */
+export function originAllowed(origin: string | undefined, allowNoOrigin: boolean, devOrigins: string[] = []): boolean {
   if (origin === undefined) return allowNoOrigin;
   if (devOrigins.includes(origin)) return true;
-  const id = extensionIdOf(origin);
-  if (id === null) return false;
-  // Before a pin, any extension may try; the token is still the gate. After
-  // one, this bridge belongs to that extension.
-  return pinned === undefined || id === pinned;
+  return extensionIdOf(origin) !== null;
 }
 
 export function startServer(opts: ServerOptions): Promise<BridgeServer> {
@@ -107,14 +116,14 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
     log = () => {},
   } = opts;
   let pinned = opts.pinnedExtensionId;
+  const currentPin = () => (opts.readPin ? opts.readPin() : pinned);
   const limiter = new Limiter(now);
 
   return new Promise((resolve, reject) => {
     const wss = new WebSocketServer({
       host: '127.0.0.1',
       port: opts.port,
-      verifyClient: ({ req }: { req: IncomingMessage }) =>
-        originAllowed(req.headers.origin, allowNoOrigin, devOrigins, pinned),
+      verifyClient: ({ req }: { req: IncomingMessage }) => originAllowed(req.headers.origin, allowNoOrigin, devOrigins),
     });
 
     wss.once('error', reject);
@@ -168,8 +177,18 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
         const envelope = envelopeSchema.safeParse(parsed);
 
         if (!sessionId) {
+          // Another copy of the extension is told so before its code is even
+          // looked at: it is not a guess, and answering "wrong code" would be
+          // both untrue and a way to test codes.
+          const pin = currentPin();
+          if (pin !== undefined && originId !== null && originId !== pin) {
+            ws.close(OTHER_EXTENSION, 'paired with another copy of the extension');
+            return;
+          }
           if (!limiter.allowed()) {
-            ws.close(TOO_MANY, 'too many attempts');
+            // Said with how long, so a panel that holds the right code can come
+            // back on its own instead of sitting locked out after the door opens.
+            ws.close(TOO_MANY, `retry-after:${limiter.retryAfterMs()}`);
             return;
           }
           const hello = envelope.success && envelope.data.type === 'hello' ? helloSchema.safeParse(envelope.data.payload) : null;
@@ -184,13 +203,14 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
 
           if (idMismatch || hello.data.token !== token) {
             if (limiter.fail()) log('too many wrong pairing codes; refusing hellos for five minutes');
-            ws.close(limiter.allowed() ? UNAUTHORIZED : TOO_MANY, 'unauthorized');
+            if (limiter.allowed()) ws.close(UNAUTHORIZED, 'unauthorized');
+            else ws.close(TOO_MANY, `retry-after:${limiter.retryAfterMs()}`);
             return;
           }
 
           limiter.succeed();
           sessionId = hello.data.sessionId;
-          if (pinned === undefined && originId !== null) {
+          if (currentPin() === undefined && originId !== null) {
             pinned = originId;
             opts.onPin?.(originId);
             log(`paired with extension ${originId}; later panels from it pair themselves`);

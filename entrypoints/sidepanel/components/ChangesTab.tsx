@@ -6,7 +6,7 @@ import type { ProjectInfo } from '@/shared/protocol';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { applyDefinition, dropAgentPreview, rereadSelection, sendToAgent, useBridge } from '../lib/bridge';
+import { applyDefinition, dropAgentPreview, refreshDefinitions, rereadSelection, sendToAgent, useBridge } from '../lib/bridge';
 import { allow, clearAgentLog, markApplied } from '../lib/session';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
@@ -29,6 +29,17 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
   const prompt = useMemo(() => toPrompt(set), [set]);
   const empty = isEmpty(set);
+  // The same names the bridge searches for on its own, so asking again
+  // replaces the whole answer rather than half of it.
+  const tokenNames = useMemo(() => {
+    const names = new Set<string>(locks);
+    for (const t of set.tokens) names.add(t.name);
+    for (const e of set.elements) {
+      if (e.token) names.add(e.token);
+      if (e.couldBe) names.add(e.couldBe);
+    }
+    return [...names].filter((n) => n.startsWith('--')).sort();
+  }, [set, locks]);
   // A reorder shifts what `li:nth-of-type(2)` points at, so an edit made on
   // a positional selector may now be on a different element than it was.
   const shifted = useMemo(() => {
@@ -80,7 +91,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
               The agent edits these definitions — not the places that use them.
             </p>
             {set.tokens.map((t) => (
-              <TokenRow key={t.name} token={t} mayWrite={bridgeMayWrite} />
+              <TokenRow key={t.name} token={t} mayWrite={bridgeMayWrite} local={set.local} names={tokenNames} />
             ))}
           </section>
         )}
@@ -347,16 +358,30 @@ function ProjectRow({ project, mayWrite, local }: { project: ProjectInfo; mayWri
  * — this is the shortcut for the case where a language model would add
  * nothing but a round trip.
  */
-function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolean }) {
+function TokenRow({
+  token: t,
+  mayWrite,
+  local,
+  names,
+}: {
+  token: TokenChange;
+  mayWrite: boolean;
+  local: boolean;
+  /** Every token in the queue, so a refresh replaces all their positions at once. */
+  names: string[];
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const found = t.definedAt ?? [];
   const roots = found.filter((d) => d.context === 'root' && d.line);
-  const only = roots.length === 1 && found.length === roots.length ? roots[0] : null;
+  // A search that stopped early cannot say a definition is the only one.
+  const only = !t.definedAtPartial && roots.length === 1 && found.length === roots.length ? roots[0] : null;
   // A token file is a definition, but not one to write into: the page reads
   // its CSS, and the file may be exported from somewhere else entirely.
   const writable = only && (only.kind === 'css' || only.kind === 'theme') ? only : null;
-  const canApply = Boolean(writable && mayWrite && !t.applied);
+  // A page that is not served from this machine is not the project's own, so
+  // what it paints is not evidence about what the project's source should say.
+  const canApply = Boolean(writable && mayWrite && local && !t.applied);
 
   const apply = async () => {
     if (!writable) return;
@@ -373,6 +398,10 @@ function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolea
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      // Either way the file may not say what the row says any more: a write
+      // can move later lines, and a refusal is usually "it has moved". Ask
+      // again so the position on screen is the one a second press would use.
+      void refreshDefinitions(names).catch(() => {});
     }
   };
 
@@ -403,7 +432,11 @@ function TokenRow({ token: t, mayWrite }: { token: TokenChange; mayWrite: boolea
         (t.definedAt?.length ?? 0) > 0 && (
           <div className="mt-1 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate font-mono text-2xs text-ink-muted" title={found.map((d) => `${d.file}:${d.line ?? '?'} (${d.context})`).join('\n')}>
-              {only ? `${only.file}${only.line ? `:${only.line}` : ''}` : `${found.length} definitions — the cascade decides`}
+              {only
+                ? `${only.file}${only.line ? `:${only.line}` : ''}`
+                : t.definedAtPartial
+                  ? `${found.length} found so far — the search did not cover the whole project`
+                  : `${found.length} definitions — the cascade decides`}
             </span>
             {canApply && (
               <button

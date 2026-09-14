@@ -310,6 +310,27 @@ describe('the project on disk', () => {
     await close();
   });
 
+  it('will not write on account of a page that is not served locally', async () => {
+    // The consent is kept per project, so it is still on after the tab moves
+    // to a deployed copy of the site.
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const sessions = new Sessions();
+    sessions.connect('s1', { send: () => {} });
+    sessions.update(
+      's1',
+      makeState('s1', 1, {
+        bridgeMayWrite: true,
+        tab: { id: 1, url: 'https://staging.example.com/', origin: 'https://staging.example.com', title: 's', local: false },
+      }),
+    );
+    const { client, close } = await connectedClient(sessions, undefined, dir);
+    const result = await client.callTool({ name: 'apply_definition', arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/not served from this machine/);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+    await close();
+  });
+
   it('refuses to choose between two root definitions', async () => {
     const dir = project({ 'a.css': ':root { --mark: #BE3A22; }', 'b.css': ':root { --mark: #BE3A22; }' });
     const { client, close } = await connectedClient(sessionsWith(true), undefined, dir);

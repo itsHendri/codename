@@ -33,8 +33,9 @@ yourself). It listens on `127.0.0.1` only and requires a pairing code, which
 it prints on start, hands to the agent through a `pairing_code` tool, and
 prints again for `codename-bridge code` and `codename-bridge open`. It accepts
 that socket from one extension: the first to pair with it, whose id it then
-remembers, so another extension cannot connect. Five wrong codes in a minute
-close it for five. The code is never given out over the socket — an extension
+remembers, so another extension cannot pair — `codename-bridge unpin` forgets
+it, for when you switch between builds. Five wrong codes in a minute close it
+for five. The code is never given out over the socket — an extension
 id is public and an `Origin` header is only trustworthy from a real browser,
 so knowing the code stays the thing that proves who is asking. It speaks to your agent over standard input and output, on
 your machine. It writes one file outside your project,

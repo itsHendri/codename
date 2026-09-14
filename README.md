@@ -229,9 +229,19 @@ bridge in its own terminal; this one only gets you to the page.
 
 The bridge runs on your machine only: an MCP server on standard input and
 output for your agent, a WebSocket on `127.0.0.1` for the panel. It takes that
-socket from the one extension it first paired with and refuses every other,
-and five wrong codes in a minute close it for five. It never gives the code
-out over the socket, whoever asks: an extension id is public, and an `Origin`
+socket from the one extension it first paired with and tells every other copy
+so — the panel says "paired with another copy of Codename" rather than
+retrying in silence. Switching between a development build and the store one
+changes the extension's id, so after doing that run:
+
+```sh
+npx codename-bridge unpin
+```
+
+and enter the code again; it reaches a bridge that is already running. Five
+wrong codes in a minute close the door for five, and a panel holding the right
+code comes back on its own once it opens. The bridge never gives the code out
+over the socket, whoever asks: an extension id is public, and an `Origin`
 header only means something coming from a real browser.
 
 ### It knows which project you are in
