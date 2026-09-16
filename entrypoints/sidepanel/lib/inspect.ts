@@ -56,6 +56,12 @@ export interface InspectController {
   cascade: HoistedRule[];
   /** The widths this page is written against, which is what may be chosen. */
   widths: Condition[];
+  /**
+   * Run the transition into the state being held: the element leaves the
+   * state and comes back, which is what a pointer does and what a duration is
+   * judged by.
+   */
+  playCondition(): void;
   /** Commit a CSS longhand. `from` is read from the element; `token` names a chosen variable. */
   change(property: string, to: string, token?: string): void;
   /** Replace the element's text content. */
@@ -144,6 +150,9 @@ export function readValue(el: ElementProps, property: string): string {
     'border-width': el.border.width,
     'border-style': el.border.style,
     'box-shadow': el.shadow,
+    filter: el.filter,
+    'backdrop-filter': el.backdropFilter,
+    transition: el.transition,
     text: el.text ?? '',
   };
   return map[property] ?? '';
@@ -403,6 +412,13 @@ export function useInspect(
     setCondition,
     cascade,
     widths: offered,
+    playCondition: () => {
+      if (tabId == null || !state) return;
+      // Off, then on a frame later: the same change applied in one go would
+      // not transition, since there would be nothing to transition from.
+      void sendInspector(tabId, { cmd: 'state', state: null });
+      window.setTimeout(() => void sendInspector(tabId, { cmd: 'state', state }), 60);
+    },
     change,
     setText,
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),

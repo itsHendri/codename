@@ -199,6 +199,11 @@ export interface ElementProps {
   corners: { topLeft: string; topRight: string; bottomRight: string; bottomLeft: string };
   border: { width: string; style: string; color: string };
   shadow: string;
+  /** `filter` and `backdrop-filter`, for the blur fields; verbatim. */
+  filter: string;
+  backdropFilter: string;
+  /** The `transition` shorthand, which is how this element gets between states. */
+  transition: string;
   /** Present only when the element's own children are text. */
   text: string | null;
   contrastRatio: number | null;

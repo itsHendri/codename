@@ -106,6 +106,8 @@ export function LayersTab({
             mode={mode}
             onChange={ctl.change}
             onText={ctl.setText}
+            onPlay={ctl.playCondition}
+            playable={ctl.condition?.kind === 'state'}
           />
           <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
         </div>

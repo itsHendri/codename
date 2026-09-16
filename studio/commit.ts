@@ -304,6 +304,9 @@ export function standingRules(locked: string[] = []): string {
   return lines.join('\n');
 }
 
+/** Properties whose change is movement, and so carries the reduced-motion duty. */
+const MOTION_PROPS = new Set(['transition', 'transition-duration', 'transition-property', 'transition-timing-function', 'animation', 'filter', 'backdrop-filter']);
+
 /**
  * Where a token is defined, in one line, or nothing.
  *
@@ -417,6 +420,15 @@ export function toPrompt(set: ChangeSet): string {
     lines.push(
       'Each line is one property on one selector, read from the rendered page: the value before I touched it and the value I settled on. Apply the same intent in source at whatever specificity the rule already has; where the new value is `var(--x)`, use that token.',
     );
+    // Motion is the one kind of edit that has a duty attached to it, and the
+    // engine's own polish rules already say so; a brief that asks for a
+    // transition and does not mention it is asking for half the work.
+    if (set.elements.some((e) => MOTION_PROPS.has(e.property))) {
+      lines.push('');
+      lines.push(
+        'A line naming `transition`, `animation` or a filter is motion: pair it with `@media (prefers-reduced-motion: reduce)`, where the duration drops to near zero, and keep the change visible without the movement.',
+      );
+    }
     if (set.elements.some((e) => e.condition)) {
       lines.push('');
       lines.push(

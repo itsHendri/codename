@@ -558,3 +558,34 @@ describe('a definition search that stopped early', () => {
     expect(toPrompt(set)).toContain('defined at src/index.css:12');
   });
 });
+
+describe('a brief that asks for movement', () => {
+  const scan = scanOf();
+  const change = (property: string, to: string): ElementChange => ({
+    id: `c-${property}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property,
+    from: 'none',
+    to,
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('says what a transition owes to someone who asked for less of it', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('transition', 'opacity 200ms ease-out')]));
+    expect(prompt).toContain('prefers-reduced-motion');
+  });
+
+  it('says nothing about motion when nothing moves', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('color', '#fff')]));
+    expect(prompt).not.toContain('prefers-reduced-motion');
+  });
+
+  it('carries the easing as the name the page gave it', () => {
+    // The point of picking `--ease-out` is that source gets `--ease-out`.
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('transition', 'opacity 200ms var(--ease-out)')]));
+    expect(prompt).toContain('var(--ease-out)');
+  });
+});

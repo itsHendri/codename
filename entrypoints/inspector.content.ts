@@ -194,6 +194,9 @@ function readProps(el: Element): ElementProps {
       color: toHex(cs.borderTopColor) ?? cs.borderTopColor,
     },
     shadow: cs.boxShadow,
+    filter: cs.filter,
+    backdropFilter: cs.backdropFilter,
+    transition: cs.transition,
     text: ownText(el),
     contrastRatio: contrast(fg, bg),
   };
