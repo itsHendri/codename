@@ -118,18 +118,27 @@ While the panel is open on a site, a bar sits across the top of the page,
 the same height as the panel's tab strip and wearing the panel's palette, so
 the two read as one tool. It pushes the page down rather than floating over
 it (a header the page itself fixes to the top of the viewport still sits
-under the bar). On it: the Codename mark, the host, the viewport named by the
-preset it matches — "Tablet · 768 × 1024", or "Custom" — with the device
-presets behind it, a **Reset** button in the centre whenever there is
-anything to take back (every override — variables, colours, scale and
-element edits — goes, and so do the dark preview and the viewport preset;
-notes stay), a
-**Light / Dark** switch, and the modes.
-Picking a preset
-resizes the window; when the display is too small for that beside the panel,
-the page is zoomed out until its CSS viewport is the preset width and the
-label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.
-**Reset** puts the window and zoom back. **Select** hovers for font, colour
+under the bar). On it: the Codename mark, the host, the **device picker**, a
+**Reset** button in the centre whenever there is anything to take back (every
+override — variables, colours, scale and element edits — goes, and so do the
+dark preview and the frame; notes stay), a **Light / Dark** switch, and the
+modes.
+
+The device picker is four icons — desktop, laptop, tablet, phone — a **Frame**
+menu of the presets, and **W** and **H** fields you can type any size into.
+Picking one shows the page at that size *without moving your window*: Chrome's
+own device emulation, the same thing DevTools' device toolbar does, so the
+page's media queries answer to the frame. A frame bigger than the tab is
+scaled down to fit and the bar says by how much. A phone or tablet frame
+honours the page's viewport meta tag, so a page without one lays out at 980px
+the way a real phone would. Click the lit icon again, or pick **Window**, to
+go back to the window's own size.
+
+While a frame is on, Chrome shows a bar saying Codename started debugging the
+browser. That is the price of emulating rather than resizing, and it is
+Chrome's to show; its **Cancel** takes the frame off. The bar lives inside the
+page, so a phone frame narrows it too — it gives up its labels before its
+controls. **Select** hovers for font, colour
 and contrast — naming the page's own variable beside a colour when it has
 one — and clicks to pick an element. The edit card that opens beside the
 selection names the variable behind a colour, a padding, a radius or a size

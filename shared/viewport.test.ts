@@ -1,74 +1,128 @@
 import { describe, expect, it } from 'vitest';
-import { chromeDelta, planResize, presetFor, requestedBounds, viewportLabel } from './viewport';
+import {
+  clampFrame,
+  fitScale,
+  frameFor,
+  kindFor,
+  MIN_SCALE,
+  planEmulation,
+  presetFor,
+  presetsOf,
+  viewportLabel,
+} from './viewport';
 
-describe('viewportLabel', () => {
-  it('names a preset by its width', () => {
-    expect(viewportLabel({ innerWidth: 768, innerHeight: 1024, zoom: 1 })).toBe('Tablet · 768 × 1024');
+describe('presetFor', () => {
+  it('names a size by the preset it is', () => {
+    expect(presetFor({ width: 768, height: 1024 })?.name).toBe('Tablet');
   });
 
-  it('calls anything else Custom', () => {
-    expect(viewportLabel({ innerWidth: 1103, innerHeight: 812, zoom: 1 })).toBe('Custom · 1103 × 812');
+  it('tolerates a pixel of rounding either way', () => {
+    expect(presetFor({ width: 1281, height: 799 })?.name).toBe('Laptop');
   });
 
-  it('adds the zoom when the page is not at 100%', () => {
-    expect(viewportLabel({ innerWidth: 1280, innerHeight: 640, zoom: 0.86 })).toBe('Laptop · 1280 × 640 · 86%');
-  });
-
-  it('tolerates a pixel of rounding', () => {
-    expect(presetFor(1281)?.name).toBe('Laptop');
-    expect(presetFor(1290)).toBeNull();
+  it('needs the height to match as well, since a frame is both', () => {
+    expect(presetFor({ width: 768, height: 600 })).toBe(null);
   });
 });
 
-describe('requestedBounds', () => {
-  const outer = { width: 1470, height: 900 };
+describe('presetsOf', () => {
+  it('lists the frames of one kind, for the menu beside its icon', () => {
+    expect(presetsOf('phone').map((p) => p.name)).toEqual(['Mobile S', 'Mobile L']);
+    expect(presetsOf('laptop').map((p) => p.name)).toEqual(['Laptop', 'Laptop L']);
+  });
+});
 
-  it('adds the chrome delta so the inner size becomes the preset', () => {
-    const inner = { width: 1100, height: 812 };
-    expect(requestedBounds({ width: 768, height: 1024 }, inner, outer, 1)).toEqual({
-      width: 768 + 370,
-      height: 1024 + 88,
+describe('kindFor', () => {
+  it('puts a width typed by hand in the band its preset would be in', () => {
+    expect([390, 820, 1366, 1920].map(kindFor)).toEqual(['phone', 'tablet', 'laptop', 'desktop']);
+  });
+});
+
+describe('clampFrame', () => {
+  it('keeps a size inside the limits, in whole pixels', () => {
+    expect(clampFrame({ width: 99999, height: 50 })).toEqual({ width: 2560, height: 200 });
+    expect(clampFrame({ width: 390.6, height: 844.2 })).toEqual({ width: 391, height: 844 });
+  });
+
+  it('treats something that is not a number as the smallest frame', () => {
+    expect(clampFrame({ width: Number.NaN, height: Number.POSITIVE_INFINITY })).toEqual({ width: 200, height: 200 });
+  });
+});
+
+describe('frameFor', () => {
+  it('names a preset and gives it its kind', () => {
+    expect(frameFor({ width: 375, height: 667 })).toEqual({ width: 375, height: 667, kind: 'phone', name: 'Mobile S' });
+  });
+
+  it('calls a typed size custom, with the kind its width implies', () => {
+    expect(frameFor({ width: 390, height: 844 })).toEqual({ width: 390, height: 844, kind: 'phone', name: null });
+  });
+});
+
+describe('fitScale', () => {
+  it('leaves a frame that fits at full size', () => {
+    expect(fitScale({ width: 375, height: 667 }, { width: 1100, height: 800 })).toBe(1);
+  });
+
+  it('scales a frame wider than the tab down to fit', () => {
+    expect(fitScale({ width: 1440, height: 900 }, { width: 1100, height: 900 })).toBe(0.76);
+  });
+
+  it('counts the height too, so a tall phone is not cut off at the bottom', () => {
+    expect(fitScale({ width: 430, height: 932 }, { width: 1100, height: 700 })).toBe(0.75);
+  });
+
+  it('rounds down, so a frame that nearly fits is not a pixel too big', () => {
+    expect(fitScale({ width: 1000, height: 100 }, { width: 999, height: 800 })).toBe(0.99);
+  });
+
+  it('stops scaling somewhere the page can still be read', () => {
+    expect(fitScale({ width: 2560, height: 4000 }, { width: 300, height: 300 })).toBe(MIN_SCALE);
+  });
+
+  it('does nothing for a tab it cannot measure', () => {
+    expect(fitScale({ width: 1440, height: 900 }, { width: 0, height: 0 })).toBe(1);
+  });
+});
+
+describe('planEmulation', () => {
+  it('asks for a phone as a mobile device, at the display density', () => {
+    expect(planEmulation({ width: 375, height: 667, kind: 'phone' }, { width: 1100, height: 800 })).toEqual({
+      width: 375,
+      height: 667,
+      deviceScaleFactor: 0,
+      mobile: true,
+      scale: 1,
     });
   });
 
-  it('un-scales a zoomed inner size before taking the delta', () => {
-    // At 50% the page reports twice the CSS pixels it has device pixels for.
-    const inner = { width: 2200, height: 1624 };
-    expect(chromeDelta(inner, outer, 0.5)).toEqual({ width: 370, height: 88 });
+  it('asks for a laptop as a desktop browser, scaled to fit', () => {
+    expect(planEmulation({ width: 1440, height: 900, kind: 'laptop' }, { width: 1100, height: 900 })).toMatchObject({
+      mobile: false,
+      scale: 0.76,
+    });
   });
 
-  it('never asks for a window smaller than the floor', () => {
-    expect(requestedBounds({ width: 100, height: 100 }, { width: 100, height: 100 }, { width: 100, height: 100 }, 1)).toEqual({
-      width: 500,
+  it('never asks for a frame outside the limits', () => {
+    expect(planEmulation({ width: 99999, height: 10, kind: 'desktop' }, { width: 1100, height: 900 })).toMatchObject({
+      width: 2560,
       height: 200,
     });
   });
 });
 
-describe('planResize', () => {
-  const inner = { width: 1100, height: 812 };
-  const outer = { width: 1470, height: 900 };
-
-  it('keeps 100% when the window could grow enough', () => {
-    const plan = planResize({ preset: { width: 768, height: 1024 }, inner, outer, zoom: 1, achieved: { width: 1138, height: 1112 } });
-    expect(plan).toEqual({ zoom: 1, viewport: { width: 768, height: 1024 } });
+describe('viewportLabel', () => {
+  it('says the window when nothing is emulated', () => {
+    expect(viewportLabel(null, { width: 1103.4, height: 812 })).toBe('Window · 1103 × 812');
   });
 
-  it('zooms out when the display clamps the window', () => {
-    // A MacBook: asked for 1650 wide, got the 1470 the display has.
-    const plan = planResize({ preset: { width: 1280, height: 800 }, inner, outer, zoom: 1, achieved: { width: 1470, height: 900 } });
-    expect(plan.zoom).toBe(0.86);
-    expect(plan.viewport.width).toBe(1279);
+  it('names the frame, and the scale when it is not full size', () => {
+    const frame = frameFor({ width: 1280, height: 800 });
+    expect(viewportLabel(frame, { width: 1100, height: 800 }, 1)).toBe('Laptop · 1280 × 800');
+    expect(viewportLabel(frame, { width: 1100, height: 800 }, 0.76)).toBe('Laptop · 1280 × 800 · 76%');
   });
 
-  it('plans from the un-zoomed delta when the page is already zoomed', () => {
-    const plan = planResize({
-      preset: { width: 1280, height: 800 },
-      inner: { width: 1279, height: 944 },
-      outer,
-      zoom: 0.86,
-      achieved: { width: 1470, height: 900 },
-    });
-    expect(plan.zoom).toBe(0.86);
+  it('calls a typed size custom', () => {
+    expect(viewportLabel(frameFor({ width: 390, height: 844 }), { width: 1100, height: 800 })).toBe('Custom · 390 × 844');
   });
 });

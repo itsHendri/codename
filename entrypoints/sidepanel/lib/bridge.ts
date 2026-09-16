@@ -322,8 +322,8 @@ async function handle(req: BridgeRequest): Promise<unknown> {
           ...(px ? { width: Number(px[1]) } : {}),
         });
         if (!r) throw new Error('the page could not be reached');
-        if (!r.ok) throw new Error(r.error ?? 'the window could not be resized');
-        // The window has moved; give the page a moment to lay out at the new width.
+        if (!r.ok) throw new Error(r.error ?? 'the page could not be shown at that size');
+        // The frame has changed; give the page a moment to lay out at the new width.
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
       type Box = { x: number; y: number; width: number; height: number };
@@ -342,9 +342,26 @@ async function handle(req: BridgeRequest): Promise<unknown> {
       }
       try {
         const shot = await captureVisible(win.id);
-        if (!box) return shot;
-        const cropped = await cropCapture(shot, box.rect, box.viewport);
-        return { ...cropped, selector: req.selector, matches: box.matches };
+        // Inside an emulated frame the page is drawn scaled in the tab's
+        // top-left corner and the rest of the capture is empty tab, so the
+        // capture is cropped to the frame — the agent asked for the page at
+        // that width, not for a picture of the space around it.
+        const emulated = tabId != null ? await frameOf(tabId) : null;
+        const tab = tabId != null ? await chrome.tabs.get(tabId).catch(() => null) : null;
+        const pxPerDip = tab?.width ? shot.width / tab.width : null;
+        const pxPerCss = emulated && pxPerDip
+          ? pxPerDip * emulated.scale
+          : box && box.viewport.width > 0
+            ? shot.width / box.viewport.width
+            : 1;
+        if (box) {
+          const cropped = await cropCapture(shot, box.rect, pxPerCss);
+          return { ...cropped, selector: req.selector, matches: box.matches };
+        }
+        if (emulated && pxPerDip) {
+          return await cropCapture(shot, { x: 0, y: 0, width: emulated.frame.width, height: emulated.frame.height }, pxPerCss, 0);
+        }
+        return shot;
       } catch (err) {
         // captureVisibleTab needs activeTab, which only a click on the toolbar
         // icon grants — and a navigation takes it away again.
@@ -449,6 +466,18 @@ function schedulePush(state: SessionState) {
     pushTimer = null;
     send({ v: PROTOCOL_VERSION, id: uid(), type: 'state', payload: state });
   }, 150);
+}
+
+/** The frame a tab is emulated at, as the background keeps it; null for the window's own size. */
+async function frameOf(tabId: number): Promise<{ frame: { width: number; height: number }; scale: number } | null> {
+  try {
+    const r = (await chrome.runtime.sendMessage({ type: 'viewport-state', tabId })) as
+      | { ok: boolean; frame?: { width: number; height: number } | null; scale?: number }
+      | undefined;
+    return r?.ok && r.frame ? { frame: r.frame, scale: r.scale ?? 1 } : null;
+  } catch {
+    return null;
+  }
 }
 
 /* ---------------- pairing ---------------- */

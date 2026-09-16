@@ -30,7 +30,9 @@ export default defineConfig({
     name: 'Codename',
     description:
       "Designer's toolkit: inspect fonts & colors, grab SVGs, resize the viewport, export a site's design tokens.",
-    permissions: ['activeTab', 'tabs', 'scripting', 'sidePanel', 'storage'],
+    // `debugger` is for device emulation only: showing the page at a frame's
+    // size without resizing the window. PRIVACY.md says what it is used for.
+    permissions: ['activeTab', 'tabs', 'scripting', 'sidePanel', 'storage', 'debugger'],
     optional_host_permissions: ['<all_urls>'],
     minimum_chrome_version: '116',
     action: {

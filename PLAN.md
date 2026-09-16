@@ -786,9 +786,13 @@ the primary use case.
 - The bar pushes the page with a root margin; a header the page fixes to the
   top of the viewport still sits under it. Region notes store page
   coordinates, so one drawn with the bar shown lands 40px off when it hides.
-- Zoom-to-fit matches width only, and Chrome resets a per-tab zoom on
-  navigation, so a reload leaves the window resized at 100%; the label
-  re-asks and says so.
+- A frame is emulated through `chrome.debugger`, so Chrome shows its
+  "started debugging this browser" bar while one is on. The frame is drawn
+  in the tab's top-left corner rather than centred, and a frame taller or
+  wider than the tab is scaled down to fit. The bar lives inside the page, so
+  a phone frame narrows the bar with it. Touch is deliberately not emulated:
+  it makes `(hover: none)` match, and a page written for that hides the very
+  hover styles the panel edits.
 - Dark shows the page's own dark mode by hoisting its dark media rules and
   setting its theme hook, and switches the page's light-only media blocks
   off in place (`not all`) for the duration; a theme driven purely by script

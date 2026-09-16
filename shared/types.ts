@@ -267,6 +267,8 @@ export type InspectorCommand =
    * have no height of their own, so the window keeps the one it has.
    */
   | { cmd: 'set-viewport'; preset: string; width?: number }
+  /** From the background: the frame changed under the page, or was taken off. */
+  | { cmd: 'viewport-changed'; frame: unknown; scale: number; detached?: boolean }
   /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
   | { cmd: 'locate'; selector: string }
   /** Put the window and zoom back where they were before the first preset. */
