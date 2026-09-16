@@ -166,9 +166,6 @@ export function installChrome(): StubChrome {
       },
       connect: () => ({ onDisconnect: { addListener() {} }, disconnect() {} }),
       captureVisibleTab: async () => 'data:image/png;base64,',
-      getZoom: async () => 1,
-      setZoom: async () => {},
-      setZoomSettings: async () => {},
     },
     runtime: {
       onMessage: {

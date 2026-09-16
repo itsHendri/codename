@@ -291,7 +291,7 @@ file, line, value and whether it sits at the root of the cascade, under a
 media query or in a scoped selector) and `apply_definition` (the same single
 write the Apply button makes, under the same switch),
 `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
-the window moves first, so the agent can review a change at every width; with
+the page is shown at that width first — emulated, the window does not move — so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
 `point` (it names an element and a few words; the page
 scrolls there, lights it up for a moment and shows the note on the bar), and

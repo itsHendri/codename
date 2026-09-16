@@ -1,4 +1,4 @@
-import { frameFor, planEmulation, type DeviceKind, type Frame, type Size } from '@/shared/viewport';
+import { frameFor, planEmulation, type Frame, type Size } from '@/shared/viewport';
 
 /** What a tab is being shown as, kept so a worker restart does not forget. */
 interface Emulated {
@@ -40,16 +40,21 @@ export default defineBackground(() => {
   };
 
   /**
-   * Show a tab as a frame of a given size.
+   * One frame operation per tab at a time.
    *
-   * The same override DevTools' device toolbar uses: the page's media queries
-   * answer to the frame, the window does not move, and a frame bigger than
-   * the tab is scaled down to fit. Chrome shows its "started debugging this
-   * browser" bar while it is on; that is the price, and the README says so.
+   * A pick, a reset and a re-fit each await several calls, and interleaved
+   * they undo each other: a re-fit that had already read the stored frame
+   * re-attached after a reset had detached, bringing back a frame the person
+   * had just taken off. Chained, each sees the state the last one left.
    */
-  const emulate = async (tabId: number, size: Size & { kind?: DeviceKind }) => {
-    const frame = frameFor(size);
-    if (size.kind) frame.kind = size.kind;
+  const chains = new Map<number, Promise<unknown>>();
+  const serial = <T,>(tabId: number, run: () => Promise<T>): Promise<T> => {
+    const next = (chains.get(tabId) ?? Promise.resolve()).then(run, run);
+    chains.set(tabId, next.catch(() => {}));
+    return next;
+  };
+
+  const apply = async (tabId: number, frame: Frame) => {
     const tab = await chrome.tabs.get(tabId);
     const plan = planEmulation(frame, { width: tab.width ?? 0, height: tab.height ?? 0 });
     await attach(tabId);
@@ -58,17 +63,55 @@ export default defineBackground(() => {
     return { ok: true, frame, scale: plan.scale };
   };
 
-  const stopEmulating = async (tabId: number) => {
-    const was = await getEmulated(tabId);
-    await clearEmulated(tabId);
-    if (!was) return { ok: true, frame: null, scale: 1 };
-    try {
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride');
-    } catch {
-      /* already gone: detached from Chrome's own bar, or the tab closed */
-    }
-    await chrome.debugger.detach({ tabId }).catch(() => {});
-    return { ok: true, frame: null, scale: 1 };
+  /**
+   * Show a tab as a frame of a given size.
+   *
+   * The same override DevTools' device toolbar uses: the page's media queries
+   * answer to the frame, the window does not move, and a frame bigger than
+   * the tab is scaled down to fit. Chrome shows its "started debugging this
+   * browser" bar while it is on; that is the price, and the README says so.
+   */
+  const emulate = (tabId: number, size: Size) => serial(tabId, () => apply(tabId, frameFor(size)));
+
+  const stopEmulating = (tabId: number) =>
+    serial(tabId, async () => {
+      const was = await getEmulated(tabId);
+      await clearEmulated(tabId);
+      if (!was) return { ok: true, frame: null, scale: 1 };
+      try {
+        await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride');
+      } catch {
+        /* already gone: detached from Chrome's own bar, or the tab closed */
+      }
+      await chrome.debugger.detach({ tabId }).catch(() => {});
+      return { ok: true, frame: null, scale: 1 };
+    });
+
+  /**
+   * Work out the fit again, for a tab whose size may have changed.
+   *
+   * Debounced, since dragging a window or the side panel's edge fires many
+   * times, and serialised with everything else, so a reset in the middle is
+   * not undone. It re-reads the stored frame inside the queue: a frame taken
+   * off while this waited stays off.
+   */
+  const refitTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  const refit = (tabId: number) => {
+    const pending = refitTimers.get(tabId);
+    if (pending) clearTimeout(pending);
+    refitTimers.set(
+      tabId,
+      setTimeout(() => {
+        refitTimers.delete(tabId);
+        void serial(tabId, async () => {
+          const was = await getEmulated(tabId);
+          if (!was) return null;
+          const r = await apply(tabId, was.frame).catch(() => null);
+          if (r && r.scale !== was.scale) void tellTab(tabId, { frame: r.frame, scale: r.scale });
+          return r;
+        });
+      }, 150),
+    );
   };
 
   // Chrome's "Cancel" on its debugging bar, DevTools taking over, the tab
@@ -79,18 +122,21 @@ export default defineBackground(() => {
     const tabId = source.tabId;
     void clearEmulated(tabId).then(() => tellTab(tabId, { frame: null, scale: 1, detached: true }));
   });
-  chrome.tabs.onRemoved.addListener((tabId) => void clearEmulated(tabId));
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    chains.delete(tabId);
+    void clearEmulated(tabId);
+  });
 
-  // A window that changes size changes how far a frame has to be scaled to fit.
+  // Every emulated tab in a window that changed size, not only the one in
+  // front: the others are drawn at the old scale when they come back.
   chrome.windows.onBoundsChanged?.addListener((win) => {
-    void chrome.tabs.query({ windowId: win.id, active: true }).then(async ([tab]) => {
-      if (tab?.id == null) return;
-      const was = await getEmulated(tab.id);
-      if (!was) return;
-      const r = await emulate(tab.id, was.frame).catch(() => null);
-      if (r) void tellTab(tab.id, { frame: r.frame, scale: r.scale });
+    void chrome.tabs.query({ windowId: win.id }).then((tabs) => {
+      for (const tab of tabs) if (tab.id != null) refit(tab.id);
     });
   });
+  // A tab can have been resized while it was behind another one — the side
+  // panel moved, DevTools docked — so it is fitted again when it comes back.
+  chrome.tabs.onActivated.addListener(({ tabId }) => refit(tabId));
 
   // Keyboard shortcuts reach the inspector on the active tab; a tab with no
   // inspector (the panel is not open there) simply does not answer.
@@ -111,9 +157,16 @@ export default defineBackground(() => {
     const fail = (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
 
     if (msg?.type === 'emulate-viewport' && tabId != null) {
-      emulate(tabId, { width: Number(msg.width), height: Number(msg.height), kind: msg.kind })
+      emulate(tabId, { width: Number(msg.width), height: Number(msg.height) })
         .then(sendResponse)
         .catch(fail);
+      return true;
+    }
+    // The side panel changed width, which changes the tab without moving the
+    // window, so nothing else would notice.
+    if (msg?.type === 'refit-viewport' && tabId != null) {
+      refit(tabId);
+      sendResponse({ ok: true });
       return true;
     }
     if (msg?.type === 'reset-viewport' && tabId != null) {

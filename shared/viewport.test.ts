@@ -51,11 +51,21 @@ describe('clampFrame', () => {
 
 describe('frameFor', () => {
   it('names a preset and gives it its kind', () => {
-    expect(frameFor({ width: 375, height: 667 })).toEqual({ width: 375, height: 667, kind: 'phone', name: 'Mobile S' });
+    expect(frameFor({ width: 375, height: 667 })).toEqual({ width: 375, height: 667, kind: 'phone', name: 'Mobile S', mobile: true });
   });
 
   it('calls a typed size custom, with the kind its width implies', () => {
-    expect(frameFor({ width: 390, height: 844 })).toEqual({ width: 390, height: 844, kind: 'phone', name: null });
+    expect(frameFor({ width: 390, height: 844 })).toMatchObject({ width: 390, height: 844, kind: 'phone', name: null });
+  });
+
+  it('shows only a named phone or tablet as a mobile browser', () => {
+    // A breakpoint check at 700px is a desktop browser at 700px. As a mobile
+    // browser a page with no viewport meta tag lays out at 980px, and its
+    // `max-width: 700px` query never matches.
+    expect(frameFor({ width: 700, height: 900 }).mobile).toBe(false);
+    expect(frameFor({ width: 390, height: 844 }).mobile).toBe(false);
+    expect(frameFor({ width: 768, height: 1024 }).mobile).toBe(true);
+    expect(frameFor({ width: 1280, height: 800 }).mobile).toBe(false);
   });
 });
 
@@ -76,8 +86,11 @@ describe('fitScale', () => {
     expect(fitScale({ width: 1000, height: 100 }, { width: 999, height: 800 })).toBe(0.99);
   });
 
-  it('stops scaling somewhere the page can still be read', () => {
-    expect(fitScale({ width: 2560, height: 4000 }, { width: 300, height: 300 })).toBe(MIN_SCALE);
+  it('scales small rather than cutting the frame off', () => {
+    // A 2560 × 4000 frame in an 800 × 600 tab fits at 15%; a floor above that
+    // would draw it taller than the tab.
+    expect(fitScale({ width: 2560, height: 4000 }, { width: 800, height: 600 })).toBe(0.15);
+    expect(fitScale({ width: 2560, height: 4000 }, { width: 100, height: 100 })).toBe(MIN_SCALE);
   });
 
   it('does nothing for a tab it cannot measure', () => {
@@ -87,7 +100,7 @@ describe('fitScale', () => {
 
 describe('planEmulation', () => {
   it('asks for a phone as a mobile device, at the display density', () => {
-    expect(planEmulation({ width: 375, height: 667, kind: 'phone' }, { width: 1100, height: 800 })).toEqual({
+    expect(planEmulation({ width: 375, height: 667, mobile: true }, { width: 1100, height: 800 })).toEqual({
       width: 375,
       height: 667,
       deviceScaleFactor: 0,
@@ -97,14 +110,14 @@ describe('planEmulation', () => {
   });
 
   it('asks for a laptop as a desktop browser, scaled to fit', () => {
-    expect(planEmulation({ width: 1440, height: 900, kind: 'laptop' }, { width: 1100, height: 900 })).toMatchObject({
+    expect(planEmulation({ width: 1440, height: 900, mobile: false }, { width: 1100, height: 900 })).toMatchObject({
       mobile: false,
       scale: 0.76,
     });
   });
 
   it('never asks for a frame outside the limits', () => {
-    expect(planEmulation({ width: 99999, height: 10, kind: 'desktop' }, { width: 1100, height: 900 })).toMatchObject({
+    expect(planEmulation({ width: 99999, height: 10, mobile: false }, { width: 1100, height: 900 })).toMatchObject({
       width: 2560,
       height: 200,
     });

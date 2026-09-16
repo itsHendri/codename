@@ -355,7 +355,11 @@ async function handle(req: BridgeRequest): Promise<unknown> {
             ? shot.width / box.viewport.width
             : 1;
         if (box) {
-          const cropped = await cropCapture(shot, box.rect, pxPerCss);
+          // A phone frame lays a page with no viewport meta tag out wider than
+          // the frame and draws it narrower, so the element's box — measured
+          // in the page's own layout pixels — has to be scaled by that too.
+          const layout = emulated && box.viewport.width > 0 ? emulated.frame.width / box.viewport.width : 1;
+          const cropped = await cropCapture(shot, box.rect, pxPerCss * layout);
           return { ...cropped, selector: req.selector, matches: box.matches };
         }
         if (emulated && pxPerDip) {

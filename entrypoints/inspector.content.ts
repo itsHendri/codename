@@ -1442,8 +1442,8 @@ function activate() {
    * tab is scaled down to fit — which the bar says, so a breakpoint check is
    * never a guess about what is on screen.
    */
-  const setFrame = async (size: { width: number; height: number; kind?: DeviceKind }, quiet = false) => {
-    const r = await ask<FrameReply>({ type: 'emulate-viewport', width: size.width, height: size.height, kind: size.kind });
+  const setFrame = async (size: { width: number; height: number }, quiet = false) => {
+    const r = await ask<FrameReply>({ type: 'emulate-viewport', width: size.width, height: size.height });
     if (!r) {
       showHint('The panel could not reach the browser to change the frame.');
       return false;
@@ -1481,8 +1481,15 @@ function activate() {
     return true;
   };
 
+  /** Set by Escape, so the blur that follows puts the size back instead of taking it. */
+  let cancelSize = false;
+
   /** A size typed into W or H, taken when the field is left. */
   const commitSize = () => {
+    if (cancelSize) {
+      cancelSize = false;
+      return;
+    }
     const width = parseInt(barW.value, 10);
     const height = parseInt(barH.value, 10);
     const current = frame ?? { width: Math.round(innerWidth), height: Math.round(innerHeight) };
@@ -1557,7 +1564,11 @@ function activate() {
       e.stopPropagation();
       if (isEnter(e)) input.blur();
       if (e.key === 'Escape') {
-        renderBar();
+        // Put the digits back before leaving: the render skips a focused field,
+        // and the blur would otherwise take what was typed.
+        cancelSize = true;
+        barW.value = String(frame?.width ?? Math.round(innerWidth));
+        barH.value = String(frame?.height ?? Math.round(innerHeight));
         input.blur();
       }
     });
@@ -1615,6 +1626,12 @@ function activate() {
       showBar(false);
       setHover(false);
       setNote(false);
+      // The bar is the only control for the frame, so the frame goes with it.
+      // Left on, Chrome's debugging bar would stay up with nothing on the page
+      // to take it down but Chrome's own Cancel. Asked whether or not this
+      // script knows of a frame: one set before a navigation outlives the
+      // script that set it.
+      void resetViewport(true);
     });
   };
   chrome.runtime.onConnect.addListener(onConnect);

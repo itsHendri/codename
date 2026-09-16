@@ -260,18 +260,18 @@ export type InspectorCommand =
     }
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
-  /** Pick a viewport preset by name, or put the window back; answers once the window has moved. */
   /**
-   * `preset` names one of the bar's devices, or `reset`. `width` asks for a
-   * bare CSS width instead — the page's own breakpoints are not devices and
-   * have no height of their own, so the window keeps the one it has.
+   * Show the page as a frame, answering once the frame is on. `preset` names
+   * one of the bar's devices, or `reset`. `width` asks for a bare CSS width
+   * instead — the page's own breakpoints are not devices and have no height of
+   * their own, so the frame keeps the height already in play.
    */
   | { cmd: 'set-viewport'; preset: string; width?: number }
   /** From the background: the frame changed under the page, or was taken off. */
   | { cmd: 'viewport-changed'; frame: unknown; scale: number; detached?: boolean }
   /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
   | { cmd: 'locate'; selector: string }
-  /** Put the window and zoom back where they were before the first preset. */
+  /** Take the frame off, so the page is at the window's own size again. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };
 
@@ -290,15 +290,14 @@ export type RuntimeMessage =
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
-  /** The bar picked a preset. The page sends what it knows; the background works out the window. */
-  | {
-      type: 'resize-window';
-      preset: { name: string; width: number; height: number };
-      inner: { width: number; height: number };
-      outer: { width: number; height: number };
-    }
+  /** Show the page at a frame's size, emulated; the background works out the fit. */
+  | { type: 'emulate-viewport'; width: number; height: number }
+  /** Take the frame off: the page is at the window's own size again. */
   | { type: 'reset-viewport' }
-  | { type: 'viewport-state' }
+  /** The frame this tab is shown in, if any. The panel names the tab it means. */
+  | { type: 'viewport-state'; tabId?: number }
+  /** The side panel changed width, so the frame's fit may have changed. */
+  | { type: 'refit-viewport'; tabId: number }
   /** The bar's Light/Dark switch. */
   | { type: 'mode-changed'; mode: Mode }
   /** A value changed on the edit card that sits on the selected element. */

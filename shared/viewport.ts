@@ -32,6 +32,14 @@ export interface Frame extends Size {
   kind: DeviceKind;
   /** The preset it matches, or null for a width and height typed by hand. */
   name: string | null;
+  /**
+   * Shown as a phone or tablet browser would show it, honouring the page's
+   * viewport meta tag. Only a named phone or tablet is: a width typed by hand,
+   * or a breakpoint the page is being checked at, is a desktop browser at that
+   * width — otherwise a page with no viewport meta tag lays out at 980px, its
+   * `max-width: 700px` query never matches, and the check checks nothing.
+   */
+  mobile: boolean;
 }
 
 /** The kinds, in the order the bar shows them: widest first. */
@@ -43,8 +51,12 @@ export const DEVICE_KINDS: DeviceKind[] = ['desktop', 'laptop', 'tablet', 'phone
  */
 export const FRAME_LIMITS = { minWidth: 200, maxWidth: 2560, minHeight: 200, maxHeight: 4000 };
 
-/** Below this the frame is scaled no further, whatever the tab can fit. */
-export const MIN_SCALE = 0.25;
+/**
+ * Below this the frame is scaled no further. Small, because a floor that
+ * readability would ask for means a frame bigger than the tab is cut off,
+ * and a cut-off frame is a worse lie than a small one.
+ */
+export const MIN_SCALE = 0.1;
 
 /** The preset whose size this is, if it is one. */
 export function presetFor(size: Size, presets: readonly Preset[] = DEVICE_PRESETS): Preset | null {
@@ -79,7 +91,8 @@ export function clampFrame(size: Size): Size {
 export function frameFor(size: Size, presets: readonly Preset[] = DEVICE_PRESETS): Frame {
   const clamped = clampFrame(size);
   const preset = presetFor(clamped, presets);
-  return { ...clamped, kind: preset?.kind ?? kindFor(clamped.width), name: preset?.name ?? null };
+  const kind = preset?.kind ?? kindFor(clamped.width);
+  return { ...clamped, kind, name: preset?.name ?? null, mobile: !!preset && (kind === 'phone' || kind === 'tablet') };
 }
 
 /**
@@ -113,13 +126,13 @@ export interface MetricsOverride {
  * page written for that hides its hover styles — the very states the panel
  * holds and edits.
  */
-export function planEmulation(frame: Size & { kind: DeviceKind }, tab: Size): MetricsOverride {
+export function planEmulation(frame: Size & { mobile: boolean }, tab: Size): MetricsOverride {
   const size = clampFrame(frame);
   return {
     width: size.width,
     height: size.height,
     deviceScaleFactor: 0,
-    mobile: frame.kind === 'phone' || frame.kind === 'tablet',
+    mobile: frame.mobile,
     scale: fitScale(size, tab),
   };
 }

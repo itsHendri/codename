@@ -158,7 +158,7 @@ How a variable is matched, and nothing else is touched:
   stylesheet text: `:focus:not(:focus-visible)` is exempt, but a ring
   rebuilt with `box-shadow` after `outline: none` still counts as removed,
   which the message allows for.
-- The sweep's `set-viewport` answers when the window has moved, then waits
+- The sweep's `set-viewport` answers when the frame is on, then waits
   a fixed 400ms before the capture; a page that lays out slowly at a new
   width may be caught mid-way. `captureVisibleTab` still needs the icon to
   have been clicked on the tab.
@@ -681,8 +681,8 @@ through script rather than CSS shows nothing. A page with more than eight
 breakpoints has the list cut at eight, narrowest first. A width query written
 in `em`, or as a range, is not offered — only a plain pixel width is, because
 that is the one the viewport can be set to without guessing at a root font
-size — and nor is one outside 200–2560px, since no display delivers it and
-the browser's zoom floor means the page would not be at the width asked for.
+size — and nor is one outside 200–2560px, where no layout is a design anyone
+ships.
 
 ## Still to build
 

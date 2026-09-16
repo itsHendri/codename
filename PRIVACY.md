@@ -19,10 +19,12 @@ extension's background worker, using the site access you already granted.
 
 Codename asks for Chrome's `debugger` permission for one thing: showing the
 page at a device's size without resizing your window, the way DevTools'
-device toolbar does. It attaches to a tab only when you pick a frame on the
-bar, sends only the commands that set and clear that frame
-(`Emulation.setDeviceMetricsOverride` and `Emulation.clearDeviceMetricsOverride`),
-and detaches when you go back to the window. It reads nothing through it.
+device toolbar does. It attaches to a tab only when a frame is asked for — a
+device or size on the bar, a width on the panel's state bar, or your agent
+asking for a screenshot at a width — sends only the commands that set and
+clear that frame (`Emulation.setDeviceMetricsOverride` and
+`Emulation.clearDeviceMetricsOverride`), and detaches when you go back to the
+window or close the panel. It reads nothing through it.
 
 While a frame is on, Chrome shows its own bar saying Codename started
 debugging the browser. That bar is Chrome's, not ours, and cannot be hidden;
