@@ -688,14 +688,36 @@ the browser's zoom floor means the page would not be at the width asked for.
 
 In order.
 
-1. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
-   trigger-first interaction editor with a shared easing curve. The largest
-   remaining chunk, and the one that needs the most new engine surface.
-   W17 took half of its premise — the triggers themselves are conditions
-   now, and the panel can hold an element in one — so what is left is the
-   part that was always the real work: the transition between two states
-   rather than the states, and the effects that have no home in
-   `BrandConfig` yet.
+1. **Effects and motion (L).** First half done, 16 September 2026.
+   `box-shadow` comes apart into per-layer fields (inset, offset, blur,
+   spread, colour); `filter` and `backdrop-filter` get a blur radius; and
+   `transition` gets an editor for what moves, how long it takes, how long it
+   waits, and on what curve — the curve picked by name, the page's own
+   `--ease-*` first and written back as `var(--ease-out)`. **Play** takes the
+   element out of the held state and puts it back a frame later so the
+   transition runs, which is the one part of this an agent cannot do for you
+   and the reason W17 had to come first.
+
+   The two pure modules (`studio/effects.ts`, `studio/motion.ts`) fail closed
+   by round trip rather than by vocabulary: a value they cannot rebuild
+   exactly keeps its text field and says so. That covers a whole-value
+   `var()`, a filter that is a pipeline, and anything with a shape they would
+   lose pieces of.
+
+   The brief gained the duty that comes with motion: a line asking for a
+   transition, an animation or a filter also asks for
+   `prefers-reduced-motion`.
+
+   **Left for the second half**, and none of it is a small addition to the
+   first: keyframes and the triggers that need them — appear, loop, scroll —
+   which mean `@keyframes` and scroll-driven animations rather than one
+   declaration; `transform` as an editor of its own rather than a property
+   that happens to transition; and **noise**, which is a generated texture
+   (a data-URI background or an SVG filter) rather than a value read off a
+   computed style, so it does not belong in a panel that edits what the page
+   already says. Shadows and easings still have no home in `BrandConfig`
+   beyond the levels and curves already there, so a shadow edited here is an
+   element edit, not a move of the system.
 2. **Tests under the content scripts (M).** Started, 12 September 2026. The
    two passes that read a page's custom properties and the sheet that repaints
    a page with no variables moved into `studio/scan/` and have 38 tests

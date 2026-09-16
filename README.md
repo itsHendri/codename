@@ -36,8 +36,15 @@ Layers · Variables · Assets · Export · Changes.
   back, so the agent knows which file to open. Colour and
   type are open at the top, because that is what you came for; spacing,
   layout (display, flex direction, justify, align, wrap), size, radius,
-  border, effects (opacity, shadow) and text collapse behind a one-line
-  summary. A
+  border, effects and text collapse behind a one-line summary. **Effects** is
+  the shadow taken apart — inset, offset, blur, spread and colour, one row
+  per layer — plus a blur radius for the element and for what sits behind it.
+  **Motion** is the transition: what moves, how long it takes, how long it
+  waits, and on what curve, the curve picked by name and written back as the
+  page's own `var(--ease-out)` where it has one. **Play** runs it, by taking
+  the element out of the state it is held in and putting it back. A value the
+  fields cannot give back exactly — a `var()` for the whole shadow, a filter
+  that is a pipeline — keeps its text field and says why. A
   selection stays put: walk the tree with the arrow keys, measure it against
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
