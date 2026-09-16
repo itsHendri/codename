@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandConfig } from './engine/types';
 import { hendriPreset } from './presets/hendri';
-import { applyEdits, diffEdits, isNoEdits, noEdits, normaliseEdits, regrid } from './edits';
+import { applyEdits, diffEdits, editsKey, isNoEdits, noEdits, normaliseEdits, regrid } from './edits';
 
 const base = (): BrandConfig => structuredClone(hendriPreset);
 
@@ -96,5 +96,30 @@ describe('locks', () => {
     expect(normaliseEdits({ seeds: {}, semanticOverrides: [], vars: {}, colors: {}, type: {} }).locks).toEqual([]);
     expect(isNoEdits(normaliseEdits(null))).toBe(true);
     expect(isNoEdits({ ...noEdits(), locks: ['--ink'] })).toBe(false);
+  });
+});
+
+describe('editsKey', () => {
+  const project = { path: '/Users/x/site', name: 'site', root: '/Users/x/site', branch: 'main' };
+
+  it('files a local page under the project the bridge is running in', () => {
+    expect(editsKey('http://localhost:3000', project, true)).toBe('project:/Users/x/site');
+  });
+
+  it('falls back to the repository root rather than a subfolder', () => {
+    expect(editsKey('http://localhost:3000', { path: '/Users/x/site/apps/web', name: 'web' }, true)).toBe(
+      'project:/Users/x/site/apps/web',
+    );
+    expect(editsKey('http://localhost:3000', { ...project, path: '/Users/x/site/apps/web' }, true)).toBe(
+      'project:/Users/x/site',
+    );
+  });
+
+  it('keys a deployed site by its origin, whatever folder the terminal is in', () => {
+    expect(editsKey('https://forfontsake.com', project, false)).toBe('https://forfontsake.com');
+  });
+
+  it('keys by origin when no bridge is paired', () => {
+    expect(editsKey('http://localhost:3000', null, true)).toBe('http://localhost:3000');
   });
 });

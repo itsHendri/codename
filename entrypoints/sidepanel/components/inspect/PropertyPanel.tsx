@@ -1,10 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { suggestTokens, type TokenSuggestion } from '@/studio/tokenMatch';
 import { ColorField } from './ColorField';
 import { NumberField } from './NumberField';
 import { ShadowField } from './ShadowField';
+import { MotionFields } from './MotionFields';
+import { blurToCss, parseBlur } from '@/studio/effects';
+import { namedEasings, parseTransition, transitionRoundTrips } from '@/studio/motion';
 import { TextInput } from './TextInput';
 
 type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'>;
@@ -40,6 +43,8 @@ export function PropertyPanel({
   mode,
   onChange,
   onText,
+  onPlay,
+  playable = false,
 }: {
   element: ElementProps;
   scan: Scan;
@@ -47,6 +52,9 @@ export function PropertyPanel({
   mode: Mode;
   onChange: Change;
   onText: (text: string) => void;
+  /** Run the transition, where a state is being held to run it into. */
+  onPlay?: () => void;
+  playable?: boolean;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set(OPEN_BY_DEFAULT));
   const { corners } = element;
@@ -61,6 +69,12 @@ export function PropertyPanel({
       return next;
     });
 
+  // The curves this project already has names for, its own first: an edit
+  // should land in source as the token a stylesheet uses, not as the literal.
+  const easings = useMemo(
+    () => namedEasings(scan.customProps ?? [], resolved?.config.motion.easings ?? {}),
+    [scan.customProps, resolved],
+  );
   const colour = (v: string) => suggestTokens('color', v, scan, resolved ?? undefined, mode);
   const length = (v: string) => suggestTokens('length', v, scan, resolved ?? undefined, mode);
   const { box, type, color, border, layout } = element;
@@ -282,7 +296,9 @@ export function PropertyPanel({
 
       {group(
         'Effects',
-        `${element.opacity === '1' ? '' : `opacity ${element.opacity} · `}${element.shadow === 'none' ? 'no shadow' : 'shadow'}`,
+        `${element.opacity === '1' ? '' : `opacity ${element.opacity} · `}${element.shadow === 'none' ? 'no shadow' : 'shadow'}${
+          parseBlur(element.filter) && parseBlur(element.filter) !== '0px' ? ` · blur ${parseBlur(element.filter)}` : ''
+        }`,
         <>
           <Labelled label="opacity">
             <NumberField
@@ -303,7 +319,24 @@ export function PropertyPanel({
               onChange={(v, t) => onChange('box-shadow', v, t)}
             />
           </Labelled>
+          <BlurRow label="blur" value={element.filter} onChange={(v) => onChange('filter', v)} />
+          {/* Behind the element rather than on it: the frosted-glass one. */}
+          <BlurRow label="backdrop" value={element.backdropFilter} onChange={(v) => onChange('backdrop-filter', v)} />
         </>,
+      )}
+
+      {group(
+        'Motion',
+        describeMotion(element.transition),
+        <Labelled label="transition">
+          <MotionFields
+            value={element.transition}
+            easings={easings}
+            onChange={(v) => onChange('transition', v)}
+            onPlay={onPlay}
+            playable={playable}
+          />
+        </Labelled>,
       )}
 
       {element.text !== null &&
@@ -518,4 +551,41 @@ function Segmented<T extends string>({
       })}
     </div>
   );
+}
+
+/**
+ * A blur radius, with the text left alone when the filter is a pipeline.
+ *
+ * A `filter` can hold a chain of functions, and rewriting one station of it
+ * from a single number would drop the rest — so where this cannot read the
+ * value as one blur it says so and changes nothing.
+ */
+function BlurRow({ label, value, onChange }: { label: string; value: string; onChange: (next: string) => void }) {
+  const radius = parseBlur(value);
+  return (
+    <Labelled label={label}>
+      {radius === null ? (
+        <span className="truncate font-mono text-2xs text-ink-muted" title={value}>
+          {value} — more than a blur, so it is left as it is
+        </span>
+      ) : (
+        <NumberField
+          value={radius}
+          ariaLabel={`${label} radius`}
+          className="w-16"
+          onChange={(v) => onChange(blurToCss(v))}
+        />
+      )}
+    </Labelled>
+  );
+}
+
+/** What the Motion summary says when the group is folded. */
+function describeMotion(transition: string): string {
+  if (!transitionRoundTrips(transition)) return 'set in this page\'s own words';
+  const entries = parseTransition(transition) ?? [];
+  if (!entries.length) return 'nothing moves';
+  const first = entries[0]!;
+  const more = entries.length > 1 ? ` +${entries.length - 1}` : '';
+  return `${first.property} ${first.durationMs}ms${more}`;
 }

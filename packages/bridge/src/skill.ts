@@ -31,6 +31,24 @@ The person edits a live page in the Codename panel. You apply what they decided 
 ${standingRules().split('\n').slice(2).join('\n')}
 - Tokens the person locked are listed under "Keep as is" in the brief and in \`codename://rules\`; leave them exactly as they are.
 
+## States
+
+- An element change can be about a state rather than about the element at
+  rest. In a brief it appears under a heading naming that state; in
+  \`get_changes\` it is \`elements[].condition\`.
+- \`{kind:'state'}\` is \`:hover\`, \`:focus-visible\` or \`:active\`;
+  \`{kind:'scheme'}\` is the page's own dark mode, whatever hook it uses;
+  \`{kind:'width', maxWidth}\` is \`@media (max-width: Npx)\`.
+- Put each where that state is written in source. A hover change belongs on
+  the hover rule, not on the base one, and not as a new rule if the component
+  already has somewhere for it.
+
+## Finding what to edit
+
+- \`find_definition\` searches the project this bridge is running in for where a custom property is defined, and says whether each one sits at the root of the cascade, under a media query, in a scoped selector or in a token file. Use it instead of grepping. More than one answer means the cascade decides, so read them before you edit.
+- \`check_tokens\` takes a \`path\` in the project and reads the file itself; you only need to pass \`file\` contents for a file that is not in the project.
+- \`apply_definition\` writes one value into one root-level definition, and only where the person has turned that on for the project. It refuses anything ambiguous. It is a shortcut for the case with nothing to decide, not a substitute for editing source yourself.
+
 ## Showing your work
 
 - \`point\` scrolls the page to an element and shows a short note on the bar — say "look here" before or after a change.

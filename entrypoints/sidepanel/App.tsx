@@ -30,6 +30,7 @@ import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
 import type { TokenLengths } from '@/shared/types';
 import { buildChangeSet } from '@/studio/commit';
+import type { Mode } from '@/studio/engine/types';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
@@ -88,7 +89,6 @@ export default function App() {
   const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
-  useBridgeSync(tabId, tabUrl, session, model);
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
@@ -109,9 +109,26 @@ export default function App() {
         pendingNotes(session.comments),
         model?.system ?? [],
         locks,
+        {
+          ...(bridge.project
+            ? {
+                project: {
+                  name: bridge.project.name,
+                  path: bridge.project.path,
+                  ...(bridge.project.branch ? { branch: bridge.project.branch } : {}),
+                },
+              }
+            : {}),
+          ...(session.definitions?.found ? { definitions: session.definitions.found } : {}),
+          ...(session.definitions?.truncated ? { definitionsTruncated: true } : {}),
+          ...(session.applied.length ? { applied: session.applied } : {}),
+        },
       ),
-    [scanLike, model, session.log, session.comments, locks],
+    [scanLike, model, session.log, session.comments, locks, bridge.project, session.definitions, session.applied],
   );
+  // Built once and pushed, so the badge, the Changes tab and the agent can
+  // never disagree about what is pending.
+  useBridgeSync(tabId, tabUrl, session, model, changeSet);
   const pendingCount =
     changeSet.tokens.length +
     changeSet.colors.length +
@@ -155,6 +172,50 @@ export default function App() {
       void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
     }
   }, []);
+
+  /**
+   * Turn the page to match the state being edited.
+   *
+   * A state is held by the inspector's class, but dark and the widths are
+   * what the bar already does — so choosing one asks for the same thing, and
+   * leaving it puts the page back.
+   *
+   * Driven by the condition itself rather than by the click that set it:
+   * deselecting also drops the condition, and hanging this off the chip meant
+   * the page stayed dark, or stayed narrow, with nothing left on screen
+   * saying so — and the next edit was then read off a page in a state the
+   * panel no longer believed it was in.
+   */
+  const condition = ctl.condition;
+  /**
+   * What this effect itself changed, and what the page was before it did.
+   * Only that is ever undone: a hover chip is not a reason to switch off a
+   * dark preview or a viewport the person chose on the bar, and leaving the
+   * dark condition puts the mode back to what it was, not to light.
+   */
+  const turned = useRef<{ scheme: Mode | null; width: boolean }>({ scheme: null, width: false });
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  useEffect(() => {
+    const was = turned.current;
+    const tab = tabIdRef.current;
+
+    if (condition?.kind === 'scheme') {
+      if (was.scheme === null) was.scheme = modeRef.current;
+      setMode('dark');
+    } else if (was.scheme !== null) {
+      setMode(was.scheme);
+      was.scheme = null;
+    }
+
+    if (condition?.kind === 'width') {
+      was.width = true;
+      if (tab != null) void sendInspector(tab, { cmd: 'set-viewport', preset: condition.preset, width: condition.px });
+    } else if (was.width) {
+      was.width = false;
+      if (tab != null) void sendInspector(tab, { cmd: 'reset-viewport' });
+    }
+  }, [condition]);
 
   const restricted = isRestricted(tabUrl);
 

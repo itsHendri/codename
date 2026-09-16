@@ -1,6 +1,9 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createMcpServer } from './mcp';
 import { Sessions, type Link } from './sessions';
 import { makeState } from './test-helpers';
@@ -12,6 +15,8 @@ const EXPECTED_TOOLS = [
   'watch',
   'critique',
   'check_tokens',
+  'find_definition',
+  'apply_definition',
   'get_design_system',
   'get_screenshot',
   'apply_css',
@@ -23,8 +28,8 @@ const EXPECTED_TOOLS = [
   'reply',
 ];
 
-async function connectedClient(sessions: Sessions, pairingCode?: string) {
-  const { server, tools } = createMcpServer(sessions, '0.0.0-test', { pairingCode });
+async function connectedClient(sessions: Sessions, pairingCode?: string, cwd?: string) {
+  const { server, tools } = createMcpServer(sessions, '0.0.0-test', { pairingCode, cwd });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   const client = new Client({ name: 'test', version: '0' });
@@ -204,6 +209,134 @@ describe('MCP tools', () => {
     expect(blocks[1]).toMatch(/^=== brand\.md — n ===\n# brand\.md$/);
     expect(blocks[2]).toMatch(/^=== SKILL\.md/);
 
+    await close();
+  });
+});
+
+describe('the project on disk', () => {
+  const dirs: string[] = [];
+  const project = (files: Record<string, string>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'codename-mcp-'));
+    dirs.push(dir);
+    for (const [path, content] of Object.entries(files)) {
+      const absolute = join(dir, path);
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, content);
+    }
+    return dir;
+  };
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  /** A session whose state says whether the person allowed writes. */
+  const sessionsWith = (bridgeMayWrite: boolean) => {
+    const sessions = new Sessions();
+    sessions.connect('s1', { send: () => {} });
+    sessions.update('s1', makeState('s1', 1, { bridgeMayWrite }));
+    return sessions;
+  };
+
+  it('finds where a property is defined, and says what each definition sits in', async () => {
+    const dir = project({
+      'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n',
+      'src/dark.css': '@media (prefers-color-scheme: dark) { :root { --mark: #FF8A70; } }\n',
+    });
+    const { client, close } = await connectedClient(new Sessions(), undefined, dir);
+    const found = JSON.parse(textOf(await client.callTool({ name: 'find_definition', arguments: { name: '--mark' } })));
+    expect(found.found['--mark']).toHaveLength(2);
+    expect(found.found['--mark'].map((d: { context: string }) => d.context).sort()).toEqual(['dark', 'root']);
+    await close();
+  });
+
+  it('reads a token file from the project when given a path', async () => {
+    const dir = project({ 'design/tokens.json': '{"mark":{"$value":"#BE3A22"}}' });
+    const sessions = new Sessions();
+    let seen: unknown;
+    sessions.connect('s1', {
+      send: (envelope) => {
+        if (envelope.type !== 'request') return;
+        seen = envelope.payload;
+        queueMicrotask(() =>
+          sessions.handleResponse('s1', { v: envelope.v, id: 'r', type: 'response', replyTo: envelope.id, ok: true, payload: { text: 'read it' } }),
+        );
+      },
+    });
+    const { client, close } = await connectedClient(sessions, undefined, dir);
+    const result = textOf(await client.callTool({ name: 'check_tokens', arguments: { path: 'design/tokens.json' } }));
+    expect(seen).toMatchObject({ method: 'check_tokens', name: 'design/tokens.json', file: '{"mark":{"$value":"#BE3A22"}}' });
+    expect(result).toBe('read it');
+    await close();
+  });
+
+  it('refuses a token file path that points out of the project', async () => {
+    const { client, close } = await connectedClient(new Sessions(), undefined, project({}));
+    const result = await client.callTool({ name: 'check_tokens', arguments: { path: '../../etc/passwd' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/outside the folder/);
+    await close();
+  });
+
+  it('insists on exactly one of path and file', async () => {
+    const { client, close } = await connectedClient(new Sessions(), undefined, project({}));
+    const both = await client.callTool({ name: 'check_tokens', arguments: { path: 'a.json', file: '{}' } });
+    expect(both.isError).toBe(true);
+    const neither = await client.callTool({ name: 'check_tokens', arguments: {} });
+    expect(neither.isError).toBe(true);
+    await close();
+  });
+
+  it('will not write a definition until the person has allowed it', async () => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const { client, close } = await connectedClient(sessionsWith(false), undefined, dir);
+    const result = await client.callTool({
+      name: 'apply_definition',
+      arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' },
+    });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/has not allowed/);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+    await close();
+  });
+
+  it('writes one definition once the person has allowed it', async () => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const { client, close } = await connectedClient(sessionsWith(true), undefined, dir);
+    const result = textOf(
+      await client.callTool({ name: 'apply_definition', arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' } }),
+    );
+    expect(result).toBe('--mark: #BE3A22 → #1C7F5C in src/index.css:2');
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toBe(':root {\n  --mark: #1C7F5C;\n}\n');
+    await close();
+  });
+
+  it('will not write on account of a page that is not served locally', async () => {
+    // The consent is kept per project, so it is still on after the tab moves
+    // to a deployed copy of the site.
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const sessions = new Sessions();
+    sessions.connect('s1', { send: () => {} });
+    sessions.update(
+      's1',
+      makeState('s1', 1, {
+        bridgeMayWrite: true,
+        tab: { id: 1, url: 'https://staging.example.com/', origin: 'https://staging.example.com', title: 's', local: false },
+      }),
+    );
+    const { client, close } = await connectedClient(sessions, undefined, dir);
+    const result = await client.callTool({ name: 'apply_definition', arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/not served from this machine/);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+    await close();
+  });
+
+  it('refuses to choose between two root definitions', async () => {
+    const dir = project({ 'a.css': ':root { --mark: #BE3A22; }', 'b.css': ':root { --mark: #BE3A22; }' });
+    const { client, close } = await connectedClient(sessionsWith(true), undefined, dir);
+    const result = await client.callTool({ name: 'apply_definition', arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/exactly one definition/);
     await close();
   });
 });

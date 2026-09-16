@@ -21,6 +21,7 @@ Five tools solve adjacent problems:
 | **Agentation** | React dev overlay on your own app | Annotations only | HTTP+SSE; MCP with a blocking `watch` tool and a resolve lifecycle |
 | **Webflow** (Conf, Sept 2026) | Hosted designer; Source puts code and martech on one surface | Everything, in its own model; breakpoint canvas; style props | MCP 2.1 (GSAP interactions, CMS queries, Cloud logs); generated Agent Instructions; Agent Presence on the canvas |
 | **Framer 3** (June 2026) | Hosted designer | Everything, in its own model; agents on the canvas | In-app agent that reads styles, components and CMS; Branching |
+| **Nordcraft** (2.0, April 2026) | Hosted editor; Apache-2.0 runtime, closed editor | Everything, in its own model (pages, components, formulas, actions, workflows); style *variants* as a reorderable condition list; typed theme variables | In-editor agent that writes into the model, not into code; no MCP |
 
 They agree on three things, and Codename keeps all three:
 
@@ -41,6 +42,32 @@ re-skins pages that expose no CSS variables at all, and hands off at token
 level with usage counts. Where it is behind: no agent connection, no
 per-element editing or changes list, no undo, no comments, no keyboard model,
 and a light-only panel with no design tokens of its own.
+
+## Extension, not an app
+
+Asked in September 2026, after a survey of what the adjacent tools had
+become. Answered: **the extension stays the canvas and the companion grows**.
+
+Everything built for people who own a repo had converged on a local app that
+owns a Chromium and a terminal — Cursor's built-in browser with its visual
+editor and Design Mode, stagewise's Electron "developer browser", Ship
+Studio's Tauri window — while everything built for people who do not want a
+local environment converged on a web app over a cloud container. Onlook moved
+from Electron to the web and said plainly why: the download and the "debug
+their machine" support burden, not a limit of Electron.
+
+A desktop app would buy this project a filesystem, a terminal in the same
+window, a multi-viewport canvas and no store review. Three of those are
+already answered — the companion is the filesystem, the agent already has its
+own terminal, and the breakpoint canvas is declined by the live-page rule with
+the viewport presets and the sweep serving its purpose. What it would cost is
+the thing none of those tools have: **the user's own browser**, with their
+profile, their session, their staging and production sites. Cursor's browser
+cannot even load an extension.
+
+So the shape is the one thing nobody had built end to end: an extension for
+the canvas, and a local companion for everything an extension cannot do. W16
+is that companion growing up.
 
 ## Done
 
@@ -131,7 +158,7 @@ How a variable is matched, and nothing else is touched:
   stylesheet text: `:focus:not(:focus-visible)` is exempt, but a ring
   rebuilt with `box-shadow` after `outline: none` still counts as removed,
   which the message allows for.
-- The sweep's `set-viewport` answers when the window has moved, then waits
+- The sweep's `set-viewport` answers when the frame is on, then waits
   a fixed 400ms before the capture; a page that lays out slowly at a new
   width may be caught mid-way. `captureVisibleTab` still needs the icon to
   have been clicked on the tab.
@@ -497,15 +524,229 @@ from the same survey: drag handles for spacing on the page (v0's Design
 Mode, Webflow's on-canvas spacing), and offering `DESIGN_SYSTEM.md` under
 the `DESIGN.md` name Stitch ships.
 
+**W16. The bridge knows the project (L).** Done, 12 September 2026, from a
+look at Nordcraft and a survey of the app-versus-plugin question (above).
+
+Nordcraft is a cloud editor that owns its whole app model and cannot sit on
+an existing repository, so it competes for a different user. What it argues
+is the useful part: its post on Cursor's visual editor says a precise edit
+should never be routed through a language model — "if we have to give the
+machine precise unambiguous instructions on what to do, why do we need an
+LLM?" That is this project's split already, and it is what made the apply
+step below worth building rather than just the lookup.
+
+- **It says which project it is in.** `readProject` reads the folder's name,
+  its git branch and whether the tree is dirty, and the hello ack carries
+  them. The Changes tab names them, the brief opens with them, and
+  `editsKey` files a local page's decisions under the project instead of its
+  origin — two apps take turns on `localhost:3000`, and one app answers to
+  `:3000` today and `:5173` tomorrow. A deployed site stays keyed by origin,
+  because the folder a terminal happens to sit in says nothing about it.
+- **It searches that project.** `findDefinitions` walks the stylesheets and
+  token files git knows about — `.gitignore` honoured, so build output and
+  dependencies are skipped — and reports every definition with its file,
+  line, value and what it sits inside: `root`, `dark`, `media` or `scoped`.
+  The result is pushed to the panel whenever the names in a change set
+  change, so the person and the agent read the same fact and the copied brief
+  carries it. `find_definition` is the agent's door to the same search, and
+  `check_tokens` now takes a path for the bridge to read rather than making
+  the agent paste a file.
+
+  This rewrites the "No file positions, on purpose" rule, and narrows it to
+  what it was always about. The reason was that the extension sees a rendered
+  page, so a line number would be a guess. The bridge read the file. So: a
+  position appears when exactly one definition exists, a count with the
+  candidates when several do, and nothing at all when there are none — and
+  the closing note stops telling the agent to go and find what it has just
+  been handed.
+- **It writes exactly one thing.** A token change with a single root-level
+  definition, alone on its line, in a stylesheet rather than a token file,
+  still holding the value it was read with, carries an **Apply** button once
+  the person ticks *Bridge may edit definitions* for that project. It
+  replaces the value text and nothing else — indentation, spacing and
+  `!important` are the file's business — through a temp file and a rename,
+  and the token leaves the brief saying it is already in source.
+  `apply_definition` is the same function under the same switch. Every other
+  case is refused with the reason and stays in the brief.
+
+  This is the one departure from "writes to source stay with the agent", and
+  it is deliberate: `--mark: #BE3A22 → #1C7F5C` has nothing left to decide,
+  and a round trip through a model can only lose. Everything with a judgement
+  in it still goes to the agent.
+- **`codename-bridge open`.** Starts the project's dev script with the
+  package manager its lockfile names, watches the output for the first
+  localhost URL, and opens it. The part of a desktop app worth having,
+  without shipping a browser to get it.
+- **Pairing.** The bridge remembers the first extension that pairs with it
+  and refuses every other one after that. Auto-pairing was built on top of
+  that pin — the panel asking a bridge that already knew it for the code —
+  and then removed: an `Origin` header is only trustworthy coming from a real
+  browser, and an extension id is a public constant, so it would have traded
+  a six-character secret for something anyone on the machine could type. The
+  convenience it was for is answered honestly instead: `codename-bridge open`
+  prints the code in the terminal the person is already looking at, which is
+  the thing that was actually missing.
+- **The hardening the audit asked for**, in the same change because it is the
+  same socket: any `chrome-extension://` origin used to be accepted; five
+  wrong codes in a minute now close the door for five; and *Agent may change
+  this page* no longer defaults on for localhost, which was a consent nobody
+  gave. It is asked once and remembered — against the page for painting,
+  against the folder for writing, because those are consents about different
+  things.
+
+A review over the whole change then found and closed thirteen things, most of
+them in the write path, which is where they matter most. The two that could
+have damaged a file: a declaration wrapped over several lines was found as one
+statement but rewritten as one line, welding the continuation onto the new
+value; and the new value was written verbatim, so `red; } body { display:
+none` was a way to append arbitrary CSS. The scanner now carries the offsets
+of the value it read and the write splices exactly those, after re-reading the
+file; and a value carrying `;`, `{`, `}`, a newline, a comment, an unbalanced
+bracket or an unclosed quote is refused. The rest: strings and brackets are
+tracked, so `url(//cdn/x.png)`, `"}"` and `data:…;base64` no longer confuse
+the walk; `:root` inside a `.vue` or `.astro` file reads as root rather than
+scoped; the file keeps the permissions it had; a disconnecting bridge no
+longer re-reads edits under the origin and wipes the page; consent for writing
+is filed against the folder; an applied token stops claiming to be applied
+once its value moves again; a taken-back decision is no longer resurrected by
+the origin fallback; two packages in a monorepo no longer share one storage
+record; and the definition cache is dropped when a session goes.
+
+**W17. Conditions (M/L).** Done, 12 September 2026. Nordcraft's best idea, in
+the form this project can take honestly. A condition bar under the selection
+— default, hover, focus, active, dark, a width — records the edit against the
+state (`ElementChange.condition`), writes it into the managed sheet under the
+matching selector or media query, and groups the brief's lines by state with
+a sentence saying what each means. Undo, revert and Reset needed no special
+case.
+
+A state is held by a class rather than by `chrome.debugger`, which was
+rejected for its permanent infobar: `reskin.content.ts` reads the page's own
+`:hover` rules out of the CSSOM, rewrites the pseudo into
+`.codename-state-hover`, and the inspector puts that class on the selection.
+Both the pseudo and the class are written into the managed rule, so the edit
+shows while the panel holds the element *and* when a person hovers it for
+real. A rule whose pseudo sits on an ancestor (`.card:hover .title`) cannot
+be previewed by holding the descendant, so it is reported instead. Dark and
+the widths reuse what exists — the bar's switch and its viewport presets —
+so picking one turns the page rather than letting the panel claim a state
+nobody can see.
+
+**The order is fixed, and that is the deliberate departure.** Nordcraft's
+list is reorderable, and honestly so: there, the list *is* the stylesheet.
+Here the page's own rules sit underneath and ours go on top, so an order
+someone chose in the panel would be a promise this cannot keep. It is stated
+instead: default, width, dark, state.
+
+The two hard parts live in `studio/conditionSheet.ts` as pure string
+functions rather than inside the content script, which is the only reason the
+selector cases are checked at all — a pseudo inside `:not()`, `:focus` that
+is really `:focus-visible`, a list where one part carries the pseudo and the
+rest do not, a rule nested in a layer inside a media query.
+
+Out of scope on purpose, so that Effects and motion stays one item:
+transitions and animations, pseudo-elements, `@starting-style`, compound
+conditions (hover at 700px), and container queries.
+
+Two reviews followed, one over W17 alone and one across both workstreams,
+and closed eighteen things between them. The ones worth remembering: the
+value an edit started from was read in the default state when the selection
+changed while a state was held, which is the one fact this feature exists to
+get right; the page stayed dark or stayed narrow after a deselect, so turning
+the page now follows the condition rather than the click that set it; a held
+state previewed the page's rules from before the re-skin; the "a variable
+already holds this value" remark was computed from base values and so named
+the wrong token under dark; two widths tied in the cascade, so which won
+depended on the order the edits happened to be made in; and the panel trusted
+a truthy reply to an element read, which a generic acknowledgement from
+another build would have written into its state.
+
+The widths on offer are the page's own. The scan keeps every width query its
+stylesheets are written against (`ScanResult.breakpoints`, collected on the
+walk that already looked for variables redefined under one), and the bar
+offers those; `set-viewport` takes a bare width for them, since a breakpoint
+is not a device and has no height. A page that declares none falls back to
+the bar's device presets, which say in the control's title that they are a
+guess rather than the page's own.
+
+Both sides of a width are offered, because a page written mobile-first says
+everything in `min-width` and offering it `max-width` would be offering a
+vocabulary it does not use. The agent's `get_screenshot` takes the same
+widths, since a brief naming `(max-width: 700px)` is no use if the only way
+to look at it is the nearest phone.
+
+**Known limits.** A state is previewed by class, so a rule whose pseudo sits
+on an ancestor is named rather than shown, and a page that styles hover
+through script rather than CSS shows nothing. A page with more than eight
+breakpoints has the list cut at eight, narrowest first. A width query written
+in `em`, or as a range, is not offered — only a plain pixel width is, because
+that is the one the viewport can be set to without guessing at a root font
+size — and nor is one outside 200–2560px, where no layout is a design anyone
+ships.
+
 ## Still to build
 
 In order.
 
-1. **Effects and motion (L).** Drop and inner shadow, blur, noise; then the
-   trigger-first interaction editor (hover, press, focus, appear, loop,
-   scroll) with a shared easing curve. The largest remaining chunk, and the
-   one that needs the most new engine surface.
-2. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
+1. **Effects and motion (L).** First half done, 16 September 2026.
+   `box-shadow` comes apart into per-layer fields (inset, offset, blur,
+   spread, colour); `filter` and `backdrop-filter` get a blur radius; and
+   `transition` gets an editor for what moves, how long it takes, how long it
+   waits, and on what curve — the curve picked by name, the page's own
+   `--ease-*` first and written back as `var(--ease-out)`. **Play** takes the
+   element out of the held state and puts it back a frame later so the
+   transition runs, which is the one part of this an agent cannot do for you
+   and the reason W17 had to come first.
+
+   The two pure modules (`studio/effects.ts`, `studio/motion.ts`) fail closed
+   by round trip rather than by vocabulary: a value they cannot rebuild
+   exactly keeps its text field and says so. That covers a whole-value
+   `var()`, a filter that is a pipeline, and anything with a shape they would
+   lose pieces of.
+
+   The brief gained the duty that comes with motion: a line asking for a
+   transition, an animation or a filter also asks for
+   `prefers-reduced-motion`.
+
+   **Left for the second half**, and none of it is a small addition to the
+   first: keyframes and the triggers that need them — appear, loop, scroll —
+   which mean `@keyframes` and scroll-driven animations rather than one
+   declaration; `transform` as an editor of its own rather than a property
+   that happens to transition; and **noise**, which is a generated texture
+   (a data-URI background or an SVG filter) rather than a value read off a
+   computed style, so it does not belong in a panel that edits what the page
+   already says. Shadows and easings still have no home in `BrandConfig`
+   beyond the levels and curves already there, so a shadow edited here is an
+   element edit, not a move of the system.
+2. **Tests under the content scripts (M).** Started, 12 September 2026. The
+   two passes that read a page's custom properties and the sheet that repaints
+   a page with no variables moved into `studio/scan/` and have 38 tests
+   between them, against real stylesheets where happy-dom can parse them and
+   hand-built rules where it cannot (it turns `@layer` into nothing and does
+   not support nested CSS at all — which is why the walk is structural rather
+   than `instanceof`, and why it is more robust in a browser too).
+
+   The two passes had duplicated their walk without sharing it, which is how a
+   media query nested inside a style rule came to be visible to one and
+   invisible to the other. There is one walker now, carrying the grouping
+   rules open around each style rule, so a caller can read the widths or put a
+   rewritten rule back where it came from.
+
+   A review of the extraction caught three behaviour changes it had not
+   intended, which is the argument for reviewing refactors rather than
+   trusting them: CSS nesting became visible to the override builder and its
+   `&` selectors were emitted as written, where `&` alone means `:root`;
+   `@page` passed the duck-typed style-rule test because it has both a
+   selector and a style; and an `@import` was followed without the media or
+   layer it was pulled in under. All three are fixed and pinned.
+
+   What is left: `inspector.content.ts` is still 1,764 lines and untested, and
+   it is now the largest file in the project. Its selection, traversal and
+   region-note geometry are the parts that would come out cleanly. The state
+   hoist's CSSOM walk in `reskin.content.ts` is the other one — its rewriting
+   half is already pure in `studio/conditionSheet.ts`, but the walk that feeds
+   it is not.
+3. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
    the agent asks the panel what is wrong with the page and gets the contrast
    pairs under AA with element counts, the off-grid spacing, the
    near-duplicate colours, the type-ladder strays, the font-family and radius
@@ -527,12 +768,40 @@ the primary use case.
 
 ## Known limits and open questions
 
+- The four content scripts — `inspector.content.ts` (the largest file in the
+  project), `reskin.content.ts`, `scanner.content.ts` and `background.ts` —
+  have no tests. They are the most browser-coupled code here and the hardest
+  to debug; the panel suite and the harness cover what they produce, not what
+  they do. `studio/export/designSystemMd.ts` and `studio/engine/semantics.ts`
+  are also past 800 lines and want splitting.
+- The definition search reads text, not a CSS parser: a definition written
+  inside a string, or produced by a preprocessor that the source does not
+  spell out, is not found. A file over 2MB, or a search past its budget, is
+  skipped and the result says it was truncated — so absence never proves
+  there is no definition, which is why nothing is written on absence.
+- `apply_definition` writes through a temp file and a rename, and never
+  touches git. A dev server with hot reload repaints from source within a
+  moment; one without it wants a reload, and the row says so.
+
 - The bar pushes the page with a root margin; a header the page fixes to the
   top of the viewport still sits under it. Region notes store page
   coordinates, so one drawn with the bar shown lands 40px off when it hides.
-- Zoom-to-fit matches width only, and Chrome resets a per-tab zoom on
-  navigation, so a reload leaves the window resized at 100%; the label
-  re-asks and says so.
+- A device frame is drawn in the page (`studio/frame.ts`,
+  `studio/pageFrame.ts`): the body is narrowed, centred and zoomed to fit,
+  and each size media feature in the page's readable sheets is rewritten in
+  place to a stand-in that is always or never true, from the source text it
+  keeps. It replaced `chrome.debugger` emulation, which drew the frame in the
+  tab's corner, needed an infobar, and lost the frame when the infobar was
+  closed. What still sees the window: `vw`/`vh`, `innerWidth` and
+  `matchMedia` in scripts, `position: fixed` and absolute positioning with no
+  positioned ancestor, shadow-root styles, iframes, `<source media>` and
+  `sizes`, cross-origin sheets the page cannot read, and the viewport meta
+  tag (a page without one is not laid out at 980px). Readers of media text —
+  breakpoints, the dark hoist, the scan's CSS text — go through
+  `sourceMedia`/`withSourceMedia` so they see what the page wrote. Sheets
+  and `media` attributes changed in the DOM are answered before the next paint;
+  anything changed through the CSSOM within a second, by a full walk that
+  writes only what changed.
 - Dark shows the page's own dark mode by hoisting its dark media rules and
   setting its theme hook, and switches the page's light-only media blocks
   off in place (`not all`) for the duration; a theme driven purely by script

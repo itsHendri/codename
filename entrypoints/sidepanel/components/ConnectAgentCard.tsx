@@ -12,15 +12,24 @@ const LABEL: Record<string, string> = {
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
   unauthorized: 'That code did not match — check it with your agent',
+  locked: 'Too many wrong codes — the panel tries again by itself once the bridge opens, in five minutes',
+  'other-extension':
+    'This bridge paired with a different copy of Codename, such as a development build. Run npx codename-bridge unpin, then enter the code again.',
 };
 
 /**
- * How the panel meets the agent, in the three steps it takes, where you first
- * need it: on the tab that hands work over. Register the bridge with the
- * agent, start the agent (it launches the bridge), and type the code the
- * bridge is waiting for. The code goes to the bridge's stderr, which an agent
- * swallows, so the card says how to read it: ask the agent, or run
- * `codename-bridge code` in a terminal.
+ * How the panel meets the agent, in the steps it takes, where you first need
+ * it: on the tab that hands work over. Register the bridge with the agent,
+ * start the agent (it launches the bridge), and type the code the bridge is
+ * waiting for. The code goes to the bridge's stderr, which an agent swallows,
+ * so the card says how to read it: ask the agent, or run `codename-bridge
+ * code` in a terminal.
+ *
+ * `codename-bridge open` prints the code in the terminal the person is
+ * already looking at, which is the shortest honest path to it. Handing the
+ * code out over the socket to whoever asks was tried and removed: an Origin
+ * header only means something coming from a real browser, so it would have
+ * replaced the code with a public extension id.
  */
 export function ConnectAgentCard() {
   const { status } = useBridge();
@@ -69,9 +78,14 @@ export function ConnectAgentCard() {
 
       <Step n={2} title="Start your agent — it launches the bridge for you">
         <p className="text-2xs text-ink-muted">
-          The bridge prints a six-character pairing code where the agent, not you, can see it. Ask the
-          agent: <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or
-          run <code className="font-mono">npx codename-bridge code</code> in a terminal.
+          In the folder you are working in. Then, in a second terminal,{' '}
+          <code className="font-mono">npx codename-bridge open .</code> starts the dev server, opens
+          the page, and prints the pairing code.
+        </p>
+        <p className="text-2xs text-ink-muted">
+          The bridge itself prints the code where the agent, not you, can see it. So ask the agent —{' '}
+          <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or run{' '}
+          <code className="font-mono">npx codename-bridge code</code>.
         </p>
       </Step>
 
@@ -104,8 +118,9 @@ export function ConnectAgentCard() {
       </Step>
 
       <p className="text-2xs text-ink-muted">
-        Everything stays on this machine: the bridge listens on 127.0.0.1 only. Nothing is written to
-        source through it.
+        Everything stays on this machine: the bridge listens on 127.0.0.1 only. The only thing it
+        writes to source is a variable definition you apply yourself, after you turn that on for the
+        project.
       </p>
     </div>
   );

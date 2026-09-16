@@ -70,3 +70,18 @@ describe('widthLabel', () => {
     expect(widthLabel('(min-width: 48em)')).toBe('(min-width: 48em)');
   });
 });
+
+describe('a negated media query', () => {
+  it('is not read as the breakpoint it names', () => {
+    // `not all and (max-width: 700px)` applies *above* 700. Reading it as a
+    // 700px breakpoint would file its variables under the opposite of what
+    // the page says.
+    expect(widthOfMedia('not all and (max-width: 700px)')).toBe(null);
+    expect(widthOfMedia('not screen and (min-width: 900px)')).toBe(null);
+  });
+
+  it('still reads the ordinary ones', () => {
+    expect(widthOfMedia('screen and (max-width: 700px)')).toBe('(max-width: 700px)');
+    expect(widthOfMedia('(max-width: 700px)')).toBe('(max-width: 700px)');
+  });
+});

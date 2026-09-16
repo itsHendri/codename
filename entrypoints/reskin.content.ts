@@ -23,9 +23,20 @@
  * a reload, a navigation or a clear returns the page to its own values.
  */
 
-import { lengthPx } from '@/studio/reskin';
-import { isLengthMapEmpty, rewriteLength, type LengthMap } from '@/studio/reskinRules';
+import { isLengthMapEmpty, type LengthMap } from '@/studio/reskinRules';
+import { collectOverrides } from '@/studio/scan/overrideSheet';
+import { MANAGED_SHEET_IDS } from '@/shared/types';
+import { pseudosOf, type StateName } from '@/studio/conditions';
+import {
+  elementsSheet,
+  hoistState,
+  collectStateRules,
+  stateSheet as buildStateSheet,
+  type ConditionRule,
+  type HoistedRule,
+} from '@/studio/conditionSheet';
 import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
+import { mediaMatches, refreshFrame, sourceMedia, withSourceMedia } from '@/studio/pageFrame';
 
 interface Override {
   name: string;
@@ -42,10 +53,16 @@ interface ApplyMessage {
   lengthMap?: LengthMap | null;
   /** A stylesheet the connected agent wants to try on the page. */
   css?: string;
-  /** Per-element edits from the Layers tab. */
-  rules?: { selector: string; property: string; value: string }[];
+  /** Per-element edits from the Layers tab, each with the state it is about. */
+  rules?: ConditionRule[];
   /** For `site-mode`: which side of the page's own theme to show. */
   mode?: 'light' | 'dark';
+  /** For `elements-set`: whether the panel is already painting the page dark. */
+  darkPreview?: boolean;
+  /** For `state-set`: the state to hold the page in, or null to let go. */
+  state?: StateName | null;
+  /** For `state-set`: the element being held, so only its rules are hoisted. */
+  selector?: string;
 }
 
 declare global {
@@ -79,7 +96,17 @@ const SITE_DARK_ID = 'codename-site-dark';
  */
 const MARKS_ID = 'codename-agent-marks';
 const MARK_COLOUR = '#6bb5ff';
-const OWN_SHEETS = new Set([STYLE_ID, PREVIEW_ID, ELEMENTS_ID, SITE_DARK_ID, MARKS_ID]);
+/**
+ * The page's own `:hover`/`:focus`/`:active` rules, re-emitted against a
+ * class the inspector controls. This is how a state previews with no
+ * debugger permission: the page keeps its rules, and a copy of them triggers
+ * on the class instead of on the pointer. It sits before the element sheet,
+ * so an edit made in that state still wins.
+ */
+const STATE_ID = 'codename-state';
+// The same list the scanner refuses to read, so the two agree about what is
+// ours and what is the page's.
+const OWN_SHEETS = new Set<string>(MANAGED_SHEET_IDS);
 
 /** The agent's sheet, counted: rules, the elements they reach, selectors that could not be read. */
 interface PreviewInfo {
@@ -103,6 +130,7 @@ export default defineContentScript({
     let preview: HTMLStyleElement | null = null;
     let marks: HTMLStyleElement | null = null;
     let elements: HTMLStyleElement | null = null;
+    let stateStyle: HTMLStyleElement | null = null;
     let siteDark: HTMLStyleElement | null = null;
     let appliedHooks: DarkHook[] = [];
     let savedColorScheme: string | null = null;
@@ -150,19 +178,36 @@ export default defineContentScript({
       return fetched.get(href)?.cssRules ?? null;
     };
 
-    /** Every sheet's rules, own sheets left out, cross-origin ones fetched — all at once. */
-    const allRules = async (): Promise<CSSRuleList[]> => {
+    /**
+     * Every sheet's rules, cross-origin ones fetched — all at once.
+     *
+     * `skip` says which of our own sheets to leave out. The default is all of
+     * them, which is what the colour and length rewrites want: they are
+     * reading the page in order to rewrite it, and reading their own output
+     * would compound. The state hoist passes a shorter list, because it is
+     * asking a different question — what does this page paint on hover *as it
+     * stands* — and the re-skin's output is part of how it stands now.
+     */
+    const allRules = async (skip: Set<string> = OWN_SHEETS): Promise<CSSRuleList[]> => {
       const sheets = Array.from(document.styleSheets).filter(
-        (s) => !(s.ownerNode instanceof Element && OWN_SHEETS.has(s.ownerNode.id)),
+        (s) => !(s.ownerNode instanceof Element && skip.has(s.ownerNode.id)),
       );
       const lists = await Promise.all(sheets.map(readableRules));
       return lists.filter((r): r is CSSRuleList => r !== null);
     };
 
+    /**
+     * What the state hoist leaves out: itself, our element edits (which
+     * already carry both the pseudo and the class), the agent's proposal, and
+     * the outlines. The re-skin and the site's dark mode stay in, because
+     * they are the page as it is being painted right now.
+     */
+    const NOT_THE_PAGE = new Set([STATE_ID, ELEMENTS_ID, PREVIEW_ID, MARKS_ID]);
+
     /** The name a grouping rule was written under, so a re-emitted rule lands in the same layer. */
     const groupHead = (rule: CSSMediaRule | CSSSupportsRule | CSSLayerBlockRule): string =>
       rule instanceof CSSMediaRule
-        ? `@media ${rule.conditionText}`
+        ? `@media ${sourceMedia(rule.media)}`
         : rule instanceof CSSSupportsRule
           ? `@supports ${rule.conditionText}`
           : rule.name
@@ -171,80 +216,8 @@ export default defineContentScript({
 
     /* -------- hardcoded colours -------- */
 
-    const hexOf3 = (h: string) => `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toUpperCase();
-
-    /** Swap any colour in a declaration value that the map covers, alpha intact. */
-    const substitute = (value: string, map: Record<string, string>): string | null => {
-      let touched = false;
-
-      let out = value.replace(/#([0-9a-f]{3,8})\b/gi, (whole, digits: string) => {
-        // #RRGGBBAA keeps its alpha pair; #RGB expands before lookup.
-        const base =
-          digits.length === 3 || digits.length === 4
-            ? hexOf3(digits)
-            : `#${digits.slice(0, 6)}`.toUpperCase();
-        const tail = digits.length === 8 ? digits.slice(6) : digits.length === 4 ? digits[3]! : '';
-        const to = map[base];
-        if (!to) return whole;
-        touched = true;
-        return tail ? `${to}${tail}` : to;
-      });
-
-      out = out.replace(
-        /(rgba?)\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)([^)]*)\)/gi,
-        (whole, fn: string, r: string, g: string, b: string, rest: string) => {
-          const hex = `#${[r, g, b]
-            .map((n) => Number(n).toString(16).padStart(2, '0'))
-            .join('')}`.toUpperCase();
-          const to = map[hex];
-          if (!to) return whole;
-          touched = true;
-          const nr = parseInt(to.slice(1, 3), 16);
-          const ng = parseInt(to.slice(3, 5), 16);
-          const nb = parseInt(to.slice(5, 7), 16);
-          return `${fn}(${nr}, ${ng}, ${nb}${rest})`;
-        },
-      );
-
-      return touched ? out : null;
-    };
-
+    /** What a `rem` is worth on this page, for the length rewrites. */
     const rootPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
-
-    const collect = (rules: CSSRuleList, map: Record<string, string>, lengths: LengthMap | null, out: string[], rem: number) => {
-      for (const rule of Array.from(rules)) {
-        if (ruleCount++ > MAX_RULES) return;
-
-        // Grouping rules carry their condition through, so an override inherits
-        // the breakpoint or feature test the original was written under.
-        if (
-          rule instanceof CSSMediaRule ||
-          rule instanceof CSSSupportsRule ||
-          (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
-        ) {
-          const inner: string[] = [];
-          collect(rule.cssRules, map, lengths, inner, rem);
-          if (inner.length) out.push(`${groupHead(rule)}{${inner.join('')}}`);
-          continue;
-        }
-
-        if (!(rule instanceof CSSStyleRule)) continue;
-        const decls: string[] = [];
-        // The rule's own size names the role its weight and line-height belong to.
-        const ruleFontPx = lengths ? lengthPx(rule.style.getPropertyValue('font-size'), rem) : null;
-        for (const prop of Array.from(rule.style)) {
-          const value = rule.style.getPropertyValue(prop);
-          const swapped =
-            substitute(value, map) ?? (lengths ? rewriteLength(prop, value, lengths, ruleFontPx, rem) : null);
-          if (!swapped) continue;
-          // Keep their priority: an !important original needs an !important
-          // shadow to beat it, and a normal one must not become important.
-          const priority = rule.style.getPropertyPriority(prop);
-          decls.push(`${prop}:${swapped}${priority ? ' !important' : ''}`);
-        }
-        if (decls.length) out.push(`${rule.selectorText}{${decls.join(';')}}`);
-      }
-    };
 
     const rewriteRules = async (map: Record<string, string>, lengths: LengthMap | null): Promise<number> => {
       const run = ++applyRun;
@@ -255,10 +228,7 @@ export default defineContentScript({
       sheet = null;
       if (empty) return 0;
 
-      ruleCount = 0;
-      const rem = rootPx();
-      const out: string[] = [];
-      for (const rules of lists) collect(rules, map, isLengthMapEmpty(lengths) ? null : lengths, out, rem);
+      const out = collectOverrides(lists, { colorMap: map, lengths, rootPx: rootPx(), limit: MAX_RULES });
       if (!out.length) return 0;
 
       sheet = document.createElement('style');
@@ -282,12 +252,15 @@ export default defineContentScript({
       for (const rule of Array.from(rules)) {
         if (ruleCount++ > MAX_RULES) return;
         if (rule instanceof CSSMediaRule) {
-          const rest = withoutDarkQuery(rule.conditionText);
+          // As the page wrote it: a copy carries the breakpoint, and the
+          // device frame answers the copy the way it answers the original.
+          const condition = sourceMedia(rule.media);
+          const rest = withoutDarkQuery(condition);
           if (rest === undefined) {
-            if (isDarkMedia(rule.conditionText)) continue; // an arm we cannot separate
+            if (isDarkMedia(condition)) continue; // an arm we cannot separate
             const inner: string[] = [];
             hoistDark(rule.cssRules, inner, hooks, inDark);
-            if (inner.length) out.push(`@media ${rule.conditionText}{${inner.join('')}}`);
+            if (inner.length) out.push(`@media ${condition}{${inner.join('')}}`);
             continue;
           }
           const inner: string[] = [];
@@ -327,8 +300,8 @@ export default defineContentScript({
     const suppressed: { rule: CSSMediaRule; was: string }[] = [];
     const suppressLight = (rules: CSSRuleList) => {
       for (const rule of Array.from(rules)) {
-        if (rule instanceof CSSMediaRule && isLightOnly(rule.conditionText)) {
-          suppressed.push({ rule, was: rule.media.mediaText });
+        if (rule instanceof CSSMediaRule && isLightOnly(sourceMedia(rule.media))) {
+          suppressed.push({ rule, was: sourceMedia(rule.media) });
           rule.media.mediaText = 'not all';
           continue;
         }
@@ -348,6 +321,7 @@ export default defineContentScript({
           /* the sheet is gone */
         }
       }
+      if (suppressed.length) refreshFrame();
       suppressed.length = 0;
       for (const h of appliedHooks) setHook(h, false);
       appliedHooks = [];
@@ -370,7 +344,10 @@ export default defineContentScript({
       ruleCount = 0;
       const out: string[] = [];
       const hooks = new Map<string, DarkHook>();
-      for (const rules of lists) hoistDark(rules, out, hooks, false);
+      // A nested rule's text carries its media query; the copy needs the page's own.
+      withSourceMedia(() => {
+        for (const rules of lists) hoistDark(rules, out, hooks, false);
+      });
       if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
       // The page's own readable sheets can be edited in place; a fetched
       // sheet is a detached copy, and its light rules were never applied.
@@ -419,22 +396,88 @@ export default defineContentScript({
       applied.clear();
       sheet?.remove();
       sheet = null;
+      stateStyle?.remove();
+      stateStyle = null;
     };
 
-    const setElements = (rules: NonNullable<ApplyMessage['rules']>) => {
+    const setElements = (rules: NonNullable<ApplyMessage['rules']>, darkPreview = false) => {
       elements?.remove();
       elements = null;
       if (!rules.length) return;
-      const bySelector = new Map<string, string[]>();
-      for (const r of rules) {
-        const list = bySelector.get(r.selector) ?? [];
-        list.push(`${r.property}:${r.value} !important`);
-        bySelector.set(r.selector, list);
-      }
+      const text = elementsSheet(rules, { darkPreview });
+      if (!text) return;
       elements = document.createElement('style');
       elements.id = ELEMENTS_ID;
-      elements.textContent = Array.from(bySelector, ([sel, decls]) => `${sel}{${decls.join(';')}}`).join('\n');
+      elements.textContent = text;
       document.head.appendChild(elements);
+    };
+
+    /* -------- holding the page in a state -------- */
+
+    /**
+     * Re-emit every rule of the page's own that styles `selector` in `state`,
+     * against our class instead of the pseudo-class.
+     *
+     * Only rules that match the element being held are taken: a page has
+     * hundreds of hover rules and re-emitting all of them would light the
+     * whole document up. The answer carries what was found, so the panel can
+     * show "already on hover" without reading the CSSOM itself.
+     */
+    /**
+     * Which `state-set` is the current one.
+     *
+     * Reading the page's sheets can wait on the background for a cross-origin
+     * fetch, so two clicks in quick succession overlap. Without this the
+     * slower answer would append its sheet after the faster one and orphan a
+     * `<style>` node that nothing would ever remove.
+     */
+    let stateToken = 0;
+
+    const setState = async (state: StateName | null, selector: string | null): Promise<HoistedRule[]> => {
+      const mine = ++stateToken;
+      stateStyle?.remove();
+      stateStyle = null;
+      if (!state || !selector) return [];
+
+      let element: Element | null = null;
+      try {
+        element = document.querySelector(selector);
+      } catch {
+        element = null;
+      }
+      if (!element) return [];
+
+      const pseudos = pseudosOf(state);
+      const lists = await allRules(NOT_THE_PAGE);
+      // Another pick arrived while the sheets were being read.
+      if (mine !== stateToken) return [];
+      const collected = collectStateRules(lists, pseudos, MAX_RULES);
+
+      // Keep only what would actually reach this element. The selector with
+      // its pseudo taken out is exactly that question, and the page answers it.
+      const el = element;
+      const hoisted = hoistState(collected, state, pseudos).filter((h) => {
+        try {
+          return el.matches(h.bare);
+        } catch {
+          // A selector this browser cannot parse reaches nothing we can prove.
+          return false;
+        }
+      });
+
+      // One last look: the await above gave another pick time to arrive.
+      if (mine !== stateToken) return [];
+      const text = buildStateSheet(hoisted);
+      if (text) {
+        stateStyle = document.createElement('style');
+        stateStyle.id = STATE_ID;
+        stateStyle.textContent = text;
+        // Before the element sheet, so an edit made in this state still wins.
+        const first = document.head.querySelector(`#${ELEMENTS_ID}`);
+        if (first) document.head.insertBefore(stateStyle, first);
+        else document.head.appendChild(stateStyle);
+      }
+      return hoisted;
     };
 
     const setPreview = (css: string): PreviewInfo => {
@@ -452,14 +495,15 @@ export default defineContentScript({
       // query is counted as unreadable rather than guessed at.
       const reached = new Set<Element>();
       const selectors: string[] = [];
-      // Reach is what applies now: a rule under a media or supports condition
+      // Reach is what applies now — in the device frame, when one is on: a
+      // rule under a media or supports condition
       // the page does not meet at this moment is counted as a rule but reaches
       // nothing and is not marked. A rule that sets its own outline is not
       // marked either, or the mark would paint over the very thing it proposes.
       const walk = (rules: CSSRuleList, applies: boolean) => {
         for (const rule of Array.from(rules)) {
           if (rule instanceof CSSMediaRule) {
-            walk(rule.cssRules, applies && matchMedia(rule.conditionText).matches);
+            walk(rule.cssRules, applies && mediaMatches(rule.conditionText));
             continue;
           }
           if (rule instanceof CSSSupportsRule) {
@@ -507,7 +551,16 @@ export default defineContentScript({
     const onMessage = (
       msg: ApplyMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: { ok: boolean; vars: number; rules: number; hooks?: string[]; preview?: PreviewInfo; error?: string }) => void,
+      sendResponse: (response: {
+        ok: boolean;
+        vars: number;
+        rules: number;
+        hooks?: string[];
+        preview?: PreviewInfo;
+        /** For `state-set`: the page's own rules for that state, as facts. */
+        cascade?: HoistedRule[];
+        error?: string;
+      }) => void,
     ) => {
       // A branch that throws must still answer, or the panel reads silence
       // as "not injected", re-injects, and gets silence again.
@@ -540,8 +593,14 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'elements-set') {
-        setElements(msg.rules ?? []);
+        setElements(msg.rules ?? [], msg.darkPreview === true);
         sendResponse({ ok: true, vars: applied.size, rules: msg.rules?.length ?? 0 });
+        return true;
+      }
+      if (msg?.type === 'state-set') {
+        setState(msg.state ?? null, msg.selector ?? null)
+          .then((hoisted) => sendResponse({ ok: true, vars: applied.size, rules: hoisted.length, cascade: hoisted }))
+          .catch(failed);
         return true;
       }
       if (msg?.type === 'elements-clear') {

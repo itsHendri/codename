@@ -27,6 +27,12 @@ export interface BridgeFile {
   port: number;
   pid: number;
   startedAt: string;
+  /**
+   * The extension that paired here first. Kept across restarts: it is what
+   * lets a later panel pair itself without the person typing a code, and what
+   * stops a different extension from doing the same.
+   */
+  extensionId?: string;
 }
 
 export const bridgeFilePath = (home = homedir()): string => join(home, '.codename', 'bridge.json');
@@ -35,7 +41,13 @@ export function readBridgeFile(path: string): BridgeFile | null {
   try {
     const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<BridgeFile>;
     if (typeof raw.token !== 'string' || typeof raw.port !== 'number' || typeof raw.pid !== 'number') return null;
-    return { token: raw.token, port: raw.port, pid: raw.pid, startedAt: String(raw.startedAt ?? '') };
+    return {
+      token: raw.token,
+      port: raw.port,
+      pid: raw.pid,
+      startedAt: String(raw.startedAt ?? ''),
+      ...(typeof raw.extensionId === 'string' && raw.extensionId ? { extensionId: raw.extensionId } : {}),
+    };
   } catch {
     return null;
   }
@@ -48,11 +60,17 @@ export function writeBridgeFile(path: string, file: BridgeFile): void {
   chmodSync(path, 0o600);
 }
 
-/**
- * The code a running bridge is waiting for, or null when none is running.
- * The file outlives a crashed process, so the pid in it is checked first.
- */
+/** The code a running bridge is waiting for, or null when none is running. */
 export function readPairingCode(path = bridgeFilePath()): { token: string; port: number } | null {
+  const file = readRunningBridge(path);
+  return file ? { token: file.token, port: file.port } : null;
+}
+
+/**
+ * The whole file of a bridge that is still running, or null. The file
+ * outlives a crashed process, so the pid in it is checked first.
+ */
+export function readRunningBridge(path = bridgeFilePath()): BridgeFile | null {
   const file = readBridgeFile(path);
   if (!file) return null;
   try {
@@ -61,7 +79,7 @@ export function readPairingCode(path = bridgeFilePath()): { token: string; port:
     // EPERM: the process exists but belongs to someone else — still running.
     if ((err as NodeJS.ErrnoException).code !== 'EPERM') return null;
   }
-  return { token: file.token, port: file.port };
+  return file;
 }
 
 /** Removes the file only when it still describes this process. */

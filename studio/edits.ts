@@ -10,8 +10,15 @@
  * Two of the deltas are not about the config at all. `vars` is the page's own
  * variables set by hand, and `colors` its observed literals; both are decisions
  * about the page, laid over whatever the next scan reads.
+ *
+ * What they are filed under is `editsKey`. An origin is the only handle the
+ * extension has on its own, and it is a poor one for a dev server: two
+ * projects take turns on localhost:3000, and the same project answers to
+ * :3000 today and :5173 tomorrow. Where a bridge is paired to a local page it
+ * names the folder it is running in, and that is the better key.
  */
 
+import type { ProjectInfo } from '@/shared/protocol';
 import type { BrandConfig, ScaleRole, SemanticOverride, TypeRole, TypeRoleName } from './engine/types';
 
 export type TypeEdit = Partial<Pick<TypeRole, 'sizeRem' | 'weight' | 'lineHeight'>>;
@@ -33,6 +40,18 @@ export interface BrandEdits {
    * says "keep as is", and an agent preview that redefines one is named.
    */
   locks?: string[];
+}
+
+/**
+ * Where the decisions made against this page are filed.
+ *
+ * The project only wins for a page that is running on this machine: a
+ * deployed site keyed by whatever repository the terminal happens to sit in
+ * would be a guess, and the origin is a fact.
+ */
+export function editsKey(origin: string, project: ProjectInfo | null, local: boolean): string {
+  if (!local || !project) return origin;
+  return `project:${project.root ?? project.path}`;
 }
 
 export const noEdits = (): BrandEdits => ({

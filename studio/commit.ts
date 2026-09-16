@@ -10,23 +10,40 @@
  * Handing over the resolved CSS invites it to stamp a hex across forty
  * components, which is the thing a token system exists to prevent.
  *
- * **No file positions.** The extension sees the rendered page, not the repo; it
- * would be guessing at line numbers. The agent has the repo and can find a
- * definition properly. What it gets instead is the stylesheet URL the browser
- * loaded — a hint, labelled as one.
+ * **No guessed file positions.** The extension sees the rendered page, not the
+ * repo, so nothing here is derived from a stylesheet URL beyond what it is: a
+ * hint about where the browser loaded some CSS. A position appears in a brief
+ * only when the bridge, which runs inside the project, has searched the files
+ * and found exactly one definition. That is a find, not a guess; where it
+ * finds several, the brief says how many rather than choosing.
  */
 
+import type { Definition } from '@/shared/protocol';
 import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
 import type { ElementChange } from './changes';
+import { cascadeOrder, conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
 import type { SystemChange } from './systemDiff';
 
 export interface TokenChange {
   name: string;
   from: string;
   to: string;
+  /**
+   * Where the bridge found this defined in the project. A find, not a guess:
+   * absent when no bridge is paired, and more than one entry means the
+   * cascade decides which applies.
+   */
+  definedAt?: Definition[];
+  /**
+   * Set when the search that produced `definedAt` stopped before reading the
+   * whole project, so what it found is not everything there is.
+   */
+  definedAtPartial?: boolean;
+  /** Set when the person applied this definition to source themselves. */
+  applied?: { file: string; line: number };
   /** Where the browser loaded the defining stylesheet. A hint, not a fact. */
   source?: string;
   /** Declarations referencing this token. */
@@ -63,6 +80,8 @@ export interface ElementEdit {
   stable: boolean;
   /** A CSS longhand, or 'text'. */
   property: string;
+  /** Which state this is about; absent is the default one. */
+  condition?: MaybeCondition;
   from: string;
   /** `var(--x)` when a token was chosen. */
   to: string;
@@ -93,6 +112,8 @@ export interface CommentNote {
 export interface ChangeSet {
   site: string;
   editedAt: string;
+  /** The project a paired bridge is running in, when there is one. */
+  project?: { name: string; path: string; branch?: string };
   /** Whether this looks like a project running on your own machine. */
   local: boolean;
   tokens: TokenChange[];
@@ -112,7 +133,9 @@ export interface ChangeSet {
 export function summariseElements(entries: ElementChange[]): ElementEdit[] {
   const byKey = new Map<string, ElementEdit>();
   for (const e of entries) {
-    const key = `${e.selector}\u0000${e.property}`;
+    // The same property in two states is two decisions, not one overwriting
+    // the other.
+    const key = `${e.selector}\u0000${e.property}\u0000${conditionKey(e.condition)}`;
     const prev = byKey.get(key);
     if (prev) {
       prev.to = e.to;
@@ -123,6 +146,7 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
         matches: e.matches,
         stable: e.stable,
         property: e.property,
+        ...(e.condition ? { condition: e.condition } : {}),
         from: e.from,
         to: e.to,
         token: e.token,
@@ -165,12 +189,26 @@ export function buildChangeSet(
   comments: CommentNote[] = [],
   system: SystemChange[] = [],
   locked: string[] = [],
+  /** What a paired bridge knows: the project, where each token lives, what is already applied. */
+  repo: {
+    project?: ChangeSet['project'];
+    definitions?: Record<string, Definition[]>;
+    /** The search behind `definitions` stopped early; what it found is not everything. */
+    definitionsTruncated?: boolean;
+    applied?: { name: string; file: string; line: number; value: string }[];
+  } = {},
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
+  const appliedByName = new Map((repo.applied ?? []).map((a) => [a.name, a]));
   const tokens: TokenChange[] = overrides.map((o) => {
     const prop = propByName.get(o.name);
     const alsoAt = Object.entries(prop?.atWidth ?? {}).map(([query, value]) => ({ query, value }));
+    const definedAt = repo.definitions?.[o.name];
+    // Only while it still holds what was written: moved again, it is a change
+    // the agent has not heard about and must not be told to skip.
+    const wrote = appliedByName.get(o.name);
+    const applied = wrote && wrote.value === o.to ? wrote : undefined;
     return {
       name: o.name,
       from: o.from,
@@ -178,6 +216,8 @@ export function buildChangeSet(
       source: prop?.source,
       uses: prop?.uses,
       reason: o.reason,
+      ...(definedAt?.length ? { definedAt, ...(repo.definitionsTruncated ? { definedAtPartial: true } : {}) } : {}),
+      ...(applied ? { applied: { file: applied.file, line: applied.line } } : {}),
       ...(alsoAt.length ? { alsoAt } : {}),
       ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
     };
@@ -203,6 +243,7 @@ export function buildChangeSet(
     comments,
     unreadable: scan.unreadableSheets,
     ...(locked.length ? { locked } : {}),
+    ...(repo.project ? { project: repo.project } : {}),
   };
 }
 
@@ -219,6 +260,11 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
   const rootFontSize = scan.rootFontSize ?? 16;
   return edits.map((e) => {
     if (e.token || e.property === 'text' || e.property === 'move') return e;
+    // The index holds each variable's base value. Under the page's dark mode
+    // or inside a width query the same name may hold something else, and
+    // naming it would be a wrong fact rather than a helpful one — so nothing
+    // is said. A state does not change a variable's value, so it still can.
+    if (e.condition && e.condition.kind !== 'state') return e;
     const holder = tokenHolding(index, e.property, e.to, rootFontSize);
     return holder ? { ...e, couldBe: holder } : e;
   });
@@ -245,14 +291,58 @@ export function standingRules(locked: string[] = []): string {
     'Codename hands you design changes a person made against a live page.',
     '',
     '- Edit the definition of each token named; never replace its usages, and never paste a rendered stylesheet into source.',
-    '- Values were read from the rendered page. The stylesheet URLs are where the browser loaded the CSS; find the real definitions in the repository.',
+    '- Values were read from the rendered page. The stylesheet URLs are where the browser loaded the CSS; find the real definitions in the repository, or call `find_definition` and this bridge will search it for you.',
+    '- A line already named "defined at file:line" was found in the repository, not guessed. Where a brief says a token has several definitions, read them before editing: which one wins is the cascade\'s business.',
+    '- A token the person applied themselves is already in source and says so in the brief; do not write it again.',
     '- Change nothing that is not named. Colours and tokens left out of a brief were left alone on purpose.',
+    '- An element line under a state heading is about that state only — `:hover`, `:focus-visible`, `:active`, the page\'s own dark mode, or a max-width query. Put it where that state is written, not on the base rule.',
     '- A preview you paint with apply_css is a proposal, not a change; it needs the person\'s consent in the panel menu, they can see and clear it, and only source edits count.',
   ];
   if (locked.length) {
     lines.push(`- Keep these tokens exactly as they are, whatever a brief touches: ${locked.map((n) => `\`${n}\``).join(', ')}.`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Properties whose change is movement, and so carries the reduced-motion
+ * duty. A filter is not one of them: frosted glass does not move, and a note
+ * about motion on a static blur is noise.
+ */
+const MOTION_PROPS = new Set(['transition', 'transition-duration', 'transition-property', 'transition-timing-function', 'animation']);
+
+/** Whether an edit asks for movement, rather than asking for less of it. */
+const asksForMotion = (e: ElementEdit): boolean => {
+  if (!MOTION_PROPS.has(e.property)) return false;
+  const to = e.to.trim().toLowerCase();
+  // Taking a transition away is the opposite of the thing being warned about.
+  return to !== 'none' && to !== '' && !/^(all\s+)?0s\b/.test(to);
+};
+
+/**
+ * Where a token is defined, in one line, or nothing.
+ *
+ * One definition is named. Several are counted and listed, because which one
+ * applies is the cascade's business and picking would be the guess this
+ * whole file exists to avoid. None says nothing at all.
+ */
+export function describeDefinitions(t: TokenChange): string | null {
+  if (t.applied) return `already applied in ${t.applied.file}:${t.applied.line} — do not write this one again`;
+  const found = t.definedAt ?? [];
+  if (!found.length) return null;
+  const at = (d: Definition) => `${d.file}${d.line ? `:${d.line}` : ''}`;
+  // A search that stopped early found these, not necessarily all of them, and
+  // "defined at" alone would state the one as the only one.
+  const partial = t.definedAtPartial
+    ? ' — the search stopped before it had read the whole project, so there may be others'
+    : '';
+  if (found.length === 1) return `${partial ? 'found' : 'defined'} at ${at(found[0]!)}${partial}`;
+  const listed = found
+    .slice(0, 4)
+    .map((d) => `${at(d)}${d.context === 'root' ? '' : ` (${d.context})`}`)
+    .join(', ');
+  const more = found.length > 4 ? `, and ${found.length - 4} more` : '';
+  return `${found.length} definitions: ${listed}${more} — read them before editing; which one applies is the cascade's business${partial}`;
 }
 
 /**
@@ -270,7 +360,10 @@ export function toPrompt(set: ChangeSet): string {
     }
   })();
 
-  lines.push(`Apply a design change I made against ${host}.`);
+  const where = set.project
+    ? `${host}, running from ${set.project.name}${set.project.branch ? ` on ${set.project.branch}` : ''}`
+    : host;
+  lines.push(`Apply a design change I made against ${where}.`);
   lines.push('');
 
   if (set.tokens.length) {
@@ -293,6 +386,8 @@ export function toPrompt(set: ChangeSet): string {
         .filter(Boolean)
         .join('; ');
       lines.push(`- \`${t.name}\`: \`${t.from}\` → \`${t.to}\`${detail ? `  (${detail})` : ''}`);
+      const position = describeDefinitions(t);
+      if (position) lines.push(`  - ${position}`);
       if (t.onlyAt) lines.push(`  - the page defines this only at ${t.onlyAt}; there is no base value, so that definition is the one to edit`);
       for (const a of t.alsoAt ?? []) {
         lines.push(`  - also defined at ${a.query} as \`${a.value}\`; left alone — decide whether it should follow`);
@@ -337,6 +432,21 @@ export function toPrompt(set: ChangeSet): string {
     lines.push(
       'Each line is one property on one selector, read from the rendered page: the value before I touched it and the value I settled on. Apply the same intent in source at whatever specificity the rule already has; where the new value is `var(--x)`, use that token.',
     );
+    // Motion is the one kind of edit that has a duty attached to it, and the
+    // engine's own polish rules already say so; a brief that asks for a
+    // transition and does not mention it is asking for half the work.
+    if (set.elements.some(asksForMotion)) {
+      lines.push('');
+      lines.push(
+        'A line naming `transition`, `animation` or a filter is motion: pair it with `@media (prefers-reduced-motion: reduce)`, where the duration drops to near zero, and keep the change visible without the movement.',
+      );
+    }
+    if (set.elements.some((e) => e.condition)) {
+      lines.push('');
+      lines.push(
+        'A line under a state heading is about that state only: `hover` means `:hover`, `focus` means `:focus-visible`, `active` means `:active`, `dark` means this page\'s own dark mode, and a width means that media query. Lines with no heading are the default state.',
+      );
+    }
     lines.push('');
     const bySelector = new Map<string, ElementEdit[]>();
     for (const e of set.elements) bySelector.set(e.selector, [...(bySelector.get(e.selector) ?? []), e]);
@@ -347,14 +457,33 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(`- \`${selector}\`${scope}${positional}`);
       // Where a dev build named the component, that is the file to open.
       if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
+      // Grouped by state, default first, so the ordinary case reads exactly
+      // as it did before conditions existed.
+      const byCondition = new Map<string, ElementEdit[]>();
       for (const e of edits) {
-        lines.push(
-          e.property === 'text'
-            ? `  - text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
-            : e.property === 'move'
-              ? `  - move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
-              : `  - \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
-        );
+        const key = conditionKey(e.condition);
+        byCondition.set(key, [...(byCondition.get(key) ?? []), e]);
+      }
+      // The same order the sheet uses, so the brief describes the cascade
+      // the person was looking at: default, then widths, then dark, then the
+      // states.
+      const order = [...byCondition.keys()].sort(
+        (a, b) => cascadeOrder(byCondition.get(a)![0]!.condition) - cascadeOrder(byCondition.get(b)![0]!.condition),
+      );
+      for (const key of order) {
+        const group = byCondition.get(key)!;
+        const condition = group[0]!.condition;
+        const indent = condition ? '    ' : '  ';
+        if (condition) lines.push(`  - ${describeCondition(condition)} — ${describeLong(condition)}`);
+        for (const e of group) {
+          lines.push(
+            e.property === 'text'
+              ? `${indent}- text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
+              : e.property === 'move'
+                ? `${indent}- move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
+                : `${indent}- \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
+          );
+        }
       }
     }
     lines.push('');
@@ -388,8 +517,14 @@ export function toPrompt(set: ChangeSet): string {
 
   lines.push('## Notes');
   lines.push('');
+  // Where the bridge searched the project, the positions above are the answer
+  // to "where is this defined"; telling the agent to go and find them again
+  // would send it looking for what it has already been handed.
+  const located = set.tokens.some((t) => t.definedAt?.length || t.applied);
   lines.push(
-    '- These values were read from the rendered page, so the stylesheet URLs are where the browser loaded the CSS — find the real definitions in the source.',
+    located
+      ? '- These values were read from the rendered page; the file positions above come from a search of this project. Where a token has more than one definition, read them before editing.'
+      : '- These values were read from the rendered page, so the stylesheet URLs are where the browser loaded the CSS — find the real definitions in the source.',
   );
   lines.push('- Change nothing else. Colours not listed here were deliberately left alone.');
   if (set.unreadable.length) {

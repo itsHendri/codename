@@ -1,11 +1,4 @@
-import { planResize, requestedBounds, type Size } from '@/shared/viewport';
-
-interface Previous {
-  width: number;
-  height: number;
-  state: string | undefined;
-  zoom: number;
-}
+import { frameFor, type Frame } from '@/shared/viewport';
 
 export default defineBackground(() => {
   // Toolbar click opens the side panel.
@@ -13,64 +6,30 @@ export default defineBackground(() => {
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => console.error('setPanelBehavior failed', err));
 
-  /**
-   * What a window looked like before the bar's first preset, so Reset can put
-   * it back. In session storage rather than a variable: the service worker is
-   * evicted after a short idle, and the baseline has to outlive it.
-   */
-  const prevKey = (windowId: number) => `viewport:${windowId}`;
-  const getPrevious = async (windowId: number): Promise<Previous | null> =>
-    ((await chrome.storage.session.get(prevKey(windowId)))[prevKey(windowId)] as Previous | undefined) ?? null;
-  const setPrevious = (windowId: number, p: Previous) => chrome.storage.session.set({ [prevKey(windowId)]: p });
-  const clearPrevious = (windowId: number) => chrome.storage.session.remove(prevKey(windowId));
+  /* ---------------- the frame each tab is shown in ---------------- */
 
   /**
-   * A preset is a CSS viewport. The window is asked for the outer size that
-   * would give it; when the display is too small for that — a laptop with the
-   * side panel open, for most presets — the page is zoomed out until its CSS
-   * viewport is the preset width anyway, and the reply says so.
+   * The page draws the frame itself (`studio/frame.ts`); this only remembers
+   * which one, per tab and site, so a reload or a navigation within the site
+   * comes back in the frame it left in and another site does not. Session
+   * storage, because the service worker is evicted after a short idle and
+   * the record has to outlive it.
    */
-  const resize = async (
-    msg: { preset: Size & { name: string }; inner: Size; outer: Size },
-    tabId: number,
-    windowId: number,
-  ) => {
-    const zoom = await chrome.tabs.getZoom(tabId);
-    if (!(await getPrevious(windowId))) {
-      const win = await chrome.windows.get(windowId);
-      await setPrevious(windowId, { width: win.width ?? 0, height: win.height ?? 0, state: win.state, zoom });
+  const frameKey = (tabId: number) => `frame:${tabId}`;
+  const originOf = (url: string | undefined) => {
+    try {
+      return url ? new URL(url).origin : null;
+    } catch {
+      return null;
     }
-    // Per tab, so the zoom does not leak to every other tab on the origin.
-    await chrome.tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-tab' });
-    const bounds = requestedBounds(msg.preset, msg.inner, msg.outer, zoom);
-    const win = await chrome.windows.update(windowId, { ...bounds, state: 'normal' });
-    const plan = planResize({
-      preset: msg.preset,
-      inner: msg.inner,
-      outer: msg.outer,
-      zoom,
-      achieved: { width: win.width ?? bounds.width, height: win.height ?? bounds.height },
-    });
-    if (plan.zoom !== zoom) await chrome.tabs.setZoom(tabId, plan.zoom);
-    return { ok: true, zoom: plan.zoom, viewport: plan.viewport, canReset: true };
   };
-
-  const reset = async (tabId: number, windowId: number) => {
-    const was = await getPrevious(windowId);
-    await clearPrevious(windowId);
-    // The zoom the tab had before, not 100%: a reader at 150% keeps it.
-    const zoom = was?.zoom ?? 1;
-    await chrome.tabs.setZoom(tabId, zoom);
-    await chrome.tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-origin' }).catch(() => {});
-    if (!was) return { ok: true, zoom, canReset: false };
-    // A maximised window cannot take a size in the same call.
-    if (was.state === 'maximized' || was.state === 'fullscreen') {
-      await chrome.windows.update(windowId, { state: was.state as 'maximized' | 'fullscreen' });
-    } else if (was.width && was.height) {
-      await chrome.windows.update(windowId, { width: was.width, height: was.height, state: 'normal' });
-    }
-    return { ok: true, zoom, canReset: false };
+  const getFrame = async (tabId: number, origin: string | null): Promise<Frame | null> => {
+    const kept = (await chrome.storage.session.get(frameKey(tabId)))[frameKey(tabId)] as
+      | { frame: Frame; origin: string | null }
+      | undefined;
+    return kept && kept.origin === origin ? kept.frame : null;
   };
+  chrome.tabs.onRemoved.addListener((tabId) => void chrome.storage.session.remove(frameKey(tabId)));
 
   // Keyboard shortcuts reach the inspector on the active tab; a tab with no
   // inspector (the panel is not open there) simply does not answer.
@@ -84,21 +43,30 @@ export default defineBackground(() => {
   });
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    const tabId = sender.tab?.id;
+    // A content script speaks for its own tab; the panel is not in one, so it
+    // names the tab it means.
+    const tabId = sender.tab?.id ?? (typeof msg?.tabId === 'number' ? msg.tabId : undefined);
     const windowId = sender.tab?.windowId;
     const fail = (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
 
-    if (msg?.type === 'resize-window' && tabId != null && windowId != null) {
-      resize(msg, tabId, windowId).then(sendResponse).catch(fail);
+    if (msg?.type === 'frame-set' && tabId != null) {
+      const frame = frameFor({ width: Number(msg.width), height: Number(msg.height) });
+      chrome.storage.session
+        .set({ [frameKey(tabId)]: { frame, origin: originOf(sender.tab?.url) } })
+        .then(() => sendResponse({ ok: true, frame }))
+        .catch(fail);
       return true;
     }
-    if (msg?.type === 'reset-viewport' && tabId != null && windowId != null) {
-      reset(tabId, windowId).then(sendResponse).catch(fail);
+    if (msg?.type === 'frame-clear' && tabId != null) {
+      chrome.storage.session
+        .remove(frameKey(tabId))
+        .then(() => sendResponse({ ok: true, frame: null }))
+        .catch(fail);
       return true;
     }
-    if (msg?.type === 'viewport-state' && tabId != null && windowId != null) {
-      Promise.all([chrome.tabs.getZoom(tabId), getPrevious(windowId)])
-        .then(([zoom, was]) => sendResponse({ ok: true, zoom, canReset: was !== null }))
+    if (msg?.type === 'frame-state' && tabId != null) {
+      getFrame(tabId, originOf(sender.tab?.url))
+        .then((frame) => sendResponse({ ok: true, frame }))
         .catch(fail);
       return true;
     }

@@ -26,7 +26,9 @@ import {
   undo as undoLog,
   type ChangeLog,
 } from '@/studio/changes';
-import { applyElementRules, probeComponent, sendInspector } from './messaging';
+import { setStateHoist, applyElementRules, isElementProps, probeComponent, sendInspector } from './messaging';
+import { conditionKey, widthConditions, type Condition, type MaybeCondition, type StateName } from '@/studio/conditions';
+import type { HoistedRule } from '@/studio/conditionSheet';
 import {
   addComment as addCommentToSession,
   getSession,
@@ -47,6 +49,19 @@ export interface InspectController {
   /** Write to this element only, or to every element the class selector matches. */
   scope: Scope;
   setScope(scope: Scope): void;
+  /** The state edits are being made in; undefined is the default one. */
+  condition: MaybeCondition;
+  setCondition(condition: MaybeCondition): void;
+  /** What the page itself already does to this element in that state. Read-only. */
+  cascade: HoistedRule[];
+  /** The widths this page is written against, which is what may be chosen. */
+  widths: Condition[];
+  /**
+   * Run the transition into the state being held: the element leaves the
+   * state and comes back, which is what a pointer does and what a duration is
+   * judged by.
+   */
+  playCondition(): void;
   /** Commit a CSS longhand. `from` is read from the element; `token` names a chosen variable. */
   change(property: string, to: string, token?: string): void;
   /** Replace the element's text content. */
@@ -135,6 +150,9 @@ export function readValue(el: ElementProps, property: string): string {
     'border-width': el.border.width,
     'border-style': el.border.style,
     'box-shadow': el.shadow,
+    filter: el.filter,
+    'backdrop-filter': el.backdropFilter,
+    transition: el.transition,
     text: el.text ?? '',
   };
   return map[property] ?? '';
@@ -164,11 +182,13 @@ function usePush(tabId: number | null, generation: number, key: string, empty: b
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments'>,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits' | 'scan'>,
   focusedComment: string | null,
 ): InspectController {
   const { pinned: element, log, generation, comments } = session;
   const [scope, setScope] = useState<Scope>('element');
+  const [condition, setConditionState] = useState<MaybeCondition>(undefined);
+  const [cascade, setCascade] = useState<HoistedRule[]>([]);
   const [measuring, setMeasuring] = useState(false);
   const [noting, setNoting] = useState(false);
   const [layers, setLayers] = useState<LayerNode[]>([]);
@@ -188,11 +208,12 @@ export function useInspect(
   // Push the rules whenever they change, and again after the page reloads
   // (the generation counter), when the managed sheet has to be rebuilt.
   const rules = useMemo(() => (holding ? [] : toRules(log)), [log, holding]);
-  usePush(tabId, generation, JSON.stringify(rules), rules.length === 0, () => {
-    void applyElementRules(tabId!, rules).then(() => {
+  const darkPreview = session.mode === 'dark';
+  usePush(tabId, generation, JSON.stringify([rules, darkPreview]), rules.length === 0, () => {
+    void applyElementRules(tabId!, rules, darkPreview).then(() => {
       // Computed values moved; show the element as it is now.
       void sendInspector<ElementProps | null>(tabId!, { cmd: 'read' }).then((props) => {
-        if (props) updateSession({ pinned: props });
+        if (isElementProps(props)) updateSession({ pinned: props });
       });
     });
   });
@@ -265,6 +286,9 @@ export function useInspect(
           matches: wide ? element.intent.matches : element.matches,
           stable: wide ? true : element.stable,
           property,
+          // The page is being held in this state while it is chosen, so what
+          // the element paints right now is the honest `from`.
+          ...(condition ? { condition } : {}),
           from: readValue(element, property),
           to,
           token,
@@ -274,8 +298,83 @@ export function useInspect(
         }),
       );
     },
-    [element, scope, setLog],
+    [element, scope, setLog, condition],
   );
+
+  /**
+   * Choose the state to edit in.
+   *
+   * Only the choice is made here. Turning the page into that state — the
+   * class, the hoisted rules, re-reading the element — happens in one place
+   * below, because doing it here as well meant every click walked the page's
+   * stylesheets twice and left two `state-set` messages racing each other.
+   */
+  const setCondition = useCallback((next: MaybeCondition) => {
+    setConditionState(next);
+    setCascade([]);
+  }, []);
+
+  /**
+   * A width is only a width this page has.
+   *
+   * The widths on offer come from the page's own stylesheets, so a scan — the
+   * first one, or one after navigating — can change the list under a choice
+   * already made. Left alone the control would quietly show nothing while
+   * edits went on being filed at a width this page never mentions, which is
+   * the exact thing reading the page's breakpoints was meant to prevent.
+   */
+  const offered = useMemo(() => widthConditions(session.scan?.breakpoints), [session.scan?.breakpoints]);
+  useEffect(() => {
+    if (condition?.kind !== 'width') return;
+    if (offered.some((w) => conditionKey(w) === conditionKey(condition))) return;
+    setConditionState(undefined);
+    setCascade([]);
+  }, [offered, condition]);
+
+  /**
+   * Put the page into the chosen state, and read the element back.
+   *
+   * Runs on a new state, a new selection, and a reload (the generation
+   * counter), which is what the managed sheets already do — without it the
+   * bar would go on claiming "hover" over a page that had forgotten.
+   *
+   * The element must be read again afterwards: the whole point is that the
+   * values shown, and the `from` of the next edit, are that state's. An
+   * out-of-order answer is dropped rather than shown, since the walk can take
+   * a moment on a large page and a person can click faster than that.
+   */
+  const state = condition?.kind === 'state' ? condition.state : null;
+  const selector = element?.selector ?? null;
+  // The hoist copies the page's own rules as they stand, and a re-skin
+  // changes what they say. Without this the element would go on previewing
+  // the hover colour it had before the variable moved.
+  const painted = JSON.stringify([session.varOverrides, session.colorEdits, session.mode]);
+  const held = useRef(false);
+  /** What the page is actually being held in, for the Play timeout to check. */
+  const heldNow = useRef<StateName | null>(null);
+  const playTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (playTimer.current) clearTimeout(playTimer.current);
+  }, []);
+  useEffect(() => {
+    if (tabId == null) return;
+    // Nothing to say to a page that has never been put into a state.
+    if (!state && !held.current) return;
+    held.current = state !== null;
+    heldNow.current = state;
+    let live = true;
+    void sendInspector(tabId, { cmd: 'state', state });
+    void setStateHoist(tabId, state, state ? selector : null).then((found) => {
+      if (!live) return;
+      setCascade(found);
+      void sendInspector<ElementProps | null>(tabId, { cmd: 'read' }).then((props) => {
+        if (live && isElementProps(props)) updateSession({ pinned: props });
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [tabId, selector, state, generation, painted]);
 
   const setText = useCallback(
     (text: string) => {
@@ -316,6 +415,25 @@ export function useInspect(
     log,
     scope,
     setScope,
+    condition,
+    setCondition,
+    cascade,
+    widths: offered,
+    playCondition: () => {
+      if (tabId == null || !state) return;
+      // Off, then on a frame later: the same change applied in one go would
+      // not transition, since there would be nothing to transition from.
+      if (playTimer.current) clearTimeout(playTimer.current);
+      void sendInspector(tabId, { cmd: 'state', state: null });
+      playTimer.current = setTimeout(() => {
+        playTimer.current = null;
+        // The state may have been let go inside those 60ms, and putting it
+        // back then would leave the page held in something the panel no
+        // longer believes it is in.
+        if (heldNow.current !== state) return;
+        void sendInspector(tabId, { cmd: 'state', state });
+      }, 60);
+    },
     change,
     setText,
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),
@@ -331,6 +449,11 @@ export function useInspect(
     },
     measuring,
     clear: () => {
+      // The effect above takes the class off and drops the hoisted sheet when
+      // the condition goes; without this the panel would go on claiming to be
+      // editing a state nothing is in.
+      setConditionState(undefined);
+      setCascade([]);
       send({ cmd: 'deselect' });
       setPinned(null);
     },

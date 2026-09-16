@@ -117,3 +117,86 @@ describe('derived views', () => {
     expect(toRules(log)).toEqual([{ selector: '.btn', property: 'padding-top', value: '20px' }]);
   });
 });
+
+describe('conditions in the log', () => {
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const base = { selector: '.btn', matches: 1, stable: true, property: 'color', from: '#000', to: '#111' };
+
+  it('does not coalesce across states, however fast the scrub', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 10);
+    expect(log.entries).toHaveLength(2);
+  });
+
+  it('still coalesces inside one state', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), { ...base, condition: hover }, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 10);
+    expect(log.entries).toHaveLength(1);
+    expect(log.entries[0]?.to).toBe('#222');
+  });
+
+  it('sends the default and the state rule to the page as two rules', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 1000);
+    const rules = toRules(log);
+    expect(rules).toHaveLength(2);
+    expect(rules.find((r) => r.condition)?.value).toBe('#222');
+    expect(rules.find((r) => !r.condition)?.value).toBe('#111');
+  });
+
+  it('refuses a condition on words and on markup order', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), { ...base, property: 'text', to: 'Hi', condition: hover }, t);
+    log = commit(log, { ...base, property: 'move', to: 'after .x', move: { parent: '.p', before: null }, condition: hover }, t + 1000);
+    expect(log.entries.every((e) => e.condition === undefined)).toBe(true);
+  });
+
+  it('undoes a state edit like any other', () => {
+    const t = Date.now();
+    let log = commit(emptyLog(), base, t);
+    log = commit(log, { ...base, to: '#222', condition: hover }, t + 1000);
+    log = undo(log);
+    expect(toRules(log)).toHaveLength(1);
+    expect(toRules(log)[0]?.condition).toBeUndefined();
+  });
+});
+
+describe('a log read back from storage', () => {
+  it('keeps a condition it recognises', () => {
+    const hover = { kind: 'state', state: 'hover' } as const;
+    const log = commit(emptyLog(), { selector: '.b', matches: 1, stable: true, property: 'color', from: '#0', to: '#1', condition: hover });
+    const back = JSON.parse(JSON.stringify(log)) as typeof log;
+    expect(normaliseCondition(back.entries[0]?.condition)).toEqual(hover);
+    expect(toRules(back)[0]?.condition).toEqual(hover);
+  });
+
+  it('turns one it does not into the default state rather than a broken selector', () => {
+    // A log written by another build. `.b` with a state called `wat` renders
+    // `.bundefined`, which invalidates the whole rule and paints nothing.
+    expect(normaliseCondition({ kind: 'state', state: 'wat' })).toBeUndefined();
+    expect(selectorFor('.b', normaliseCondition({ kind: 'state', state: 'wat' }))).toBe('.b');
+  });
+});
+import { normaliseCondition, selectorFor } from './conditions';
+
+describe('properties that are not about one state', () => {
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const base = { selector: '.btn', matches: 1, stable: true, from: 'none', to: 'opacity 200ms ease' };
+
+  it('files a transition against the element, not against the state being held', () => {
+    // Play is only offered while a state is held, so this is the normal way
+    // to reach the field — and `sel:hover { transition }` animates in and
+    // snaps out, which is not what anyone means.
+    const log = commit(emptyLog(), { ...base, property: 'transition', condition: hover });
+    expect(log.entries[0]?.condition).toBeUndefined();
+    expect(toRules(log)[0]?.condition).toBeUndefined();
+  });
+
+  it('still files a colour against the state', () => {
+    const log = commit(emptyLog(), { ...base, property: 'color', to: '#fff', condition: hover });
+    expect(log.entries[0]?.condition).toEqual(hover);
+  });
+});
