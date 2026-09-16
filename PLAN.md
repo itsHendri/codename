@@ -786,13 +786,22 @@ the primary use case.
 - The bar pushes the page with a root margin; a header the page fixes to the
   top of the viewport still sits under it. Region notes store page
   coordinates, so one drawn with the bar shown lands 40px off when it hides.
-- A frame is emulated through `chrome.debugger`, so Chrome shows its
-  "started debugging this browser" bar while one is on. The frame is drawn
-  in the tab's top-left corner rather than centred, and a frame taller or
-  wider than the tab is scaled down to fit. The bar lives inside the page, so
-  a phone frame narrows the bar with it. Touch is deliberately not emulated:
-  it makes `(hover: none)` match, and a page written for that hides the very
-  hover styles the panel edits.
+- A device frame is drawn in the page (`studio/frame.ts`,
+  `studio/pageFrame.ts`): the body is narrowed, centred and zoomed to fit,
+  and each size media feature in the page's readable sheets is rewritten in
+  place to a stand-in that is always or never true, from the source text it
+  keeps. It replaced `chrome.debugger` emulation, which drew the frame in the
+  tab's corner, needed an infobar, and lost the frame when the infobar was
+  closed. What still sees the window: `vw`/`vh`, `innerWidth` and
+  `matchMedia` in scripts, `position: fixed` and absolute positioning with no
+  positioned ancestor, shadow-root styles, iframes, `<source media>` and
+  `sizes`, cross-origin sheets the page cannot read, and the viewport meta
+  tag (a page without one is not laid out at 980px). Readers of media text —
+  breakpoints, the dark hoist, the scan's CSS text — go through
+  `sourceMedia`/`withSourceMedia` so they see what the page wrote. Sheets
+  and `media` attributes changed in the DOM are answered before the next paint;
+  anything changed through the CSSOM within a second, by a full walk that
+  writes only what changed.
 - Dark shows the page's own dark mode by hoisting its dark media rules and
   setting its theme hook, and switches the page's light-only media blocks
   off in place (`not all`) for the duration; a theme driven purely by script

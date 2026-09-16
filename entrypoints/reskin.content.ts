@@ -36,6 +36,7 @@ import {
   type HoistedRule,
 } from '@/studio/conditionSheet';
 import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
+import { mediaMatches, refreshFrame, sourceMedia, withSourceMedia } from '@/studio/pageFrame';
 
 interface Override {
   name: string;
@@ -206,7 +207,7 @@ export default defineContentScript({
     /** The name a grouping rule was written under, so a re-emitted rule lands in the same layer. */
     const groupHead = (rule: CSSMediaRule | CSSSupportsRule | CSSLayerBlockRule): string =>
       rule instanceof CSSMediaRule
-        ? `@media ${rule.conditionText}`
+        ? `@media ${sourceMedia(rule.media)}`
         : rule instanceof CSSSupportsRule
           ? `@supports ${rule.conditionText}`
           : rule.name
@@ -251,12 +252,15 @@ export default defineContentScript({
       for (const rule of Array.from(rules)) {
         if (ruleCount++ > MAX_RULES) return;
         if (rule instanceof CSSMediaRule) {
-          const rest = withoutDarkQuery(rule.conditionText);
+          // As the page wrote it: a copy carries the breakpoint, and the
+          // device frame answers the copy the way it answers the original.
+          const condition = sourceMedia(rule.media);
+          const rest = withoutDarkQuery(condition);
           if (rest === undefined) {
-            if (isDarkMedia(rule.conditionText)) continue; // an arm we cannot separate
+            if (isDarkMedia(condition)) continue; // an arm we cannot separate
             const inner: string[] = [];
             hoistDark(rule.cssRules, inner, hooks, inDark);
-            if (inner.length) out.push(`@media ${rule.conditionText}{${inner.join('')}}`);
+            if (inner.length) out.push(`@media ${condition}{${inner.join('')}}`);
             continue;
           }
           const inner: string[] = [];
@@ -296,8 +300,8 @@ export default defineContentScript({
     const suppressed: { rule: CSSMediaRule; was: string }[] = [];
     const suppressLight = (rules: CSSRuleList) => {
       for (const rule of Array.from(rules)) {
-        if (rule instanceof CSSMediaRule && isLightOnly(rule.conditionText)) {
-          suppressed.push({ rule, was: rule.media.mediaText });
+        if (rule instanceof CSSMediaRule && isLightOnly(sourceMedia(rule.media))) {
+          suppressed.push({ rule, was: sourceMedia(rule.media) });
           rule.media.mediaText = 'not all';
           continue;
         }
@@ -317,6 +321,7 @@ export default defineContentScript({
           /* the sheet is gone */
         }
       }
+      if (suppressed.length) refreshFrame();
       suppressed.length = 0;
       for (const h of appliedHooks) setHook(h, false);
       appliedHooks = [];
@@ -339,7 +344,10 @@ export default defineContentScript({
       ruleCount = 0;
       const out: string[] = [];
       const hooks = new Map<string, DarkHook>();
-      for (const rules of lists) hoistDark(rules, out, hooks, false);
+      // A nested rule's text carries its media query; the copy needs the page's own.
+      withSourceMedia(() => {
+        for (const rules of lists) hoistDark(rules, out, hooks, false);
+      });
       if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
       // The page's own readable sheets can be edited in place; a fetched
       // sheet is a detached copy, and its light rules were never applied.
@@ -487,14 +495,15 @@ export default defineContentScript({
       // query is counted as unreadable rather than guessed at.
       const reached = new Set<Element>();
       const selectors: string[] = [];
-      // Reach is what applies now: a rule under a media or supports condition
+      // Reach is what applies now — in the device frame, when one is on: a
+      // rule under a media or supports condition
       // the page does not meet at this moment is counted as a rule but reaches
       // nothing and is not marked. A rule that sets its own outline is not
       // marked either, or the mark would paint over the very thing it proposes.
       const walk = (rules: CSSRuleList, applies: boolean) => {
         for (const rule of Array.from(rules)) {
           if (rule instanceof CSSMediaRule) {
-            walk(rule.cssRules, applies && matchMedia(rule.conditionText).matches);
+            walk(rule.cssRules, applies && mediaMatches(rule.conditionText));
             continue;
           }
           if (rule instanceof CSSSupportsRule) {

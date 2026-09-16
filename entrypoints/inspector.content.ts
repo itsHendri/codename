@@ -22,6 +22,7 @@ import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@
 import type { LayerNode } from '@/studio/layers';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
+import { createPageFrame } from '@/studio/pageFrame';
 
 declare global {
   interface Window {
@@ -371,10 +372,9 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
-      /* The bar lives inside the page, so emulating a phone narrows it too.
-         It gives up words before it gives up controls. Media queries rather
-         than container queries: the bar always spans the viewport, and only a
-         media query can tighten the bar's own gap. */
+      /* A narrow window narrows the bar. It gives up words before it gives
+         up controls. These sheets are in the shadow root, which a device
+         frame does not rewrite, so they follow the window, not the frame. */
       @media (max-width: 1280px) {
         .bar .host, .bar .mode .label, .bar .agent span { display: none; }
         .bar .mode { padding: 3px 6px; }
@@ -537,13 +537,22 @@ function activate() {
   let agent: AgentPresence | null = null;
   /** How the dark preview is being shown, as the panel last said. */
   let darkVia: 'site' | 'mirror' | null = null;
-  /**
-   * The frame the page is being shown in, as the background last reported
-   * it: null when the page is at the window's own size.
-   */
+  /** The frame the page is being shown in; null when it is at the window's own size. */
   let frame: Frame | null = null;
   /** How far the frame is scaled down to fit the tab. */
   let scale = 1;
+  /** Bumped by every frame change, so a restore that was already asking stands down. */
+  let frameTurn = 0;
+  /**
+   * Draws the frame on this page. The tab keeps its size; the page is
+   * narrowed inside it and its media queries answer to the frame.
+   */
+  const pageFrame = createPageFrame(document, () => {
+    // The tab got wider or narrower, so the fit changed.
+    scale = pageFrame.zoom;
+    if (barOn) renderBar();
+    layout();
+  });
   /** Elements shift-clicked in note mode, in the order they were picked. */
   let picked: Element[] = [];
   let drag: { x: number; y: number } | null = null;
@@ -1338,20 +1347,23 @@ function activate() {
     }
   };
 
-  /** The frame lives in the browser, not the page; ask before trusting the label. */
-  const refreshViewport = async () => {
-    const r = await ask<{ ok: boolean; frame?: Frame | null; scale?: number }>({ type: 'viewport-state' });
-    if (r?.ok) {
-      frame = r.frame ?? null;
-      scale = r.scale ?? 1;
-    }
-    if (barOn) renderBar();
+  /**
+   * Put back the frame this tab was left in. A reload or a navigation starts
+   * a fresh page with no frame drawn, and the background remembers which one
+   * it was.
+   */
+  const restoreFrame = async () => {
+    if (frame) return;
+    const asked = frameTurn;
+    const r = await ask<{ ok: boolean; frame?: Frame | null }>({ type: 'frame-state' });
+    // A frame picked or taken off while this was asking is the newer word.
+    if (r?.ok && r.frame && !frame && asked === frameTurn) void setFrame(r.frame, true);
   };
 
   /**
    * The device picker: which kind, which frame, and its size.
    *
-   * With nothing emulated the fields show the window's own size, so typing a
+   * With no frame the fields show the window's own size, so typing a
    * width is how you start; the kind lit up is the frame's, and clicking it
    * again goes back to the window. Fields that are being typed in are left
    * alone, or a re-render would take the digits out from under the cursor.
@@ -1427,57 +1439,55 @@ function activate() {
     }, 4200);
   };
 
-  interface FrameReply {
-    ok: boolean;
-    error?: string;
-    frame?: Frame | null;
-    scale?: number;
-  }
+  /** The page's breakpoints just changed under the selection; the card shows what applies now. */
+  const refreshSelected = () => {
+    if (selected?.isConnected) refreshEdit(readProps(selected));
+  };
 
   /**
    * Show the page as a frame of a given size.
    *
-   * Emulated rather than resized: the window stays where the person put it,
-   * the page's media queries answer to the frame, and a frame too big for the
-   * tab is scaled down to fit — which the bar says, so a breakpoint check is
-   * never a guess about what is on screen.
+   * Drawn in the page rather than by resizing or emulating: the window stays
+   * where the person put it, the page is centred in the tab, its media
+   * queries answer to the frame, and a frame too big for the tab is scaled
+   * down to fit — which the bar says, so a breakpoint check is never a guess
+   * about what is on screen.
    */
   const setFrame = async (size: { width: number; height: number }, quiet = false) => {
-    const r = await ask<FrameReply>({ type: 'emulate-viewport', width: size.width, height: size.height });
-    if (!r) {
-      showHint('The panel could not reach the browser to change the frame.');
-      return false;
-    }
-    if (!r.ok || !r.frame) {
-      showHint(`<b>Frame</b> — ${escapeHtml(r.error ?? 'the page could not be shown at that size')}`);
-      renderBar();
-      return false;
-    }
-    frame = r.frame;
-    scale = r.scale ?? 1;
+    frameTurn++;
+    frame = frameFor(size);
+    scale = pageFrame.set(frame);
     renderBar();
+    layout();
+    refreshSelected();
+    // Remembered so a reload comes back in it; the frame is on either way.
+    void ask({ type: 'frame-set', width: frame.width, height: frame.height });
     if (!quiet) {
       const name = escapeHtml(frame.name ?? 'Custom');
       const size = `${frame.width} × ${frame.height}`;
+      const unread = pageFrame.unreadable
+        ? ` ${pageFrame.unreadable} ${pageFrame.unreadable === 1 ? 'stylesheet' : 'stylesheets'} from another site could not be read, so their breakpoints still follow the window.`
+        : '';
       showHint(
-        scale === 1
+        (scale === 1
           ? `<b>${name}</b> — the page is ${size}, as its media queries see it. The window has not moved.`
-          : `<b>${name}</b> — shown at ${Math.round(scale * 100)}% to fit the tab; the page is still ${size} as its media queries see it.`,
+          : `<b>${name}</b> — shown at ${Math.round(scale * 100)}% to fit the tab; the page is still ${size} as its media queries see it.`) + unread,
       );
     }
     return true;
   };
 
   const resetViewport = async (quiet = false) => {
-    const r = await ask<FrameReply>({ type: 'reset-viewport' });
-    if (!r?.ok) {
-      showHint(`Reset — ${escapeHtml(r?.error ?? 'the frame could not be taken off')}`);
-      return false;
-    }
+    const had = frame !== null;
+    frameTurn++;
+    pageFrame.clear();
     frame = null;
     scale = 1;
-    renderBar();
-    if (!quiet) showHint('<b>Window</b> — the page is at the window\'s own size again.');
+    if (barOn) renderBar();
+    layout();
+    refreshSelected();
+    void ask({ type: 'frame-clear' });
+    if (!quiet && had) showHint('<b>Window</b> — the page is at the window\'s own size again.');
     return true;
   };
 
@@ -1533,7 +1543,7 @@ function activate() {
     pushPage(on);
     if (on) {
       renderBar();
-      void refreshViewport();
+      void restoreFrame();
     }
     layout();
   };
@@ -1614,8 +1624,8 @@ function activate() {
     e.stopPropagation();
     bar.classList.add('collapsed');
   });
-  // A frame change fires resize too, so the label re-asks rather than trusting its cache.
-  addEventListener('resize', () => barOn && void refreshViewport());
+  // The window's own size is what the bar shows when there is no frame.
+  addEventListener('resize', () => barOn && !frame && renderBar());
 
   // The panel holds a port open while it is showing this tab; when it goes,
   // the bar and hover mode go with it. The selection stays for its return.
@@ -1626,11 +1636,8 @@ function activate() {
       showBar(false);
       setHover(false);
       setNote(false);
-      // The bar is the only control for the frame, so the frame goes with it.
-      // Left on, Chrome's debugging bar would stay up with nothing on the page
-      // to take it down but Chrome's own Cancel. Asked whether or not this
-      // script knows of a frame: one set before a navigation outlives the
-      // script that set it.
+      // The bar is the only control for the frame, so the frame goes with it:
+      // a narrowed page with nothing on it saying why would read as broken.
       void resetViewport(true);
     });
   };
@@ -1755,6 +1762,11 @@ function activate() {
         if (!hoverOn) hovBox.classList.add('hidden');
         break;
       case 'locate': {
+        const viewport = { width: innerWidth, height: innerHeight };
+        if (!msg.selector) {
+          sendResponse({ ok: true, matches: 0, frame: pageFrame.rect(), viewport });
+          return true;
+        }
         const { first: el, matches } = findAll(msg.selector);
         if (!el) {
           sendResponse({ ok: false, matches, error: `nothing on the page matches ${msg.selector}` });
@@ -1768,7 +1780,8 @@ function activate() {
           ok: true,
           matches,
           rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-          viewport: { width: innerWidth, height: innerHeight },
+          frame: pageFrame.rect(),
+          viewport,
         });
         return true;
       }
@@ -1799,16 +1812,6 @@ function activate() {
         setFrame(size, true).then((ok) => done(ok, ok ? undefined : 'the page could not be shown at that size'), (e) => done(false, String(e)));
         return true;
       }
-      case 'viewport-changed':
-        // Said by the background: the window moved, or Chrome's own debugging
-        // bar was closed and took the frame with it.
-        frame = (msg as { frame?: Frame | null }).frame ?? null;
-        scale = (msg as { scale?: number }).scale ?? 1;
-        if (barOn) renderBar();
-        if ((msg as { detached?: boolean }).detached) {
-          showHint('<b>Window</b> — Chrome\'s debugging bar was closed, so the page is back at the window\'s own size.');
-        }
-        break;
       case 'point': {
         // The agent says "look here": the way a teammate would point at the screen.
         const { first: el, matches: matched } = findAll(msg.selector);
@@ -1877,6 +1880,7 @@ function activate() {
     setHover(false);
     setNote(false);
     pushPage(false);
+    pageFrame.clear();
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);

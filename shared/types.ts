@@ -267,10 +267,11 @@ export type InspectorCommand =
    * their own, so the frame keeps the height already in play.
    */
   | { cmd: 'set-viewport'; preset: string; width?: number }
-  /** From the background: the frame changed under the page, or was taken off. */
-  | { cmd: 'viewport-changed'; frame: unknown; scale: number; detached?: boolean }
-  /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
-  | { cmd: 'locate'; selector: string }
+  /**
+   * Scroll the first match into view and answer with its box, so a capture
+   * can be cropped to it; with no selector, answer with the frame's box only.
+   */
+  | { cmd: 'locate'; selector?: string }
   /** Take the frame off, so the page is at the window's own size again. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };
@@ -290,14 +291,12 @@ export type RuntimeMessage =
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
-  /** Show the page at a frame's size, emulated; the background works out the fit. */
-  | { type: 'emulate-viewport'; width: number; height: number }
-  /** Take the frame off: the page is at the window's own size again. */
-  | { type: 'reset-viewport' }
-  /** The frame this tab is shown in, if any. The panel names the tab it means. */
-  | { type: 'viewport-state'; tabId?: number }
-  /** The side panel changed width, so the frame's fit may have changed. */
-  | { type: 'refit-viewport'; tabId: number }
+  /** Remember the frame this tab is shown in, so a reload comes back in it. */
+  | { type: 'frame-set'; width: number; height: number }
+  /** Forget it: the page is at the window's own size again. */
+  | { type: 'frame-clear' }
+  /** The frame this tab was left in, if any. */
+  | { type: 'frame-state' }
   /** The bar's Light/Dark switch. */
   | { type: 'mode-changed'; mode: Mode }
   /** A value changed on the edit card that sits on the selected element. */
@@ -329,6 +328,7 @@ export const MANAGED_SHEET_IDS = [
   'codename-site-dark',
   'codename-agent-marks',
   'codename-state',
+  'codename-frame',
 ] as const;
 
 /** Whether a stylesheet is one of ours. */

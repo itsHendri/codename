@@ -217,24 +217,6 @@ export default function App() {
     }
   }, [condition]);
 
-  // The side panel changing width changes the tab's width without moving the
-  // window, so the background is told: a frame fitted to the old width would
-  // otherwise be cut off at the new one, with the bar still quoting the old
-  // scale.
-  useEffect(() => {
-    if (tabId == null) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const onResize = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => void chrome.runtime.sendMessage({ type: 'refit-viewport', tabId }).catch(() => {}), 150);
-    };
-    addEventListener('resize', onResize);
-    return () => {
-      if (timer) clearTimeout(timer);
-      removeEventListener('resize', onResize);
-    };
-  }, [tabId]);
-
   const restricted = isRestricted(tabUrl);
 
   const syncActiveTab = useCallback(async () => {

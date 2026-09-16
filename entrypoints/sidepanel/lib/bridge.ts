@@ -327,44 +327,35 @@ async function handle(req: BridgeRequest): Promise<unknown> {
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
       type Box = { x: number; y: number; width: number; height: number };
-      let box: { rect: Box; viewport: { width: number; height: number }; matches: number } | null = null;
+      if (tabId == null && req.selector) throw new Error('no tab');
+      // `locate` scrolls the element into view and measures it; with no
+      // selector it only measures the frame, if the page is in one.
+      const located =
+        tabId != null
+          ? await sendInspector<{ ok: boolean; matches?: number; error?: string; rect?: Box; frame?: Box | null; viewport?: { width: number; height: number } }>(
+              tabId,
+              { cmd: 'locate', selector: req.selector },
+            )
+          : null;
       if (req.selector) {
-        if (tabId == null) throw new Error('no tab');
-        const r = await sendInspector<{ ok: boolean; matches: number; error?: string; rect?: Box; viewport?: { width: number; height: number } }>(
-          tabId,
-          { cmd: 'locate', selector: req.selector },
-        );
-        if (!r) throw new Error('the page could not be reached');
-        if (!r.ok || !r.rect || !r.viewport) throw new Error(r.error ?? `nothing on the page matches ${req.selector}`);
-        box = { rect: r.rect, viewport: r.viewport, matches: r.matches };
+        if (!located) throw new Error('the page could not be reached');
+        if (!located.ok || !located.rect) throw new Error(located.error ?? `nothing on the page matches ${req.selector}`);
         // The scroll has landed; let the paint follow before the capture.
         await new Promise((resolve) => setTimeout(resolve, 120));
       }
       try {
         const shot = await captureVisible(win.id);
-        // Inside an emulated frame the page is drawn scaled in the tab's
-        // top-left corner and the rest of the capture is empty tab, so the
-        // capture is cropped to the frame — the agent asked for the page at
-        // that width, not for a picture of the space around it.
-        const emulated = tabId != null ? await frameOf(tabId) : null;
-        const tab = tabId != null ? await chrome.tabs.get(tabId).catch(() => null) : null;
-        const pxPerDip = tab?.width ? shot.width / tab.width : null;
-        const pxPerCss = emulated && pxPerDip
-          ? pxPerDip * emulated.scale
-          : box && box.viewport.width > 0
-            ? shot.width / box.viewport.width
-            : 1;
-        if (box) {
-          // A phone frame lays a page with no viewport meta tag out wider than
-          // the frame and draws it narrower, so the element's box — measured
-          // in the page's own layout pixels — has to be scaled by that too.
-          const layout = emulated && box.viewport.width > 0 ? emulated.frame.width / box.viewport.width : 1;
-          const cropped = await cropCapture(shot, box.rect, pxPerCss * layout);
-          return { ...cropped, selector: req.selector, matches: box.matches };
+        // The capture is device pixels of the whole tab; boxes are CSS pixels
+        // of the viewport, already scaled by the frame's zoom.
+        const viewport = located?.viewport?.width ?? 0;
+        const pxPerCss = viewport > 0 ? shot.width / viewport : 1;
+        if (req.selector && located?.rect) {
+          const cropped = await cropCapture(shot, located.rect, pxPerCss);
+          return { ...cropped, selector: req.selector, matches: located.matches ?? 0 };
         }
-        if (emulated && pxPerDip) {
-          return await cropCapture(shot, { x: 0, y: 0, width: emulated.frame.width, height: emulated.frame.height }, pxPerCss, 0);
-        }
+        // Inside a frame the tab around it is dimmed page, not the page at
+        // that width, so the picture is the frame's visible part.
+        if (located?.frame) return await cropCapture(shot, located.frame, pxPerCss, 0);
         return shot;
       } catch (err) {
         // captureVisibleTab needs activeTab, which only a click on the toolbar
@@ -470,18 +461,6 @@ function schedulePush(state: SessionState) {
     pushTimer = null;
     send({ v: PROTOCOL_VERSION, id: uid(), type: 'state', payload: state });
   }, 150);
-}
-
-/** The frame a tab is emulated at, as the background keeps it; null for the window's own size. */
-async function frameOf(tabId: number): Promise<{ frame: { width: number; height: number }; scale: number } | null> {
-  try {
-    const r = (await chrome.runtime.sendMessage({ type: 'viewport-state', tabId })) as
-      | { ok: boolean; frame?: { width: number; height: number } | null; scale?: number }
-      | undefined;
-    return r?.ok && r.frame ? { frame: r.frame, scale: r.scale ?? 1 } : null;
-  } catch {
-    return null;
-  }
 }
 
 /* ---------------- pairing ---------------- */

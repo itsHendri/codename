@@ -15,6 +15,7 @@
 
 import type { CustomPropInfo } from '@/shared/types';
 import { hookFromSelector, isDarkMedia, widthOfMedia } from '../siteMode';
+import { sourceMedia } from '../pageFrame';
 
 /** A pathological page should not hang the panel; stop well before that. */
 export const MAX_RULES = 20_000;
@@ -93,8 +94,9 @@ export function groupHead(rule: RuleLike): string {
   const text = (rule.cssText ?? '').trimStart();
   const at = /^@[a-z-]+/i.exec(text)?.[0] ?? '';
   if (!at) return '';
-  // `@layer base {` has its name in the text rather than in a condition.
-  const name = rule.conditionText ?? text.slice(at.length, text.indexOf('{') === -1 ? undefined : text.indexOf('{')).trim();
+  // A media rule's condition as the page wrote it, not as a device frame
+  // answered it. `@layer base {` has its name in the text rather than in a condition.
+  const name = (at.toLowerCase() === '@media' && rule.media ? sourceMedia(rule.media) : null) ?? rule.conditionText ?? text.slice(at.length, text.indexOf('{') === -1 ? undefined : text.indexOf('{')).trim();
   return name ? `${at} ${name}` : at;
 }
 
@@ -140,7 +142,7 @@ export function eachStyleRule(
           if (!inner?.length) continue;
           const conditions = [...media];
           if (typeof rule.layerName === 'string') conditions.push(rule.layerName ? `@layer ${rule.layerName}` : '@layer');
-          const mediaText = rule.media?.mediaText?.trim();
+          const mediaText = sourceMedia(rule.media).trim();
           if (mediaText && mediaText !== 'all') conditions.push(`@media ${mediaText}`);
           walk(inner, conditions, parents);
         } catch {

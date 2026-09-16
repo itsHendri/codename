@@ -30,11 +30,11 @@ export default defineConfig({
     name: 'Codename',
     description:
       "Designer's toolkit: inspect fonts & colors, grab SVGs, resize the viewport, export a site's design tokens.",
-    // `debugger` is for device emulation only: showing the page at a frame's
-    // size without resizing the window. PRIVACY.md says what it is used for.
-    permissions: ['activeTab', 'tabs', 'scripting', 'sidePanel', 'storage', 'debugger'],
+    permissions: ['activeTab', 'tabs', 'scripting', 'sidePanel', 'storage'],
     optional_host_permissions: ['<all_urls>'],
-    minimum_chrome_version: '116',
+    // 128 is where CSS `zoom` became the standard one, so an element's box
+    // reads true inside a scaled frame.
+    minimum_chrome_version: '128',
     action: {
       default_title: 'Open Codename',
     },

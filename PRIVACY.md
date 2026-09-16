@@ -15,26 +15,12 @@ the SVGs it references. Cross-origin stylesheets and external SVGs are fetched
 only when you ask for them (a ZIP export, a per-file download), through the
 extension's background worker, using the site access you already granted.
 
-## The debugger permission
-
-Codename asks for Chrome's `debugger` permission for one thing: showing the
-page at a device's size without resizing your window, the way DevTools'
-device toolbar does. It attaches to a tab only when a frame is asked for — a
-device or size on the bar, a width on the panel's state bar, or your agent
-asking for a screenshot at a width — sends only the commands that set and
-clear that frame (`Emulation.setDeviceMetricsOverride` and
-`Emulation.clearDeviceMetricsOverride`), and detaches when you go back to the
-window or close the panel. It reads nothing through it.
-
-While a frame is on, Chrome shows its own bar saying Codename started
-debugging the browser. That bar is Chrome's, not ours, and cannot be hidden;
-pressing its **Cancel** takes the frame off and Codename notices.
-
 ## What it stores
 
 | Where | What | Lifetime |
 |---|---|---|
 | `chrome.storage.session` | The scan of a tab, your edits to its system, element edits and notes, and which panel tab was showing, per tab | Until the browser session ends or the tab leaves the origin |
+| `chrome.storage.session` | The device frame a tab is shown in (its size and site), so a reload keeps it; another site in the same tab does not get it | Until the panel closes, the tab closes, or you go back to the window |
 | `chrome.storage.local` | The bridge pairing code; per-site design decisions (seeds you moved, variables and scales you set) | Until you clear it |
 | `chrome.storage.sync` | The panel theme (system, dark, light) | Synced with your Chrome profile |
 | `localStorage` of the panel page | A mirror of the theme choice, read before first paint; where you left the Layers split | Same as above |

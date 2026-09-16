@@ -14,6 +14,7 @@ import type {
 import { isManagedSheet } from '@/shared/types';
 import { attachDarkValues, attachWidthValues, extractCustomProps } from '@/studio/scan/customProps';
 import { countFocusOutlineRemoved } from '@/studio/a11y';
+import { withSourceMedia } from '@/studio/pageFrame';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -88,18 +89,21 @@ async function gatherCss(): Promise<{
   // Readable sheets first, in document order; the rest are fetched together
   // and slotted back where they were.
   const slots: ({ href: string | null; text: string } | { pending: string })[] = [];
-  for (const sheet of pageSheets()) {
-    try {
-      const text = Array.from(sheet.cssRules) // throws on cross-origin sheets
-        .map((r) => r.cssText)
-        .join('\n');
-      // Keep sheets apart so a token can say which file it came from; the
-      // concatenation loses that, and an agent being handed a change wants it.
-      slots.push({ href: sheet.href, text });
-    } catch {
-      if (sheet.href) slots.push({ pending: sheet.href });
+  // With the page's own media queries in the text, not a device frame's stand-ins.
+  withSourceMedia(() => {
+    for (const sheet of pageSheets()) {
+      try {
+        const text = Array.from(sheet.cssRules) // throws on cross-origin sheets
+          .map((r) => r.cssText)
+          .join('\n');
+        // Keep sheets apart so a token can say which file it came from; the
+        // concatenation loses that, and an agent being handed a change wants it.
+        slots.push({ href: sheet.href, text });
+      } catch {
+        if (sheet.href) slots.push({ pending: sheet.href });
+      }
     }
-  }
+  });
   const pending = slots.filter((s): s is { pending: string } => 'pending' in s).map((s) => s.pending);
   const texts = await Promise.all(pending.map(fetchSheet));
   const byHref = new Map(pending.map((href, i) => [href, texts[i]!]));

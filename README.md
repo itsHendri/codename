@@ -126,19 +126,23 @@ modes.
 
 The device picker is four icons — desktop, laptop, tablet, phone — a **Frame**
 menu of the presets, and **W** and **H** fields you can type any size into.
-Picking one shows the page at that size *without moving your window*: Chrome's
-own device emulation, the same thing DevTools' device toolbar does, so the
-page's media queries answer to the frame. A frame bigger than the tab is
-scaled down to fit and the bar says by how much. A phone or tablet frame
-honours the page's viewport meta tag, so a page without one lays out at 980px
-the way a real phone would. Click the lit icon again, or pick **Window**, to
-go back to the window's own size.
+Picking one shows the page at that size *without moving your window*: the page
+is narrowed to the frame and centred in the tab, and every width, height and
+orientation media query in its stylesheets is answered for the frame instead
+of the window, so it lays out the way it would on that device. A frame wider
+than the tab is scaled down to fit and the bar says by how much. The frame
+comes back after a reload and goes when the panel closes. Click the lit icon
+again, or pick **Window**, to go back to the window's own size.
 
-While a frame is on, Chrome shows a bar saying Codename started debugging the
-browser. That is the price of emulating rather than resizing, and it is
-Chrome's to show; its **Cancel** takes the frame off. The bar lives inside the
-page, so a phone frame narrows it too — it gives up its labels before its
-controls. **Select** hovers for font, colour
+It is the page's CSS that sees the frame, not the browser, so a few things
+still see the window: `vw` and `vh` units (anything wider than the frame is
+clipped at its edge), a script reading `innerWidth` or calling `matchMedia`,
+an element fixed to the viewport or positioned against it, styles inside a
+component's shadow root, iframes, the `media` and `sizes` of responsive
+images, and a stylesheet from another origin the page cannot read (the bar
+says how many). The viewport meta tag plays no part;
+a page is laid out at the frame's width whether or not it has one. The bar
+itself keeps the tab's full width. **Select** hovers for font, colour
 and contrast — naming the page's own variable beside a colour when it has
 one — and clicks to pick an element. The edit card that opens beside the
 selection names the variable behind a colour, a padding, a radius or a size
@@ -291,7 +295,7 @@ file, line, value and whether it sits at the root of the cascade, under a
 media query or in a scoped selector) and `apply_definition` (the same single
 write the Apply button makes, under the same switch),
 `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
-the page is shown at that width first — emulated, the window does not move — so the agent can review a change at every width; with
+the page is framed at that width first — the window does not move — so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
 `point` (it names an element and a few words; the page
 scrolls there, lights it up for a moment and shows the note on the bar), and

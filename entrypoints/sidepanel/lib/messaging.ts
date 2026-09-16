@@ -272,11 +272,7 @@ export async function probeComponent(tabId: number, selector: string): Promise<C
 export async function cropCapture(
   shot: { png: string; width: number; height: number },
   rect: { x: number; y: number; width: number; height: number },
-  /**
-   * Capture pixels per CSS pixel of the page. Without a frame that is the
-   * capture's width over the viewport's; inside an emulated frame the frame is
-   * drawn scaled in a corner of the tab, so the caller works it out.
-   */
+  /** Capture pixels per CSS pixel: the capture's width over the viewport's. */
   pxPerCss: number,
   marginCss = 8,
 ): Promise<{ png: string; width: number; height: number }> {

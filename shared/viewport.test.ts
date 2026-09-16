@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  clampFrame,
-  fitScale,
-  frameFor,
-  kindFor,
-  MIN_SCALE,
-  planEmulation,
-  presetFor,
-  presetsOf,
-  viewportLabel,
-} from './viewport';
+import { clampFrame, frameFor, kindFor, presetFor, presetsOf, viewportLabel } from './viewport';
 
 describe('presetFor', () => {
   it('names a size by the preset it is', () => {
@@ -51,81 +41,16 @@ describe('clampFrame', () => {
 
 describe('frameFor', () => {
   it('names a preset and gives it its kind', () => {
-    expect(frameFor({ width: 375, height: 667 })).toEqual({ width: 375, height: 667, kind: 'phone', name: 'Mobile S', mobile: true });
+    expect(frameFor({ width: 375, height: 667 })).toEqual({ width: 375, height: 667, kind: 'phone', name: 'Mobile S' });
   });
 
   it('calls a typed size custom, with the kind its width implies', () => {
     expect(frameFor({ width: 390, height: 844 })).toMatchObject({ width: 390, height: 844, kind: 'phone', name: null });
   });
-
-  it('shows only a named phone or tablet as a mobile browser', () => {
-    // A breakpoint check at 700px is a desktop browser at 700px. As a mobile
-    // browser a page with no viewport meta tag lays out at 980px, and its
-    // `max-width: 700px` query never matches.
-    expect(frameFor({ width: 700, height: 900 }).mobile).toBe(false);
-    expect(frameFor({ width: 390, height: 844 }).mobile).toBe(false);
-    expect(frameFor({ width: 768, height: 1024 }).mobile).toBe(true);
-    expect(frameFor({ width: 1280, height: 800 }).mobile).toBe(false);
-  });
-});
-
-describe('fitScale', () => {
-  it('leaves a frame that fits at full size', () => {
-    expect(fitScale({ width: 375, height: 667 }, { width: 1100, height: 800 })).toBe(1);
-  });
-
-  it('scales a frame wider than the tab down to fit', () => {
-    expect(fitScale({ width: 1440, height: 900 }, { width: 1100, height: 900 })).toBe(0.76);
-  });
-
-  it('counts the height too, so a tall phone is not cut off at the bottom', () => {
-    expect(fitScale({ width: 430, height: 932 }, { width: 1100, height: 700 })).toBe(0.75);
-  });
-
-  it('rounds down, so a frame that nearly fits is not a pixel too big', () => {
-    expect(fitScale({ width: 1000, height: 100 }, { width: 999, height: 800 })).toBe(0.99);
-  });
-
-  it('scales small rather than cutting the frame off', () => {
-    // A 2560 × 4000 frame in an 800 × 600 tab fits at 15%; a floor above that
-    // would draw it taller than the tab.
-    expect(fitScale({ width: 2560, height: 4000 }, { width: 800, height: 600 })).toBe(0.15);
-    expect(fitScale({ width: 2560, height: 4000 }, { width: 100, height: 100 })).toBe(MIN_SCALE);
-  });
-
-  it('does nothing for a tab it cannot measure', () => {
-    expect(fitScale({ width: 1440, height: 900 }, { width: 0, height: 0 })).toBe(1);
-  });
-});
-
-describe('planEmulation', () => {
-  it('asks for a phone as a mobile device, at the display density', () => {
-    expect(planEmulation({ width: 375, height: 667, mobile: true }, { width: 1100, height: 800 })).toEqual({
-      width: 375,
-      height: 667,
-      deviceScaleFactor: 0,
-      mobile: true,
-      scale: 1,
-    });
-  });
-
-  it('asks for a laptop as a desktop browser, scaled to fit', () => {
-    expect(planEmulation({ width: 1440, height: 900, mobile: false }, { width: 1100, height: 900 })).toMatchObject({
-      mobile: false,
-      scale: 0.76,
-    });
-  });
-
-  it('never asks for a frame outside the limits', () => {
-    expect(planEmulation({ width: 99999, height: 10, mobile: false }, { width: 1100, height: 900 })).toMatchObject({
-      width: 2560,
-      height: 200,
-    });
-  });
 });
 
 describe('viewportLabel', () => {
-  it('says the window when nothing is emulated', () => {
+  it('says the window when there is no frame', () => {
     expect(viewportLabel(null, { width: 1103.4, height: 812 })).toBe('Window · 1103 × 812');
   });
 
