@@ -27,7 +27,7 @@ import {
   type ChangeLog,
 } from '@/studio/changes';
 import { setStateHoist, applyElementRules, isElementProps, probeComponent, sendInspector } from './messaging';
-import { conditionKey, widthConditions, type Condition, type MaybeCondition } from '@/studio/conditions';
+import { conditionKey, widthConditions, type Condition, type MaybeCondition, type StateName } from '@/studio/conditions';
 import type { HoistedRule } from '@/studio/conditionSheet';
 import {
   addComment as addCommentToSession,
@@ -350,11 +350,18 @@ export function useInspect(
   // the hover colour it had before the variable moved.
   const painted = JSON.stringify([session.varOverrides, session.colorEdits, session.mode]);
   const held = useRef(false);
+  /** What the page is actually being held in, for the Play timeout to check. */
+  const heldNow = useRef<StateName | null>(null);
+  const playTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (playTimer.current) clearTimeout(playTimer.current);
+  }, []);
   useEffect(() => {
     if (tabId == null) return;
     // Nothing to say to a page that has never been put into a state.
     if (!state && !held.current) return;
     held.current = state !== null;
+    heldNow.current = state;
     let live = true;
     void sendInspector(tabId, { cmd: 'state', state });
     void setStateHoist(tabId, state, state ? selector : null).then((found) => {
@@ -416,8 +423,16 @@ export function useInspect(
       if (tabId == null || !state) return;
       // Off, then on a frame later: the same change applied in one go would
       // not transition, since there would be nothing to transition from.
+      if (playTimer.current) clearTimeout(playTimer.current);
       void sendInspector(tabId, { cmd: 'state', state: null });
-      window.setTimeout(() => void sendInspector(tabId, { cmd: 'state', state }), 60);
+      playTimer.current = setTimeout(() => {
+        playTimer.current = null;
+        // The state may have been let go inside those 60ms, and putting it
+        // back then would leave the page held in something the panel no
+        // longer believes it is in.
+        if (heldNow.current !== state) return;
+        void sendInspector(tabId, { cmd: 'state', state });
+      }, 60);
     },
     change,
     setText,

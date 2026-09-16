@@ -589,3 +589,31 @@ describe('a brief that asks for movement', () => {
     expect(prompt).toContain('var(--ease-out)');
   });
 });
+
+describe('what counts as asking for movement', () => {
+  const scan = scanOf();
+  const edit = (property: string, to: string): ElementChange => ({
+    id: `m-${property}-${to}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property,
+    from: 'none',
+    to,
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('says nothing about motion for a blur that does not move', () => {
+    // Frosted glass is not motion, and the note on it was noise.
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('backdrop-filter', 'blur(8px)')]))).not.toContain('prefers-reduced-motion');
+  });
+
+  it('says nothing when the edit takes the movement away', () => {
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('transition', 'none')]))).not.toContain('prefers-reduced-motion');
+  });
+
+  it('still says it when something is asked to move', () => {
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('transition', 'opacity 200ms ease')]))).toContain('prefers-reduced-motion');
+  });
+});

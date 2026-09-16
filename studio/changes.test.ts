@@ -181,3 +181,22 @@ describe('a log read back from storage', () => {
   });
 });
 import { normaliseCondition, selectorFor } from './conditions';
+
+describe('properties that are not about one state', () => {
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const base = { selector: '.btn', matches: 1, stable: true, from: 'none', to: 'opacity 200ms ease' };
+
+  it('files a transition against the element, not against the state being held', () => {
+    // Play is only offered while a state is held, so this is the normal way
+    // to reach the field — and `sel:hover { transition }` animates in and
+    // snaps out, which is not what anyone means.
+    const log = commit(emptyLog(), { ...base, property: 'transition', condition: hover });
+    expect(log.entries[0]?.condition).toBeUndefined();
+    expect(toRules(log)[0]?.condition).toBeUndefined();
+  });
+
+  it('still files a colour against the state', () => {
+    const log = commit(emptyLog(), { ...base, property: 'color', to: '#fff', condition: hover });
+    expect(log.entries[0]?.condition).toEqual(hover);
+  });
+});

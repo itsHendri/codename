@@ -89,6 +89,10 @@ export function parseShadow(value: string): ShadowLayer[] | null {
     const others = rest.filter((w) => !isLength(w));
     // Two to four lengths, and at most one thing that is not a length.
     if (lengths.length < 2 || lengths.length > 4 || others.length > 1) return null;
+    // A `calc()` could be the spread or the colour, and this cannot tell:
+    // reading it as a colour put a length in the colour box, and the next
+    // nudge of spread wrote a declaration the browser throws away.
+    if (others.some((w) => /^calc\(/i.test(w))) return null;
     layers.push({
       inset,
       x: lengths[0]!,

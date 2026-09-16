@@ -42,8 +42,10 @@ export function timeToMs(value: string): number | null {
 export const msToTime = (ms: number): string => (ms === 0 ? '0s' : `${Math.round(ms)}ms`);
 
 const isTime = (s: string): boolean => TIME.test(s.trim());
+const isReference = (s: string): boolean => /^var\(/i.test(s.trim());
+/** A curve for certain — a keyword or a curve function. A `var()` is not: see below. */
 const isEasing = (s: string): boolean =>
-  EASING_KEYWORDS.includes(s.toLowerCase()) || /^(cubic-bezier|steps|linear)\(/i.test(s) || /^var\(/i.test(s);
+  EASING_KEYWORDS.includes(s.toLowerCase()) || /^(cubic-bezier|steps|linear)\(/i.test(s);
 
 /** The whitespace-separated pieces of one entry, keeping `cubic-bezier(…)` whole. */
 function pieces(part: string): string[] {
@@ -82,9 +84,18 @@ export function parseTransition(value: string): TransitionEntry[] | null {
     const words = pieces(part);
     if (!words.length) return null;
     const times = words.filter(isTime);
+    const references = words.filter((w) => !isTime(w) && isReference(w));
     const easings = words.filter((w) => !isTime(w) && isEasing(w));
-    const names = words.filter((w) => !isTime(w) && !isEasing(w));
-    if (times.length > 2 || easings.length > 1 || names.length > 1) return null;
+    const names = words.filter((w) => !isTime(w) && !isEasing(w) && !isReference(w));
+
+    // A `var()` could be either a duration or a curve, and the two slots are
+    // positional: `opacity var(--duration-fast)` read as a curve and written
+    // back as `opacity 0s var(--duration-fast)` is a declaration the browser
+    // throws away. It is only a curve when a duration is already there to
+    // account for the first time slot.
+    if (references.length > 1) return null;
+    if (references.length === 1 && times.length === 0) return null;
+    if (times.length > 2 || easings.length + references.length > 1 || names.length > 1) return null;
     const durationMs = times[0] ? timeToMs(times[0]) : 0;
     const delayMs = times[1] ? timeToMs(times[1]) : 0;
     if (durationMs === null || delayMs === null) return null;
@@ -92,7 +103,7 @@ export function parseTransition(value: string): TransitionEntry[] | null {
       property: names[0] ?? 'all',
       durationMs,
       delayMs,
-      easing: easings[0] ?? '',
+      easing: easings[0] ?? references[0] ?? '',
     });
   }
   return entries;
@@ -160,7 +171,10 @@ export function namedEasings(
   }
 
   for (const [name, value] of Object.entries(systemEasings)) {
-    const label = `ease-${name}`;
+    // Not `ease-out`: that is a CSS keyword with a curve of its own, and
+    // giving the engine's curve the keyword's name made the keyword
+    // unreachable and showed the wrong curve for a page that uses it.
+    const label = `${name} (system)`;
     if (seen.has(label)) continue;
     seen.add(label);
     out.push({ name: label, value, fromPage: false });
@@ -179,12 +193,20 @@ export const easingToCss = (easing: NamedEasing): string => (easing.fromPage ? `
 
 /** The entry in `easings` that a written value came from, for showing a choice back. */
 export function matchEasing(written: string, easings: NamedEasing[]): NamedEasing | null {
-  const v = written.trim().toLowerCase();
+  const tidy = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+  const v = tidy(written);
   if (!v) return null;
-  const reference = /^var\(\s*(--[^,)\s]+)/i.exec(v)?.[1];
-  return (
-    easings.find((e) => (reference ? e.name.toLowerCase() === reference : false)) ??
-    easings.find((e) => e.value.trim().toLowerCase() === v || e.name.toLowerCase() === v) ??
-    null
-  );
+
+  const reference = /^var\(\s*(--[^,)\s]+)/i.exec(written.trim())?.[1]?.toLowerCase();
+  if (reference) return easings.find((e) => e.name.toLowerCase() === reference) ?? null;
+
+  // A name written out as itself — `ease-out`, `linear`.
+  const byName = easings.find((e) => e.name.toLowerCase() === tidy(written));
+  if (byName) return byName;
+
+  // A curve written literally is only that name when one name holds it.
+  // Two variables with the same curve, or a curve that is also a keyword's,
+  // would otherwise be reported as provenance the CSS does not have.
+  const byValue = easings.filter((e) => tidy(e.value) === v);
+  return byValue.length === 1 ? byValue[0]! : null;
 }

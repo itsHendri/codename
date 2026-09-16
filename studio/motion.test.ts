@@ -68,8 +68,19 @@ describe('parseTransition', () => {
     ['a whole-value reference', 'var(--transition)'],
     ['three times', 'opacity 1s 2s 3s'],
     ['two properties', 'opacity transform 200ms'],
+    ['a reference with no duration beside it', 'opacity var(--duration-fast)'],
+    ['two references', 'opacity var(--duration) var(--ease)'],
   ])('refuses %s, so the text field keeps it', (_, value) => {
     expect(parseTransition(value)).toBe(null);
+  });
+
+  it('will not put a duration token in the easing slot', () => {
+    // `opacity var(--duration-fast)` read as a curve and written back as
+    // `opacity 0s var(--duration-fast)` is a declaration the browser throws
+    // away, and the fields would have shown 0ms for it.
+    expect(transitionRoundTrips('opacity var(--duration-fast)')).toBe(false);
+    // With a duration present there is nothing left for the reference to be.
+    expect(parseTransition('opacity 200ms var(--ease-out)')?.[0]?.easing).toBe('var(--ease-out)');
   });
 });
 
@@ -123,8 +134,17 @@ describe('namedEasings', () => {
 
   it("falls back to the system's names and then to plain CSS", () => {
     const found = namedEasings([], { out: 'cubic-bezier(0.2, 0, 0, 1)' });
-    expect(found[0]).toMatchObject({ name: 'ease-out', fromPage: false });
+    expect(found[0]).toMatchObject({ name: 'out (system)', fromPage: false });
     expect(found.map((e) => e.name)).toContain('linear');
+  });
+
+  it("does not give the engine's curve a CSS keyword's name", () => {
+    // `ease-out` is a curve of its own. Labelling the engine's `out` with it
+    // made the keyword unreachable and showed the wrong curve for a page
+    // that writes `ease-out`.
+    const found = namedEasings([], { out: 'cubic-bezier(0.2, 0, 0, 1)' });
+    expect(found.find((e) => e.name === 'ease-out')?.value).toBe('ease-out');
+    expect(found.filter((e) => e.name === 'ease-out')).toHaveLength(1);
   });
 
   it('writes a page variable as a reference and a keyword as itself', () => {
@@ -135,6 +155,22 @@ describe('namedEasings', () => {
 
 describe('matchEasing', () => {
   const easings = namedEasings([{ name: '--ease-out', value: 'cubic-bezier(0.2, 0, 0, 1)' }], {});
+
+  it('says nothing when two names hold the same curve', () => {
+    // Naming one of them would be provenance the CSS does not have.
+    const two = namedEasings(
+      [
+        { name: '--ease-out', value: 'cubic-bezier(0.2, 0, 0, 1)' },
+        { name: '--ease-standard', value: 'cubic-bezier(0.2, 0, 0, 1)' },
+      ],
+      {},
+    );
+    expect(matchEasing('cubic-bezier(0.2, 0, 0, 1)', two)).toBe(null);
+  });
+
+  it('does not mind how the curve was spaced', () => {
+    expect(matchEasing('cubic-bezier(0.2,0,0,1)', easings)?.name).toBe('--ease-out');
+  });
 
   it('recognises a reference as the name behind it', () => {
     expect(matchEasing('var(--ease-out)', easings)?.name).toBe('--ease-out');

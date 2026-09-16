@@ -45,12 +45,10 @@ export function ShadowField({
                 <input type="checkbox" checked={layer.inset} onChange={(e) => editLayer(i, { inset: e.target.checked })} />
                 inset
               </label>
-              <input
+              <ColourText
                 value={layer.color}
-                onChange={(e) => editLayer(i, { color: e.target.value })}
-                aria-label={`Shadow ${i + 1} colour`}
-                spellCheck={false}
-                className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-1 py-0.5 font-mono text-2xs"
+                label={`Shadow ${i + 1} colour`}
+                onCommit={(colour) => editLayer(i, { color: colour })}
               />
               <button
                 onClick={() => write(layers.filter((_, n) => n !== i))}
@@ -119,5 +117,39 @@ export function ShadowField({
       </div>
       <TokenChips suggestions={suggestions} current={value} onPick={(s) => onChange(asReference(s), s.name)} />
     </div>
+  );
+}
+
+/**
+ * The colour of one shadow layer, committed when it is finished.
+ *
+ * Typed rather than picked, because a shadow colour is as often
+ * `currentColor` or a `var()` as it is a hex. It waits for the field to be
+ * left, and refuses what CSS would not take — without that, typing "blue"
+ * pushed `b`, then `bl`, then `blu` onto the page.
+ */
+function ColourText({ value, label, onCommit }: { value: string; label: string; onCommit: (next: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const valid = !draft.trim() || CSS.supports('color', draft) || draft.trim().startsWith('var(');
+  const commit = () => {
+    if (valid && draft !== value) onCommit(draft);
+    else if (!valid) setDraft(value);
+  };
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') setDraft(value);
+      }}
+      aria-label={label}
+      spellCheck={false}
+      className={`min-w-0 flex-1 rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-2xs ${
+        valid ? 'border-line' : 'border-warn bg-warn-soft'
+      }`}
+    />
   );
 }

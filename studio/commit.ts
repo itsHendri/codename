@@ -304,8 +304,20 @@ export function standingRules(locked: string[] = []): string {
   return lines.join('\n');
 }
 
-/** Properties whose change is movement, and so carries the reduced-motion duty. */
-const MOTION_PROPS = new Set(['transition', 'transition-duration', 'transition-property', 'transition-timing-function', 'animation', 'filter', 'backdrop-filter']);
+/**
+ * Properties whose change is movement, and so carries the reduced-motion
+ * duty. A filter is not one of them: frosted glass does not move, and a note
+ * about motion on a static blur is noise.
+ */
+const MOTION_PROPS = new Set(['transition', 'transition-duration', 'transition-property', 'transition-timing-function', 'animation']);
+
+/** Whether an edit asks for movement, rather than asking for less of it. */
+const asksForMotion = (e: ElementEdit): boolean => {
+  if (!MOTION_PROPS.has(e.property)) return false;
+  const to = e.to.trim().toLowerCase();
+  // Taking a transition away is the opposite of the thing being warned about.
+  return to !== 'none' && to !== '' && !/^(all\s+)?0s\b/.test(to);
+};
 
 /**
  * Where a token is defined, in one line, or nothing.
@@ -423,7 +435,7 @@ export function toPrompt(set: ChangeSet): string {
     // Motion is the one kind of edit that has a duty attached to it, and the
     // engine's own polish rules already say so; a brief that asks for a
     // transition and does not mention it is asking for half the work.
-    if (set.elements.some((e) => MOTION_PROPS.has(e.property))) {
+    if (set.elements.some(asksForMotion)) {
       lines.push('');
       lines.push(
         'A line naming `transition`, `animation` or a filter is motion: pair it with `@media (prefers-reduced-motion: reduce)`, where the duration drops to near zero, and keep the change visible without the movement.',

@@ -165,6 +165,11 @@ export function MotionFields({
         )}
         {!entries.length && <span className="text-2xs text-ink-muted">Nothing moves.</span>}
       </div>
+      {playable && (
+        <span className="text-2xs text-ink-muted">
+          A transition belongs to the element, not to the state you are holding, so this is filed without it.
+        </span>
+      )}
     </div>
   );
 }

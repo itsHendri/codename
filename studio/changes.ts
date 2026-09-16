@@ -60,6 +60,17 @@ export interface Rule {
   condition?: MaybeCondition;
 }
 
+/** Properties that belong to the element rather than to one of its states. */
+export const STATELESS = new Set([
+  'text',
+  'move',
+  'transition',
+  'transition-property',
+  'transition-duration',
+  'transition-delay',
+  'transition-timing-function',
+]);
+
 /** Two commits to the same selector+property within this window are one edit. */
 export const COALESCE_MS = 400;
 
@@ -97,9 +108,12 @@ export function commit(
   }
   const entry: ElementChange = {
     ...change,
-    // Words and markup order are the same in every state, so a condition on
-    // one would be a promise the page cannot keep.
-    ...(change.property === 'text' || change.property === 'move' ? { condition: undefined } : {}),
+    // Some properties are not about one state. Words and markup order are the
+    // same in every state; a transition is the rule *between* states, and
+    // writing it under `:hover` gives an element that animates in and snaps
+    // out — the one place where the state you must hold to edit is the wrong
+    // place to write.
+    ...(STATELESS.has(change.property) ? { condition: undefined } : {}),
     id: newId(),
     status: 'applied',
     at: new Date(now).toISOString(),
