@@ -778,12 +778,22 @@ In order.
    selector and a style; and an `@import` was followed without the media or
    layer it was pulled in under. All three are fixed and pinned.
 
-   What is left: `inspector.content.ts` is still 1,764 lines and untested, and
-   it is now the largest file in the project. Its selection, traversal and
-   region-note geometry are the parts that would come out cleanly. The state
-   hoist's CSSOM walk in `reskin.content.ts` is the other one — its rewriting
-   half is already pure in `studio/conditionSheet.ts`, but the walk that feeds
-   it is not.
+   The inspector followed on 21 September 2026 (W22): what could be read
+   without painting moved into `studio/inspect/` — the colour maths and the
+   composite behind an element (`colour.ts`), the page as structure
+   (`dom.ts`: own text, neighbours, the layers walk, selector lookups),
+   reading an element (`readProps.ts`, with the rounding proxy), the
+   chrome's placement as arithmetic (`geometry.ts`: edit card, size label,
+   the region a drag drew) and the edit card's values (`editValues.ts`) —
+   with 17 tests in happy-dom, one of which pins the shape `readProps`
+   returns to the fixture the panel is tested against so the two cannot
+   drift. `inspector.content.ts` is 1,633 lines and keeps only what is
+   stateful: the overlay, the bar, the modes, the composer.
+
+   What is left: the state hoist's CSSOM walk in `reskin.content.ts` — its
+   rewriting half is already pure in `studio/conditionSheet.ts`, but the walk
+   that feeds it is not — and the inspector's bar and note composer, which
+   are DOM built by hand and would want a different kind of test.
 3. **Field and tree shortcuts (S).** What the W20 comparison found and set
    aside: Tab / Shift-Tab between fields; maths in a number field (`+20`,
    `*2`, `/2`); ⌘F to find a layer; Enter / Shift-Enter for child / parent
@@ -812,11 +822,11 @@ the primary use case.
 
 ## Known limits and open questions
 
-- The four content scripts — `inspector.content.ts` (the largest file in the
-  project), `reskin.content.ts`, `scanner.content.ts` and `background.ts` —
-  have no tests. They are the most browser-coupled code here and the hardest
-  to debug; the panel suite and the harness cover what they produce, not what
-  they do. `studio/export/designSystemMd.ts` and `studio/engine/semantics.ts`
+- The content scripts — `inspector.content.ts`, `reskin.content.ts`,
+  `scanner.content.ts`, `rail.content.tsx` and `background.ts` — are tested
+  through what they are built from (`studio/scan/`, `studio/inspect/`,
+  `studio/conditionSheet.ts`) rather than as scripts. What is left in them
+  is browser-coupled and covered by the harness, not the suite. `studio/export/designSystemMd.ts` and `studio/engine/semantics.ts`
   are also past 800 lines and want splitting.
 - The definition search reads text, not a CSS parser: a definition written
   inside a string, or produced by a preprocessor that the source does not
