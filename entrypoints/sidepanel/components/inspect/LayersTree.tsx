@@ -225,7 +225,7 @@ export function LayersTree({
                   setDragId(null);
                   setDrop(null);
                 }}
-                className={`flex items-center gap-1 py-0.5 pr-1 text-2xs ${
+                className={`group flex items-center gap-1 py-0.5 pr-1 text-2xs ${
                   isSelected
                     ? 'bg-surface-selected text-ink'
                     : 'text-ink-secondary hover:bg-surface-control'
@@ -238,7 +238,7 @@ export function LayersTree({
                         : 'shadow-[inset_0_0_0_2px_var(--accent)] bg-accent-soft'
                     : ''
                 }`}
-                style={{ paddingLeft: `${4 + node.depth * 9}px` }}
+                style={{ paddingLeft: `${4 + Math.min(node.depth, 12) * 7}px` }}
               >
                 <button
                   onClick={() => foldable && toggle(node.id)}
@@ -260,6 +260,9 @@ export function LayersTree({
                     </span>
                   )}
                 </button>
+                {/* The name is what a row is for, so it is the last thing to
+                    give way: the badge is short, and the eye shows only under
+                    the pointer, or when it is the reason the row is dim. */}
                 {node.matches > 1 && (
                   <span
                     className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1 font-mono text-2xs text-ink-secondary"
@@ -272,7 +275,9 @@ export function LayersTree({
                   onClick={() => onToggleHidden(node)}
                   aria-label={node.hidden ? 'Show' : 'Hide'}
                   title={node.hidden ? 'Show' : 'Hide'}
-                  className="shrink-0 px-0.5 text-ink-faint hover:text-ink-secondary"
+                  className={`shrink-0 px-0.5 text-ink-faint hover:text-ink-secondary focus-visible:opacity-100 group-hover:opacity-100 ${
+                    node.hidden ? '' : 'opacity-0'
+                  }`}
                 >
                   {node.hidden ? '◌' : '◉'}
                 </button>

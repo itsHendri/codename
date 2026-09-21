@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { paddingShorthand, readValue } from './inspect';
+import { roundPx } from '@/studio/boxModel';
 import { element } from '../test/chromeStub';
 
 describe('paddingShorthand', () => {
@@ -27,5 +28,19 @@ describe('the effects and motion properties', () => {
     expect(readValue(el, 'filter')).toBe('blur(4px)');
     expect(readValue(el, 'backdrop-filter')).toBe('none');
     expect(readValue(el, 'transition')).toBe('opacity 0.2s ease-out 0s');
+  });
+});
+
+describe('roundPx', () => {
+  it('shows a computed pixel length to two decimals, and leaves the rest alone', () => {
+    expect(roundPx('96.6641px')).toBe('96.66px');
+    expect(roundPx('96.665px')).toBe('96.67px');
+    expect(roundPx('-0.4375px')).toBe('-0.44px');
+    expect(roundPx('16px')).toBe('16px');
+    expect(roundPx('16.5px')).toBe('16.5px');
+    expect(roundPx('0px 12.3333px 0px 12.3333px')).toBe('0px 12.33px 0px 12.33px');
+    expect(roundPx('1.33333em')).toBe('1.33333em');
+    expect(roundPx('33.3333%')).toBe('33.3333%');
+    expect(roundPx('normal')).toBe('normal');
   });
 });

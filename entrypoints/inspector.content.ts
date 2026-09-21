@@ -16,7 +16,7 @@ import { createRootPush } from '@/studio/pushRoot';
 import { DEVICE_KINDS, frameFor, presetsOf, viewportLabel, type DeviceKind, type Frame } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
-import { paddingShorthand } from '@/studio/boxModel';
+import { paddingShorthand, roundPx } from '@/studio/boxModel';
 import { componentOf } from '@/studio/framework';
 import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
@@ -124,7 +124,14 @@ function rectOf(el: Element): Rect {
 }
 
 function readProps(el: Element): ElementProps {
-  const cs = getComputedStyle(el);
+  // Lengths as a design tool shows them: a computed `96.6641px` reads and
+  // scrubs as `96.66px`. See `roundPx`.
+  const cs = new Proxy(getComputedStyle(el), {
+    get: (target, prop) => {
+      const v = Reflect.get(target, prop);
+      return typeof v === 'string' ? roundPx(v) : v;
+    },
+  });
   const sel = buildSelector(el);
   const fg = toHex(cs.color);
   const bg = opaqueBackground(el);
