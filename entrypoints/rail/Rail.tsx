@@ -33,12 +33,16 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
   // The tree is read while the rail shows Layers; Pages and Assets do not
   // need it walked.
   const tree = useRailLayers(state.on && tab === 'layers');
-  // The site's pages, as this page links to them. Read whenever the tree
-  // was, which is whenever the page settled.
+  // The site's pages, as this page links to them: read when the tab opens
+  // and on its refresh button, the way Framer's list is a thing you look at
+  // rather than something that ticks.
+  const [pagesTurn, setPagesTurn] = useState(0);
   const pages = useMemo(
-    () => pagesOf(Array.from(document.links, (a) => ({ href: a.href, text: a.textContent ?? '' })), location.href),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tree.layers, tab],
+    () =>
+      tab === 'pages'
+        ? pagesOf(Array.from(document.links, (a) => ({ href: a.href, text: a.textContent ?? '' })), location.href)
+        : [],
+    [tab, pagesTurn],
   );
 
   // Undo and Escape work from the rail as they do from the page: the panel
@@ -50,9 +54,10 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       tell({ type: 'inspector-shortcut', action: e.shiftKey ? 'redo' : 'undo' });
-    } else if (e.key === 'Escape' && tree.selected) {
+    } else if (e.key === 'Escape') {
+      // The page's own ladder: Select off first, then the selection.
       e.preventDefault();
-      void callInspector({ cmd: 'deselect' });
+      void callInspector({ cmd: 'escape' });
     }
   };
 
@@ -103,27 +108,37 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
       </nav>
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
         {tab === 'pages' ? (
-          pages.length ? (
-            <div role="list" aria-label="Pages" className="min-h-0 flex-1 overflow-y-auto rounded-control border border-line-subtle">
-              {pages.map((p) => (
-                <a
-                  key={p.path}
-                  role="listitem"
-                  href={p.href}
-                  aria-current={p.current ? 'page' : undefined}
-                  title={p.count > 1 ? `${p.href} · ${p.count} links here` : p.href}
-                  className={`flex items-baseline gap-1.5 px-2 py-1 text-2xs no-underline ${
-                    p.current ? 'bg-surface-selected text-ink' : 'text-ink-secondary hover:bg-surface-control'
-                  }`}
-                >
-                  <span className="min-w-0 flex-1 truncate">{p.label}</span>
-                  <span className="max-w-[45%] shrink-0 truncate font-mono text-ink-muted">{p.path}</span>
-                </a>
-              ))}
+          <>
+            <div className="flex shrink-0 items-center justify-between text-2xs text-ink-muted">
+              <span>{pages.length ? `${pages.length} pages this page links to` : 'This page links to no other page on its site.'}</span>
+              <button
+                onClick={() => setPagesTurn((t) => t + 1)}
+                title="Read the page's links again"
+                className="rounded-control border border-line px-2 py-0.5 text-ink-secondary hover:bg-surface-control"
+              >
+                ↻
+              </button>
             </div>
-          ) : (
-            <p className="text-xs text-ink-muted">This page links to no other page on its site.</p>
-          )
+            {pages.length > 0 && (
+              <ul aria-label="Pages" className="m-0 min-h-0 flex-1 list-none overflow-y-auto rounded-control border border-line-subtle p-0">
+                {pages.map((p) => (
+                  <li key={p.path}>
+                    <a
+                      href={p.href}
+                      aria-current={p.current ? 'page' : undefined}
+                      title={p.count > 1 ? `${p.href} · ${p.count} links here` : p.href}
+                      className={`flex items-baseline gap-1.5 px-2 py-1 text-2xs no-underline ${
+                        p.current ? 'bg-surface-selected text-ink' : 'text-ink-secondary hover:bg-surface-control'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                      <span className="max-w-[45%] shrink-0 truncate font-mono text-ink-muted">{p.path}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ) : tab === 'layers' ? (
           <>
             <ComponentsStrip

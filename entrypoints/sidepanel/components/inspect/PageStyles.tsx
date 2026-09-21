@@ -9,24 +9,27 @@ import type { ScanResult } from '@/shared/types';
  * the sizes they are used at, the radii and the spacing steps — each a way
  * into Variables, where they are edited.
  */
+function Head({ children, onOpen }: { children: string; onOpen: () => void }) {
+  return (
+    <div className="flex items-baseline justify-between">
+      <span className="text-2xs tracking-wide text-ink-muted uppercase">{children}</span>
+      <button onClick={onOpen} className="text-2xs text-ink-muted hover:text-accent">
+        edit in Variables
+      </button>
+    </div>
+  );
+}
+
 export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpenVariables: () => void }) {
   const colours = scan.colors.slice(0, 12);
   const fonts = scan.fontUsage.slice(0, 4);
   const radii = scan.shape.radii.slice(0, 6);
   const spacing = scan.shape.spacing.slice(0, 8);
-  const Head = ({ children }: { children: string }) => (
-    <div className="flex items-baseline justify-between">
-      <span className="text-2xs tracking-wide text-ink-muted uppercase">{children}</span>
-      <button onClick={onOpenVariables} className="text-2xs text-ink-muted hover:text-accent">
-        edit in Variables
-      </button>
-    </div>
-  );
   return (
     <div className="flex flex-col gap-3 border-t border-dashed border-line-subtle pt-3">
       {colours.length > 0 && (
         <section className="flex flex-col gap-1.5">
-          <Head>Colours</Head>
+          <Head onOpen={onOpenVariables}>Colours</Head>
           <div className="flex flex-wrap gap-1.5">
             {colours.map((c) => (
               <button
@@ -35,7 +38,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
                 title={`${c.hex}${c.varNames[0] ? ` · ${c.varNames[0]}` : ''} · ${c.count} uses`}
                 className="flex items-center gap-1.5 rounded-full border border-line bg-surface-control py-0.5 pr-2 pl-0.5 font-mono text-2xs text-ink-secondary hover:border-line-strong"
               >
-                <span className="checkerboard h-4 w-4 rounded-full border border-line" style={{ background: c.hex }} />
+                <span className="h-4 w-4 rounded-full border border-line" style={{ backgroundColor: c.hex }} />
                 {c.varNames[0] ?? c.hex}
               </button>
             ))}
@@ -44,7 +47,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
       )}
       {fonts.length > 0 && (
         <section className="flex flex-col gap-1.5">
-          <Head>Type</Head>
+          <Head onOpen={onOpenVariables}>Type</Head>
           {fonts.map((f) => (
             <button
               key={f.family}
@@ -66,7 +69,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
       )}
       {(radii.length > 0 || spacing.length > 0) && (
         <section className="flex flex-col gap-1.5">
-          <Head>Shape</Head>
+          <Head onOpen={onOpenVariables}>Shape</Head>
           <div className="flex flex-wrap items-center gap-1.5 font-mono text-2xs text-ink-secondary">
             {radii.length > 0 && <span className="text-ink-muted">radius</span>}
             {radii.map((r) => (

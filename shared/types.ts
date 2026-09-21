@@ -256,6 +256,8 @@ export type InspectorCommand =
   | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
+  /** Escape from the rail: let go of one thing, as Escape on the page does. */
+  | { cmd: 'escape' }
   /** Hold the selection in a state by class, so its hover rules paint. Null lets go. */
   | { cmd: 'state'; state: 'hover' | 'focus' | 'active' | null }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }

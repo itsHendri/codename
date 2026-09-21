@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { handleBridgeFrame } from './lib/bridge';
 import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
-import { element, installChrome, type StubChrome } from './test/chromeStub';
+import { element, forfontsake, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -712,5 +712,20 @@ describe('the Style tab with nothing picked', () => {
     await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '--mark') ?? null);
     await tick();
     expect(activeTab()).toBe('variables');
+  });
+});
+
+describe('moving to another page on the site', () => {
+  it('keeps the decisions but reads the new page rather than describing the old one', async () => {
+    await act(async () => setVarOverride('--mark', '#1C7F5C'));
+    await tick(400);
+    await act(async () => loadSession(1, 'http://localhost:5173/about'));
+    await tick();
+    expect(getSession().scan).toBeNull();
+    expect(getSession().varOverrides).toEqual({ '--mark': '#1C7F5C' });
+    // The same document, reached again, keeps its reading.
+    await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), scan: forfontsake } }));
+    await act(async () => loadSession(1, 'http://localhost:5173/#top'));
+    expect(getSession().scan).not.toBeNull();
   });
 });

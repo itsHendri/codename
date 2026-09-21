@@ -89,6 +89,7 @@ export function PropertyPanel({
   // Min and max only once one is set, or asked for: Framer keeps them
   // behind "Add", and four fields of nothing are noise.
   const [moreSize, setMoreSize] = useState(false);
+  useEffect(() => setMoreSize(false), [element.selector]);
   const toggle = (title: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -510,16 +511,7 @@ export function PropertyPanel({
                   if (Number.isFinite(n)) onChange('opacity', String(Math.min(1, Math.max(0, n))));
                 }}
               />
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={Number.isFinite(parseFloat(element.opacity)) ? parseFloat(element.opacity) : 1}
-                aria-label="Opacity slider"
-                onChange={(e) => onChange('opacity', e.target.value)}
-                className="min-w-0 flex-1 accent-accent"
-              />
+              <OpacitySlider value={element.opacity} onChange={(v) => onChange('opacity', v)} />
             </div>
           </Labelled>
           <Labelled label="shadow">
@@ -617,6 +609,33 @@ function BoxModel({ box, onChange }: { box: ElementProps['box']; onChange: Chang
         <Segmented value={link} options={LINKS} titles={LINK_TITLES} ariaLabel="Sides an edit reaches" className="w-40" onChange={setLink} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Framer's slider beside the number. It keeps its own draft while it is
+ * dragged: the value it is given comes back only once the page has
+ * repainted and been read again, and a controlled range fed that late
+ * snaps back between ticks.
+ */
+function OpacitySlider({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const n = parseFloat(draft);
+  return (
+    <input
+      type="range"
+      min={0}
+      max={1}
+      step={0.01}
+      value={Number.isFinite(n) ? n : 1}
+      aria-label="Opacity slider"
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange(e.target.value);
+      }}
+      className="min-w-0 flex-1 accent-accent"
+    />
   );
 }
 
