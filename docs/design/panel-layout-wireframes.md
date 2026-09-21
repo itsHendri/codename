@@ -1,0 +1,124 @@
+# Panel layout — the rail, Select-only, and the Style column
+
+A living contract for how Codename is laid out from W20 (21 September 2026)
+on. A build that contradicts it stops and re-checks here first. The mocks
+are in `panel-layout-wireframes.html` beside this file; both are updated in
+place, never forked.
+
+## The reframe
+
+Every traditional design tool — Framer, Figma, Webflow — keeps the layers
+tree on the **left** of the canvas, the selected element's styles on the
+**right**, and an action bar across the top. Codename had five tabs in one
+~360px column on the right of the browser, with the tree stacked above the
+selection inside one of them, so nothing was where a designer's hands
+expected it.
+
+A Chrome side panel cannot become two columns: Chrome floors it at ~320px,
+gives an extension no width API, and forgets a dragged width across
+restarts. So the tree could not move left *inside* the panel. It moved left
+*in the page* — the live page is the canvas, and Codename already draws its
+bar and its device frames there.
+
+## Information architecture
+
+| Surface | Holds | Where |
+| --- | --- | --- |
+| **Bar** | Layers toggle · host · device frame · Reset · agent chip · Light/Dark · Select · Comment | Across the top of the page, 40px, pushes the page down |
+| **Rail** | Layers (components strip, filter, tree) · Assets (SVG grid) | In the page on the left, 240px by default (180–420, drag the edge), pushes the page right |
+| **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
+| **Selection** | 2px outline, W×H label under the box, the edit card | On the page |
+
+The tree has one home, the rail. The panel keeps no tree; its Style tab
+offers **Show layers** when the rail is folded.
+
+## Per-surface rules
+
+### The page (Select is the only mode)
+
+- Pointer over an element: a **1px outline**, nothing else. No tag, no
+  readout — the click is the readout.
+- Click: a 2px outline, the size label under the box (above it when the
+  box runs off the bottom), the edit card beside it. Escape lets go, one
+  level at a time.
+- A row hovered in the rail peeks the same 1px outline on the page.
+- The hover card (font · text · fill · contrast · box) is gone: the edit
+  card and the panel said the same things again.
+
+### The rail
+
+- Docked left, under the bar, above the page's own fixed elements. The
+  page is pushed right with `html { margin-left }` `!important`, saved and
+  restored exactly (`studio/pushRoot.ts`), as the bar pushes it down.
+- Shown wherever the bar is; folded by **Layers** on the bar, **Alt+L**, or
+  the panel; remembered per session (`session.rail`). Width remembered in
+  `chrome.storage.local`.
+- Talks to the inspector in the same page through `window.__codenameInspector.handle`
+  (`shared/inpage.ts`); learns the selection from the `codename:selected`
+  event the inspector dispatches. Talks to the panel only for what belongs
+  in the change log: a drag is `rail-move`, the eye is `rail-hide`, a
+  component pick is `rail-scope`.
+- Reads the tree again 600ms after the page stops changing.
+- Its keyboard is its own: the inspector's window listeners ignore events
+  that pass through the rail's host.
+- A device frame fits the room the rail leaves (`availableWidth` in
+  `studio/frame.ts`).
+
+### The Style column
+
+Groups in the order the three tools agree on, all open, heads sticky:
+
+1. **Position** — static / relative / absolute / fixed / sticky; insets and
+   z-index once positioned.
+2. **Size** — W and H, each with **Fixed · Fill · Fit · Rel**; min/max;
+   overflow.
+3. **Layout** — Block · Stack · Grid · Inline; direction and wrap; the 3×3
+   align grid plus a Distribute select; row and column gap; and, for a
+   flex child, grow / shrink / order, basis and align-self.
+4. **Spacing** — the box diagram, every number a field; a link control
+   (each / pairs / all) says how far an edit reaches.
+5. Colour · 6. Type · 7. Border · 8. Effects · 9. Motion · 10. Text —
+   unchanged.
+
+**Size modes fail closed.** A computed width is always a pixel count and
+says nothing about what the author wrote, so a mode lights only when the
+evidence is unambiguous: this log wrote it, or the element is a flex child
+that grows along the parent's main axis. Otherwise nothing is lit and the
+raw value stands. Writing is exact: Fixed pins the rendered px, Fill is
+`flex: 1 1 0%` on a main axis (`align-self: stretch` across it, `auto` /
+`100%` in block flow), Fit is `fit-content`, Rel is the rendered share of
+the parent's content box in %.
+
+## Cross-cutting rules
+
+- Every number field: type, Enter commits, Escape puts the draft back,
+  arrows nudge, ⇧ ×10, ⌥ ×0.1, drag the grip to scrub.
+- Nothing is derived from a stylesheet URL; no authored value is guessed.
+- The bar, the rail and the panel wear one palette (`shared/tokens.css`)
+  and one utility set (`shared/theme.css`).
+
+## Accepted limits
+
+- A page header fixed to the viewport sits under the rail, as it sits
+  under the bar. Scripts reading `innerWidth` still see the window.
+- The rail cannot load Geist without exposing the extension's files to the
+  page; it falls back to the system sans.
+- The rail is React in a shadow root inside the page: 345 KB injected on
+  first use.
+
+## Explicitly deferred
+
+- **Shortcuts** (next round): Tab / Shift-Tab between fields; maths in a
+  number (`+20`, `*2`, `/2`); ⌘F to find a layer; Enter / Shift-Enter for
+  child / parent in the tree; hold ⌥ to measure to the hovered element;
+  ⌥1 / ⌥2 to focus the rail and the panel; a shortcuts sheet in the menu.
+- A two-column panel for people who drag the side panel wide. Considered
+  and set aside for the rail; nothing prevents it later.
+- Grid template editing, `transform`, background images and gradients.
+
+## Phasing (as built)
+
+1. Select-only on the page — hover card and tag removed, size label added.
+2. The rail — new content script, panel to four tabs, the split deleted.
+3. The Style column — new reads, size modes, align grid, editable spacing.
+4. Shortcuts — deferred.
