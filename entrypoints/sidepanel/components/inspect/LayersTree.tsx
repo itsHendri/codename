@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronIcon, EyeIcon, EyeOffIcon, RefreshIcon } from '../icons';
 import { LayerIcon } from './LayerIcon';
 import {
   ancestorsOf,
@@ -145,39 +146,40 @@ export function LayersTree({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Find a layer…"
           aria-label="Find a layer"
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-2 py-0.5 text-xs"
+          className="field min-w-0 flex-1 px-2 placeholder:text-ink-muted"
         />
         {hiddenCount > 0 && (
           <button
             onClick={() => setSkipHidden((v) => !v)}
             aria-pressed={skipHidden}
             title={skipHidden ? `Showing hidden layers again (${hiddenCount})` : `Leave out the ${hiddenCount} hidden ${hiddenCount === 1 ? 'layer' : 'layers'}`}
-            className={`shrink-0 rounded-control border px-1.5 py-0.5 text-2xs ${
-              skipHidden ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-secondary hover:bg-surface-control'
+            className={`flex h-control shrink-0 items-center gap-1 rounded-control px-1.5 text-2xs ${
+              skipHidden ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
             }`}
           >
-            {skipHidden ? '◌' : '◉'} {hiddenCount}
+            {skipHidden ? <EyeOffIcon /> : <EyeIcon />} {hiddenCount}
           </button>
         )}
         <button
           onClick={onRefresh}
           disabled={loading}
           title="Read the page again"
-          className="shrink-0 rounded-control border border-line px-2 py-0.5 text-2xs text-ink-secondary hover:bg-surface-control disabled:opacity-40"
+          aria-label="Read the page again"
+          className="flex h-control w-6 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink disabled:opacity-40"
         >
-          {loading ? '…' : '↻'}
+          <RefreshIcon className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {nodes.length === 0 ? (
-        <p className="px-1 py-2 text-2xs text-ink-muted">
+        <p className="px-1 py-2 text-xs text-ink-muted">
           {loading ? 'Reading the page…' : 'No layers read yet.'}
         </p>
       ) : (
@@ -188,7 +190,7 @@ export function LayersTree({
           aria-label="Layers"
           onKeyDown={onKeyDown}
           onMouseLeave={() => onPeek(null)}
-          className="min-h-0 flex-1 overflow-y-auto rounded-control border border-line-subtle focus-visible:border-accent"
+          className="group/tree -mx-1 min-h-0 flex-1 overflow-y-auto px-1 focus-visible:outline-none"
         >
           {rows.map((node) => {
             const isSelected = node.id === selectedId;
@@ -226,10 +228,10 @@ export function LayersTree({
                   setDragId(null);
                   setDrop(null);
                 }}
-                className={`group flex items-center gap-1 py-0.5 pr-1 text-2xs ${
+                className={`group flex h-6 items-center gap-1 rounded-[5px] pr-1 text-xs ${
                   isSelected
-                    ? 'bg-surface-selected text-ink'
-                    : 'text-ink-secondary hover:bg-surface-control'
+                    ? 'bg-accent-soft text-ink group-focus-visible/tree:shadow-[inset_0_0_0_1px_var(--accent)]'
+                    : 'text-ink-secondary hover:bg-surface-field'
                 } ${node.hidden ? 'opacity-50' : ''} ${dragId === node.id ? 'opacity-40' : ''} ${
                   drop?.id === node.id
                     ? drop.where === 'before'
@@ -239,17 +241,17 @@ export function LayersTree({
                         : 'shadow-[inset_0_0_0_2px_var(--accent)] bg-accent-soft'
                     : ''
                 }`}
-                style={{ paddingLeft: `${4 + Math.min(node.depth, 12) * 7}px` }}
+                style={{ paddingLeft: `${2 + Math.min(node.depth, 12) * 10}px` }}
               >
                 <button
                   onClick={() => foldable && toggle(node.id)}
                   aria-label={foldable ? (collapsed.has(node.id) ? 'Expand' : 'Collapse') : undefined}
                   tabIndex={foldable ? 0 : -1}
-                  className={`w-2.5 shrink-0 text-left text-ink-muted ${foldable ? '' : 'invisible'}`}
+                  className={`flex h-4 w-3 shrink-0 items-center justify-center text-ink-muted hover:text-ink ${foldable ? '' : 'invisible'}`}
                 >
-                  {collapsed.has(node.id) ? '▸' : '▾'}
+                  <ChevronIcon className={`h-2.5 w-2.5 transition-transform ${collapsed.has(node.id) ? '' : 'rotate-90'}`} />
                 </button>
-                <LayerIcon tag={node.tag} />
+                <LayerIcon tag={node.tag} className={isSelected ? 'text-accent' : 'text-ink-muted'} />
                 <button
                   onClick={() => onSelect(node)}
                   className="min-w-0 flex-1 truncate text-left font-mono"
@@ -267,7 +269,7 @@ export function LayersTree({
                     the pointer, or when it is the reason the row is dim. */}
                 {node.matches > 1 && (
                   <span
-                    className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1 font-mono text-2xs text-ink-secondary"
+                    className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1 font-mono text-2xs leading-4 text-ink-muted"
                     title={`${node.matches} elements share this class selector`}
                   >
                     ×{node.matches}
@@ -277,11 +279,11 @@ export function LayersTree({
                   onClick={() => onToggleHidden(node)}
                   aria-label={node.hidden ? 'Show' : 'Hide'}
                   title={node.hidden ? 'Show' : 'Hide'}
-                  className={`shrink-0 px-0.5 text-ink-faint hover:text-ink-secondary focus-visible:opacity-100 group-hover:opacity-100 ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-ink-muted hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 ${
                     node.hidden ? '' : 'opacity-0'
                   }`}
                 >
-                  {node.hidden ? '◌' : '◉'}
+                  {node.hidden ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
             );

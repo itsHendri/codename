@@ -182,8 +182,8 @@ function Selection({ element: el, ctl }: { element: ElementProps; ctl: InspectCo
 
   return (
     <div className="flex items-center gap-1">
-      <span className="flex h-control w-5 shrink-0 items-center justify-center text-accent">
-        <LayerIcon tag={el.tag} />
+      <span className="flex h-control w-5 shrink-0 items-center justify-center">
+        <LayerIcon tag={el.tag} className="text-accent" />
       </span>
       <code
         className="h-control min-w-0 flex-1 truncate rounded-control bg-surface-field px-2 font-mono text-xs leading-6 text-ink"

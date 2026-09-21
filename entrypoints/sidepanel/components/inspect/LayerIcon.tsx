@@ -29,20 +29,20 @@ const PATHS: Record<LayerKind, string> = {
   box: 'M2.5 2.5h9v9h-9z',
 };
 
-export function LayerIcon({ tag }: { tag: string }) {
+export function LayerIcon({ tag, className = 'text-ink-muted' }: { tag: string; className?: string }) {
   const kind = kindOf(tag);
   return (
     <svg
       viewBox="0 0 14 14"
-      width="11"
-      height="11"
+      width="12"
+      height="12"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className="shrink-0 text-ink-muted"
+      className={`shrink-0 ${className}`}
       data-kind={kind}
     >
       <path d={PATHS[kind]} />
