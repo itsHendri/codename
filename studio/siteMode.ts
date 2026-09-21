@@ -18,6 +18,36 @@ const LIGHT_MEDIA = /prefers-color-scheme\s*:\s*light/i;
 export const isDarkMedia = (condition: string): boolean => DARK_MEDIA.test(condition);
 export const isLightMedia = (condition: string): boolean => LIGHT_MEDIA.test(condition);
 
+export type Scheme = 'light' | 'dark';
+const MEDIA: Record<Scheme, RegExp> = { dark: DARK_MEDIA, light: LIGHT_MEDIA };
+const OTHER: Record<Scheme, Scheme> = { dark: 'light', light: 'dark' };
+export const isSchemeMedia = (condition: string, scheme: Scheme): boolean => MEDIA[scheme].test(condition);
+
+/**
+ * The condition left once a scheme's query is taken out, or null when
+ * nothing is left; `undefined` when the condition cannot be simplified.
+ * The dark case is documented on `withoutDarkQuery`; light reads the same.
+ */
+export function withoutSchemeQuery(condition: string, scheme: Scheme): string | null | undefined {
+  const c = condition.trim();
+  const media = MEDIA[scheme];
+  if (!media.test(c)) return undefined;
+  if (/,|\bor\b|\bnot\b/i.test(c)) return undefined;
+  const parts = c.split(/\s+and\s+/i).map((p) => p.trim());
+  const rest = parts.filter((p) => !media.test(p) && !/^(screen|all)$/i.test(p));
+  return rest.length ? rest.join(' and ') : null;
+}
+
+/**
+ * A condition that applies in one scheme and never in the other: its own
+ * query, or the other negated. These are what a forced scheme switches off.
+ */
+export function isSchemeOnly(condition: string, scheme: Scheme): boolean {
+  const c = condition.trim();
+  if (MEDIA[scheme].test(c) && !MEDIA[OTHER[scheme]].test(c)) return true;
+  return new RegExp(`^\\s*not\\s*\\(?\\s*prefers-color-scheme\\s*:\\s*${OTHER[scheme]}`, 'i').test(c);
+}
+
 /**
  * The condition left once the dark query is taken out, or null when nothing
  * is left. `(prefers-color-scheme: dark) and (min-width: 600px)` still needs
@@ -25,13 +55,8 @@ export const isLightMedia = (condition: string): boolean => LIGHT_MEDIA.test(con
  * `undefined` — because dropping one arm changes what the others mean.
  */
 export function withoutDarkQuery(condition: string): string | null | undefined {
-  const c = condition.trim();
-  if (!DARK_MEDIA.test(c)) return undefined;
   // `not (prefers-color-scheme: dark)` is a light block wearing dark's words.
-  if (/,|\bor\b|\bnot\b/i.test(c)) return undefined;
-  const parts = c.split(/\s+and\s+/i).map((p) => p.trim());
-  const rest = parts.filter((p) => !DARK_MEDIA.test(p) && !/^(screen|all)$/i.test(p));
-  return rest.length ? rest.join(' and ') : null;
+  return withoutSchemeQuery(condition, 'dark');
 }
 
 /**
@@ -40,9 +65,7 @@ export function withoutDarkQuery(condition: string): string | null | undefined {
  * off, since hoisting the dark rules alone leaves them live.
  */
 export function isLightOnly(condition: string): boolean {
-  const c = condition.trim();
-  if (LIGHT_MEDIA.test(c) && !DARK_MEDIA.test(c)) return true;
-  return /^\s*not\s*\(?\s*prefers-color-scheme\s*:\s*dark/i.test(c);
+  return isSchemeOnly(condition, 'light');
 }
 
 const CLASS_HOOK = /(?:^|[\s>,~+]|html|body|:root)\.(dark|dark-mode|dark-theme|theme-dark|mode-dark)(?![\w-])/i;

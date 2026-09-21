@@ -91,6 +91,8 @@ export interface BarLook {
   agent?: AgentPresence | null;
   /** Whether the rail is showing, for the bar's Layers toggle. */
   rail?: boolean;
+  /** Which side of the page's theme is forced, for the Light/Dark switch. */
+  scheme?: 'light' | 'dark' | 'system';
 }
 
 /**
@@ -128,6 +130,7 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     darkVia: look.darkVia ?? null,
     agent: look.agent ?? null,
     rail: look.rail ?? true,
+    scheme: look.scheme ?? 'system',
   });
 }
 
@@ -177,7 +180,7 @@ function sendReskin(
     colorMap?: Record<string, string>;
     lengthMap?: LengthMap | null;
     css?: string;
-    mode?: 'light' | 'dark';
+    mode?: 'light' | 'dark' | 'system';
     rules?: ConditionRule[];
     darkPreview?: boolean;
     state?: StateName | null;
@@ -207,8 +210,8 @@ export interface SiteModeResult extends ReskinResult {
   hooks: string[];
 }
 
-/** Show the page's own dark mode (its dark media rules and theme hooks), or put it back. */
-export function setSiteMode(tabId: number, mode: 'light' | 'dark'): Promise<SiteModeResult | null> {
+/** Force one side of the page's own theme (its media rules and hooks), or put it back with `system`. */
+export function setSiteMode(tabId: number, mode: 'light' | 'dark' | 'system'): Promise<SiteModeResult | null> {
   return sendReskin(tabId, { type: 'site-mode', mode }) as Promise<SiteModeResult | null>;
 }
 

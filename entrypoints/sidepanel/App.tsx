@@ -86,7 +86,7 @@ export default function App() {
   const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
-  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail });
+  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail, scheme: 'system' });
   const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
@@ -147,7 +147,7 @@ export default function App() {
   const overrideCount =
     changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
   const resettable =
-    model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' || session.agentPreview
+    model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' || session.lightForced || session.agentPreview
       ? Math.max(1, overrideCount)
       : 0;
   const look: BarLook = {
@@ -157,6 +157,7 @@ export default function App() {
     darkVia,
     agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
     rail: session.rail,
+    scheme: mode === 'dark' ? 'dark' : session.lightForced ? 'light' : 'system',
   };
   lookRef.current = look;
 
@@ -164,6 +165,7 @@ export default function App() {
   const resetAll = useCallback(() => {
     setConfig(null);
     setMode('light');
+    updateSession({ lightForced: false });
     ctlRef.current.revertAll();
     ctlRef.current.clear();
     if (tabIdRef.current != null) {
@@ -306,8 +308,16 @@ export default function App() {
         resetAll();
       } else if (msg?.type === 'mode-changed') {
         // The bar's Light/Dark switch; the session is the truth it echoes.
+        // Light is forced, not "as the system": a page that is dark because
+        // the system is shows its light side.
         const m = (msg as { mode?: string }).mode;
-        if (m === 'light' || m === 'dark') setMode(m);
+        if (m === 'dark') {
+          setMode('dark');
+          updateSession({ lightForced: false });
+        } else if (m === 'light' || m === 'system') {
+          setMode('light');
+          updateSession({ lightForced: m === 'light' });
+        }
       } else if (msg?.type === 'note-created') {
         // Written on the page, in the composer that opened where you pointed.
         const note = msg as unknown as { target: CommentTarget; text: string };
@@ -345,9 +355,10 @@ export default function App() {
   const agentRules = session.agentPreview?.rules ?? null;
   const agentMatched = session.agentPreview?.matched ?? null;
   const railOn = session.rail;
+  const lightForced = session.lightForced;
   useEffect(() => {
     if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
-  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn]);
+  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn, lightForced]);
 
   // The rail, beside the page: shown wherever the bar is, folded when the
   // person folds it, told again after a reload like every other managed
@@ -369,14 +380,14 @@ export default function App() {
   useEffect(() => {
     if (tabId == null || !scan || restricted) return;
     if (mode === 'light') {
-      void setSiteMode(tabId, 'light');
+      void setSiteMode(tabId, lightForced ? 'light' : 'system');
       return;
     }
     void setSiteMode(tabId, 'dark').then((r) => {
       const own = !!r && (r.rules > 0 || r.hooks.length > 0);
       updateSession({ darkVia: own ? 'site' : 'mirror' });
     });
-  }, [tabId, scan, restricted, mode, session.generation]);
+  }, [tabId, scan, restricted, mode, lightForced, session.generation]);
 
   // The page's own names for its colours, so the hover readout can say
   // "#15171B --ink" rather than a hex alone. The scan already matched them.
@@ -483,7 +494,6 @@ export default function App() {
             darkVia={darkVia}
             varOverrides={varOverrides}
             colorEdits={colorEdits}
-            onLiveChange={(v) => updateSession({ live: v })}
             onConfigChange={setConfig}
             onResetAll={resetAll}
             onVar={setVarOverride}

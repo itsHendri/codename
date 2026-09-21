@@ -11,7 +11,7 @@
 
 import { groupHead, MAX_RULES, type RuleLike } from './scan/customProps';
 import { sourceMedia } from './pageFrame';
-import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from './siteMode';
+import { hookFromSelector, hookKey, isSchemeMedia, isSchemeOnly, withoutSchemeQuery, type DarkHook, type Scheme } from './siteMode';
 
 type Kind = 'media' | 'supports' | 'layer' | 'style' | 'other';
 
@@ -45,7 +45,10 @@ export interface DarkHoist {
  * block, since a page that hangs its theme off `html.dark` writes those
  * rules in daylight.
  */
-export function hoistDark(lists: ArrayLike<RuleLike>[], limit = MAX_RULES): DarkHoist {
+export const hoistDark = (lists: ArrayLike<RuleLike>[], limit = MAX_RULES): DarkHoist => hoistScheme(lists, 'dark', limit);
+
+/** The same for either scheme: light rules hoisted out of their query force light on a system that prefers dark. */
+export function hoistScheme(lists: ArrayLike<RuleLike>[], scheme: Scheme, limit = MAX_RULES): DarkHoist {
   const hooks = new Map<string, DarkHook>();
   let count = 0;
   const walk = (rules: ArrayLike<RuleLike>, out: string[], inDark: boolean) => {
@@ -54,9 +57,9 @@ export function hoistDark(lists: ArrayLike<RuleLike>[], limit = MAX_RULES): Dark
       const kind = kindOf(rule);
       if (kind === 'media') {
         const condition = conditionOf(rule);
-        const rest = withoutDarkQuery(condition);
+        const rest = withoutSchemeQuery(condition, scheme);
         if (rest === undefined) {
-          if (isDarkMedia(condition)) continue; // an arm we cannot separate
+          if (isSchemeMedia(condition, scheme)) continue; // an arm we cannot separate
           const inner: string[] = [];
           walk(rule.cssRules ?? [], inner, inDark);
           if (inner.length) out.push(`@media ${condition}{${inner.join('')}}`);
@@ -93,14 +96,17 @@ export function hoistDark(lists: ArrayLike<RuleLike>[], limit = MAX_RULES): Dark
  * wherever they outrank a hoisted rule. Finding them is the pure half; the
  * switching is the script's, since it has to be put back.
  */
-export function lightOnlyMedia(lists: ArrayLike<RuleLike>[], limit = MAX_RULES): RuleLike[] {
+export const lightOnlyMedia = (lists: ArrayLike<RuleLike>[], limit = MAX_RULES): RuleLike[] => schemeOnlyMedia(lists, 'light', limit);
+
+/** The media rules that apply in one scheme only: what forcing the other has to switch off. */
+export function schemeOnlyMedia(lists: ArrayLike<RuleLike>[], scheme: Scheme, limit = MAX_RULES): RuleLike[] {
   const found: RuleLike[] = [];
   let count = 0;
   const walk = (rules: ArrayLike<RuleLike>) => {
     for (const rule of Array.from(rules)) {
       if (count++ > limit) return;
       const kind = kindOf(rule);
-      if (kind === 'media' && isLightOnly(conditionOf(rule))) {
+      if (kind === 'media' && isSchemeOnly(conditionOf(rule), scheme)) {
         found.push(rule);
         continue;
       }

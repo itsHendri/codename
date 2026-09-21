@@ -34,6 +34,8 @@ export interface TabSession {
   /** The edited system; null means "as scanned". */
   config: BrandConfig | null;
   mode: Mode;
+  /** Light forced on a page that is dark because the system is. Off when `mode` is dark. */
+  lightForced: boolean;
   /**
    * How a dark preview is being shown: the site's own dark mode where it has
    * one, else the system's mirrored ramps. Null in light.
@@ -99,6 +101,7 @@ const EMPTY: TabSession = {
   scan: null,
   config: null,
   mode: 'light',
+  lightForced: false,
   darkVia: null,
   live: true,
   activeTab: 'style',
@@ -231,6 +234,9 @@ export async function loadSession(id: number, url: string): Promise<void> {
         // either of those tabs opens on the selection now.
         activeTab: migrateTab(stored.activeTab),
         rail: stored.rail ?? true,
+        lightForced: stored.lightForced ?? false,
+        // Edits always paint: the switch that could turn that off is gone.
+        live: true,
         pinned: null,
         log: samePage ? soundLog(stored.log) : emptyLog(),
         logUrl: pageKey(url),

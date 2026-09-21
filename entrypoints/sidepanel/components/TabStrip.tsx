@@ -56,14 +56,13 @@ export function TabStrip<K extends string>({
           aria-selected={active === key}
           tabIndex={active === key ? 0 : -1}
           onClick={() => onSelect(key)}
-          className={`relative flex flex-col items-center justify-center gap-0.5 text-2xs ${
-            active === key
-              ? 'border-b-2 border-accent font-medium text-accent'
-              : 'border-b-2 border-transparent text-ink-muted hover:text-ink'
+          className={`relative m-1 flex flex-col items-center justify-center gap-0.5 rounded-control text-2xs ${
+            active === key ? 'bg-surface-control font-medium text-ink' : 'text-ink-muted hover:bg-surface-control/60 hover:text-ink'
           }`}
         >
           <Icon />
           {label}
+          {active === key && <span className="absolute inset-x-2 -bottom-1 h-0.5 rounded-full bg-accent" />}
           {badge != null && badge > 0 && (
             <span className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
               {badge}

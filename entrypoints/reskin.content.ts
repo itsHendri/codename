@@ -36,7 +36,8 @@ import {
   type HoistedRule,
 } from '@/studio/conditionSheet';
 import type { DarkHook } from '@/studio/siteMode';
-import { hoistDark, lightOnlyMedia, previewReach } from '@/studio/siteDark';
+import { hoistScheme, previewReach, schemeOnlyMedia } from '@/studio/siteDark';
+import type { Scheme } from '@/studio/siteMode';
 import { mediaMatches, refreshFrame, sourceMedia, withSourceMedia } from '@/studio/pageFrame';
 
 interface Override {
@@ -56,8 +57,8 @@ interface ApplyMessage {
   css?: string;
   /** Per-element edits from the Layers tab, each with the state it is about. */
   rules?: ConditionRule[];
-  /** For `site-mode`: which side of the page's own theme to show. */
-  mode?: 'light' | 'dark';
+  /** For `site-mode`: which side of the page's own theme to force, or `system` for neither. */
+  mode?: 'light' | 'dark' | 'system';
   /** For `elements-set`: whether the panel is already painting the page dark. */
   darkPreview?: boolean;
   /** For `state-set`: the state to hold the page in, or null to let go. */
@@ -247,8 +248,10 @@ export default defineContentScript({
      * wherever they outrank a hoisted rule.
      */
     const suppressed: { rule: CSSMediaRule; was: string }[] = [];
-    const suppressLight = (rules: CSSRuleList) => {
-      for (const found of lightOnlyMedia([rules])) {
+    /** The hooks the page itself had set (a script's `html.dark`), taken off to force light and put back after. */
+    let removedHooks: DarkHook[] = [];
+    const suppressScheme = (rules: CSSRuleList, scheme: Scheme) => {
+      for (const found of schemeOnlyMedia([rules], scheme)) {
         const rule = found as CSSMediaRule;
         // The page's own text, not a device frame's stand-in for it: what is
         // put back is what the page wrote, and the frame answers it again.
@@ -271,6 +274,8 @@ export default defineContentScript({
       suppressed.length = 0;
       for (const h of appliedHooks) setHook(h, false);
       appliedHooks = [];
+      for (const h of removedHooks) setHook(h, true);
+      removedHooks = [];
       if (savedColorScheme !== null) {
         if (savedColorScheme) root.style.colorScheme = savedColorScheme;
         else root.style.removeProperty('color-scheme');
@@ -278,24 +283,32 @@ export default defineContentScript({
       }
     };
 
-    const setSiteMode = async (mode: 'light' | 'dark'): Promise<{ rules: number; hooks: string[] }> => {
+    /**
+     * Force one side of the page's own theme, or neither. Dark hoists the
+     * dark rules and sets the hooks; light hoists the light rules and takes
+     * the hooks off, for a page that is dark because the system is. Either
+     * way the other side's own blocks are switched off while it holds.
+     */
+    const setSiteMode = async (mode: 'light' | 'dark' | 'system'): Promise<{ rules: number; hooks: string[] }> => {
       const run = ++modeRun;
-      if (mode === 'light') {
+      if (mode === 'system') {
         clearSiteDark();
         return { rules: 0, hooks: [] };
       }
+      const scheme: Scheme = mode;
+      const other: Scheme = scheme === 'dark' ? 'light' : 'dark';
       const lists = await allRules();
       if (run !== modeRun) return { rules: 0, hooks: [] };
       clearSiteDark();
       // A nested rule's text carries its media query; the copy needs the page's own.
-      const { css: out, hooks } = withSourceMedia(() => hoistDark(lists, MAX_RULES));
-      if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
+      const { css: out, hooks } = withSourceMedia(() => hoistScheme(lists, scheme, MAX_RULES));
+      if (scheme === 'dark' && !out.length && !hooks.size) return { rules: 0, hooks: [] };
       // The page's own readable sheets can be edited in place; a fetched
-      // sheet is a detached copy, and its light rules were never applied.
+      // sheet is a detached copy, and its rules were never applied.
       for (const styleSheet of Array.from(document.styleSheets)) {
         if (styleSheet.ownerNode instanceof Element && OWN_SHEETS.has(styleSheet.ownerNode.id)) continue;
         try {
-          suppressLight(styleSheet.cssRules);
+          suppressScheme(styleSheet.cssRules, other);
         } catch {
           /* cross-origin */
         }
@@ -308,11 +321,19 @@ export default defineContentScript({
         const first = document.head.querySelector(`#${STYLE_ID}, #${ELEMENTS_ID}, #${PREVIEW_ID}`);
         document.head.insertBefore(siteDark, first);
       }
-      appliedHooks = Array.from(hooks.values());
-      for (const h of appliedHooks) setHook(h, true);
+      if (scheme === 'dark') {
+        appliedHooks = Array.from(hooks.values());
+        for (const h of appliedHooks) setHook(h, true);
+      } else {
+        // A hook the page's own script set is what keeps it dark; off for now.
+        const isOn = (h: DarkHook) =>
+          [root, document.body].filter(Boolean).some((el) => (h.kind === 'class' ? el.classList.contains(h.name) : el.getAttribute(h.name) === h.value));
+        removedHooks = Array.from(hooks.values()).filter(isOn);
+        for (const h of removedHooks) setHook(h, false);
+      }
       // Form controls and scrollbars follow too.
       savedColorScheme = root.style.colorScheme;
-      root.style.colorScheme = 'dark';
+      root.style.colorScheme = scheme;
       return { rules: out.length, hooks: Array.from(hooks.keys()) };
     };
 
@@ -523,7 +544,7 @@ export default defineContentScript({
         return true;
       }
       if (msg?.type === 'site-mode') {
-        setSiteMode(msg.mode === 'dark' ? 'dark' : 'light')
+        setSiteMode(msg.mode === 'dark' ? 'dark' : msg.mode === 'light' ? 'light' : 'system')
           .then((r) => sendResponse({ ok: true, vars: applied.size, rules: r.rules, hooks: r.hooks }))
           .catch(failed);
         return true;
