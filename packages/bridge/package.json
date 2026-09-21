@@ -3,9 +3,28 @@
   "version": "0.1.0",
   "description": "Local companion for the codename extension: stdio MCP to your agent, WebSocket on 127.0.0.1 to the panel.",
   "license": "MIT",
+  "author": "Hendri van Niekerk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itsHendri/codename.git",
+    "directory": "packages/bridge"
+  },
+  "homepage": "https://github.com/itsHendri/codename/tree/main/packages/bridge#readme",
+  "bugs": {
+    "url": "https://github.com/itsHendri/codename/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "design",
+    "chrome-extension",
+    "claude-code",
+    "cursor",
+    "design-tokens"
+  ],
   "type": "module",
   "bin": {
-    "codename-bridge": "./dist/cli.js"
+    "codename-bridge": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -17,7 +36,8 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "cd ../.. && vitest run packages",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
