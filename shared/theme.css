@@ -69,3 +69,54 @@
   background-image: repeating-conic-gradient(#e2e2e2 0% 25%, #ffffff 0% 50%);
   background-size: 12px 12px;
 }
+
+/*
+ * The field: a filled 24px control with no border, as Framer, Figma and
+ * Rive draw theirs. Hover lifts the fill; focus draws a 1px accent edge.
+ * Put it on an input, a select, or a wrapper holding a bare input (focus
+ * then shows through `:focus-within`).
+ */
+@utility field {
+  min-height: var(--spacing-control);
+  border-radius: var(--radius-control);
+  background-color: var(--surface-field);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  &:hover {
+    background-color: var(--surface-field-hover);
+  }
+  &:focus-visible,
+  &:focus-within {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+}
+
+/* A value the field will not take: said by the fill, not by a dialog. */
+@utility field-invalid {
+  background-color: var(--warn-soft);
+  outline: 1px solid var(--warn);
+  outline-offset: -1px;
+  &:hover {
+    background-color: var(--warn-soft);
+  }
+}
+
+/* A native select wearing the field, with the chevron drawn in ink-muted,
+   which is the same grey in both themes. */
+@utility field-select {
+  appearance: none;
+  padding-left: 7px;
+  padding-right: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  background-size: 10px 10px;
+  cursor: pointer;
+  & option,
+  & optgroup {
+    background-color: var(--surface-panel);
+    color: var(--ink);
+  }
+}

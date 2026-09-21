@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 interface IconProps {
   className?: string;
 }
@@ -96,3 +98,90 @@ export function WarnIcon({ className = base }: IconProps) {
     </svg>
   );
 }
+
+/*
+ * The small ones: 12px marks that used to be text glyphs (▶ ✕ ✓ ◉ ↻ ↗),
+ * which drew in whatever font the system had beside the SVGs above.
+ * `aria-hidden`, because each sits inside a button that names itself.
+ */
+const small = 'w-3 h-3';
+
+function Small({ className = small, children }: IconProps & { children: ReactNode }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+export const ChevronIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M4.5 2.5 8 6l-3.5 3.5" />
+  </Small>
+);
+
+export const CloseIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M3 3l6 6M9 3 3 9" />
+  </Small>
+);
+
+export const CheckIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M2.5 6.5 5 9l4.5-6" />
+  </Small>
+);
+
+export const PlusIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M6 2.5v7M2.5 6h7" />
+  </Small>
+);
+
+export const RefreshIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M9.5 4.5A4 4 0 1 0 10 7" />
+    <path d="M9.8 1.8v2.9H6.9" />
+  </Small>
+);
+
+export const EyeIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M1 6s1.8-3.5 5-3.5S11 6 11 6 9.2 9.5 6 9.5 1 6 1 6z" />
+    <circle cx="6" cy="6" r="1.5" />
+  </Small>
+);
+
+export const EyeOffIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M1 6s1.8-3.5 5-3.5S11 6 11 6 9.2 9.5 6 9.5 1 6 1 6z" />
+    <path d="M2 10 10 2" />
+  </Small>
+);
+
+export const ExternalIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M5 2.5H2.5v7h7V7M7 2.5h2.5V5M9.5 2.5 5.5 6.5" />
+  </Small>
+);
+
+/** The scrub handle a number field shows when it has no letter of its own. */
+export const GripIcon = ({ className }: IconProps) => (
+  <svg className={className ?? 'w-2 h-3'} viewBox="0 0 8 12" fill="currentColor" aria-hidden="true">
+    <circle cx="2.5" cy="3" r="0.9" />
+    <circle cx="5.5" cy="3" r="0.9" />
+    <circle cx="2.5" cy="6" r="0.9" />
+    <circle cx="5.5" cy="6" r="0.9" />
+    <circle cx="2.5" cy="9" r="0.9" />
+    <circle cx="5.5" cy="9" r="0.9" />
+  </svg>
+);

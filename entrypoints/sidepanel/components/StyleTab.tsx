@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
@@ -6,7 +6,7 @@ import type { InspectController, Scope } from '../lib/inspect';
 import { conditionKey, describe as describeCondition, STATES, type MaybeCondition } from '@/studio/conditions';
 import { active } from '@/studio/changes';
 import type { CommentTarget } from '@/studio/annotations';
-import { CopyIcon } from './icons';
+import { CheckIcon, CloseIcon, CopyIcon, PlusIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
@@ -63,6 +63,20 @@ export function StyleTab({
     return out;
   }, [el, ctl.log, ctl.condition]);
 
+  // The strip holding the selection and its state stays at the top while the
+  // column scrolls; the group heads stick just under it, so its height is
+  // handed to them as --style-top.
+  const top = useRef<HTMLDivElement>(null);
+  const [topHeight, setTopHeight] = useState(0);
+  useLayoutEffect(() => {
+    const node = top.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setTopHeight(node.offsetHeight));
+    observer.observe(node);
+    setTopHeight(node.offsetHeight);
+    return () => observer.disconnect();
+  }, [el !== null]);
+
   if (!el) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
@@ -85,9 +99,14 @@ export function StyleTab({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3" style={{ '--style-top': `${topHeight}px` } as CSSProperties}>
       <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-      <Header element={el} ctl={ctl} />
+      <div ref={top} className="sticky top-0 z-20 -mx-3 flex flex-col gap-1.5 bg-surface-app px-3 py-1.5">
+        <Selection element={el} ctl={ctl} />
+        <ConditionChips ctl={ctl} />
+      </div>
+      <Scope element={el} ctl={ctl} />
+      <ConditionDetail ctl={ctl} />
       <Contrast element={el} />
       <PropertyPanel
         element={el}
@@ -121,7 +140,7 @@ function Note({
     ? { kind: 'element', selector: element.intent.selector, matches: element.intent.matches }
     : { kind: 'element', selector: element.selector, matches: element.matches };
   return (
-    <div className="border-t border-dashed border-line-subtle pt-2.5">
+    <div className="-mx-3 border-t border-line-subtle px-3 pt-3">
       {open ? (
         <CommentComposer
           target={target}
@@ -134,16 +153,22 @@ function Note({
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="w-full rounded-control border border-dashed border-line py-1 text-xs text-ink-muted hover:border-line-strong hover:text-ink-secondary"
+          className="flex h-control w-full items-center justify-center gap-1 rounded-control bg-surface-field text-xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
         >
-          + Note for the agent
+          <PlusIcon />
+          Note for the agent
         </button>
       )}
     </div>
   );
 }
 
-function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
+const pill = 'h-5 shrink-0 rounded-control px-1.5 font-mono text-2xs leading-5';
+const iconButton =
+  'flex h-control w-6 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink';
+
+/** What is picked: its kind, the selector edits will target, and the two actions on it. */
+function Selection({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
   const [copied, setCopied] = useState(false);
   const many = el.intent.matches > 1;
   // What the edits will target: this one element, or everything its class selector matches.
@@ -156,59 +181,48 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1">
+      <span className="flex h-control w-5 shrink-0 items-center justify-center text-accent">
         <LayerIcon tag={el.tag} />
-        <code
-          className="min-w-0 flex-1 truncate rounded-control border border-line bg-surface-recessed px-1.5 font-mono text-xs"
-          title={selector}
+      </span>
+      <code
+        className="h-control min-w-0 flex-1 truncate rounded-control bg-surface-field px-2 font-mono text-xs leading-6 text-ink"
+        title={selector}
+      >
+        {selector}
+      </code>
+      {many && <span className={`${pill} bg-surface-field text-ink-secondary`}>×{el.intent.matches}</span>}
+      {el.component && (
+        <span
+          className={`${pill} bg-surface-field text-ink-secondary`}
+          title={`${describeOrigin(el.component)}. Read from the page's dev build, not guessed from the markup.`}
         >
-          {selector}
-        </code>
-        {many && (
-          <span className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary">
-            ×{el.intent.matches}
-          </span>
-        )}
-        {el.component && (
-          <span
-            className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary"
-            title={`${describeOrigin(el.component)}. Read from the page's dev build, not guessed from the markup.`}
-          >
-            {el.component.name}
-          </span>
-        )}
-        {!el.stable && (
-          <span
-            className="shrink-0 rounded-full border border-warn px-1.5 text-2xs text-warn-ink"
-            title="Uses :nth-of-type — a reorder breaks it"
-          >
-            positional
-          </span>
-        )}
-        <button
-          onClick={copy}
-          className="shrink-0 text-ink-muted hover:text-accent"
-          aria-label="Copy selector"
-          title={copied ? 'Copied' : 'Copy selector'}
-        >
-          {copied ? <span className="text-2xs text-accent">✓</span> : <CopyIcon />}
-        </button>
-        <button
-          onClick={ctl.clear}
-          className="shrink-0 text-ink-muted hover:text-ink-secondary"
-          aria-label="Deselect element"
-        >
-          ✕
-        </button>
-      </div>
+          {el.component.name}
+        </span>
+      )}
+      {!el.stable && (
+        <span className={`${pill} bg-warn-soft font-sans text-warn-ink`} title="Uses :nth-of-type — a reorder breaks it">
+          positional
+        </span>
+      )}
+      <button onClick={copy} className={iconButton} aria-label="Copy selector" title={copied ? 'Copied' : 'Copy selector'}>
+        {copied ? <CheckIcon className="h-3 w-3 text-accent" /> : <CopyIcon className="h-3 w-3" />}
+      </button>
+      <button onClick={ctl.clear} className={iconButton} aria-label="Deselect element" title="Deselect">
+        <CloseIcon />
+      </button>
+    </div>
+  );
+}
+
+/** How far an edit reaches, and the measure switch. */
+function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
+  const many = el.intent.matches > 1;
+  return (
+    <>
       <div className="flex items-center gap-1.5">
         {many && (
-          <div
-            role="radiogroup"
-            aria-label="Edit scope"
-            className="flex overflow-hidden rounded-control border border-line text-2xs"
-          >
+          <div role="radiogroup" aria-label="Edit scope" className="flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
             {(
               [
                 ['element', 'this element'],
@@ -220,10 +234,10 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
                 role="radio"
                 aria-checked={ctl.scope === scope}
                 onClick={() => ctl.setScope(scope)}
-                className={`px-2 py-0.5 ${
+                className={`rounded-[4px] px-2 text-xs ${
                   ctl.scope === scope
-                    ? 'bg-accent text-accent-ink'
-                    : 'text-ink-secondary hover:bg-surface-recessed'
+                    ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {label}
@@ -234,13 +248,11 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
         <button
           onClick={() => ctl.measure(!ctl.measuring)}
           aria-pressed={ctl.measuring}
-          className={`ml-auto rounded-control border px-2 py-0.5 text-2xs ${
-            ctl.measuring
-              ? 'border-accent bg-accent-soft text-accent'
-              : 'border-line text-ink-secondary hover:bg-surface-recessed'
+          className={`ml-auto h-control rounded-control px-2 text-xs ${
+            ctl.measuring ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
           }`}
         >
-          measure
+          Measure
         </button>
       </div>
       {many && ctl.scope === 'all' && (
@@ -249,8 +261,7 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
           Edits reach all {el.intent.matches} elements matching <code className="font-mono">{el.intent.selector}</code>.
         </p>
       )}
-      <ConditionBar ctl={ctl} />
-    </div>
+    </>
   );
 }
 
@@ -267,7 +278,7 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
  * and it is fixed because the page's own rules sit underneath ours. An order
  * someone chose here would be a promise this cannot keep.
  */
-function ConditionBar({ ctl }: { ctl: InspectController }) {
+function ConditionChips({ ctl }: { ctl: InspectController }) {
   // Choosing is all that happens here. Turning the page into the state
   // follows the condition itself, so deselecting puts the page back too.
   const pick = (condition: MaybeCondition) => ctl.setCondition(condition);
@@ -277,8 +288,6 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
   // A device name means the page told us nothing and these are a guess; its
   // own breakpoints are named by the width itself.
   const guessed = !widths.some((w) => w.kind === 'width' && w.preset.endsWith('px'));
-  const ancestors = ctl.cascade.filter((c) => c.onAncestor);
-  const own = ctl.cascade.filter((c) => !c.onAncestor);
 
   const chip = (label: string, active: boolean, onClick: () => void, title?: string) => (
     <button
@@ -287,8 +296,12 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
       aria-checked={active}
       onClick={onClick}
       title={title}
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-2xs ${
-        active ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-secondary hover:bg-surface-recessed'
+      className={`min-w-0 flex-1 truncate rounded-[4px] px-1 text-xs capitalize ${
+        active
+          ? label === 'default'
+            ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]'
+            : 'bg-accent-soft text-accent'
+          : 'text-ink-muted hover:text-ink'
       }`}
     >
       {label}
@@ -296,41 +309,48 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
   );
 
   return (
-    <div className="flex flex-col gap-1">
-      <div role="radiogroup" aria-label="State to edit" className="flex flex-wrap items-center gap-1">
-        {chip('default', !current, () => pick(undefined))}
-        {STATES.map((state) => chip(state, key === `state:${state}`, () => pick({ kind: 'state', state })))}
-        {chip('dark', key === 'scheme:dark', () => pick({ kind: 'scheme', scheme: 'dark' }), "Edits the page under its own dark mode")}
-        {/* One control rather than five chips: a 360px panel has better uses
-            for the room, and the widths are a list of one kind of thing. */}
-        <select
-          value={current?.kind === 'width' ? conditionKey(current) : ''}
-          onChange={(e) => pick(widths.find((w) => conditionKey(w) === e.target.value))}
-          aria-label="Width to edit at"
-          title={
-            guessed
-              ? 'This page declares no width queries, so these are the bar\'s device presets'
-              : "The widths this page's own stylesheets are written against"
-          }
-          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-2xs ${
-            current?.kind === 'width'
-              ? 'border-accent bg-accent-soft text-accent'
-              : 'border-line bg-transparent text-ink-secondary hover:bg-surface-recessed'
-          }`}
-        >
-          <option value="">width…</option>
-          {widths.map((w) =>
-            w.kind === 'width' ? (
-              <option key={conditionKey(w)} value={conditionKey(w)}>
-                {describeCondition(w)}
-                {guessed ? ` · ${w.preset}` : ''}
-              </option>
-            ) : null,
-          )}
-        </select>
-      </div>
+    <div role="radiogroup" aria-label="State to edit" className="flex h-control items-stretch gap-0.5 rounded-control bg-surface-field p-0.5">
+      {chip('default', !current, () => pick(undefined))}
+      {STATES.map((state) => chip(state, key === `state:${state}`, () => pick({ kind: 'state', state })))}
+      {chip('dark', key === 'scheme:dark', () => pick({ kind: 'scheme', scheme: 'dark' }), "Edits the page under its own dark mode")}
+      {/* One control rather than five chips: a 360px panel has better uses
+          for the room, and the widths are a list of one kind of thing. */}
+      <select
+        value={current?.kind === 'width' ? conditionKey(current) : ''}
+        onChange={(e) => pick(widths.find((w) => conditionKey(w) === e.target.value))}
+        aria-label="Width to edit at"
+        title={
+          guessed
+            ? 'This page declares no width queries, so these are the bar\'s device presets'
+            : "The widths this page's own stylesheets are written against"
+        }
+        className={`field-select min-w-0 flex-1 rounded-[4px] text-xs ${
+          current?.kind === 'width' ? 'bg-accent-soft text-accent' : 'bg-transparent text-ink-muted hover:text-ink'
+        }`}
+      >
+        <option value="">width…</option>
+        {widths.map((w) =>
+          w.kind === 'width' ? (
+            <option key={conditionKey(w)} value={conditionKey(w)}>
+              {describeCondition(w)}
+              {guessed ? ` · ${w.preset}` : ''}
+            </option>
+          ) : null,
+        )}
+      </select>
+    </div>
+  );
+}
+
+/** What the state being edited means, and what the page already says for it. */
+function ConditionDetail({ ctl }: { ctl: InspectController }) {
+  const current = ctl.condition;
+  const ancestors = ctl.cascade.filter((c) => c.onAncestor);
+  const own = ctl.cascade.filter((c) => !c.onAncestor);
+  return (
+    <>
       {current && (
-        <div className="rounded-control border border-line-subtle px-2 py-1">
+        <div className="rounded-control bg-surface-field px-2 py-1.5">
           {/* What the person is doing, before what the page already does:
               every value below this line belongs to the state, not to the
               element as it ordinarily sits there. */}
@@ -364,7 +384,7 @@ function ConditionBar({ ctl }: { ctl: InspectController }) {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -372,15 +392,17 @@ function Contrast({ element }: { element: ElementProps }) {
   if (element.contrastRatio === null) return null;
   const badge = contrastBadge(element.contrastRatio);
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-2xs text-ink-muted">contrast</span>
-      <span className="font-mono text-xs">{element.contrastRatio.toFixed(2)} : 1</span>
-      <span
-        className={`rounded-full border px-2 text-2xs ${
-          badge.pass ? 'border-line-strong bg-surface-control text-ink-secondary' : 'border-warn text-warn-ink'
-        }`}
-      >
-        {badge.label}
+    <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-2">
+      <span className="text-xs leading-6 text-ink-muted">Contrast</span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-xs">{element.contrastRatio.toFixed(2)} : 1</span>
+        <span
+          className={`h-5 rounded-control px-1.5 text-2xs leading-5 ${
+            badge.pass ? 'bg-surface-field text-ink-secondary' : 'bg-warn-soft text-warn-ink'
+          }`}
+        >
+          {badge.label}
+        </span>
       </span>
     </div>
   );

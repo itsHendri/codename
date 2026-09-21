@@ -14,6 +14,7 @@ import { TransformFields } from './TransformFields';
 import { AnimationFields } from './AnimationFields';
 import { parseAnimation } from '@/studio/animation';
 import { AlignGrid, Chip, Group, Labelled, LengthField, Segmented, Select, SideLabel, type Change } from './fields';
+import { PlusIcon } from '../icons';
 
 type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'> & { fontUsage?: ScanResult['fontUsage'] };
 
@@ -149,19 +150,21 @@ export function PropertyPanel({
     const parent = axis === 'width' ? child.parentWidth : child.parentHeight;
     for (const d of writeMode(mode, evidence(axis), rendered, parent)) onChange(d.property, d.value);
   };
-  const sizeRow = (axis: Axis, label: string, aria: string) => (
-    <div className="grid grid-cols-[1fr_auto] items-start gap-2">
-      {len(axis, box[axis], label, aria)}
-      <Segmented
-        value={modeOf(evidence(axis))}
-        options={SIZE_MODES}
-        labels={SIZE_LABELS}
-        titles={SIZE_TITLES}
-        ariaLabel={`${aria} mode`}
-        className="w-36"
-        onChange={(m) => sizeMode(axis, m)}
-      />
-    </div>
+  const sizeRow = (axis: Axis, aria: string) => (
+    <Labelled label={aria}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
+        {len(axis, box[axis], '', aria)}
+        <Segmented
+          value={modeOf(evidence(axis))}
+          options={SIZE_MODES}
+          labels={SIZE_LABELS}
+          titles={SIZE_TITLES}
+          ariaLabel={`${aria} mode`}
+          className="w-36"
+          onChange={(m) => sizeMode(axis, m)}
+        />
+      </div>
+    </Labelled>
   );
 
   const overflow = box.overflowX === box.overflowY ? box.overflowX : null;
@@ -185,14 +188,16 @@ export function PropertyPanel({
         'Position',
         `${position.type}${positioned ? ` · ${[position.top, position.right, position.bottom, position.left].map(px).join(' ')}` : ''}${position.zIndex !== 'auto' ? ` · z ${position.zIndex}` : ''}`,
         <>
-          <Segmented
-            value={position.type}
-            options={POSITIONS}
-            ariaLabel="Position"
-            onChange={(v) => onChange('position', v)}
-          />
+          <Labelled label="type">
+            <Segmented
+              value={position.type}
+              options={POSITIONS}
+              ariaLabel="Position"
+              onChange={(v) => onChange('position', v)}
+            />
+          </Labelled>
           {positioned && (
-            <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
               <SideLabel>inset</SideLabel>
               <div className="grid grid-cols-4 gap-1">
                 {len('top', position.top, 'T', 'Top', true)}
@@ -204,7 +209,7 @@ export function PropertyPanel({
               <NumberField
                 value={position.zIndex}
                 ariaLabel="Z-index"
-                className="w-20"
+                className="w-24"
                 onChange={(v) => onChange('z-index', v)}
               />
             </div>
@@ -216,9 +221,9 @@ export function PropertyPanel({
         'Size',
         `${px(box.width)} × ${px(box.height)}${overflow && overflow !== 'visible' ? ` · ${overflow}` : ''}`,
         <>
-          {sizeRow('width', 'W', 'Width')}
-          {sizeRow('height', 'H', 'Height')}
-          <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
+          {sizeRow('width', 'Width')}
+          {sizeRow('height', 'Height')}
+          <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
             {bounded || moreSize ? (
               <>
                 <SideLabel>min</SideLabel>
@@ -235,8 +240,12 @@ export function PropertyPanel({
             ) : (
               <>
                 <SideLabel>min/max</SideLabel>
-                <button onClick={() => setMoreSize(true)} className="self-start text-2xs text-ink-muted hover:text-accent">
-                  + Add
+                <button
+                  onClick={() => setMoreSize(true)}
+                  className="flex h-control items-center gap-1 self-start rounded-control px-2 text-xs text-ink-muted hover:bg-surface-field hover:text-ink"
+                >
+                  <PlusIcon />
+                  Add
                 </button>
               </>
             )}
@@ -263,45 +272,42 @@ export function PropertyPanel({
         'Layout',
         `${box.display}${flex ? ` · ${layout.flexDirection} · ${normalise(layout.justifyContent)} / ${normalise(layout.alignItems)}` : ''}`,
         <>
-          <Segmented
-            value={box.display}
-            options={DISPLAYS}
-            labels={DISPLAY_LABELS}
-            titles={{ flex: 'display: flex' }}
-            ariaLabel="Display"
-            onChange={(v) => onChange('display', v)}
-          />
+          <Labelled label="type">
+            <Segmented
+              value={box.display}
+              options={DISPLAYS}
+              labels={DISPLAY_LABELS}
+              titles={{ flex: 'display: flex' }}
+              ariaLabel="Display"
+              onChange={(v) => onChange('display', v)}
+            />
+          </Labelled>
           {!DISPLAYS.includes(box.display as (typeof DISPLAYS)[number]) && (
             <Labelled label="display">
               <Select value={box.display} options={OTHER_DISPLAYS} ariaLabel="Display, all values" onChange={(v) => onChange('display', v)} />
             </Labelled>
           )}
           {flexOrGrid && (
-            <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
               {flex && (
                 <>
                   <SideLabel>direction</SideLabel>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Segmented
-                      value={layout.flexDirection}
-                      options={DIRECTIONS}
-                      labels={DIRECTION_LABELS}
-                      titles={{ row: 'Across', column: 'Down' }}
-                      ariaLabel="Flex direction"
-                      onChange={(v) => onChange('flex-direction', v)}
-                    />
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-2xs text-ink-muted">wrap</span>
-                      <Segmented
-                        value={layout.flexWrap}
-                        options={WRAPS}
-                        labels={WRAP_LABELS}
-                        ariaLabel="Flex wrap"
-                        className="flex-1"
-                        onChange={(v) => onChange('flex-wrap', v)}
-                      />
-                    </div>
-                  </div>
+                  <Segmented
+                    value={layout.flexDirection}
+                    options={DIRECTIONS}
+                    labels={DIRECTION_LABELS}
+                    titles={{ row: 'Across', column: 'Down' }}
+                    ariaLabel="Flex direction"
+                    onChange={(v) => onChange('flex-direction', v)}
+                  />
+                  <SideLabel>wrap</SideLabel>
+                  <Segmented
+                    value={layout.flexWrap}
+                    options={WRAPS}
+                    labels={WRAP_LABELS}
+                    ariaLabel="Flex wrap"
+                    onChange={(v) => onChange('flex-wrap', v)}
+                  />
                 </>
               )}
               <SideLabel>align</SideLabel>
@@ -341,7 +347,7 @@ export function PropertyPanel({
             </div>
           )}
           {child.inFlex && (
-            <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5 border-t border-dotted border-line-subtle pt-1.5">
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5 pt-1">
               <SideLabel>in parent</SideLabel>
               <div className="grid grid-cols-3 gap-1">
                 {(
@@ -351,15 +357,18 @@ export function PropertyPanel({
                     ['order', child.order, 'order', 'Order'],
                   ] as const
                 ).map(([caption, value, prop, aria]) => (
-                  <div key={prop} className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-2xs text-ink-muted">{caption}</span>
-                    <NumberField value={value} ariaLabel={aria} onChange={(v) => onChange(prop, v)} />
-                  </div>
+                  <NumberField
+                    key={prop}
+                    value={value}
+                    label={caption}
+                    ariaLabel={aria}
+                    onChange={(v) => onChange(prop, v)}
+                  />
                 ))}
               </div>
               <SideLabel>basis</SideLabel>
               <div className="grid grid-cols-2 gap-1">
-                {len('flex-basis', child.flexBasis, '⋮', 'Flex basis', true)}
+                {len('flex-basis', child.flexBasis, '', 'Flex basis', true)}
                 <Select
                   value={child.alignSelf}
                   options={ALIGN_SELF}
@@ -394,7 +403,7 @@ export function PropertyPanel({
               onChange={(v, t) => onChange('color', v, t)}
             />
           </Labelled>
-          <Labelled label="bg">
+          <Labelled label="fill">
             <ColorField
               value={color.background}
               suggestions={colour(color.background)}
@@ -417,15 +426,16 @@ export function PropertyPanel({
         'Type',
         `${family} · ${px(type.fontSize)}/${px(type.lineHeight)} · ${type.fontWeight}`,
         <>
-          <TextInput
-            value={type.fontFamily}
-            ariaLabel="Font family"
-            valid={(v) => CSS.supports('font-family', v)}
-            onCommit={(v) => onChange('font-family', v)}
-            suggestions={families}
-          />
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-            {len('font-size', type.fontSize, 'Aa', 'Font size')}
+          <Labelled label="font">
+            <TextInput
+              value={type.fontFamily}
+              ariaLabel="Font family"
+              valid={(v) => CSS.supports('font-family', v)}
+              onCommit={(v) => onChange('font-family', v)}
+              suggestions={families}
+            />
+          </Labelled>
+          <Labelled label="weight">
             <Select
               value={type.fontWeight}
               options={WEIGHTS}
@@ -433,15 +443,22 @@ export function PropertyPanel({
               ariaLabel="Font weight"
               onChange={(v) => onChange('font-weight', v)}
             />
-            {len('line-height', type.lineHeight, '↕', 'Line height')}
-            {len('letter-spacing', type.letterSpacing, '↔', 'Letter spacing')}
-          </div>
-          <Segmented
-            value={type.textAlign}
-            options={ALIGNS}
-            ariaLabel="Text align"
-            onChange={(v) => onChange('text-align', v)}
-          />
+          </Labelled>
+          <Labelled label="size">
+            <div className="grid grid-cols-3 items-start gap-1">
+              {len('font-size', type.fontSize, 'Aa', 'Font size', true)}
+              {len('line-height', type.lineHeight, '↕', 'Line height', true)}
+              {len('letter-spacing', type.letterSpacing, '↔', 'Letter spacing', true)}
+            </div>
+          </Labelled>
+          <Labelled label="align">
+            <Segmented
+              value={type.textAlign}
+              options={ALIGNS}
+              ariaLabel="Text align"
+              onChange={(v) => onChange('text-align', v)}
+            />
+          </Labelled>
         </>,
       )}
 
@@ -449,27 +466,34 @@ export function PropertyPanel({
         'Border',
         `r${px(element.radius)} · ${border.style === 'none' ? 'no border' : `${px(border.width)} ${border.style}`}`,
         <>
-          <div className="grid grid-cols-2 gap-2">
+          <Labelled label="radius">
+          <div className="flex items-start gap-1">
             {perCorner || uneven ? (
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid flex-1 grid-cols-2 gap-1">
                 {len('border-top-left-radius', corners.topLeft, '◜', 'Top-left radius', true)}
                 {len('border-top-right-radius', corners.topRight, '◝', 'Top-right radius', true)}
                 {len('border-bottom-left-radius', corners.bottomLeft, '◟', 'Bottom-left radius', true)}
                 {len('border-bottom-right-radius', corners.bottomRight, '◞', 'Bottom-right radius', true)}
               </div>
             ) : (
-              len('border-radius', element.radius, '◜', 'Border radius')
+              <div className="min-w-0 flex-1">{len('border-radius', element.radius, '◜', 'Border radius')}</div>
             )}
-            {len('border-width', border.width, '▭', 'Border width')}
+            <button
+              onClick={() => setPerCorner((v) => !v)}
+              aria-pressed={perCorner || uneven}
+              className={`h-control shrink-0 rounded-control px-2 text-xs ${
+                perCorner || uneven ? 'bg-surface-field text-ink' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
+              }`}
+              title={uneven ? 'The corners differ, so they are shown one by one' : undefined}
+            >
+              {perCorner || uneven ? 'one radius' : 'each corner'}
+            </button>
           </div>
-          <button
-            onClick={() => setPerCorner((v) => !v)}
-            className="self-start text-2xs text-ink-muted hover:text-accent"
-            title={uneven ? 'The corners differ, so they are shown one by one' : undefined}
-          >
-            {perCorner || uneven ? 'one radius' : 'each corner'}
-          </button>
-          <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
+          </Labelled>
+          <Labelled label="width">
+            <div className="w-1/2 pr-0.5">{len('border-width', border.width, '▭', 'Border width')}</div>
+          </Labelled>
+          <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
             <SideLabel>style</SideLabel>
             <select
               value={
@@ -477,7 +501,7 @@ export function PropertyPanel({
               }
               onChange={(e) => onChange('border-style', e.target.value)}
               aria-label="Border style"
-              className="rounded-control border border-line bg-surface-recessed px-1 py-0.5 text-xs"
+              className="field field-select min-w-0"
             >
               {BORDER_STYLES.map((s) => (
                 <option key={s} value={s}>
@@ -508,7 +532,7 @@ export function PropertyPanel({
                 value={element.opacity}
                 ariaLabel="Opacity"
                 step={0.1}
-                className="w-16"
+                className="w-20"
                 onChange={(v) => {
                   const n = parseFloat(v);
                   if (Number.isFinite(n)) onChange('opacity', String(Math.min(1, Math.max(0, n))));
@@ -600,31 +624,30 @@ function BoxModel({ box, onChange }: { box: ElementProps['box']; onChange: Chang
     />
   );
   return (
-    <div className="flex flex-col gap-1">
-      <div className="relative border border-dashed border-line px-10 py-4 text-2xs">
-        <span className="absolute left-1 top-0 text-2xs text-ink-faint">margin</span>
-        {field('margin', 'top', box.marginTop, 'left-1/2 top-0 -translate-x-1/2')}
-        {field('margin', 'bottom', box.marginBottom, 'bottom-0 left-1/2 -translate-x-1/2')}
-        {field('margin', 'left', box.marginLeft, 'left-0.5 top-1/2 -translate-y-1/2')}
-        {field('margin', 'right', box.marginRight, 'right-0.5 top-1/2 -translate-y-1/2')}
-        <div className="relative border border-line-strong bg-surface-control px-10 py-4">
-          <span className="absolute left-1 top-0 text-2xs text-ink-faint">padding</span>
-          {field('padding', 'top', box.paddingTop, 'left-1/2 top-0 -translate-x-1/2')}
-          {field('padding', 'bottom', box.paddingBottom, 'bottom-0 left-1/2 -translate-x-1/2')}
-          {field('padding', 'left', box.paddingLeft, 'left-0.5 top-1/2 -translate-y-1/2')}
-          {field('padding', 'right', box.paddingRight, 'right-0.5 top-1/2 -translate-y-1/2')}
+    <div className="flex flex-col gap-1.5">
+      <div className="relative rounded-control border border-dashed border-line-strong px-10 py-5 text-2xs">
+        <span className="absolute left-1.5 top-1 text-2xs text-ink-muted">Margin</span>
+        {field('margin', 'top', box.marginTop, 'left-1/2 top-0.5 -translate-x-1/2')}
+        {field('margin', 'bottom', box.marginBottom, 'bottom-0.5 left-1/2 -translate-x-1/2')}
+        {field('margin', 'left', box.marginLeft, 'left-1 top-1/2 -translate-y-1/2')}
+        {field('margin', 'right', box.marginRight, 'right-1 top-1/2 -translate-y-1/2')}
+        <div className="relative rounded-[5px] bg-surface-field px-10 py-5">
+          <span className="absolute left-1.5 top-1 text-2xs text-ink-muted">Padding</span>
+          {field('padding', 'top', box.paddingTop, 'left-1/2 top-0.5 -translate-x-1/2')}
+          {field('padding', 'bottom', box.paddingBottom, 'bottom-0.5 left-1/2 -translate-x-1/2')}
+          {field('padding', 'left', box.paddingLeft, 'left-1 top-1/2 -translate-y-1/2')}
+          {field('padding', 'right', box.paddingRight, 'right-1 top-1/2 -translate-y-1/2')}
           <div
-            className="border border-accent px-2 py-1 text-center font-mono text-sm text-accent"
+            className="rounded-[4px] bg-surface-thumb px-2 py-1 text-center font-mono text-xs text-ink"
             title={`${box.boxSizing} · ${box.display}`}
           >
             {px(box.width)} × {px(box.height)}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-2xs text-ink-muted">edit</span>
-        <Segmented value={link} options={LINKS} titles={LINK_TITLES} ariaLabel="Sides an edit reaches" className="w-40" onChange={setLink} />
-      </div>
+      <Labelled label="edit">
+        <Segmented value={link} options={LINKS} titles={LINK_TITLES} ariaLabel="Sides an edit reaches" onChange={setLink} />
+      </Labelled>
     </div>
   );
 }
@@ -672,7 +695,7 @@ function TextArea({ value, onCommit }: { value: string; onCommit: (v: string) =>
       }}
       rows={3}
       aria-label="Element text"
-      className="w-full resize-y rounded-control border border-line bg-surface-recessed px-1.5 py-1 text-sm"
+      className="field w-full resize-y px-2 py-1.5 text-xs"
     />
   );
 }
@@ -696,7 +719,7 @@ function BlurRow({ label, value, onChange }: { label: string; value: string; onC
         <NumberField
           value={radius}
           ariaLabel={`${label} radius`}
-          className="w-16"
+          className="w-20"
           onChange={(v) => onChange(blurToCss(v))}
         />
       )}

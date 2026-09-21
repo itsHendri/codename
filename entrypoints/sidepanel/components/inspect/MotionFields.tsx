@@ -21,6 +21,7 @@ import {
   type TransitionEntry,
 } from '@/studio/motion';
 import { NumberField } from './NumberField';
+import { CloseIcon } from '../icons';
 
 /** The properties worth offering by name; anything else is typed in. */
 const COMMON = ['all', 'opacity', 'transform', 'color', 'background-color', 'border-color', 'box-shadow', 'filter'];
@@ -59,7 +60,7 @@ export function MotionFields({
           onKeyDown={(e) => e.key === 'Enter' && draft !== value && onChange(draft)}
           aria-label="Transition"
           spellCheck={false}
-          className="w-full rounded-control border border-line bg-surface-recessed px-1 py-0.5 font-mono text-xs"
+          className="field w-full px-2 font-mono"
         />
         <span className="text-2xs text-ink-muted">This page writes it in a form the fields would not give back exactly.</span>
       </div>
@@ -71,7 +72,7 @@ export function MotionFields({
       {entries.map((entry, i) => {
         const chosen = matchEasing(entry.easing, easings);
         return (
-          <div key={i} className="flex flex-col gap-1 rounded-control border border-line-subtle px-1.5 py-1">
+          <div key={i} className="flex flex-col gap-1.5 rounded-card border border-line-subtle p-1.5">
             <div className="flex items-center gap-1.5">
               <input
                 list="codename-transition-props"
@@ -79,14 +80,14 @@ export function MotionFields({
                 onChange={(e) => edit(i, { property: e.target.value })}
                 aria-label="Property that moves"
                 spellCheck={false}
-                className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-1 py-0.5 font-mono text-2xs"
+                className="field min-w-0 flex-1 px-2 font-mono"
               />
               <button
                 onClick={() => write(entries.filter((_, n) => n !== i))}
                 aria-label={`Remove the transition on ${entry.property}`}
-                className="shrink-0 text-ink-muted hover:text-warn-ink"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-ink-muted hover:bg-surface-field hover:text-warn-ink"
               >
-                ✕
+                <CloseIcon />
               </button>
             </div>
             <div className="flex items-center gap-1.5">
@@ -120,7 +121,7 @@ export function MotionFields({
                 edit(i, { easing: picked ? easingToCss(picked) : '' });
               }}
               aria-label="Easing"
-              className="rounded-control border border-line bg-surface-recessed px-1 py-0.5 text-2xs"
+              className="field field-select"
             >
               {/* A curve the page wrote by hand is shown as it is, rather than
                   silently becoming the nearest name. */}
@@ -145,7 +146,7 @@ export function MotionFields({
       <div className="flex items-center gap-2">
         <button
           onClick={() => write([...entries, { property: 'all', durationMs: 200, delayMs: 0, easing: easings[0] ? easingToCss(easings[0]) : 'ease-out' }])}
-          className="rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent"
+          className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink"
         >
           Add
         </button>
@@ -158,7 +159,7 @@ export function MotionFields({
                 ? 'Take the element out of the state and put it back, so the transition runs'
                 : 'Pick hover, focus or active first — a transition needs somewhere to go'
             }
-            className="rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent disabled:opacity-40"
+            className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink disabled:opacity-40"
           >
             Play
           </button>

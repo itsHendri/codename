@@ -41,9 +41,7 @@ export function TextInput({
       onKeyDown={(e) => e.key === 'Enter' && commit()}
       spellCheck={false}
       aria-label={ariaLabel}
-      className={`w-full min-w-0 rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-xs ${
-        ok ? 'border-line' : 'border-warn bg-warn-soft'
-      } ${className}`}
+      className={`field w-full min-w-0 px-2 font-mono ${ok ? '' : 'field-invalid'} ${className}`}
     />
     </>
   );

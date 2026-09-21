@@ -3,6 +3,7 @@ import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { asReference } from '@/studio/tokenMatch';
 import { emptyShadow, parseShadow, shadowRoundTrips, shadowToCss, type ShadowLayer } from '@/studio/effects';
 import { NumberField } from './NumberField';
+import { CloseIcon } from '../icons';
 import { TokenChips } from './TokenChips';
 
 export function ShadowField({
@@ -34,7 +35,7 @@ export function ShadowField({
     return (
       <div className="flex flex-col gap-1.5">
         {layers.map((layer, i) => (
-          <div key={i} className="flex flex-col gap-1 rounded-control border border-line-subtle px-1.5 py-1">
+          <div key={i} className="flex flex-col gap-1.5 rounded-card border border-line-subtle p-1.5">
             <div className="flex items-center gap-1.5">
               <span
                 className="h-5 w-8 shrink-0 rounded-control bg-surface-raised"
@@ -53,9 +54,9 @@ export function ShadowField({
               <button
                 onClick={() => write(layers.filter((_, n) => n !== i))}
                 aria-label={`Remove shadow ${i + 1}`}
-                className="shrink-0 text-ink-muted hover:text-warn-ink"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-ink-muted hover:bg-surface-field hover:text-warn-ink"
               >
-                ✕
+                <CloseIcon />
               </button>
             </div>
             <div className="flex items-center gap-1.5">
@@ -76,7 +77,7 @@ export function ShadowField({
         <div className="flex items-center gap-2">
           <button
             onClick={() => write([...layers, emptyShadow()])}
-            className="rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent"
+            className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink"
           >
             Add
           </button>
@@ -90,7 +91,7 @@ export function ShadowField({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
-        <div className="flex h-9 w-14 shrink-0 items-center justify-center rounded-control bg-surface-recessed">
+        <div className="flex h-9 w-14 shrink-0 items-center justify-center rounded-control bg-surface-field">
           <span
             className="h-5 w-8 rounded-control bg-surface-raised"
             style={{ boxShadow: valid && !draft.startsWith('var(') ? draft : undefined }}
@@ -110,9 +111,7 @@ export function ShadowField({
           rows={2}
           spellCheck={false}
           aria-label="Box shadow"
-          className={`w-full min-w-0 resize-none rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-xs ${
-            valid ? 'border-line' : 'border-warn bg-warn-soft'
-          }`}
+          className={`field w-full min-w-0 resize-none px-2 py-1 font-mono ${valid ? '' : 'field-invalid'}`}
         />
       </div>
       <TokenChips suggestions={suggestions} current={value} onPick={(s) => onChange(asReference(s), s.name)} />
@@ -147,9 +146,7 @@ function ColourText({ value, label, onCommit }: { value: string; label: string; 
       }}
       aria-label={label}
       spellCheck={false}
-      className={`min-w-0 flex-1 rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-2xs ${
-        valid ? 'border-line' : 'border-warn bg-warn-soft'
-      }`}
+      className={`field min-w-0 flex-1 px-2 font-mono ${valid ? '' : 'field-invalid'}`}
     />
   );
 }

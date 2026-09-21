@@ -55,7 +55,7 @@ export function AnimationFields({
           onKeyDown={(e) => e.key === 'Enter' && draft !== value && onChange('animation', draft)}
           aria-label="Animation"
           spellCheck={false}
-          className="w-full rounded-control border border-line bg-surface-recessed px-1 py-0.5 font-mono text-xs"
+          className="field w-full px-2 font-mono"
         />
         <span className="text-2xs text-ink-muted">This page writes it in a form the fields would not give back exactly.</span>
       </div>
@@ -90,7 +90,7 @@ export function AnimationFields({
         onChange={setTrigger}
       />
       {entry && (
-        <div className="flex flex-col gap-1 rounded-control border border-line-subtle px-1.5 py-1">
+        <div className="flex flex-col gap-1.5 rounded-card border border-line-subtle p-1.5">
           <Select
             value={entry.name}
             options={names}
@@ -139,7 +139,7 @@ export function AnimationFields({
               write({ ...entry, easing: picked ? easingToCss(picked) : entry.easing });
             }}
             aria-label="Animation easing"
-            className="rounded-control border border-line bg-surface-recessed px-1 py-0.5 text-2xs"
+            className="field field-select"
           >
             {!chosen && <option value="">{entry.easing || 'no easing'}</option>}
             {easings.map((e) => (
