@@ -136,10 +136,10 @@ describe('placing the chrome', () => {
   const viewport = { width: 1000, height: 600 };
   const card = { width: 232, height: 200 };
 
-  it('puts the edit card under the selection, above it when there is no room, and inside the viewport', () => {
-    expect(placeCard({ x: 100, y: 100, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 148 });
-    expect(placeCard({ x: 100, y: 500, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 292 });
-    expect(placeCard({ x: 900, y: 10, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 760, top: 58 });
+  it('puts the edit card under the selection, clear of its size label, above it when there is no room, and inside the viewport', () => {
+    expect(placeCard({ x: 100, y: 100, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 168 });
+    expect(placeCard({ x: 100, y: 500, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 272 });
+    expect(placeCard({ x: 900, y: 10, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 760, top: 78 });
     expect(placeCard({ x: 0, y: 0, width: 10, height: 10 }, card, viewport, 48, { left: -50, top: 590 })).toEqual({ left: 8, top: 392 });
   });
 

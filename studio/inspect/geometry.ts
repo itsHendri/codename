@@ -19,6 +19,9 @@ export interface Point {
 /** The margin nothing is placed closer to the viewport's edge than. */
 export const EDGE = 8;
 
+/** How tall the size label is, with the gap under the box. */
+const LABEL = 22;
+
 /**
  * The edit card: under the selection when there is room, else above it,
  * always inside the viewport and below the bar. A pinned card — one that
@@ -34,13 +37,13 @@ export function placeCard(
   const clampLeft = (x: number) => Math.min(Math.max(EDGE, x), viewport.width - card.width - EDGE);
   const clampTop = (y: number) => Math.min(Math.max(clear, y), viewport.height - card.height - EDGE);
   if (pinned) return { left: clampLeft(pinned.left), top: clampTop(pinned.top) };
-  const below = anchor.y + anchor.height + EDGE;
-  const top = below + card.height <= viewport.height - EDGE ? below : Math.max(clear, anchor.y - card.height - EDGE);
+  // Far enough off the box to leave the size label its row: the label sits
+  // on the same side the card does, and the card used to cover it.
+  const gap = LABEL + 6;
+  const below = anchor.y + anchor.height + gap;
+  const top = below + card.height <= viewport.height - EDGE ? below : Math.max(clear, anchor.y - card.height - gap);
   return { left: clampLeft(anchor.x), top: clampTop(top) };
 }
-
-/** How tall the size label is, with the gap under the box. */
-const LABEL = 22;
 
 /**
  * The size label, centred under the box as a design tool labels a
