@@ -44,7 +44,7 @@ export function TabStrip<K extends string>({
     <nav
       role="tablist"
       aria-label={ariaLabel}
-      className="grid h-10 shrink-0 items-stretch border-b border-line-subtle"
+      className="grid h-10 shrink-0 items-stretch border-b border-line"
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
       onKeyDown={onKeyDown}
     >

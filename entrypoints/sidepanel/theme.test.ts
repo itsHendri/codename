@@ -34,7 +34,7 @@ it('defines every token both themes need', () => {
 });
 
 describe.each(Object.entries(themes))('%s theme', (name, t) => {
-  const surfaces = ['surface-app', 'surface-panel', 'surface-control', 'surface-recessed', 'surface-raised'];
+  const surfaces = ['surface-app', 'surface-panel', 'surface-control', 'surface-recessed', 'surface-raised', 'surface-field'];
 
   it.each(surfaces)('keeps the ink ladder in order on %s', (surface) => {
     const on = t[surface]!;
@@ -59,6 +59,12 @@ describe.each(Object.entries(themes))('%s theme', (name, t) => {
     expect(overlay.cardBg).toBe(t['surface-panel']);
     expect(overlay.cardInk).toBe(t.ink);
     expect(overlay.cardMuted).toBe(t['ink-muted']);
+    // The bar meets the rail's tab strip edge to edge: same ground, same line.
+    expect(overlay.cardLine).toBe(t.line);
+    expect(overlay.chromeBg).toBe(t['surface-app']);
+    expect(overlay.field).toBe(t['surface-field']);
+    expect(overlay.fieldHover).toBe(t['surface-field-hover']);
+    expect(overlay.thumb).toBe(t['surface-thumb']);
   });
 });
 

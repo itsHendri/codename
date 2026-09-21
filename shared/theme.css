@@ -12,6 +12,9 @@
   --color-surface-recessed: var(--surface-recessed);
   --color-surface-raised: var(--surface-raised);
   --color-surface-selected: var(--surface-selected);
+  --color-surface-field: var(--surface-field);
+  --color-surface-field-hover: var(--surface-field-hover);
+  --color-surface-thumb: var(--surface-thumb);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
@@ -44,6 +47,13 @@
   --text-base--line-height: 17px;
   --text-lg: 15px;
   --text-lg--line-height: 20px;
+
+  /* One height grid for every control in the bar, the rail and the panel:
+     24px for a field, a button or a segmented group, 20px for the small
+     ones that sit inside a row (chips, row actions). `h-control`,
+     `h-control-sm`, and the same names for min-h and w. */
+  --spacing-control: 24px;
+  --spacing-control-sm: 20px;
 
   --radius-control: 6px;
   --radius-card: 8px;
