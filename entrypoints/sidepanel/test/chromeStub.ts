@@ -1,7 +1,7 @@
 /**
  * Enough of `chrome.*` to mount the real panel in a test: a scanned tab,
- * storage that remembers, a page that answers the layers request and the
- * re-skin with counts, and `emit(msg)` to play a content-script message.
+ * storage that remembers, a page that answers the re-skin with counts, and
+ * `emit(msg)` to play a content-script message.
  * The local harness (.harness/stub.js) does the same for a browser; this is
  * the version the suite owns.
  */
@@ -63,35 +63,6 @@ export const forfontsake: ScanResult = {
 
 type Listener = (msg: unknown, sender: unknown, reply?: (r: unknown) => void) => void;
 
-const node = (id: number, depth: number, label: string, descendants: number, text?: string, hidden = false, matches = 1) => ({
-  id,
-  depth,
-  label,
-  descendants,
-  tag: label.split(/[.#]/)[0],
-  selector: label,
-  stable: !label.includes('nth'),
-  matches,
-  ...(matches > 1 ? { intent: label.replace(/:nth-of-type\(\d+\)/, '') } : {}),
-  hidden,
-  display: hidden ? 'none' : 'block',
-  ...(text ? { text } : {}),
-});
-
-export const layers = [
-  node(0, 0, 'body', 10),
-  node(1, 1, 'div#root', 9),
-  node(2, 2, 'header.topbar', 2),
-  node(3, 3, 'h1#title', 0, 'Grit'),
-  node(4, 3, 'p.tagline', 0, 'Type, treated.'),
-  node(5, 2, 'main.plate', 5),
-  node(6, 3, 'article.card', 1, undefined, false, 2),
-  node(7, 4, 'h2.card-title', 0, 'Grit'),
-  node(8, 3, 'article.card', 1, undefined, false, 2),
-  node(9, 4, 'h2.card-title', 0, 'Plate'),
-  node(10, 3, 'aside.legacy', 0, 'Old panel', true),
-];
-
 export interface StubChrome {
   /** Every message the panel sent to the tab, oldest first. */
   sent: { type?: string; cmd?: string; [k: string]: unknown }[];
@@ -136,7 +107,6 @@ export function installChrome(): StubChrome {
       onUpdated: { addListener() {}, removeListener() {} },
       sendMessage: async (_id: number, msg: StubChrome['sent'][number]) => {
         sent.push(msg);
-        if (msg?.type === 'inspector' && msg.cmd === 'layers') return layers;
         if (msg?.type === 'inspector' && msg.cmd === 'read') return stub.current;
         if (msg?.type === 'inspector' && msg.cmd === 'deselect') stub.current = null;
         if (msg?.type === 'inspector') return { ok: true, hover: false, selected: stub.current !== null };

@@ -1,0 +1,96 @@
+/*
+ * The panel's palette, as custom properties.
+ *
+ * Declared on `:root` for the panel and on `:host` for the rail, which
+ * renders inside the page in a shadow root where `:root` is the page's, not
+ * ours. Dark is the default, light an explicit choice or the system's.
+ * The values and their provenance are described in
+ * entrypoints/sidepanel/style.css.
+ */
+
+/* dark — the default */
+:root,
+:host {
+  color-scheme: dark;
+  --surface-app: #141414;
+  --surface-panel: #1a1a1a;
+  --surface-control: #282828;
+  --surface-recessed: #141414;
+  --surface-raised: #282828;
+  --surface-selected: #393939;
+  --ink: #bcbcbc;
+  --ink-secondary: #979797;
+  --ink-muted: #767676;
+  --ink-faint: #4e4e4e;
+  --line: #303030;
+  --line-subtle: #282828;
+  --line-strong: #393939;
+  --accent: #6bb5ff;
+  --accent-hover: #2792ff;
+  --accent-soft: #26313c;
+  --accent-ink: #141414;
+  --warn: #e89a1c;
+  --warn-soft: #392d1a;
+  --warn-ink: #f6bf3e;
+  --ok: #35d35d;
+  --ok-soft: #1e3624;
+}
+
+/* light — an explicit choice… */
+:root[data-theme='light'],
+:host([data-theme='light']) {
+  color-scheme: light;
+  --surface-app: #fafafa;
+  --surface-panel: #ffffff;
+  --surface-control: #f1f1f1;
+  --surface-recessed: #f6f6f6;
+  --surface-raised: #ffffff;
+  --surface-selected: #e4e4e4;
+  --ink: #303030;
+  --ink-secondary: #565656;
+  --ink-muted: #767676;
+  --ink-faint: #a9a9a9;
+  --line: #dcdcdc;
+  --line-subtle: #e8e8e8;
+  --line-strong: #bcbcbc;
+  --accent: #006acc;
+  --accent-hover: #005ab0;
+  --accent-soft: #e0edf9;
+  --accent-ink: #ffffff;
+  --warn: #e89a1c;
+  --warn-soft: #fcf1df;
+  --warn-ink: #8a5a04;
+  --ok: #1f9a3f;
+  --ok-soft: #e4f3e8;
+}
+
+/* …or the system's, when no choice has been made. Same values as above. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]),
+  :host(:not([data-theme])) {
+    color-scheme: light;
+    --surface-app: #fafafa;
+    --surface-panel: #ffffff;
+    --surface-control: #f1f1f1;
+    --surface-recessed: #f6f6f6;
+    --surface-raised: #ffffff;
+    --surface-selected: #e4e4e4;
+    --ink: #303030;
+    --ink-secondary: #565656;
+    --ink-muted: #767676;
+    --ink-faint: #a9a9a9;
+    --line: #dcdcdc;
+    --line-subtle: #e8e8e8;
+    --line-strong: #bcbcbc;
+    --accent: #006acc;
+    --accent-hover: #005ab0;
+    --accent-soft: #e0edf9;
+    --accent-ink: #ffffff;
+    --warn: #e89a1c;
+    --warn-soft: #fcf1df;
+    --warn-ink: #8a5a04;
+    --ok: #1f9a3f;
+    --ok-soft: #e4f3e8;
+  }
+}
+

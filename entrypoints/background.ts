@@ -34,7 +34,11 @@ export default defineBackground(() => {
   // Keyboard shortcuts reach the inspector on the active tab; a tab with no
   // inspector (the panel is not open there) simply does not answer.
   chrome.commands?.onCommand.addListener((command) => {
-    const what = command === 'toggle-select' ? 'select' : command === 'toggle-comment' ? 'comment' : null;
+    const what =
+      command === 'toggle-select' ? 'select'
+      : command === 'toggle-comment' ? 'comment'
+      : command === 'toggle-layers' ? 'layers'
+      : null;
     if (!what) return;
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
       if (tab?.id == null) return;

@@ -71,7 +71,7 @@ export function RestrictedState({ url, onOpenLayers }: { url: string; onOpenLaye
         onClick={onOpenLayers}
         className="rounded-card border border-line-strong px-5 py-1.5 text-ink hover:bg-surface-recessed"
       >
-        Open Layers
+        Open Style
       </button>
     </div>
   );

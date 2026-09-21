@@ -11,6 +11,8 @@
 
 import type { AgentPresence, ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
+import { RAIL_TAG, SELECTED_EVENT, throughRail } from '@/shared/inpage';
+import { createRootPush } from '@/studio/pushRoot';
 import { DEVICE_KINDS, frameFor, presetsOf, viewportLabel, type DeviceKind, type Frame } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
@@ -23,12 +25,6 @@ import type { LayerNode } from '@/studio/layers';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
 import { createPageFrame } from '@/studio/pageFrame';
-
-declare global {
-  interface Window {
-    __codenameInspector?: { deactivate: () => void };
-  }
-}
 
 export default defineContentScript({
   registration: 'runtime',
@@ -112,7 +108,7 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function isOurs(el: Element | null): boolean {
-  return !!el && (el.tagName === HOST_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
+  return !!el && (el.tagName === HOST_TAG || el.tagName.toLowerCase() === RAIL_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
 }
 
 /** Text is editable only when the element's own children are text. */
@@ -367,6 +363,7 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
+      .bar > .mode.layers { border: 1px solid ${d.cardLine}; padding: 3px 8px; }
       /* A narrow window narrows the bar. It gives up words before it gives
          up controls. These sheets are in the shadow root, which a device
          frame does not rewrite, so they follow the window, not the frame. */
@@ -431,6 +428,9 @@ function activate() {
     </style>
     <div class="bar hidden">
       <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
+      <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5M2 8h9M2 12h12"/><path d="M8 3l1.5 1L8 5M13 7l1.5 1L13 9" stroke-width="1.2"/></svg><span class="label">Layers</span>
+      </button>
       <span class="host"></span>
       <div class="device" role="group" aria-label="Frame">
         <div class="kinds" role="radiogroup" aria-label="Device"><button class="kind" data-kind="desktop" role="radio" aria-checked="false" aria-label="Desktop" title="Desktop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M8 11v2.5M5.5 13.5h5"/></svg></button><button class="kind" data-kind="laptop" role="radio" aria-checked="false" aria-label="Laptop" title="Laptop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></svg></button><button class="kind" data-kind="tablet" role="radio" aria-checked="false" aria-label="Tablet" title="Tablet — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button><button class="kind" data-kind="phone" role="radio" aria-checked="false" aria-label="Phone" title="Phone — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button></div>
@@ -490,6 +490,7 @@ function activate() {
   const barH = bar.querySelector<HTMLInputElement>('.dim .h')!;
   const barScale = bar.querySelector<HTMLElement>('.scale')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
+  const barLayers = bar.querySelector<HTMLButtonElement>('.mode.layers')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
@@ -511,6 +512,9 @@ function activate() {
   let measuring = false;
   let pins: Pin[] = [];
   let barOn = false;
+  // Whether the rail is showing. The panel is the truth; the bar echoes it,
+  // and asks for the change rather than making it.
+  let railOn = false;
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   let barMode: Mode = 'light';
@@ -578,7 +582,12 @@ function activate() {
 
   /* ----- selection ----- */
 
-  const announce = () => send({ type: 'element-selected', data: selected ? readProps(selected) : null });
+  const announce = () => {
+    const props = selected ? readProps(selected) : null;
+    send({ type: 'element-selected', data: props });
+    // The rail listens here, in the same page, rather than through the panel.
+    document.dispatchEvent(new CustomEvent(SELECTED_EVENT, { detail: props?.selector ?? null }));
+  };
 
   const select = (el: Element | null) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
@@ -740,7 +749,7 @@ function activate() {
   };
 
   const onClick = (e: MouseEvent) => {
-    if (e.composedPath().includes(host)) return;
+    if (e.composedPath().includes(host) || throughRail(e)) return;
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
@@ -1311,6 +1320,8 @@ function activate() {
     renderDevice();
     barSelect.classList.toggle('on', hoverOn);
     barSelect.setAttribute('aria-checked', String(hoverOn));
+    barLayers.classList.toggle('on', railOn);
+    barLayers.setAttribute('aria-checked', String(railOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
     barLight.classList.toggle('on', barMode === 'light');
@@ -1499,21 +1510,11 @@ function activate() {
    * of the viewport will still sit under the bar; that is stated in the
    * README rather than fought.
    */
-  let pushed: { value: string; priority: string } | null = null;
+  const pushTop = createRootPush('top');
   const pushPage = (on: boolean) => {
-    const root = document.documentElement;
     if (on) {
-      if (pushed) return;
-      pushed = {
-        value: root.style.getPropertyValue('margin-top'),
-        priority: root.style.getPropertyPriority('margin-top'),
-      };
-      root.style.setProperty('margin-top', `${BAR_HEIGHT}px`, 'important');
-    } else if (pushed) {
-      if (pushed.value) root.style.setProperty('margin-top', pushed.value, pushed.priority);
-      else root.style.removeProperty('margin-top');
-      pushed = null;
-    }
+      if (!pushTop.on) pushTop.set(BAR_HEIGHT);
+    } else pushTop.clear();
   };
 
   const showBar = (on: boolean) => {
@@ -1565,6 +1566,16 @@ function activate() {
     input.addEventListener('focus', () => input.select());
   }
   barSelect.addEventListener('click', () => setHover(!hoverOn));
+  /** Show or fold the rail: the bar flips at once and asks the panel, which holds the answer. */
+  const toggleRail = () => {
+    railOn = !railOn;
+    renderBar();
+    send({ type: 'rail-toggled', on: railOn });
+  };
+  barLayers.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleRail();
+  });
   barComment.addEventListener('click', () => setNote(!noteOn));
   const setMode = (mode: Mode) => {
     if (mode === barMode) return;
@@ -1631,6 +1642,8 @@ function activate() {
    * whether the composer or the edit card has the caret.
    */
   const typing = (e: Event) => {
+    // The rail has its own keyboard: arrows walk its rows, not the DOM.
+    if (throughRail(e)) return true;
     const inside = shadow.activeElement as HTMLElement | null;
     const el = inside ?? ((e.composedPath()[0] ?? e.target) as HTMLElement | null);
     return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ''));
@@ -1675,12 +1688,12 @@ function activate() {
 
   /* ----- commands from the panel ----- */
 
-  const onMessage = (
-    msg: { type?: string } & Partial<InspectorCommand>,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (r: unknown) => void,
-  ) => {
-    if (msg?.type !== 'inspector') return false;
+  /**
+   * Run a command. From the panel over `chrome.runtime`, or from the rail in
+   * the same page through the handle on `window`; the answer goes to
+   * `sendResponse` either way, and the return says whether it comes later.
+   */
+  const handle = (msg: Partial<InspectorCommand>, sendResponse: (r: unknown) => void): boolean => {
     switch (msg.cmd) {
       case 'hover':
         setHover(!!msg.on);
@@ -1690,6 +1703,7 @@ function activate() {
         // with no bar and nobody listening; the bar is the sign of a panel.
         if (!barOn) break;
         if (msg.what === 'comment') setNote(!noteOn);
+        else if (msg.what === 'layers') toggleRail();
         else setHover(!hoverOn);
         break;
       case 'tokens':
@@ -1832,6 +1846,7 @@ function activate() {
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
+        if (typeof msg.rail === 'boolean') railOn = msg.rail;
         if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
         if (msg.agent !== undefined) agent = msg.agent;
@@ -1851,6 +1866,15 @@ function activate() {
     }
     sendResponse({ ok: true, hover: hoverOn, selected: !!selected });
     return true;
+  };
+
+  const onMessage = (
+    msg: { type?: string } & Partial<InspectorCommand>,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (r: unknown) => void,
+  ) => {
+    if (msg?.type !== 'inspector') return false;
+    return handle(msg, sendResponse);
   };
 
   const observer = new MutationObserver(layout);
@@ -1875,5 +1899,11 @@ function activate() {
   addEventListener('resize', layout);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
   chrome.runtime.onMessage.addListener(onMessage);
-  window.__codenameInspector = { deactivate };
+  window.__codenameInspector = {
+    deactivate,
+    handle: (cmd) =>
+      new Promise((resolve) => {
+        if (!handle(cmd, resolve)) resolve(undefined);
+      }),
+  };
 }

@@ -8,6 +8,7 @@ import {
   isRestricted,
   runScan,
   sendInspector,
+  sendRail,
   setSiteMode,
   type BarLook,
 } from './lib/messaging';
@@ -35,29 +36,28 @@ import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon, SvgsIcon } from './components/icons';
+import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon } from './components/icons';
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
-import { LAYERS_SPLIT_KEY, LayersTab } from './components/LayersTab';
-import { resetSplit } from './components/SplitPane';
+import { StyleTab } from './components/StyleTab';
 import { ChangesTab } from './components/ChangesTab';
 import { VariablesTab } from './components/VariablesTab';
-import { SvgsTab } from './components/SvgsTab';
 import { ExportTab } from './components/ExportTab';
+import type { LayerNode } from '@/studio/layers';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'layers' | 'variables' | 'assets' | 'export' | 'changes';
+type TabKey = 'style' | 'variables' | 'export' | 'changes';
 
 /**
- * Five tabs, in the order you use them: the page as layers you pick from, the
- * variables it runs on, its assets, the exports — and last, what you have
- * changed, which is where the hand-off lives. Resize is not a view; it is a
- * viewport setting, and it sits on the bar across the page.
+ * Four tabs, in the order you use them: the styles of what you picked, the
+ * variables the page runs on, the exports — and last, what you have changed,
+ * which is where the hand-off lives. The layers and the assets are not here:
+ * they stand in the page, in the rail on its left, where a design tool keeps
+ * its tree. Resize is not a view either; it sits on the bar across the page.
  */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
-  { key: 'layers', label: 'Layers', Icon: InspectIcon },
+  { key: 'style', label: 'Style', Icon: InspectIcon },
   { key: 'variables', label: 'Variables', Icon: DesignIcon },
-  { key: 'assets', label: 'Assets', Icon: SvgsIcon },
   { key: 'export', label: 'Export', Icon: ExportIcon },
   { key: 'changes', label: 'Changes', Icon: ChangesIcon },
 ];
@@ -66,7 +66,7 @@ export default function App() {
   // The session remembers the tab, so closing and reopening the panel does
   // not send you back to Layers every time.
   const session = useSession();
-  const active: TabKey = (TABS.some((t) => t.key === session.activeTab) ? session.activeTab : 'layers') as TabKey;
+  const active: TabKey = (TABS.some((t) => t.key === session.activeTab) ? session.activeTab : 'style') as TabKey;
   const setActive = useCallback((key: TabKey) => updateSession({ activeTab: key }), []);
   const [tabId, setTabId] = useState<number | null>(null);
   const [tabUrl, setTabUrl] = useState<string>('');
@@ -85,7 +85,7 @@ export default function App() {
   const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
-  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0 });
+  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail });
   const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
@@ -155,6 +155,7 @@ export default function App() {
     resettable,
     darkVia,
     agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
+    rail: session.rail,
   };
   lookRef.current = look;
 
@@ -164,7 +165,6 @@ export default function App() {
     setMode('light');
     ctlRef.current.revertAll();
     ctlRef.current.clear();
-    resetSplit(LAYERS_SPLIT_KEY);
     if (tabIdRef.current != null) {
       // The agent's preview sheet is an override too, whoever painted it.
       if (getSession().agentPreview) void dropAgentPreview();
@@ -280,14 +280,25 @@ export default function App() {
         setScanError(msg.error ?? 'Scan failed');
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
-        if (msg.data) setActive('layers');
+        if (msg.data) setActive('style');
       } else if (msg?.type === 'element-edit') {
         // The edit card on the page: same log, same rules, same undo and brief.
         const edit = msg as unknown as { property: string; to: string };
         if (edit.property === 'text') ctlRef.current.setText(edit.to);
         else ctlRef.current.change(edit.property, edit.to);
       } else if (msg?.type === 'panel-focus') {
-        setActive('layers');
+        setActive('style');
+      } else if (msg?.type === 'rail-toggled') {
+        // Layers on the bar, or Alt+L: the session is the truth, the bar echoes it.
+        updateSession({ rail: Boolean((msg as { on?: boolean }).on) });
+      } else if (msg?.type === 'rail-move') {
+        // A drag in the rail is an element edit, filed here with the rest.
+        const m = msg as unknown as { node: LayerNode; parent: LayerNode; before: LayerNode | null; wasIn: LayerNode; wasBefore: LayerNode | null };
+        ctlRef.current.move(m.node, m.parent, m.before, m.wasIn, m.wasBefore);
+      } else if (msg?.type === 'rail-hide') {
+        ctlRef.current.toggleHidden((msg as unknown as { node: LayerNode }).node);
+      } else if (msg?.type === 'rail-scope') {
+        ctlRef.current.setScope((msg as { scope?: string }).scope === 'all' ? 'all' : 'element');
       } else if (msg?.type === 'agent-clear') {
         void dropAgentPreview();
       } else if (msg?.type === 'reset-all') {
@@ -332,9 +343,23 @@ export default function App() {
   }, [tabId, session.generation]);
   const agentRules = session.agentPreview?.rules ?? null;
   const agentMatched = session.agentPreview?.matched ?? null;
+  const railOn = session.rail;
   useEffect(() => {
     if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
-  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched]);
+  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn]);
+
+  // The rail, beside the page: shown wherever the bar is, folded when the
+  // person folds it, told again after a reload like every other managed
+  // thing on the page. Its Assets tab is fed from the scan.
+  useEffect(() => {
+    if (tabId == null || !scan || restricted) return;
+    void sendRail(tabId, { cmd: 'rail', on: railOn, theme });
+  }, [tabId, scan, restricted, theme, railOn, session.generation]);
+  const svgs = scan?.svgs ?? null;
+  useEffect(() => {
+    if (tabId == null || !svgs || restricted) return;
+    void sendRail(tabId, { cmd: 'assets', svgs });
+  }, [tabId, svgs, restricted, session.generation]);
 
   // Dark on the bar asks the page for its own dark mode first — its dark
   // media rules hoisted, its theme hook set — and only when it has none does
@@ -432,24 +457,26 @@ export default function App() {
   })();
 
   // Selecting, editing and noting all work before a scan; the rest reads it.
-  const needsScan = active === 'variables' || active === 'assets' || active === 'export';
+  const needsScan = active === 'variables' || active === 'export';
   let content: React.ReactNode;
   if (restricted && needsScan) {
-    content = <RestrictedState url={tabUrl} onOpenLayers={() => setActive('layers')} />;
+    content = <RestrictedState url={tabUrl} onOpenLayers={() => setActive('style')} />;
   } else if (scanning && needsScan) {
     content = <ScanningState />;
   } else if (!scan && needsScan) {
     content = <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />;
   } else {
     switch (active) {
-      case 'layers':
+      case 'style':
         content = (
-          <LayersTab
+          <StyleTab
             error={scanError}
             ctl={ctl}
             scan={scan}
             resolved={model?.resolved ?? null}
             mode={mode}
+            rail={railOn}
+            onShowRail={() => updateSession({ rail: true })}
           />
         );
         break;
@@ -479,9 +506,6 @@ export default function App() {
           />
         );
         break;
-      case 'assets':
-        content = <SvgsTab scan={scan!} />;
-        break;
       case 'export':
         content = <ExportTab scan={scan!} hostname={hostname} resolved={model?.resolved ?? null} />;
         break;
@@ -491,7 +515,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col text-base">
       {/* h-10 is BAR_HEIGHT: the same strip as the bar across the page. */}
-      <nav role="tablist" aria-label="Panel" className="grid h-10 grid-cols-5 items-stretch border-b border-line-subtle" onKeyDown={onTabKey}>
+      <nav role="tablist" aria-label="Panel" className="grid h-10 grid-cols-4 items-stretch border-b border-line-subtle" onKeyDown={onTabKey}>
         {TABS.map(({ key, label, Icon }) => (
           <button
             key={key}

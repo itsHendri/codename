@@ -43,6 +43,8 @@ export interface TabSession {
   live: boolean;
   /** The panel tab showing, kept so a reopen lands where you were. */
   activeTab: string;
+  /** Whether the layers rail is showing in the page. On until someone folds it. */
+  rail: boolean;
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
   /** Observed colours set by hand: old hex (upper case) → new hex. */
@@ -99,7 +101,8 @@ const EMPTY: TabSession = {
   mode: 'light',
   darkVia: null,
   live: true,
-  activeTab: 'layers',
+  activeTab: 'style',
+  rail: true,
   varOverrides: {},
   colorEdits: {},
   locks: [],
@@ -118,6 +121,11 @@ const EMPTY: TabSession = {
   logUrl: '',
   generation: 0,
 };
+
+/** Tabs the panel no longer has, mapped to where their work went. */
+function migrateTab(tab: string | undefined): string {
+  return !tab || tab === 'layers' || tab === 'assets' ? 'style' : tab;
+}
 
 /**
  * A change log read back from storage, with anything it says about a state
@@ -213,6 +221,10 @@ export async function loadSession(id: number, url: string): Promise<void> {
         agentPreview: typeof stored.agentPreview === 'object' ? stored.agentPreview : null,
         agentLog: stored.agentLog ?? [],
         locks: stored.locks ?? [],
+        // The tree and the assets moved into the rail; a session left on
+        // either of those tabs opens on the selection now.
+        activeTab: migrateTab(stored.activeTab),
+        rail: stored.rail ?? true,
         pinned: null,
         log: samePage ? soundLog(stored.log) : emptyLog(),
         logUrl: pageKey(url),

@@ -1,4 +1,4 @@
-import type { AgentPresence, ElementProps, InspectorCommand } from '@/shared/types';
+import type { AgentPresence, ElementProps, InspectorCommand, RailCommand } from '@/shared/types';
 import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@/studio/framework';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
@@ -70,6 +70,11 @@ export function sendInspector<T = unknown>(tabId: number, command: InspectorComm
   return sendOrInject<T>(tabId, 'content-scripts/inspector.js', { type: 'inspector', ...command });
 }
 
+/** Talk to the rail. It is injected on the first word, and shows only when told to. */
+export function sendRail<T = unknown>(tabId: number, command: RailCommand): Promise<T | null> {
+  return sendOrInject<T>(tabId, 'content-scripts/rail.js', { type: 'rail', ...command });
+}
+
 let barPort: chrome.runtime.Port | null = null;
 let barTab: number | null = null;
 
@@ -84,6 +89,8 @@ export interface BarLook {
   darkVia?: 'site' | 'mirror' | null;
   /** What the agent is previewing, for the chip; null when nothing. */
   agent?: AgentPresence | null;
+  /** Whether the rail is showing, for the bar's Layers toggle. */
+  rail?: boolean;
 }
 
 /**
@@ -120,6 +127,7 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     resettable: look.resettable,
     darkVia: look.darkVia ?? null,
     agent: look.agent ?? null,
+    rail: look.rail ?? true,
   });
 }
 

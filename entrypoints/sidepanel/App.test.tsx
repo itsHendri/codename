@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 /**
  * The panel, mounted for real against a stubbed page. What the harness
- * checks by hand, pinned: the tab strip, a selection landing on Layers, an
- * edit reaching the badge, Dark previewing without entering the brief, and
- * Reset taking everything back.
+ * checks by hand, pinned: the tab strip, a selection landing on Style, an
+ * edit reaching the badge, the rail beside the page, Dark previewing without
+ * entering the brief, and Reset taking everything back.
  */
 
 import { act } from 'react';
@@ -56,22 +56,76 @@ afterEach(async () => {
 });
 
 describe('the panel', () => {
-  it('opens on Layers with the five tabs in order and the page read', () => {
-    expect(tabs()).toEqual(['layers', 'variables', 'assets', 'export', 'changes']);
-    expect(activeTab()).toBe('layers');
+  it('opens on Style with the four tabs in order and the page read', () => {
+    expect(tabs()).toEqual(['style', 'variables', 'export', 'changes']);
+    expect(activeTab()).toBe('style');
     expect(host.querySelector('footer')?.textContent).toContain('6 colors');
-    // The tree came from the page and the repeating card shows as a component.
-    expect(text()).toContain('h1#title');
-    expect(text()).toContain('×2article.card');
+    // Nothing picked yet: the tree is in the rail, not here.
+    expect(text()).toContain('Nothing selected');
+    expect(text()).not.toContain('Show layers');
   });
 
-  it('shows a selection in a split above the tree, and an edit from the page reaches the badge', async () => {
+  it('shows the rail beside the page, feeds it the assets, and folds it when the bar says so', async () => {
+    const rails = () => stub.sent.filter((m) => m.type === 'rail');
+    expect(rails().find((m) => m.cmd === 'rail')).toMatchObject({ on: true, theme: 'dark' });
+    expect(rails().find((m) => m.cmd === 'assets')).toMatchObject({ svgs: [] });
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ rail: true });
+
+    // Layers on the bar, or Alt+L: the session holds the answer and the page is told.
+    await act(async () => stub.emit({ type: 'rail-toggled', on: false }));
+    await tick(120);
+    expect(getSession().rail).toBe(false);
+    expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: false });
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ rail: false });
+
+    // With it folded, the empty Style tab offers it back.
+    const show = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Show layers') ?? null;
+    expect(show).not.toBeNull();
+    await click(show);
+    await tick(120);
+    expect(getSession().rail).toBe(true);
+    expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: true });
+  });
+
+  it('files a drag in the rail as a move, and the eye as a display edit', async () => {
+    const row = (id: number, selector: string, depth: number) => ({
+      id, depth, label: selector, selector, tag: selector.split(/[.#]/)[0], stable: true, matches: 1, descendants: 0, hidden: false, display: 'block',
+    });
+    const main = row(5, 'main.plate', 2);
+    const card = row(6, 'article.card', 3);
+    const title = row(3, 'h1#title', 3);
+    const header = row(2, 'header.topbar', 2);
+    await act(async () => stub.emit({ type: 'rail-move', node: title, parent: main, before: card, wasIn: header, wasBefore: null }));
+    await tick(120);
+    expect(badge()).toBe('1');
+    const moves = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'moves').at(-1)?.moves;
+    expect(moves).toEqual([{ selector: 'h1#title', parent: 'main.plate', before: 'article.card' }]);
+
+    await act(async () => stub.emit({ type: 'rail-hide', node: card }));
+    await tick(120);
+    expect(badge()).toBe('2');
+    const rules = stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; property: string; value: string }[];
+    expect(rules).toEqual([{ selector: 'article.card', property: 'display', value: 'none' }]);
+    // The eye again is that edit taken back, not a second one.
+    await act(async () => stub.emit({ type: 'rail-hide', node: card }));
+    await tick(120);
+    expect(badge()).toBe('1');
+  });
+
+  it('opens on Style when a stored session was left on a tab that moved into the rail', async () => {
+    await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), activeTab: 'layers' } }));
+    await act(async () => loadSession(1, 'http://localhost:5173/'));
+    await tick();
+    expect(getSession().activeTab).toBe('style');
+    expect(activeTab()).toBe('style');
+  });
+
+  it('shows a selection on Style, and an edit from the page reaches the badge', async () => {
     await click(host.querySelector('#tab-export'));
     expect(activeTab()).toBe('export');
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));
     await tick();
-    expect(activeTab()).toBe('layers');
-    expect(host.querySelector('[role=separator]')).not.toBeNull();
+    expect(activeTab()).toBe('style');
     expect(text()).toContain('h1#title');
 
     await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
