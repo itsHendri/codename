@@ -177,9 +177,16 @@ export const element = (over: Record<string, unknown> = {}) => ({
   box: {
     marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px',
     paddingTop: '8px', paddingRight: '16px', paddingBottom: '8px', paddingLeft: '16px',
-    width: '100px', height: '20px', boxSizing: 'border-box', display: 'block', gap: 'normal',
+    width: '100px', height: '20px', minWidth: '0px', minHeight: '0px', maxWidth: 'none', maxHeight: 'none',
+    boxSizing: 'border-box', display: 'block', gap: 'normal', rowGap: 'normal', columnGap: 'normal',
+    overflowX: 'visible', overflowY: 'visible',
   },
   layout: { flexDirection: 'row', justifyContent: 'normal', alignItems: 'normal', flexWrap: 'nowrap' },
+  position: { type: 'static', top: 'auto', right: 'auto', bottom: 'auto', left: 'auto', zIndex: 'auto' },
+  child: {
+    inFlex: false, parentDirection: 'row', flexGrow: '0', flexShrink: '1', flexBasis: 'auto', alignSelf: 'auto', order: '0',
+    parentWidth: 1000, parentHeight: 600,
+  },
   opacity: '1',
   type: { fontFamily: 'Inter', fontSize: '28px', fontWeight: '600', lineHeight: '34px', letterSpacing: 'normal', textAlign: 'start' },
   color: { text: '#15171B', background: '#E7E4DB', border: '#CBC7BC' },

@@ -612,3 +612,96 @@ describe('editing a state', () => {
     expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ state: null, selector: null });
   });
 });
+
+describe('the Style column', () => {
+  const radio = (group: string, label: string) =>
+    Array.from(host.querySelector(`[role=radiogroup][aria-label="${group}"]`)?.querySelectorAll('[role=radio]') ?? []).find(
+      (b) => b.textContent === label || b.getAttribute('aria-label') === label,
+    ) ?? null;
+  const lastRules = () =>
+    stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; property: string; value: string }[];
+  const selectHeading = async (over: Record<string, unknown> = {}) => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element(over) }));
+    await tick();
+  };
+
+  it('lays the groups out in a design tool\'s order, all open', async () => {
+    await selectHeading();
+    const heads = Array.from(host.querySelectorAll('section > button[aria-expanded]')).map((b) => b.textContent?.replace('▶', ''));
+    expect(heads).toEqual(['Position', 'Size', 'Layout', 'Spacing', 'Colour', 'Type', 'Border', 'Effects', 'Motion', 'Text']);
+    expect(host.querySelectorAll('section > button[aria-expanded="false"]')).toHaveLength(0);
+  });
+
+  it('positions the box and opens the insets once it is positioned', async () => {
+    await selectHeading();
+    expect(host.querySelector('[aria-label="Top"]')).toBeNull();
+    await click(radio('Position', 'absolute'));
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'position', value: 'absolute' }]);
+    await selectHeading({ position: { type: 'absolute', top: '0px', right: 'auto', bottom: 'auto', left: '0px', zIndex: '2' } });
+    expect(host.querySelector('[aria-label="Top"]')).not.toBeNull();
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Z-index"]')?.value).toBe('2');
+  });
+
+  it('claims no size mode from a pixel count, and writes one exactly', async () => {
+    await selectHeading();
+    const modes = host.querySelector('[role=radiogroup][aria-label="Width mode"]')!;
+    expect(Array.from(modes.querySelectorAll('[role=radio][aria-checked="true"]'))).toHaveLength(0);
+    // Relative: the box's share of the parent's content box, from the page's own numbers.
+    await click(radio('Width mode', 'rel'));
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'width', value: '10%' }]);
+    // Now the log has said it, the mode reads back.
+    expect(radio('Width mode', 'rel')?.getAttribute('aria-checked')).toBe('true');
+    await click(radio('Height mode', 'fit'));
+    await tick(120);
+    expect(lastRules()).toContainEqual({ selector: 'h1#title', property: 'height', value: 'fit-content' });
+  });
+
+  it('fills a flex child by growing along the parent\'s main axis', async () => {
+    await selectHeading({
+      child: { inFlex: true, parentDirection: 'row', flexGrow: '0', flexShrink: '1', flexBasis: 'auto', alignSelf: 'auto', order: '0', parentWidth: 1000, parentHeight: 600 },
+    });
+    await click(radio('Width mode', 'fill'));
+    await tick(120);
+    expect(lastRules()).toEqual([
+      { selector: 'h1#title', property: 'flex', value: '1 1 0%' },
+      { selector: 'h1#title', property: 'width', value: 'auto' },
+    ]);
+    expect(radio('Width mode', 'fill')?.getAttribute('aria-checked')).toBe('true');
+    // And the flex-child fields are there for it.
+    expect(host.querySelector('[aria-label="Flex grow"]')).not.toBeNull();
+  });
+
+  it('aligns a stack from the grid, as two properties', async () => {
+    await selectHeading({ box: { ...element().box, display: 'flex' } });
+    await click(radio('Align children', 'bottom right'));
+    await tick(120);
+    expect(lastRules()).toEqual([
+      { selector: 'h1#title', property: 'justify-content', value: 'flex-end' },
+      { selector: 'h1#title', property: 'align-items', value: 'flex-end' },
+    ]);
+    expect(badge()).toBe('2');
+  });
+
+  it('edits spacing in the diagram, reaching the sides the link says', async () => {
+    await selectHeading();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    const type = async (label: string, value: string) => {
+      const input = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      await act(async () => {
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await tick(120);
+    };
+    await type('Padding top', '12');
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'padding-top', value: '12' }]);
+    await click(radio('Sides an edit reaches', 'all'));
+    await type('Padding left', '20');
+    expect(lastRules().filter((r) => r.property.startsWith('padding')).map((r) => `${r.property}:${r.value}`).sort()).toEqual(
+      ['padding-bottom:20', 'padding-left:20', 'padding-right:20', 'padding-top:20'],
+    );
+  });
+});

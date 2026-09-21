@@ -174,9 +174,17 @@ export interface ElementProps {
     paddingLeft: string;
     width: string;
     height: string;
+    minWidth: string;
+    minHeight: string;
+    maxWidth: string;
+    maxHeight: string;
     boxSizing: string;
     display: string;
     gap: string;
+    rowGap: string;
+    columnGap: string;
+    overflowX: string;
+    overflowY: string;
   };
   /** How the box lays its children out; only meaningful when display is flex or grid. */
   layout: {
@@ -184,6 +192,23 @@ export interface ElementProps {
     justifyContent: string;
     alignItems: string;
     flexWrap: string;
+  };
+  /** Where the box sits: its `position`, the four insets and the stacking order. */
+  position: { type: string; top: string; right: string; bottom: string; left: string; zIndex: string };
+  /**
+   * How the box sits in its parent. `inFlex` when the parent is a flex
+   * container; the parent's content box is what a relative size is a share of.
+   */
+  child: {
+    inFlex: boolean;
+    parentDirection: string;
+    flexGrow: string;
+    flexShrink: string;
+    flexBasis: string;
+    alignSelf: string;
+    order: string;
+    parentWidth: number;
+    parentHeight: number;
   };
   opacity: string;
   type: {

@@ -134,6 +134,10 @@ function readProps(el: Element): ElementProps {
   }
   // What rendered it, if the dev build still knows. A built site answers nothing.
   const component = componentOf(el);
+  const parent = el.parentElement;
+  const ps = parent ? getComputedStyle(parent) : null;
+  const pr = parent?.getBoundingClientRect();
+  const inner = (px: string) => parseFloat(px) || 0;
   return {
     ...(component ? { component } : {}),
     selector: sel.selector,
@@ -154,15 +158,36 @@ function readProps(el: Element): ElementProps {
       paddingLeft: cs.paddingLeft,
       width: cs.width,
       height: cs.height,
+      minWidth: cs.minWidth,
+      minHeight: cs.minHeight,
+      maxWidth: cs.maxWidth,
+      maxHeight: cs.maxHeight,
       boxSizing: cs.boxSizing,
       display: cs.display,
       gap: cs.gap,
+      rowGap: cs.rowGap,
+      columnGap: cs.columnGap,
+      overflowX: cs.overflowX,
+      overflowY: cs.overflowY,
     },
     layout: {
       flexDirection: cs.flexDirection,
       justifyContent: cs.justifyContent,
       alignItems: cs.alignItems,
       flexWrap: cs.flexWrap,
+    },
+    position: { type: cs.position, top: cs.top, right: cs.right, bottom: cs.bottom, left: cs.left, zIndex: cs.zIndex },
+    child: {
+      inFlex: !!ps && /flex/.test(ps.display),
+      parentDirection: ps?.flexDirection ?? 'row',
+      flexGrow: cs.flexGrow,
+      flexShrink: cs.flexShrink,
+      flexBasis: cs.flexBasis,
+      alignSelf: cs.alignSelf,
+      order: cs.order,
+      // The parent's content box: what a percentage is a share of.
+      parentWidth: pr && ps ? Math.max(0, pr.width - inner(ps.paddingLeft) - inner(ps.paddingRight) - inner(ps.borderLeftWidth) - inner(ps.borderRightWidth)) : 0,
+      parentHeight: pr && ps ? Math.max(0, pr.height - inner(ps.paddingTop) - inner(ps.paddingBottom) - inner(ps.borderTopWidth) - inner(ps.borderBottomWidth)) : 0,
     },
     opacity: cs.opacity,
     type: {

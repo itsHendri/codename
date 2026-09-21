@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
 import type { InspectController, Scope } from '../lib/inspect';
-import { conditionKey, describe as describeCondition, STATES, widthConditions, type MaybeCondition } from '@/studio/conditions';
+import { conditionKey, describe as describeCondition, STATES, type MaybeCondition } from '@/studio/conditions';
+import { active } from '@/studio/changes';
 import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
@@ -42,6 +43,21 @@ export function StyleTab({
 }) {
   const el = ctl.element;
 
+  // What this log has written for the selection in the state being edited,
+  // so a size mode can be read back from the panel's own words rather than
+  // guessed from a computed pixel count.
+  const written = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (!el) return out;
+    const key = conditionKey(ctl.condition);
+    for (const e of active(ctl.log)) {
+      if (e.selector !== el.selector && e.selector !== el.intent.selector) continue;
+      if (conditionKey(e.condition) !== key) continue;
+      out[e.property] = e.to;
+    }
+    return out;
+  }, [el, ctl.log, ctl.condition]);
+
   if (!el) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
@@ -76,6 +92,7 @@ export function StyleTab({
         onText={ctl.setText}
         onPlay={ctl.playCondition}
         playable={ctl.condition?.kind === 'state'}
+        written={written}
       />
       <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
     </div>
