@@ -16,3 +16,14 @@ export function paddingShorthand(box: {
   if (t === b && r === l) return `${t} ${r}`;
   return `${t} ${r} ${b} ${l}`;
 }
+
+/**
+ * A computed length as a design tool shows it: pixel values to two decimals,
+ * everything else as it came. `getComputedStyle` reports `96.6641px` where
+ * Figma and Framer show `96.66`, and a field that scrubs from `96.6641` to
+ * `97.6641` reads as broken. Only `px` is touched: an `em`, a `%` or a
+ * keyword already means what it says.
+ */
+export function roundPx(value: string): string {
+  return value.replace(/(-?\d+\.\d{3,})px\b/g, (_m, n: string) => `${Math.round(parseFloat(n) * 100) / 100}px`);
+}
