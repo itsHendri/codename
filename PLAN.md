@@ -178,7 +178,7 @@ is that companion growing up.
   coloured when the log set its value (Webflow's provenance colour — a new
   meaning, so a feature), Framer's fold-to-"+" for groups with nothing set
   (W20's "all open" stands), and Figma's caption-above fields (would have
-  undone the box diagram). PRs #11–#16.
+  undone the box diagram). PRs #11–#17 (#17 the self-review pass).
 
 ## Live re-skin
 

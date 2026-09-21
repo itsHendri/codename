@@ -185,3 +185,17 @@ export const GripIcon = ({ className }: IconProps) => (
     <circle cx="5.5" cy="9" r="0.9" />
   </svg>
 );
+
+export const UndoIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M4 3 1.8 5.2 4 7.4" />
+    <path d="M2 5.2h5.3a2.7 2.7 0 0 1 0 5.4H5" />
+  </Small>
+);
+
+export const RedoIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M8 3l2.2 2.2L8 7.4" />
+    <path d="M10 5.2H4.7a2.7 2.7 0 0 0 0 5.4H7" />
+  </Small>
+);

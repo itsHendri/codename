@@ -37,7 +37,8 @@ let host: HTMLDivElement;
 const text = () => host.querySelector('#panel')?.textContent ?? '';
 const tabs = () => Array.from(host.querySelectorAll('[role=tab]')).map((t) => t.id.replace('tab-', ''));
 const activeTab = () => host.querySelector('[role=tab][aria-selected="true"]')?.id.replace('tab-', '');
-const badge = () => host.querySelector('#tab-changes span')?.textContent ?? '0';
+// The badge by name, not as the first span: the active tab's underline is a span too.
+const badge = () => host.querySelector('#tab-changes [data-badge]')?.textContent ?? '0';
 const click = (el: Element | null) => act(() => el?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
 beforeEach(async () => {

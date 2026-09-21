@@ -173,4 +173,4 @@ Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
 3. The Style column — new reads, size modes, align grid, editable spacing.
 4. Shortcuts — deferred.
 5. The visual system (W28) — tokens, the Style column, the rail, the bar
-   and edit card, the other tabs; one PR each (#11–#15), docs in #16.
+   and edit card, the other tabs; one PR each (#11–#15), docs in #16, a self-review pass in #17.

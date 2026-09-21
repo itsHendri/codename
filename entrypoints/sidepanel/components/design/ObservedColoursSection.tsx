@@ -41,7 +41,7 @@ export function ObservedColoursSection({
           return (
             <div key={key} className={`flex flex-col gap-1 px-2 py-1.5 ${manual ? 'bg-surface-selected/40' : ''}`}>
               <div className="flex items-center gap-1.5 text-2xs">
-                <span className="h-3.5 w-3.5 shrink-0 rounded-sm border border-line" style={{ background: key }} />
+                <span className="h-4 w-4 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]" style={{ background: key }} />
                 <code className="text-xs">{key}</code>
                 <span className="text-ink-muted">{c.usage.join(' · ')}</span>
                 {c.varNames.length > 0 && (

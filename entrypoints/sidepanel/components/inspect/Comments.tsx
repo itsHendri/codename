@@ -58,7 +58,7 @@ export function CommentComposer({
         }}
         rows={2}
         placeholder="What should change here?"
-        className="w-full resize-none rounded-control border border-line bg-surface-panel px-2 py-1 text-xs"
+        className="field w-full resize-none px-2 py-1.5"
       />
       <div className="flex items-center gap-2">
         <span className="text-2xs text-ink-muted">⌘↩ to pin it</span>
