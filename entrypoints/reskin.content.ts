@@ -37,7 +37,7 @@ import {
 } from '@/studio/conditionSheet';
 import type { DarkHook } from '@/studio/siteMode';
 import { hoistDark, lightOnlyMedia, previewReach } from '@/studio/siteDark';
-import { mediaMatches, refreshFrame, withSourceMedia } from '@/studio/pageFrame';
+import { mediaMatches, refreshFrame, sourceMedia, withSourceMedia } from '@/studio/pageFrame';
 
 interface Override {
   name: string;
@@ -250,7 +250,9 @@ export default defineContentScript({
     const suppressLight = (rules: CSSRuleList) => {
       for (const found of lightOnlyMedia([rules])) {
         const rule = found as CSSMediaRule;
-        suppressed.push({ rule, was: rule.media.mediaText });
+        // The page's own text, not a device frame's stand-in for it: what is
+        // put back is what the page wrote, and the frame answers it again.
+        suppressed.push({ rule, was: sourceMedia(rule.media) });
         rule.media.mediaText = 'not all';
       }
     };

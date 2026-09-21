@@ -837,8 +837,12 @@ the primary use case.
   `scanner.content.ts`, `rail.content.tsx` and `background.ts` — are tested
   through what they are built from (`studio/scan/`, `studio/inspect/`,
   `studio/conditionSheet.ts`) rather than as scripts. What is left in them
-  is browser-coupled and covered by the harness, not the suite. `studio/export/designSystemMd.ts` and `studio/engine/semantics.ts`
-  are also past 800 lines and want splitting.
+  is browser-coupled and covered by the harness, not the suite. `studio/export/designSystemMd.ts` (W24: its sections are files under
+  `studio/export/sections/`, the helpers in `mdHelpers.ts`; 537 lines left)
+  and `studio/engine/semantics.ts` (W24: the picking helpers, the action,
+  status and chart tokens are under `studio/engine/semantics/`; what is left
+  is `defaultSemanticMapping` itself, 917 lines, one function that would
+  want a real redesign rather than a cut).
 - The definition search reads text, not a CSS parser: a definition written
   inside a string, or produced by a preprocessor that the source does not
   spell out, is not found. A file over 2MB, or a search past its budget, is
