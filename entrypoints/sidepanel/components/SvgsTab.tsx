@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { zipSync, strToU8 } from 'fflate';
 import type { SvgAsset } from '@/shared/types';
 import { download } from '../lib/exporters';
-import { CopyIcon, DownloadIcon } from './icons';
+import { CheckIcon, CopyIcon, DownloadIcon } from './icons';
 
 function svgDataUri(markup: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(markup)}`;
@@ -91,17 +91,19 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto">
         {/* Wraps: in the rail this has 240px, not the panel's 360. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="shrink-0 font-medium">{svgs.length} SVGs found</span>
-          <div className="ml-auto flex gap-1.5 text-xs">
+          <span className="shrink-0 text-xs font-medium text-ink">{svgs.length} SVGs</span>
+          <div role="radiogroup" aria-label="Filter" className="ml-auto flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
             {(['all', 'inline', 'external'] as const).map((f) => (
               <button
                 key={f}
+                role="radio"
+                aria-checked={filter === f}
                 onClick={() => setFilter(f)}
-                className={`rounded-full border px-2.5 py-0.5 capitalize ${
-                  filter === f ? 'border-accent text-accent' : 'border-line text-ink-muted'
+                className={`rounded-[4px] px-1.5 text-xs capitalize ${
+                  filter === f ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {f}
@@ -110,18 +112,18 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2.5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5">
           {assets.map((asset) => (
             <SvgTile key={asset.id} asset={asset} selected={selected.has(asset.id)} onToggle={() => toggle(asset.id)} />
           ))}
         </div>
-        {assets.length === 0 && <p className="text-center text-sm text-ink-muted">No SVGs in this filter.</p>}
-        <p className="text-xs text-ink-muted">Sources: inline · img · css background · sprite &lt;use&gt; · favicon</p>
+        {assets.length === 0 && <p className="text-xs text-ink-muted">No SVGs in this filter.</p>}
+        <p className="text-2xs text-ink-muted">Sources: inline · img · css background · sprite &lt;use&gt; · favicon</p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-t border-line-subtle px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-sm text-ink-muted">
+      <div className="-mx-2.5 -mb-2.5 flex flex-col gap-1.5 border-t border-line-subtle px-2.5 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-2xs text-ink-muted">
             {selected.size ? (
               <>
                 {selected.size} selected ·{' '}
@@ -136,13 +138,13 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
           <button
             onClick={downloadZip}
             disabled={zipping || svgs.length === 0}
-            className="ml-auto flex flex-1 items-center justify-center gap-2 rounded-card border border-accent bg-accent-soft py-2 font-medium text-accent hover:bg-accent-soft disabled:opacity-50"
+            className="ml-auto flex h-control flex-1 items-center justify-center gap-1.5 rounded-control bg-accent text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
           >
             <DownloadIcon />
             {zipping ? 'Zipping…' : `Download ${selected.size || svgs.length} · ZIP`}
           </button>
         </div>
-        {zipNote && <p className="text-xs text-warn-ink">{zipNote}</p>}
+        {zipNote && <p className="text-2xs text-warn-ink">{zipNote}</p>}
       </div>
     </div>
   );
@@ -160,23 +162,23 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
   const preview = asset.markup ? svgDataUri(asset.markup) : asset.url;
   return (
     <div
-      className={`relative flex h-22 cursor-pointer items-center justify-center rounded-card border p-2 checkerboard ${
-        selected ? 'border-accent ring-1 ring-accent' : 'border-line hover:border-line-strong'
+      className={`group relative flex h-20 cursor-pointer items-center justify-center rounded-control p-2 checkerboard ${
+        selected ? 'shadow-[0_0_0_2px_var(--accent)]' : 'shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] hover:shadow-[0_0_0_1px_var(--line-strong)]'
       }`}
       onClick={onToggle}
       title={asset.url ?? `${asset.source} SVG`}
     >
       <span
-        className={`absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded border text-2xs ${
-          selected ? 'border-accent bg-accent text-accent-ink' : 'border-line bg-surface-panel'
+        className={`absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-[3px] ${
+          selected ? 'bg-accent text-accent-ink' : 'bg-white/90 opacity-0 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)] group-hover:opacity-100'
         }`}
       >
-        {selected ? '✓' : ''}
+        {selected && <CheckIcon className="h-2.5 w-2.5" />}
       </span>
-      <span className="absolute right-1 top-1 flex gap-0.5">
+      <span className="absolute right-1 top-1 flex gap-0.5 opacity-0 group-hover:opacity-100">
         {asset.markup && (
           <button
-            className="rounded bg-surface-panel/80 p-0.5 text-ink-muted hover:text-accent"
+            className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-surface-panel/90 text-ink-muted hover:text-ink"
             title="Copy markup"
             aria-label="Copy markup"
             onClick={(e) => {
@@ -184,11 +186,11 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
               void navigator.clipboard.writeText(asset.markup!);
             }}
           >
-            <CopyIcon />
+            <CopyIcon className="h-2.5 w-2.5" />
           </button>
         )}
         <button
-          className="rounded bg-surface-panel/80 px-1 text-2xs text-ink-muted hover:text-accent"
+          className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-surface-panel/90 text-ink-muted hover:text-ink"
           title="Download this SVG"
           aria-label="Download this SVG"
           onClick={(e) => {
@@ -196,7 +198,7 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
             void downloadOne(asset);
           }}
         >
-          ↓
+          <DownloadIcon className="h-2.5 w-2.5" />
         </button>
       </span>
       {preview ? (
@@ -205,7 +207,7 @@ function SvgTile({ asset, selected, onToggle }: { asset: SvgAsset; selected: boo
         <span className="text-2xs text-ink-muted">{asset.source}</span>
       )}
       {asset.bytes != null && (
-        <span className="absolute bottom-0.5 right-1 rounded bg-surface-panel/80 px-0.5 text-2xs text-ink-muted">
+        <span className="absolute bottom-1 right-1 rounded-[3px] bg-surface-panel/90 px-1 font-mono text-2xs text-ink-muted">
           {asset.bytes < 1024 ? `${asset.bytes} B` : `${(asset.bytes / 1024).toFixed(1)} KB`}
         </span>
       )}

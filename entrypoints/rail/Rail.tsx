@@ -6,7 +6,7 @@ import { ComponentsStrip } from '@/entrypoints/sidepanel/components/inspect/Comp
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
 import { TabStrip } from '@/entrypoints/sidepanel/components/TabStrip';
-import { LayersIcon, PagesIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
+import { LayersIcon, PagesIcon, RefreshIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
@@ -115,10 +115,10 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
         {tab === 'pages' ? (
           <>
-            <div className="flex shrink-0 items-center justify-between text-2xs text-ink-muted">
+            <div className="flex shrink-0 items-center justify-between gap-2 text-2xs text-ink-muted">
               <span>
                 {pages.length
-                  ? `${pages.length} pages${sitemap?.length ? ', from this page and the sitemap' : ' this page links to'}`
+                  ? `${pages.length} ${pages.length === 1 ? 'page' : 'pages'}${sitemap?.length ? ', from this page and the sitemap' : ' this page links to'}`
                   : sitemap === null
                     ? 'Reading the sitemap…'
                     : 'This page links to no other page on its site, and it has no sitemap.'}
@@ -126,25 +126,27 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
               <button
                 onClick={() => setPagesTurn((t) => t + 1)}
                 title="Read the page's links again"
-                className="rounded-control border border-line px-2 py-0.5 text-ink-secondary hover:bg-surface-control"
+                aria-label="Read the page's links again"
+                className="flex h-control w-6 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink"
               >
-                ↻
+                <RefreshIcon />
               </button>
             </div>
             {pages.length > 0 && (
-              <ul aria-label="Pages" className="m-0 min-h-0 flex-1 list-none overflow-y-auto rounded-control border border-line-subtle p-0">
+              <ul aria-label="Pages" className="m-0 -mx-1 flex min-h-0 flex-1 list-none flex-col overflow-y-auto px-1 py-0">
                 {pages.map((p) => (
                   <li key={p.path}>
                     <a
                       href={p.href}
                       aria-current={p.current ? 'page' : undefined}
                       title={p.count > 1 ? `${p.href} · ${p.count} links here` : p.href}
-                      className={`flex items-baseline gap-1.5 px-2 py-1 text-2xs no-underline ${
-                        p.current ? 'bg-surface-selected text-ink' : 'text-ink-secondary hover:bg-surface-control'
+                      className={`flex h-6 items-center gap-1.5 rounded-[5px] px-1.5 text-xs no-underline ${
+                        p.current ? 'bg-accent-soft text-ink' : 'text-ink-secondary hover:bg-surface-field'
                       }`}
                     >
+                      <PagesIcon className={`h-3 w-3 shrink-0 ${p.current ? 'text-accent' : 'text-ink-muted'}`} />
                       <span className="min-w-0 flex-1 truncate">{p.label}</span>
-                      <span className="max-w-[45%] shrink-0 truncate font-mono text-ink-muted">{p.path}</span>
+                      <span className="max-w-[45%] shrink-0 truncate font-mono text-2xs text-ink-muted">{p.path}</span>
                     </a>
                   </li>
                 ))}
