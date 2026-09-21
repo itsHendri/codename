@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Definition } from '@/shared/protocol';
 import type { ScanResult } from '@/shared/types';
 import { buildChangeSet, isEmpty, isLocal, summariseElements, toJson, toPrompt } from './commit';
 import type { ElementChange } from './changes';
@@ -312,5 +313,307 @@ describe('toJson', () => {
   it('round-trips', () => {
     const set = buildChangeSet(scanOf(), [markOverride], {});
     expect(JSON.parse(toJson(set))).toEqual(JSON.parse(JSON.stringify(set)));
+  });
+});
+
+describe('what the bridge found in the repository', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'manual' as const };
+  const at = (file: string, line: number, context: Definition['context'] = 'root'): Definition => ({
+    file,
+    line,
+    context,
+    kind: 'css',
+    value: '#BE3A22',
+  });
+
+  it('names the position when there is exactly one', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+    });
+    expect(set.tokens[0]?.definedAt).toHaveLength(1);
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+
+  it('counts them and refuses to choose when there are several', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12), at('src/dark.css', 4, 'dark')] },
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('2 definitions');
+    expect(prompt).toContain('src/dark.css:4 (dark)');
+    expect(prompt).toContain("the cascade's business");
+  });
+
+  it('says nothing about a position when nothing was found', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: {} });
+    expect(set.tokens[0]?.definedAt).toBeUndefined();
+    expect(toPrompt(set)).not.toContain('defined at');
+  });
+
+  it('stops saying "already applied" once the token moves again', () => {
+    const set = buildChangeSet(scan, [{ ...override, to: '#0000FF' }], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      // Applied at a different value: this is a change the agent has not heard about.
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C' }],
+    });
+    expect(toPrompt(set)).not.toContain('already applied');
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+
+  it('tells the agent not to write a definition the person already applied', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C' }],
+    });
+    expect(toPrompt(set)).toContain('already applied in src/index.css:12 — do not write this one again');
+  });
+
+  it('lists only the first few of many', () => {
+    const many = Array.from({ length: 7 }, (_, i) => at(`src/${i}.css`, i + 1));
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: { '--mark': many } });
+    const line = toPrompt(set).split('\n').find((l) => l.includes('definitions:'))!;
+    expect(line).toContain('and 3 more');
+    expect(line).not.toContain('src/5.css');
+  });
+
+  it('names the project and its branch in the opening line', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      project: { name: 'forfontsake', path: '/Users/x/forfontsake', branch: 'main' },
+    });
+    expect(toPrompt(set)).toContain('running from forfontsake on main');
+  });
+
+  it('still hands over no rule bodies, whatever it found', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at('src/index.css', 12)] },
+      project: { name: 'x', path: '/x' },
+    });
+    expect(toPrompt(set)).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+});
+
+describe('the note about where values came from', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'manual' as const };
+
+  it('sends the agent looking when nothing was found', () => {
+    expect(toPrompt(buildChangeSet(scan, [override], {}))).toContain('find the real definitions in the source');
+  });
+
+  it('does not, once the project has been searched', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [{ file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' }] },
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).not.toContain('find the real definitions in the source');
+    expect(prompt).toContain('come from a search of this project');
+  });
+});
+
+describe('an edit made in a state', () => {
+  const scan = scanOf();
+  const change = (over: Partial<ElementChange> = {}): ElementChange => ({
+    id: 'c1',
+    selector: '.btn',
+    matches: 3,
+    stable: true,
+    property: 'background-color',
+    from: '#fff',
+    to: '#eee',
+    status: 'applied',
+    at: new Date().toISOString(),
+    ...over,
+  });
+  const hover = { kind: 'state', state: 'hover' } as const;
+  const tablet = { kind: 'width', preset: 'Tablet', dir: 'max' as const, px: 768 } as const;
+
+  it('is a separate decision from the same property in the default state', () => {
+    const edits = summariseElements([change(), change({ id: 'c2', to: '#ddd', condition: hover })]);
+    expect(edits).toHaveLength(2);
+    expect(edits.map((e) => e.to)).toEqual(['#eee', '#ddd']);
+  });
+
+  it('still collapses two scrubs of the same property in the same state', () => {
+    const edits = summariseElements([change({ condition: hover }), change({ id: 'c2', to: '#ccc', condition: hover })]);
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.to).toBe('#ccc');
+  });
+
+  it('says which state it is about, under the selector it belongs to', () => {
+    const set = buildChangeSet(scan, [], {}, [change(), change({ id: 'c2', to: '#ddd', condition: hover })]);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('- `.btn` (3 elements)');
+    expect(prompt).toContain('hover — `:hover`');
+    expect(prompt).toContain('means `:focus-visible`');
+    // The default lines keep their place and their indentation.
+    expect(prompt).toContain('  - `background-color`: `#fff` → `#eee`');
+    expect(prompt).toContain('    - `background-color`: `#fff` → `#ddd`');
+  });
+
+  it('names a width by its query', () => {
+    const set = buildChangeSet(scan, [], {}, [change({ condition: tablet })]);
+    expect(toPrompt(set)).toContain('≤768 — `@media (max-width: 768px)`');
+  });
+
+  it('leaves a brief with no states reading exactly as it did', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change()]));
+    expect(prompt).not.toContain('A line under a state heading');
+    expect(prompt).toContain('  - `background-color`: `#fff` → `#eee`');
+  });
+
+  it('still hands over no rule bodies', () => {
+    const set = buildChangeSet(scan, [], {}, [change({ condition: hover })]);
+    expect(toPrompt(set)).not.toMatch(/\{[^}]*:[^}]*\}/);
+  });
+});
+
+describe('the order states appear in the brief', () => {
+  const scan = scanOf();
+  const at = (condition: unknown, to: string): ElementChange => ({
+    id: `c${to}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property: 'color',
+    from: '#000',
+    to,
+    condition: condition as ElementChange['condition'],
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('is the order the page applies them in, not alphabetical', () => {
+    const set = buildChangeSet(scan, [], {}, [
+      at({ kind: 'state', state: 'hover' }, '#4'),
+      at({ kind: 'scheme', scheme: 'dark' }, '#3'),
+      at({ kind: 'width', preset: 'Mobile S', dir: 'max' as const, px: 375 }, '#2'),
+      at({ kind: 'width', preset: 'Laptop', dir: 'max' as const, px: 1280 }, '#1'),
+      at(undefined, '#0'),
+    ]);
+    const prompt = toPrompt(set);
+    const order = ['#0', '#1', '#2', '#3', '#4'].map((v) => prompt.indexOf(v));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});
+
+describe('the token hint under a state', () => {
+  const scan = scanOf({
+    customProps: [
+      { name: '--surface', value: '#FFFFFF', source: 'x', uses: 4, dark: '#000000' },
+      { name: '--mark', value: '#BE3A22', source: 'x', uses: 34 },
+    ],
+  });
+  const edit = (condition?: unknown): ElementChange => ({
+    id: 'c1',
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property: 'background-color',
+    from: '#111111',
+    to: '#FFFFFF',
+    condition: condition as ElementChange['condition'],
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('names a variable holding that value in the default state', () => {
+    expect(buildChangeSet(scan, [], {}, [edit()]).elements[0]?.couldBe).toBe('--surface');
+  });
+
+  it('still names it under a state, since a state does not move a variable', () => {
+    expect(buildChangeSet(scan, [], {}, [edit({ kind: 'state', state: 'hover' })]).elements[0]?.couldBe).toBe('--surface');
+  });
+
+  it('says nothing under dark, where the same name holds something else', () => {
+    // `--surface` is #000000 in this page's dark mode, so naming it here
+    // would be a wrong fact rather than a helpful one.
+    expect(buildChangeSet(scan, [], {}, [edit({ kind: 'scheme', scheme: 'dark' })]).elements[0]?.couldBe).toBeUndefined();
+  });
+
+  it('says nothing inside a width query either', () => {
+    const set = buildChangeSet(scan, [], {}, [edit({ kind: 'width', preset: 'Tablet', dir: 'max' as const, px: 768 })]);
+    expect(set.elements[0]?.couldBe).toBeUndefined();
+  });
+});
+
+describe('a definition search that stopped early', () => {
+  const scan = scanOf();
+  const override = { name: '--mark', from: '#BE3A22', to: '#1C7F5C', reason: 'exact' as const };
+  const at = { file: 'src/index.css', line: 12, kind: 'css' as const, context: 'root' as const, value: '#BE3A22' };
+
+  it('does not call the one it found the only one', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      definitions: { '--mark': [at] },
+      definitionsTruncated: true,
+    });
+    const prompt = toPrompt(set);
+    expect(prompt).not.toContain('defined at src/index.css:12');
+    expect(prompt).toContain('found at src/index.css:12');
+    expect(prompt).toContain('may be others');
+  });
+
+  it('says "defined at" when the search was complete', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], { definitions: { '--mark': [at] } });
+    expect(toPrompt(set)).toContain('defined at src/index.css:12');
+  });
+});
+
+describe('a brief that asks for movement', () => {
+  const scan = scanOf();
+  const change = (property: string, to: string): ElementChange => ({
+    id: `c-${property}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property,
+    from: 'none',
+    to,
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('says what a transition owes to someone who asked for less of it', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('transition', 'opacity 200ms ease-out')]));
+    expect(prompt).toContain('prefers-reduced-motion');
+  });
+
+  it('says nothing about motion when nothing moves', () => {
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('color', '#fff')]));
+    expect(prompt).not.toContain('prefers-reduced-motion');
+  });
+
+  it('carries the easing as the name the page gave it', () => {
+    // The point of picking `--ease-out` is that source gets `--ease-out`.
+    const prompt = toPrompt(buildChangeSet(scan, [], {}, [change('transition', 'opacity 200ms var(--ease-out)')]));
+    expect(prompt).toContain('var(--ease-out)');
+  });
+});
+
+describe('what counts as asking for movement', () => {
+  const scan = scanOf();
+  const edit = (property: string, to: string): ElementChange => ({
+    id: `m-${property}-${to}`,
+    selector: '.btn',
+    matches: 1,
+    stable: true,
+    property,
+    from: 'none',
+    to,
+    status: 'applied',
+    at: new Date().toISOString(),
+  });
+
+  it('says nothing about motion for a blur that does not move', () => {
+    // Frosted glass is not motion, and the note on it was noise.
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('backdrop-filter', 'blur(8px)')]))).not.toContain('prefers-reduced-motion');
+  });
+
+  it('says nothing when the edit takes the movement away', () => {
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('transition', 'none')]))).not.toContain('prefers-reduced-motion');
+  });
+
+  it('still says it when something is asked to move', () => {
+    expect(toPrompt(buildChangeSet(scan, [], {}, [edit('transition', 'opacity 200ms ease')]))).toContain('prefers-reduced-motion');
   });
 });

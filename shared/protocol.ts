@@ -37,6 +37,31 @@ export interface HelloPayload {
   token: string;
   extensionVersion: string;
   sessionId: string;
+  /**
+   * `chrome.runtime.id`. The bridge pins the first one it pairs with and
+   * refuses the rest — a narrowing, not an authentication: an Origin header
+   * is only trustworthy coming from a real browser.
+   */
+  extensionId?: string;
+}
+
+/**
+ * The folder the bridge is running in. The extension sees a URL; this is how
+ * a decision gets keyed to a repository instead of an origin. Every field
+ * past `path` is absent rather than guessed when git cannot say.
+ */
+export interface ProjectInfo {
+  path: string;
+  name: string;
+  root?: string;
+  branch?: string;
+  dirty?: boolean;
+}
+
+/** What the bridge says back to a hello it accepted. */
+export interface HelloAck {
+  bridgeVersion: string;
+  project?: ProjectInfo;
 }
 
 /** An element the user has pinned in the panel. */
@@ -91,6 +116,12 @@ export interface SessionState {
   comments: Comment[];
   /** The user's consent for the agent to paint on this page. */
   agentMayWrite: boolean;
+  /**
+   * The user's consent for the bridge to write one variable definition in the
+   * project it runs in. Off until they say so, per project, and the only
+   * write the bridge is ever allowed.
+   */
+  bridgeMayWrite?: boolean;
   /** Tokens the person locked: keep as is, whatever a brief touches. */
   locks: string[];
   /** The standing rules, rendered by the panel, for the agent to read before it asks for anything. */
@@ -140,4 +171,53 @@ export interface ScreenshotResult {
   matches?: number;
 }
 
-export type MessageType = 'hello' | 'state' | 'request' | 'response';
+/* ---------------- what the bridge finds in the repository ---------------- */
+
+/** Where a custom property is defined in source, as the bridge found it. */
+export interface Definition {
+  /** Repository-relative, posix separators. */
+  file: string;
+  line: number | null;
+  kind: 'css' | 'theme' | 'dtcg' | 'flat-json';
+  /**
+   * What the definition sits inside. Only `root` is unambiguous enough to
+   * write to: a scoped or media-scoped definition is one of several the
+   * cascade picks between.
+   */
+  context: 'root' | 'scoped' | 'media' | 'dark';
+  value: string;
+}
+
+export interface DefinitionsPayload {
+  /** Keyed by property name, including the leading `--`. */
+  found: Record<string, Definition[]>;
+  /** Set when the search hit its file or time budget, so absence proves nothing. */
+  truncated?: boolean;
+}
+
+/* ---------------- panel → bridge ---------------- */
+
+/**
+ * What the panel asks the bridge for. The mirror image of `BridgeRequest`:
+ * the panel owns the page, the bridge owns the folder, and each asks the
+ * other for what only it can see.
+ */
+export type PanelRequest =
+  /** Where are these properties defined in source? */
+  | { method: 'find_definitions'; names: string[] }
+  /**
+   * Write one value in one definition. Refused unless the person turned the
+   * project's write switch on, and unless the definition is still exactly
+   * where and what it was when it was found.
+   */
+  | { method: 'apply_definition'; name: string; from: string; to: string; file: string; line: number };
+
+export interface AppliedDefinition {
+  name: string;
+  file: string;
+  line: number;
+  from: string;
+  to: string;
+}
+
+export type MessageType = 'hello' | 'state' | 'request' | 'response' | 'definitions' | 'ask';

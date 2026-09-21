@@ -10,7 +10,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
-import { updateSession } from './lib/session';
+import { handleBridgeFrame } from './lib/bridge';
+import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
 import { element, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -184,5 +185,376 @@ describe('the panel', () => {
     await tick(400);
     const stored = (await chrome.storage.session.get('session:1'))['session:1'] as { activeTab?: string };
     expect(stored.activeTab).toBe('changes');
+  });
+});
+
+describe('the project the bridge is running in', () => {
+  const ack = (project: { name: string; path: string; branch?: string; dirty?: boolean } | null) =>
+    handleBridgeFrame({ v: 1, id: 'a', type: 'response', replyTo: 'h', ok: true, payload: { bridgeVersion: '0.1.0', ...(project ? { project } : {}) } });
+
+  const definitions = (found: Record<string, { file: string; line: number; kind: 'css'; context: 'root' | 'media'; value: string }[]>) =>
+    handleBridgeFrame({ v: 1, id: 'd', type: 'definitions', payload: { found } });
+
+  /** A token edit in the queue, so Changes has something to show. */
+  const editAToken = async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+  };
+
+  it('names the project and its branch on Changes', async () => {
+    await act(async () => void ack({ name: 'forfontsake', path: '/Users/x/ffs', branch: 'main', dirty: true }));
+    await tick();
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('forfontsake');
+    expect(text()).toContain('main');
+    expect(text()).toContain('Bridge may edit definitions in forfontsake');
+  });
+
+  it('keeps both consents when both are given, rather than one erasing the other', async () => {
+    // On a local page the page's scope and the project's are the same string,
+    // which is how saving one answer used to wipe the other.
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(120);
+    await act(async () => allow('agentMayWrite', true));
+    await act(async () => allow('bridgeMayWrite', true));
+    await tick();
+    const stored = await chrome.storage.local.get([
+      'consent:paint:project:/Users/x/ffs',
+      'consent:write:project:/Users/x/ffs',
+    ]);
+    expect(stored).toEqual({
+      'consent:paint:project:/Users/x/ffs': true,
+      'consent:write:project:/Users/x/ffs': true,
+    });
+    await act(async () => loadSession(1, 'http://localhost:5173/'));
+    expect(getSession()).toMatchObject({ agentMayWrite: true, bridgeMayWrite: true });
+  });
+
+  it('keeps an edit made while the bridge was away when it comes back', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(150);
+    // Something already decided while paired, so the project has a record.
+    await act(async () => setVarOverride('--ink', '#222222'));
+    await tick(400);
+
+    // The agent restarts and takes the bridge with it: the panel forgets the
+    // project it was told about, which is what a closing socket does.
+    await act(async () => void ack(null));
+    await act(async () => setVarOverride('--mark', '#1C7F5C'));
+    // Past the save debounce, so the edit is on disk under whatever key applied.
+    await tick(400);
+
+    // Back again, naming the same project.
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(200);
+    expect(getSession().varOverrides).toEqual({ '--ink': '#222222', '--mark': '#1C7F5C' });
+  });
+
+  it('offers no Apply on a page that is not served locally, whatever was allowed', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () => allow('bridgeMayWrite', true));
+    await act(async () =>
+      updateSession((prev) => ({ scan: { ...prev.scan!, url: 'https://forfontsake.com/' }, varOverrides: { '--mark': '#1C7F5C' } })),
+    );
+    await act(async () => void definitions({ '--mark': [{ file: 'src/index.css', line: 2, kind: 'css', context: 'root', value: '#BE3A22' }] }));
+    await tick(150);
+    await click(host.querySelector('#tab-changes'));
+    // The row is there, with its position — only the write is withheld.
+    expect(text()).toContain('src/index.css:2');
+    expect(getSession().bridgeMayWrite).toBe(true);
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
+  });
+
+  it('says nothing about a project while no bridge is paired', async () => {
+    await act(async () => void ack(null));
+    await tick();
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).not.toContain('Bridge may edit definitions');
+  });
+
+  it('shows where a token is defined, and offers Apply only once the project allows it', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () =>
+      updateSession({ varOverrides: { '--mark': '#1C7F5C' } }),
+    );
+    await act(async () => void definitions({ '--mark': [{ file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' }] }));
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('src/index.css:12');
+    const applyBefore = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Apply');
+    expect(applyBefore).toBeUndefined();
+
+    await act(async () => allow('bridgeMayWrite', true));
+    await tick();
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(true);
+  });
+
+  it('does not offer Apply when more than one definition could be the one', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+    await act(async () => allow('bridgeMayWrite', true));
+    await act(async () =>
+      void definitions({
+        '--mark': [
+          { file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' },
+          { file: 'src/dark.css', line: 4, kind: 'css', context: 'media', value: '#BE3A22' },
+        ],
+      }),
+    );
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('2 definitions — the cascade decides');
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
+  });
+});
+
+describe('what happens when the bridge comes and goes', () => {
+  const ack = (project: { name: string; path: string; branch?: string } | null) =>
+    handleBridgeFrame({ v: 1, id: 'a', type: 'response', replyTo: 'h', ok: true, payload: { bridgeVersion: '0.1.0', ...(project ? { project } : {}) } });
+
+  it('leaves the edits on the page when the agent quits', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+    expect(badge()).toBe('1');
+
+    // The bridge going away is not a reason to take the work back.
+    await act(async () => void ack(null));
+    await tick(120);
+    expect(badge()).toBe('1');
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).not.toContain('Bridge may edit definitions');
+  });
+
+  it('does not offer to write to a project the page is not served from', async () => {
+    await act(async () => updateSession({ scan: { ...getSession().scan!, url: 'https://forfontsake.com/' } }));
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('not served from ffs');
+    expect(text()).not.toContain('Bridge may edit definitions');
+  });
+});
+
+describe('editing a state', () => {
+  const chips = () => Array.from(host.querySelectorAll('[role=radio]')).map((b) => b.textContent);
+  const chip = (label: string) =>
+    Array.from(host.querySelectorAll('[role=radio]')).find((b) => b.textContent === label) ?? null;
+
+  const selectHeading = async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick();
+  };
+
+  it('offers the states once something is selected, with the widths behind one control', async () => {
+    await selectHeading();
+    expect(chips()).toEqual(expect.arrayContaining(['default', 'hover', 'focus', 'active', 'dark']));
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]');
+    expect(widths).not.toBeNull();
+    // This page declares one breakpoint of its own, so that is what is
+    // offered — not a device preset it was never written against.
+    expect(Array.from(widths!.options).map((o) => o.textContent?.trim())).toEqual(['width…', '≤700']);
+  });
+
+  it('holds the page in the state and shows what it already does there', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    // The inspector was told to put the class on, and the page answered with
+    // its own hover rules.
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'state' && m.state === 'hover')).toBe(true);
+    expect(text()).toContain('Editing');
+    expect(text()).toContain('what this element paints on hover');
+    expect(text()).toContain('color: rgb(190, 58, 34)');
+  });
+
+  it('writes an edit made in a state under both the pseudo and the class', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(120);
+    const rules = stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; condition?: unknown }[];
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.condition).toMatchObject({ kind: 'state', state: 'hover' });
+    expect(badge()).toBe('1');
+  });
+
+  it('keeps a default edit and a hover edit as two changes', async () => {
+    await selectHeading();
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#00ff00' }));
+    await tick();
+    await click(chip('hover'));
+    await tick(120);
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(120);
+    expect(badge()).toBe('2');
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('hover');
+  });
+
+  it('turns the page dark when dark is the state being edited, and back again', async () => {
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
+    await click(chip('default'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'light' });
+  });
+
+  it('asks for the viewport when a width is the state being edited', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = 'width:max:700';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(120);
+    // The width travels, not just a preset name: 700px is not a device.
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'set-viewport' && m.width === 700)).toBe(true);
+  });
+
+  it('reads the element again when the selection changes while a state is held', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    const before = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'read').length;
+
+    // A different element, still in hover: its values — and the `from` of the
+    // next edit — have to be that state's, not its resting ones.
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ selector: 'h2.card-title' }) }));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'read').length).toBeGreaterThan(before);
+    expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ selector: 'h2.card-title', state: 'hover' });
+  });
+
+  it('puts the state back on the page after a reload', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+
+    // What a reload looks like to the panel: the managed sheets are gone and
+    // have to be pushed again.
+    await act(async () => updateSession((prev) => ({ generation: prev.generation + 1 })));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBeGreaterThan(before);
+  });
+
+  it('asks the page to do the work once per pick, not twice', async () => {
+    await selectHeading();
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+    await click(chip('hover'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBe(before + 1);
+  });
+
+  it('says nothing to a page that has never been put into a state', async () => {
+    await selectHeading();
+    expect(stub.sent.some((m) => m.type === 'state-set')).toBe(false);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'state')).toBe(false);
+  });
+
+  it('puts the page back when the selection goes, not just the panel', async () => {
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
+
+    // Deselecting drops the condition, so the page has to come back out of
+    // dark — otherwise the next edit is read off a page nothing says is dark.
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'light' });
+  });
+
+  it('puts the viewport back when the selection goes', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = 'width:max:700';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(150);
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(150);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'reset-viewport')).toBe(true);
+  });
+
+  it('reads the page again when a variable moves under a held state', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(150);
+    const before = stub.sent.filter((m) => m.type === 'state-set').length;
+    // The hoist copies the page's own rules, and this changes what they say.
+    await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+    await tick(200);
+    expect(stub.sent.filter((m) => m.type === 'state-set').length).toBeGreaterThan(before);
+  });
+
+  it('drops a width the page turns out not to have', async () => {
+    await selectHeading();
+    const widths = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    await act(async () => {
+      widths.value = 'width:max:700';
+      widths.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await tick(150);
+    expect(text()).toContain('at 700px and under');
+
+    // A rescan, or a navigation, and this page is written against something
+    // else entirely. The choice cannot survive that.
+    await act(async () =>
+      updateSession((prev) => ({ scan: { ...prev.scan!, breakpoints: ['(min-width: 1024px)'] } })),
+    );
+    await tick(150);
+    expect(text()).not.toContain('at 700px and under');
+    const after = host.querySelector<HTMLSelectElement>('[aria-label="Width to edit at"]')!;
+    expect(after.value).toBe('');
+    expect(Array.from(after.options).map((o) => o.textContent?.trim())).toEqual(['width…', '≥1024']);
+  });
+
+  it('leaves the dark preview and the viewport alone when a state is picked', async () => {
+    // The person turned on Dark themselves, on the bar.
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await selectHeading();
+    const bars = () => stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar');
+    const before = bars().length;
+
+    await click(chip('hover'));
+    await tick(150);
+    await click(chip('default'));
+    await tick(150);
+
+    // Neither pick said anything about the mode, and nothing reset the window.
+    expect(bars().slice(before).every((m) => m.mode === 'dark')).toBe(true);
+    expect(stub.sent.some((m) => m.type === 'inspector' && m.cmd === 'reset-viewport')).toBe(false);
+  });
+
+  it('puts the mode back to what it was, not to light, after editing in dark', async () => {
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await selectHeading();
+    await click(chip('dark'));
+    await tick(150);
+    await click(chip('default'));
+    await tick(150);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ mode: 'dark' });
+  });
+
+  it('lets go of the state when the selection goes', async () => {
+    await selectHeading();
+    await click(chip('hover'));
+    await tick(120);
+    await click(host.querySelector('[aria-label="Deselect element"]'));
+    await tick(120);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'state').at(-1)).toMatchObject({ state: null });
+    // And the hoisted sheet goes with it, rather than sitting in the page.
+    expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ state: null, selector: null });
   });
 });

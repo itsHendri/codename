@@ -79,6 +79,9 @@ const WIDTH_RANGE = /\(\s*(?:([\d.]+\w*)\s*([<>]=?)\s*)?width(?:\s*([<>]=?)\s*([
  */
 export function widthOfMedia(condition: string): string | null {
   if (DARK_MEDIA.test(condition) || LIGHT_MEDIA.test(condition)) return null;
+  // `not all and (max-width: 700px)` applies *above* 700, so reading it as a
+  // 700px breakpoint inverts what the page says. Same for `not screen and …`.
+  if (/(^|\s)not(\s|$)/i.test(condition)) return null;
   const parts: string[] = [];
   for (const m of condition.matchAll(WIDTH_FEATURE)) parts.push(`(${m[1]!.toLowerCase()}-width: ${m[2]!.trim()})`);
   for (const m of condition.matchAll(WIDTH_RANGE)) {

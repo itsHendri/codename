@@ -124,6 +124,12 @@ export interface ScanResult {
   title: string;
   scannedAt: number;
   viewport: { width: number; height: number; dpr: number };
+  /**
+   * The width queries this page's own stylesheets are written against, e.g.
+   * `(max-width: 700px)`. The widths it was actually designed at, which are
+   * not the same list as a browser's device presets.
+   */
+  breakpoints?: string[];
   fontFaces: FontFaceInfo[];
   fontUsage: FontUsage[];
   colors: ColorInfo[];
@@ -193,6 +199,11 @@ export interface ElementProps {
   corners: { topLeft: string; topRight: string; bottomRight: string; bottomLeft: string };
   border: { width: string; style: string; color: string };
   shadow: string;
+  /** `filter` and `backdrop-filter`, for the blur fields; verbatim. */
+  filter: string;
+  backdropFilter: string;
+  /** The `transition` shorthand, which is how this element gets between states. */
+  transition: string;
   /** Present only when the element's own children are text. */
   text: string | null;
   contrastRatio: number | null;
@@ -219,6 +230,8 @@ export type InspectorCommand =
   | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
+  /** Hold the selection in a state by class, so its hover rules paint. Null lets go. */
+  | { cmd: 'state'; state: 'hover' | 'focus' | 'active' | null }
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
   | { cmd: 'ancestor'; depth: number }
   | { cmd: 'read' }
@@ -247,11 +260,19 @@ export type InspectorCommand =
     }
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
-  /** Pick a viewport preset by name, or put the window back; answers once the window has moved. */
-  | { cmd: 'set-viewport'; preset: string }
-  /** Scroll the first match into view and answer with its box, so a capture can be cropped to it. */
-  | { cmd: 'locate'; selector: string }
-  /** Put the window and zoom back where they were before the first preset. */
+  /**
+   * Show the page as a frame, answering once the frame is on. `preset` names
+   * one of the bar's devices, or `reset`. `width` asks for a bare CSS width
+   * instead — the page's own breakpoints are not devices and have no height of
+   * their own, so the frame keeps the height already in play.
+   */
+  | { cmd: 'set-viewport'; preset: string; width?: number }
+  /**
+   * Scroll the first match into view and answer with its box, so a capture
+   * can be cropped to it; with no selector, answer with the frame's box only.
+   */
+  | { cmd: 'locate'; selector?: string }
+  /** Take the frame off, so the page is at the window's own size again. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };
 
@@ -270,15 +291,12 @@ export type RuntimeMessage =
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }
-  /** The bar picked a preset. The page sends what it knows; the background works out the window. */
-  | {
-      type: 'resize-window';
-      preset: { name: string; width: number; height: number };
-      inner: { width: number; height: number };
-      outer: { width: number; height: number };
-    }
-  | { type: 'reset-viewport' }
-  | { type: 'viewport-state' }
+  /** Remember the frame this tab is shown in, so a reload comes back in it. */
+  | { type: 'frame-set'; width: number; height: number }
+  /** Forget it: the page is at the window's own size again. */
+  | { type: 'frame-clear' }
+  /** The frame this tab was left in, if any. */
+  | { type: 'frame-state' }
   /** The bar's Light/Dark switch. */
   | { type: 'mode-changed'; mode: Mode }
   /** A value changed on the edit card that sits on the selected element. */
@@ -294,6 +312,30 @@ export interface TokenLengths {
   radius: Record<string, string>;
   type: Record<string, string>;
 }
+
+/**
+ * The stylesheets this extension puts on a page.
+ *
+ * Anything reading the page has to leave them out, or it reads its own
+ * output back: a width edit written into `codename-elements` would otherwise
+ * show up in the next scan as a breakpoint the page owns, and the page would
+ * appear to have been designed at a width the person had just invented.
+ */
+export const MANAGED_SHEET_IDS = [
+  'codename-reskin',
+  'codename-agent-preview',
+  'codename-elements',
+  'codename-site-dark',
+  'codename-agent-marks',
+  'codename-state',
+  'codename-frame',
+] as const;
+
+/** Whether a stylesheet is one of ours. */
+export const isManagedSheet = (sheet: { ownerNode?: unknown }): boolean => {
+  const node = sheet.ownerNode as Element | null | undefined;
+  return Boolean(node && 'id' in node && (MANAGED_SHEET_IDS as readonly string[]).includes(node.id));
+};
 
 export const DEVICE_PRESETS = [
   { name: 'Mobile S', width: 375, height: 667, kind: 'phone' },

@@ -1,0 +1,18 @@
+/* Stands in for a project's own stylesheet, so `codename-bridge open`, the
+   e2e script and the panel harness have a real definition to find and apply. */
+:root {
+  --ink: #15171b;
+  --paper: #e7e4db;
+  --mark: #be3a22;
+  --track: #d5d1c6;
+}
+
+@media (max-width: 700px) {
+  :root {
+    --mark: #7a2416;
+  }
+}
+
+.card {
+  --rule: #cbc7bc;
+}

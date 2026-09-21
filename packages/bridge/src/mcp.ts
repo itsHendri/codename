@@ -12,6 +12,8 @@ import { DESIGN_FILES, type CommentStatus, type DesignSystemResult, type Screens
 import { DEVICE_PRESETS } from '../../../shared/types';
 
 const VIEWPORTS = ['reset', ...DEVICE_PRESETS.map((p) => p.name)] as ['reset', ...string[]];
+import { applyDefinition, findDefinitions } from './definitions';
+import { readProjectFile } from './repo';
 import type { Sessions } from './sessions';
 
 export const MAX_WATCH_MS = 25_000;
@@ -44,11 +46,13 @@ const mimeOf = (file: string) => (file.endsWith('.md') ? 'text/markdown' : file.
 
 const INSTRUCTIONS = `${STANDING_RULES}
 
-How to work: call \`watch\` in a loop; when it reports a hand-off, call \`get_changes\`, apply the brief to source, then \`clear\` the hand-off. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
+How to work: call \`watch\` in a loop; when it reports a hand-off, call \`get_changes\`, apply the brief to source, then \`clear\` the hand-off. \`find_definition\` searches the project this bridge runs in for where a custom property is defined, which beats grepping for it yourself. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
 
 export interface McpOptions {
   /** The code the panel must be given to pair with this bridge. */
   pairingCode?: string;
+  /** The folder the bridge is running in; the only one it will read or write. */
+  cwd?: string;
 }
 
 export function createMcpServer(
@@ -57,6 +61,7 @@ export function createMcpServer(
   opts: McpOptions = {},
 ): { server: McpServer; tools: string[] } {
   const server = new McpServer({ name: 'codename', version }, { instructions: INSTRUCTIONS });
+  const cwd = opts.cwd ?? process.cwd();
   const tools: string[] = [];
 
   // The rules reach the agent without a tool call: as the server's
@@ -192,19 +197,91 @@ export function createMcpServer(
     'check_tokens',
     {
       description:
-        "Hold the page up against a design token file from the repository — W3C DTCG JSON as Penpot, Figma and Tokens Studio export it, or a flat map of custom properties. Read the file yourself and pass its contents. Returns three kinds of fact: variables whose value has drifted from the token of the same name, colours the page paints that no token holds, and tokens nothing on this page reaches. The file is not automatically right; say which differences you are acting on and which you are leaving.",
+        "Hold the page up against a design token file from the repository — W3C DTCG JSON as Penpot, Figma and Tokens Studio export it, or a flat map of custom properties. Pass `path` and this bridge reads it from the project, or read it yourself and pass its contents as `file`. Returns three kinds of fact: variables whose value has drifted from the token of the same name, colours the page paints that no token holds, and tokens nothing on this page reaches. The file is not automatically right; say which differences you are acting on and which you are leaving.",
       inputSchema: {
         session,
+        path: z
+          .string()
+          .optional()
+          .describe('Path to the token file, relative to the folder this bridge is running in, e.g. "design/tokens.json".'),
         file: z
           .string()
           .max(2_000_000)
-          .describe('The token file\'s contents, as JSON text. Up to 2MB; a design token file is far smaller.'),
-        name: z.string().optional().describe('What to call it in the report, e.g. "design/tokens.json".'),
+          .optional()
+          .describe('The token file\'s contents, as JSON text, when you would rather pass them than name a path.'),
+        name: z.string().optional().describe('What to call it in the report; defaults to the path.'),
       },
     },
-    guard(async ({ session, file, name }) => {
-      const result = (await sessions.sendRequest(session, { method: 'check_tokens', file, name })) as { text: string };
+    guard(async ({ session, path, file, name }) => {
+      if ((path === undefined) === (file === undefined)) {
+        throw new Error('pass either `path` (this bridge reads it) or `file` (its contents), not both and not neither');
+      }
+      const read = path === undefined ? { path: name ?? 'the token file', content: file! } : readProjectFile(cwd, path);
+      const result = (await sessions.sendRequest(session, {
+        method: 'check_tokens',
+        file: read.content,
+        name: name ?? read.path,
+      })) as { text: string };
       return text(result.text);
+    }),
+  );
+
+  register(
+    'find_definition',
+    {
+      description:
+        'Where a custom property is defined in the project this bridge is running in. Searches the stylesheets and token files git knows about, skipping dependencies and build output, and reports every definition it finds with its file, line, value, and what it sits inside: `root` (`:root`, `html`, a Tailwind `@theme` block), `dark`, `media` or `scoped`. This is a search of real files, not an inference from the page — but more than one answer means the cascade decides, so read them before you edit.',
+      inputSchema: {
+        name: z
+          .union([z.string(), z.array(z.string()).max(200)])
+          .describe('A custom property name including the leading dashes, e.g. "--mark", or several of them.'),
+      },
+    },
+    guard(({ name }) => {
+      const names = Array.isArray(name) ? name : [name];
+      return json(findDefinitions(cwd, names));
+    }),
+  );
+
+  register(
+    'apply_definition',
+    {
+      description:
+        "Write one value into one custom property definition in source. Deliberately narrow: it refuses unless the property has exactly one definition at the root of the cascade, that definition is alone on its line, and it still holds the value you say it held. The user must have turned on \"Bridge may edit definitions\" for this project in the panel. Everything else in a brief — usages, components, anything ambiguous — is yours to edit in the normal way.",
+      inputSchema: {
+        session,
+        name: z.string().describe('The custom property, including the leading dashes.'),
+        from: z.string().describe('The value it holds now. The write is refused if source disagrees.'),
+        to: z.string().describe('The value to write.'),
+      },
+    },
+    guard(({ session, name, from, to }) => {
+      const state = sessions.getState(session);
+      if (!state.bridgeMayWrite) {
+        throw new Error(
+          'the user has not allowed this bridge to edit definitions in this project; ask them to turn on "Bridge may edit definitions" on the Changes tab, or edit the file yourself',
+        );
+      }
+      if (!state.tab?.local) {
+        throw new Error(
+          'the page open in the panel is not served from this machine, so this bridge will not write to the project on its account; edit the file yourself',
+        );
+      }
+      const { found, truncated } = findDefinitions(cwd, [name]);
+      if (truncated) {
+        throw new Error(
+          `the search for ${name} stopped before it had read the whole project, so it cannot say there is only one definition; call find_definition and edit the right one yourself`,
+        );
+      }
+      const roots = (found[name] ?? []).filter((d) => d.context === 'root');
+      const target = roots[0];
+      if (roots.length !== 1 || !target?.line) {
+        throw new Error(
+          `${name} does not have exactly one definition at the root of the cascade in this project; call find_definition and edit the right one yourself`,
+        );
+      }
+      const applied = applyDefinition(cwd, { name, from, to, file: target.file, line: target.line });
+      return text(`${applied.name}: ${applied.from} → ${applied.to} in ${applied.file}:${applied.line}`);
     }),
   );
 
@@ -237,11 +314,16 @@ export function createMcpServer(
     'get_screenshot',
     {
       description:
-        'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG. Pass `selector` to scroll the first match into view and crop to its box, to check one component after a change. Pass `viewport` to move the window to one of the bar\'s presets first (the page is zoomed where the display is too small, so its CSS viewport still reads true) — call once per width to review a change at every breakpoint — and `reset` to put the window back when you are done.',
+        'Capture the visible part of the page as it is right now, including any preview the panel is painting. Returns a PNG. Pass `selector` to scroll the first match into view and crop to its box, to check one component after a change. Pass `viewport` to show the page in a device frame of that width first — the window does not move: the page is narrowed and centred in the tab, the width, height and orientation media queries in its stylesheets answer to the frame, and the capture is cropped to the frame. `vw`/`vh` units, `window.innerWidth`, `matchMedia` in scripts and fixed-position elements still see the window, so judge those by the window, not the frame. Call once per width to review a change at every breakpoint, and `reset` to take the frame off when you are done. A viewport can be one of the bar\'s device presets or a bare CSS width like `700` or `700px`, which is what a brief means when it names a media query: review the change at the width the page is actually written against, not at the nearest phone.',
       inputSchema: {
         session,
         selector: z.string().optional().describe('A CSS selector; the capture is cropped to the first match.'),
-        viewport: z.enum(VIEWPORTS).optional().describe(`One of ${DEVICE_PRESETS.map((p) => `${p.name} (${p.width}×${p.height})`).join(', ')}, or reset.`),
+        viewport: z
+          .string()
+          .optional()
+          .describe(
+            `A width in CSS pixels ("700" or "700px"), or one of ${DEVICE_PRESETS.map((p) => `${p.name} (${p.width}×${p.height})`).join(', ')}, or reset.`,
+          ),
       },
     },
     guard(async ({ session, viewport, selector }) => {

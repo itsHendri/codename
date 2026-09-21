@@ -3,6 +3,7 @@ import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
 import type { InspectController, Scope } from '../lib/inspect';
+import { conditionKey, describe as describeCondition, STATES, widthConditions, type MaybeCondition } from '@/studio/conditions';
 import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
@@ -105,6 +106,8 @@ export function LayersTab({
             mode={mode}
             onChange={ctl.change}
             onText={ctl.setText}
+            onPlay={ctl.playCondition}
+            playable={ctl.condition?.kind === 'state'}
           />
           <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
         </div>
@@ -250,6 +253,121 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
           measure
         </button>
       </div>
+      <ConditionBar ctl={ctl} />
+    </div>
+  );
+}
+
+/**
+ * Which state the next edit is about.
+ *
+ * The states are held on the page by a class, so the element paints as it
+ * would under the pointer and the values read back belong to that state.
+ * Dark and the widths are shown by machinery that already exists — the bar's
+ * own Light/Dark switch and its viewport presets — so picking one here asks
+ * for that too, and the page follows.
+ *
+ * Not reorderable: the order is default, then width, then dark, then state,
+ * and it is fixed because the page's own rules sit underneath ours. An order
+ * someone chose here would be a promise this cannot keep.
+ */
+function ConditionBar({ ctl }: { ctl: InspectController }) {
+  // Choosing is all that happens here. Turning the page into the state
+  // follows the condition itself, so deselecting puts the page back too.
+  const pick = (condition: MaybeCondition) => ctl.setCondition(condition);
+  const current = ctl.condition;
+  const key = conditionKey(current);
+  const widths = ctl.widths;
+  // A device name means the page told us nothing and these are a guess; its
+  // own breakpoints are named by the width itself.
+  const guessed = !widths.some((w) => w.kind === 'width' && w.preset.endsWith('px'));
+  const ancestors = ctl.cascade.filter((c) => c.onAncestor);
+  const own = ctl.cascade.filter((c) => !c.onAncestor);
+
+  const chip = (label: string, active: boolean, onClick: () => void, title?: string) => (
+    <button
+      key={label}
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      title={title}
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-2xs ${
+        active ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink-secondary hover:bg-surface-recessed'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div role="radiogroup" aria-label="State to edit" className="flex flex-wrap items-center gap-1">
+        {chip('default', !current, () => pick(undefined))}
+        {STATES.map((state) => chip(state, key === `state:${state}`, () => pick({ kind: 'state', state })))}
+        {chip('dark', key === 'scheme:dark', () => pick({ kind: 'scheme', scheme: 'dark' }), "Edits the page under its own dark mode")}
+        {/* One control rather than five chips: a 360px panel has better uses
+            for the room, and the widths are a list of one kind of thing. */}
+        <select
+          value={current?.kind === 'width' ? conditionKey(current) : ''}
+          onChange={(e) => pick(widths.find((w) => conditionKey(w) === e.target.value))}
+          aria-label="Width to edit at"
+          title={
+            guessed
+              ? 'This page declares no width queries, so these are the bar\'s device presets'
+              : "The widths this page's own stylesheets are written against"
+          }
+          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-2xs ${
+            current?.kind === 'width'
+              ? 'border-accent bg-accent-soft text-accent'
+              : 'border-line bg-transparent text-ink-secondary hover:bg-surface-recessed'
+          }`}
+        >
+          <option value="">width…</option>
+          {widths.map((w) =>
+            w.kind === 'width' ? (
+              <option key={conditionKey(w)} value={conditionKey(w)}>
+                {describeCondition(w)}
+                {guessed ? ` · ${w.preset}` : ''}
+              </option>
+            ) : null,
+          )}
+        </select>
+      </div>
+      {current && (
+        <div className="rounded-control border border-line-subtle px-2 py-1">
+          {/* What the person is doing, before what the page already does:
+              every value below this line belongs to the state, not to the
+              element as it ordinarily sits there. */}
+          <div className="text-2xs text-ink-secondary">
+            Editing <span className="text-accent">{describeCondition(current)}</span> — the values below are what this
+            element paints{' '}
+            {current.kind === 'state'
+              ? `on ${current.state}`
+              : current.kind === 'scheme'
+                ? 'in dark mode'
+                : `at ${current.px}px and ${current.dir === 'max' ? 'under' : 'over'}`}
+            .
+          </div>
+          {current.kind === 'state' && (
+            <>
+              <div className="mt-1 text-2xs text-ink-muted">
+                {own.length ? "This page's own rules for it:" : `This page adds nothing on ${current.state}.`}
+              </div>
+              {own.map((rule, i) => (
+                <div key={`${rule.selector}-${i}`} className="mt-0.5 truncate font-mono text-2xs text-ink-secondary" title={rule.cssText}>
+                  {rule.cssText}
+                </div>
+              ))}
+              {ancestors.length > 0 && (
+                <div className="mt-1 text-2xs text-ink-muted">
+                  {ancestors.length} rule{ancestors.length === 1 ? '' : 's'} here style this element when an ancestor is{' '}
+                  {current.state}ed. That cannot be previewed by holding this one.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

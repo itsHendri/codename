@@ -13,6 +13,8 @@ export const forfontsake: ScanResult = {
   title: 'forfontsake',
   scannedAt: 1788800000000,
   viewport: { width: 1280, height: 800, dpr: 2 },
+  // The page's own breakpoint, which is not one of the bar's device presets.
+  breakpoints: ['(max-width: 700px)'],
   fontFaces: [],
   fontUsage: [
     {
@@ -143,13 +145,27 @@ export function installChrome(): StubChrome {
           return { ok: true, vars: overrides.length, rules: Object.keys((msg.colorMap as object) ?? {}).length };
         }
         if (msg?.type === 'site-mode') return { ok: true, vars: 0, rules: 0, hooks: [] };
+        if (msg?.type === 'state-set') {
+          // A page that styles its heading on hover, so the panel has
+          // something to show under the condition bar.
+          const cascade =
+            msg.state === 'hover'
+              ? [
+                  {
+                    selector: 'h1#title.codename-state-hover',
+                    bare: 'h1#title',
+                    cssText: 'color: rgb(190, 58, 34);',
+                    groups: [],
+                    onAncestor: false,
+                  },
+                ]
+              : [];
+          return { ok: true, vars: 0, rules: cascade.length, cascade };
+        }
         return { ok: true, vars: 0, rules: 0 };
       },
       connect: () => ({ onDisconnect: { addListener() {} }, disconnect() {} }),
       captureVisibleTab: async () => 'data:image/png;base64,',
-      getZoom: async () => 1,
-      setZoom: async () => {},
-      setZoomSettings: async () => {},
     },
     runtime: {
       onMessage: {
@@ -201,6 +217,9 @@ export const element = (over: Record<string, unknown> = {}) => ({
   corners: { topLeft: '0px', topRight: '0px', bottomRight: '0px', bottomLeft: '0px' },
   border: { width: '0px', style: 'none', color: '#CBC7BC' },
   shadow: 'none',
+  filter: 'none',
+  backdropFilter: 'none',
+  transition: 'all 0s ease 0s',
   text: 'Grit',
   contrastRatio: 12.1,
   ...over,

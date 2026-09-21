@@ -36,8 +36,15 @@ Layers · Variables · Assets · Export · Changes.
   back, so the agent knows which file to open. Colour and
   type are open at the top, because that is what you came for; spacing,
   layout (display, flex direction, justify, align, wrap), size, radius,
-  border, effects (opacity, shadow) and text collapse behind a one-line
-  summary. A
+  border, effects and text collapse behind a one-line summary. **Effects** is
+  the shadow taken apart — inset, offset, blur, spread and colour, one row
+  per layer — plus a blur radius for the element and for what sits behind it.
+  **Motion** is the transition: what moves, how long it takes, how long it
+  waits, and on what curve, the curve picked by name and written back as the
+  page's own `var(--ease-out)` where it has one. **Play** runs it, by taking
+  the element out of the state it is held in and putting it back. A value the
+  fields cannot give back exactly — a `var()` for the whole shadow, a filter
+  that is a pipeline — keeps its text field and says why. A
   selection stays put: walk the tree with the arrow keys, measure it against
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
@@ -111,18 +118,31 @@ While the panel is open on a site, a bar sits across the top of the page,
 the same height as the panel's tab strip and wearing the panel's palette, so
 the two read as one tool. It pushes the page down rather than floating over
 it (a header the page itself fixes to the top of the viewport still sits
-under the bar). On it: the Codename mark, the host, the viewport named by the
-preset it matches — "Tablet · 768 × 1024", or "Custom" — with the device
-presets behind it, a **Reset** button in the centre whenever there is
-anything to take back (every override — variables, colours, scale and
-element edits — goes, and so do the dark preview and the viewport preset;
-notes stay), a
-**Light / Dark** switch, and the modes.
-Picking a preset
-resizes the window; when the display is too small for that beside the panel,
-the page is zoomed out until its CSS viewport is the preset width and the
-label says so ("Laptop · 1280 × 800 · 86%"), so breakpoints read true.
-**Reset** puts the window and zoom back. **Select** hovers for font, colour
+under the bar). On it: the Codename mark, the host, the **device picker**, a
+**Reset** button in the centre whenever there is anything to take back (every
+override — variables, colours, scale and element edits — goes, and so do the
+dark preview and the frame; notes stay), a **Light / Dark** switch, and the
+modes.
+
+The device picker is four icons — desktop, laptop, tablet, phone — a **Frame**
+menu of the presets, and **W** and **H** fields you can type any size into.
+Picking one shows the page at that size *without moving your window*: the page
+is narrowed to the frame and centred in the tab, and every width, height and
+orientation media query in its stylesheets is answered for the frame instead
+of the window, so it lays out the way it would on that device. A frame wider
+than the tab is scaled down to fit and the bar says by how much. The frame
+comes back after a reload and goes when the panel closes. Click the lit icon
+again, or pick **Window**, to go back to the window's own size.
+
+It is the page's CSS that sees the frame, not the browser, so a few things
+still see the window: `vw` and `vh` units (anything wider than the frame is
+clipped at its edge), a script reading `innerWidth` or calling `matchMedia`,
+an element fixed to the viewport or positioned against it, styles inside a
+component's shadow root, iframes, the `media` and `sizes` of responsive
+images, and a stylesheet from another origin the page cannot read (the bar
+says how many). The viewport meta tag plays no part;
+a page is laid out at the frame's width whether or not it has one. The bar
+itself keeps the tab's full width. **Select** hovers for font, colour
 and contrast — naming the page's own variable beside a colour when it has
 one — and clicks to pick an element. The edit card that opens beside the
 selection names the variable behind a colour, a padding, a radius or a size
@@ -148,7 +168,9 @@ collects into one brief.
 It is written at token level: `--mark: #BE3A22 → #1C7F5C (34 usages)` tells an
 agent to edit one definition, where a rendered stylesheet would invite it to
 stamp a hex across forty components. Element edits are one line per selector
-and property, before and after. Notes name the element they are about.
+and property, before and after, grouped by the state they are about — `hover`
+means `:hover`, `dark` means the page's own dark mode, a width means that
+media query. Notes name the element they are about.
 
 Colour edits reach the page through its own variables, or by rewriting the
 rules that hold a literal. Type and spacing edits move variables where a
@@ -160,6 +182,21 @@ alone. Either way the change travels as a **scale change** in the brief,
 which is an instruction the agent can act on in source.
 
 **Copy** it, download it as JSON, or **send** it, all from the Changes tab.
+
+### Applying one yourself
+
+A token change that has exactly one definition, at the root of the cascade, in
+a stylesheet — no media query, no scoped selector, no token file — carries an
+**Apply** button once you have ticked *Bridge may edit definitions* for the
+project. It writes that one value, keeping everything else on the line, and
+the token leaves the brief with a note that it is already in source.
+
+This is the only thing written to source without your agent, and it is narrow
+on purpose. A change like `--mark: #BE3A22 → #1C7F5C` has nothing left to
+decide, and sending it through a language model buys a round trip and a chance
+to get it wrong. Everything with a judgement in it — several definitions,
+usages, components, a value that has moved since it was read — is refused with
+the reason and stays in the brief, which is where your agent picks it up.
 
 ### Connect your agent
 
@@ -186,9 +223,9 @@ Three steps, which the Changes tab walks you through until you are paired
    { "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
    ```
 
-2. Start your agent. It launches the bridge, which prints a six-character
-   pairing code — to the agent, not to you. Ask the agent for it (it has a
-   `pairing_code` tool), or read it yourself:
+2. Start your agent, in the folder you are working in. It launches the bridge,
+   which prints a six-character pairing code — to the agent, not to you. Ask
+   the agent for it (it has a `pairing_code` tool), or read it yourself:
 
    ```sh
    npx codename-bridge code
@@ -196,8 +233,53 @@ Three steps, which the Changes tab walks you through until you are paired
 
 3. Enter the code in the panel.
 
+To get from a folder to a page with the panel on it in one command, in a
+second terminal:
+
+```sh
+npx codename-bridge open .
+```
+
+It prints the pairing code where you can actually read it, starts the
+project's dev server (its `dev`, `start` or `serve` script, with the package
+manager your lockfile names), watches its output for the URL it came up on,
+and opens that in your browser. `--cmd "…"` says how to start it where the
+scripts do not, `--url` opens one that is already running. Your agent runs the
+bridge in its own terminal; this one only gets you to the page.
+
 The bridge runs on your machine only: an MCP server on standard input and
-output for your agent, a WebSocket on `127.0.0.1` for the panel.
+output for your agent, a WebSocket on `127.0.0.1` for the panel. It takes that
+socket from the one extension it first paired with and tells every other copy
+so — the panel says "paired with another copy of Codename" rather than
+retrying in silence. Switching between a development build and the store one
+changes the extension's id, so after doing that run:
+
+```sh
+npx codename-bridge unpin
+```
+
+and enter the code again; it reaches a bridge that is already running. Five
+wrong codes in a minute close the door for five, and a panel holding the right
+code comes back on its own once it opens. The bridge never gives the code out
+over the socket, whoever asks: an extension id is public, and an `Origin`
+header only means something coming from a real browser.
+
+### It knows which project you are in
+
+Because it is running in the folder, the bridge can say so: the Changes tab
+names the repository and the branch, the brief opens with them, and the
+decisions you make against a dev server are filed under the project rather
+than under `localhost:3000` — which two projects share and one project
+changes. A deployed site is still filed by its origin, since the folder your
+terminal happens to be in says nothing about it.
+
+It also searches that folder. Every custom property in the brief is looked up
+where it is really defined, and the line says what was found: `defined at
+src/index.css:12` when there is exactly one, `3 definitions: …` when the
+cascade decides between several, nothing at all when there are none. This is
+the one place a file position is honest — the extension only sees a rendered
+page, so it would be guessing; the bridge read the file. Your agent asks the
+same question with `find_definition`.
 
 The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
@@ -206,9 +288,14 @@ spacing, near-duplicate colours, type strays — as facts with numbers),
 `tokens.css`, `tokens.json`, `SKILL.md`, `DESIGN_SYSTEM.md` — so it can write
 its own design context into your repository and refresh it after a rescan),
 `get_selection`, `get_comments` with `set_status` and `reply`,
-`check_tokens` (the page against a token file the agent read from your
-repository), `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
-the window moves first, so the agent can review a change at every width; with
+`check_tokens` (the page against a token file, named by a path in your project
+for the bridge to read, or passed as text),
+`find_definition` (where a custom property is defined in the project, with the
+file, line, value and whether it sits at the root of the cascade, under a
+media query or in a scoped selector) and `apply_definition` (the same single
+write the Apply button makes, under the same switch),
+`get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
+the page is framed at that width first — the window does not move — so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
 `point` (it names an element and a few words; the page
 scrolls there, lights it up for a moment and shows the note on the bar), and
@@ -218,7 +305,8 @@ preview · N rules · M elements** chip with its own ✕, every element its rule
 reach carries a dashed outline, and the Changes tab shows the same row above
 the queue — never in it, since a preview is not a decision. Nothing is
 written to source through the bridge; that stays the agent's job in your
-repository, under your review. See `PRIVACY.md`.
+repository, under your review — apart from the one definition you apply
+yourself, described above. See `PRIVACY.md`.
 
 When an element edit writes a literal and exactly one of the page's own
 variables already holds that value, the brief says so and leaves the choice
@@ -298,6 +386,15 @@ Add `?theme=light` or `?theme=dark` to pick a palette. To try the bridge from
 the harness, start it with `CODENAME_DEV_ORIGINS=http://localhost:5320`, or
 run `packages/bridge/scripts/e2e.mjs`, which spawns the bridge as an agent
 would and drives every tool once a panel pairs.
+
+`.harness/public/page.html` is a small page with the awkward shapes in it — a
+dark media query, a theme hook, a layer, a breakpoint, hardcoded colours
+beside variables — to try the content scripts against. They are served from
+built copies, so refresh them before trusting what you see:
+
+```sh
+npm run harness:scripts
+```
 
 ## Architecture
 

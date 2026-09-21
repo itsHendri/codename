@@ -1,8 +1,10 @@
-import type { AgentPresence, InspectorCommand } from '@/shared/types';
+import type { AgentPresence, ElementProps, InspectorCommand } from '@/shared/types';
 import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@/studio/framework';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
 import type { LengthMap } from '@/studio/reskinRules';
+import type { StateName } from '@/studio/conditions';
+import type { ConditionRule, HoistedRule } from '@/studio/conditionSheet';
 
 const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
 
@@ -134,6 +136,20 @@ interface ReskinOverride {
  * injecting on failure avoids both a redundant inject on every keystroke and a
  * separate "is it there?" round trip.
  */
+/**
+ * Whether a reply really is an element, rather than merely truthy.
+ *
+ * `sendInspector` is typed on what the command is supposed to answer, but the
+ * reply crosses a message boundary: a content script from an older build, or
+ * a generic `{ok:true}` from a page that did not understand the command, is
+ * shaped nothing like this and would be written straight into the panel's
+ * state to crash on first read.
+ */
+export function isElementProps(value: unknown): value is ElementProps {
+  const v = value as Partial<ElementProps> | null;
+  return Boolean(v && typeof v.selector === 'string' && typeof v.tag === 'string' && v.type && v.box && v.color);
+}
+
 export interface ReskinResult {
   /** Custom properties overridden on the root. */
   vars: number;
@@ -141,6 +157,8 @@ export interface ReskinResult {
   rules: number;
   /** For the agent's preview: what its sheet holds and reaches. */
   preview?: { rules: number; matched: number; unreadable: number; declares: string[] };
+  /** For a state hoist: the page's own rules for that state on that element. */
+  cascade?: HoistedRule[];
 }
 
 function sendReskin(
@@ -152,7 +170,10 @@ function sendReskin(
     lengthMap?: LengthMap | null;
     css?: string;
     mode?: 'light' | 'dark';
-    rules?: { selector: string; property: string; value: string }[];
+    rules?: ConditionRule[];
+    darkPreview?: boolean;
+    state?: StateName | null;
+    selector?: string | null;
   },
 ): Promise<ReskinResult | null> {
   return sendOrInject<ReskinResult>(tabId, 'content-scripts/reskin.js', message);
@@ -197,9 +218,25 @@ export function clearAgentPreview(tabId: number): Promise<ReskinResult | null> {
 
 export function applyElementRules(
   tabId: number,
-  rules: { selector: string; property: string; value: string }[],
+  rules: ConditionRule[],
+  darkPreview = false,
 ): Promise<ReskinResult | null> {
-  return sendReskin(tabId, { type: 'elements-set', rules });
+  return sendReskin(tabId, { type: 'elements-set', rules, darkPreview });
+}
+
+/**
+ * Hold the page in a state, and hear what it already does there.
+ *
+ * The reply is the page's own rules for that state on that element, read out
+ * of the CSSOM where the panel cannot reach — facts for the panel to show,
+ * never something it edits.
+ */
+export function setStateHoist(
+  tabId: number,
+  state: StateName | null,
+  selector: string | null,
+): Promise<HoistedRule[]> {
+  return sendReskin(tabId, { type: 'state-set', state, selector }).then((r) => r?.cascade ?? []);
 }
 
 /**
@@ -235,10 +272,11 @@ export async function probeComponent(tabId: number, selector: string): Promise<C
 export async function cropCapture(
   shot: { png: string; width: number; height: number },
   rect: { x: number; y: number; width: number; height: number },
-  viewport: { width: number; height: number },
+  /** Capture pixels per CSS pixel: the capture's width over the viewport's. */
+  pxPerCss: number,
   marginCss = 8,
 ): Promise<{ png: string; width: number; height: number }> {
-  const scale = viewport.width > 0 ? shot.width / viewport.width : 1;
+  const scale = pxPerCss > 0 ? pxPerCss : 1;
   const x = Math.max(0, Math.floor((rect.x - marginCss) * scale));
   const y = Math.max(0, Math.floor((rect.y - marginCss) * scale));
   const w = Math.min(shot.width - x, Math.ceil((rect.width + marginCss * 2) * scale));

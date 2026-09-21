@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { DEFAULT_PORT } from '@/shared/protocol';
 import { forget, pair, retry, useBridge, type BridgeStatus } from '../lib/bridge';
-import { updateSession, useSession } from '../lib/session';
+import { allow, useSession } from '../lib/session';
 
 const LABEL: Record<BridgeStatus, string> = {
   off: 'Not paired',
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
   unauthorized: 'Wrong pairing code',
+  locked: 'Too many wrong codes — trying again when the bridge opens',
+  'other-extension': 'Paired with another copy of Codename — run npx codename-bridge unpin',
 };
 
 /** The dot beside the site name: there when the agent can see the panel. */
@@ -16,7 +18,7 @@ export function BridgeDot({ status }: { status: BridgeStatus }) {
   const cls =
     status === 'connected'
       ? 'bg-ok'
-      : status === 'unauthorized'
+      : status === 'unauthorized' || status === 'locked' || status === 'other-extension'
         ? 'bg-warn'
         : 'bg-ink-faint animate-pulse';
   return <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} title={`Agent bridge: ${LABEL[status]}`} />;
@@ -27,7 +29,7 @@ export function BridgeDot({ status }: { status: BridgeStatus }) {
  * bridge prints, and decide whether the agent may paint on this page.
  */
 export function BridgeSection() {
-  const { status, pairing } = useBridge();
+  const { status, pairing, project } = useBridge();
   const { agentMayWrite } = useSession();
   const [code, setCode] = useState('');
 
@@ -43,7 +45,9 @@ export function BridgeSection() {
 
       {pairing ? (
         <div className="flex items-center gap-2 rounded-control border border-line px-2 py-1.5 text-xs">
-          <span className="text-ink-muted">Port {pairing.port}</span>
+          <span className="truncate text-ink-muted" title={project?.path}>
+            {project ? project.name : `Port ${pairing.port}`}
+          </span>
           {status !== 'connected' && (
             <button onClick={retry} className="text-accent hover:underline">
               retry
@@ -90,13 +94,12 @@ export function BridgeSection() {
         <input
           type="checkbox"
           checked={agentMayWrite}
-          onChange={(e) => updateSession({ agentMayWrite: e.target.checked })}
+          onChange={(e) => allow('agentMayWrite', e.target.checked)}
         />
         <span>Agent may change this page</span>
       </label>
       <p className="px-1 text-2xs text-ink-muted">
-        On by default for localhost. The agent's CSS is a preview on this tab, never a write to
-        source.
+        The agent's CSS is a preview on this tab, never a write to source.
       </p>
     </div>
   );

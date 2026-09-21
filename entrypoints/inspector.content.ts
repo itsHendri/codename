@@ -11,7 +11,7 @@
 
 import type { AgentPresence, ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
-import { viewportLabel } from '@/shared/viewport';
+import { DEVICE_KINDS, frameFor, presetsOf, viewportLabel, type DeviceKind, type Frame } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
 import { paddingShorthand } from '@/studio/boxModel';
@@ -20,7 +20,9 @@ import { buildSelector, isStableClass } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
+import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
+import { createPageFrame } from '@/studio/pageFrame';
 
 declare global {
   interface Window {
@@ -193,6 +195,9 @@ function readProps(el: Element): ElementProps {
       color: toHex(cs.borderTopColor) ?? cs.borderTopColor,
     },
     shadow: cs.boxShadow,
+    filter: cs.filter,
+    backdropFilter: cs.backdropFilter,
+    transition: cs.transition,
     text: ownText(el),
     contrastRatio: contrast(fg, bg),
   };
@@ -338,8 +343,21 @@ function activate() {
       .bar .mark { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; letter-spacing: -0.01em; }
       .bar .mark svg { width: 14px; height: 14px; }
       .bar .host { color: ${d.cardMuted}; }
-      .bar .size { position: relative; cursor: pointer; padding: 3px 7px; border-radius: 4px; border: 1px solid ${d.cardLine}; color: ${d.cardInk}; background: transparent; font: inherit; }
-      .bar .size:hover { border-color: ${d.accent}; }
+      .bar .device { display: flex; align-items: center; gap: 6px; }
+      .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
+      .bar .kind { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; cursor: pointer; }
+      .bar .kind svg { width: 14px; height: 14px; }
+      .bar .kind:hover { color: ${d.cardInk}; }
+      .bar .kind.on { background: ${d.cardBg}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 0 0 1px ${d.cardLine}; }
+      .bar .frame { height: 26px; max-width: 120px; padding: 0 6px; border: 1px solid ${d.cardLine}; border-radius: 6px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; }
+      .bar .frame:hover { border-color: ${d.accent}; }
+      .bar .frame option, .bar .frame optgroup { background: ${d.cardBg}; color: ${d.cardInk}; }
+      .bar .dim { display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 6px; border: 1px solid ${d.cardLine}; border-radius: 6px; color: ${d.cardMuted}; cursor: text; }
+      .bar .dim:focus-within { border-color: ${d.accent}; }
+      .bar .dim input { width: 38px; border: 0; padding: 0; background: transparent; color: ${d.cardInk}; font: inherit; text-align: right; }
+      .bar .dim input:focus { outline: none; }
+      .bar .dim i { font-style: normal; }
+      .bar .scale { color: ${d.cardMuted}; }
       .bar .reset { cursor: pointer; padding: 3px 9px; border-radius: 4px; border: 1px solid ${d.accent}; color: ${d.accent}; background: transparent; font: inherit; font-weight: 600; white-space: nowrap; }
       .bar .reset:hover { background: ${d.accentWash}; }
       .bar .reset span { margin-left: 5px; font-weight: 500; color: ${d.cardMuted}; }
@@ -348,16 +366,32 @@ function activate() {
       .bar .agent span { color: ${d.cardMuted}; font-weight: 500; }
       .bar .agent button { border: 0; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; padding: 0 3px; }
       .bar .agent button:hover { color: ${d.cardInk}; }
-      .bar .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 150px; padding: 4px; background: ${d.cardBg}; border: 1px solid ${d.cardLine}; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; }
-      .bar .menu button { text-align: left; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; display: flex; gap: 8px; }
-      .bar .menu button span { margin-left: auto; color: ${d.cardMuted}; }
-      .bar .menu button:hover { background: ${d.accentWash}; }
       .bar .spacer { flex: 1; }
       .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
       .bar .mode { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
+      /* A narrow window narrows the bar. It gives up words before it gives
+         up controls. These sheets are in the shadow root, which a device
+         frame does not rewrite, so they follow the window, not the frame. */
+      @media (max-width: 1280px) {
+        .bar .host, .bar .mode .label, .bar .agent span { display: none; }
+        .bar .mode { padding: 3px 6px; }
+      }
+      @media (max-width: 900px) {
+        .bar { gap: 8px; }
+        .bar .mark span, .bar .frame, .bar .reset span { display: none; }
+      }
+      @media (max-width: 620px) {
+        .bar { gap: 4px; padding: 0 6px; }
+        .bar .dim span, .bar .dim i, .bar .scheme, .bar .scale { display: none; }
+        .bar .dim { padding: 0 4px; }
+        .bar .dim input { width: 32px; }
+        .bar .kind { width: 22px; }
+        .bar .mode { padding: 3px 4px; }
+        .bar .reset { padding: 3px 6px; }
+      }
       .hint { position: fixed; z-index: 2; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
       .hint.fading { opacity: 0; }
       .hint b { font-weight: 600; }
@@ -395,30 +429,39 @@ function activate() {
       .edit .len .tok.hidden { display: none; }
       .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
       .bar .fold:hover { color: ${d.cardInk}; }
-      .hidden { display: none; }
+      /* Important, because a rule like \`.bar .agent { display: flex }\` is more
+         specific than one class, and hid nothing: the agent chip showed on
+         every page with no preview on it. */
+      .hidden { display: none !important; }
     </style>
     <div class="bar hidden">
       <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
       <span class="host"></span>
-      <button class="size" title="Viewport presets"></button>
+      <div class="device" role="group" aria-label="Frame">
+        <div class="kinds" role="radiogroup" aria-label="Device"><button class="kind" data-kind="desktop" role="radio" aria-checked="false" aria-label="Desktop" title="Desktop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M8 11v2.5M5.5 13.5h5"/></svg></button><button class="kind" data-kind="laptop" role="radio" aria-checked="false" aria-label="Laptop" title="Laptop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></svg></button><button class="kind" data-kind="tablet" role="radio" aria-checked="false" aria-label="Tablet" title="Tablet — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button><button class="kind" data-kind="phone" role="radio" aria-checked="false" aria-label="Phone" title="Phone — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button></div>
+        <select class="frame" aria-label="Frame" title="The frame the page is shown in"></select>
+        <label class="dim" title="Width the page's media queries see"><span>W</span><input class="w" inputmode="numeric" aria-label="Frame width" /><i>px</i></label>
+        <label class="dim" title="Height the page's media queries see"><span>H</span><input class="h" inputmode="numeric" aria-label="Frame height" /><i>px</i></label>
+        <span class="scale hidden"></span>
+      </div>
       <span class="spacer"></span>
       <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits, the agent's preview — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
       <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page">✕</button></div>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Light
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span class="label">Light</span>
         </button>
         <button class="mode dark" role="radio" aria-checked="false">
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg>Dark
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg><span class="label">Dark</span>
         </button>
       </div>
       <div class="modes" role="radiogroup" aria-label="Mode">
         <button class="mode select" role="radio" aria-checked="false" title="Select — hover to read, click to pick (Alt+S)">
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg>Select
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
         </button>
         <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg>Comment
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
         </button>
       </div>
       <span class="fold" title="Collapse">‹</span>
@@ -448,7 +491,11 @@ function activate() {
 
   const bar = shadow.querySelector<HTMLElement>('.bar')!;
   const barHost = bar.querySelector<HTMLElement>('.host')!;
-  const barSize = bar.querySelector<HTMLButtonElement>('.size')!;
+  const barKinds = Array.from(bar.querySelectorAll<HTMLButtonElement>('.kind'));
+  const barFrame = bar.querySelector<HTMLSelectElement>('.frame')!;
+  const barW = bar.querySelector<HTMLInputElement>('.dim .w')!;
+  const barH = bar.querySelector<HTMLInputElement>('.dim .h')!;
+  const barScale = bar.querySelector<HTMLElement>('.scale')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
@@ -490,9 +537,22 @@ function activate() {
   let agent: AgentPresence | null = null;
   /** How the dark preview is being shown, as the panel last said. */
   let darkVia: 'site' | 'mirror' | null = null;
-  /** The page's zoom, as the background last reported it. 1 until asked. */
-  let zoom = 1;
-  let canReset = false;
+  /** The frame the page is being shown in; null when it is at the window's own size. */
+  let frame: Frame | null = null;
+  /** How far the frame is scaled down to fit the tab. */
+  let scale = 1;
+  /** Bumped by every frame change, so a restore that was already asking stands down. */
+  let frameTurn = 0;
+  /**
+   * Draws the frame on this page. The tab keeps its size; the page is
+   * narrowed inside it and its media queries answer to the frame.
+   */
+  const pageFrame = createPageFrame(document, () => {
+    // The tab got wider or narrower, so the fit changed.
+    scale = pageFrame.zoom;
+    if (barOn) renderBar();
+    layout();
+  });
   /** Elements shift-clicked in note mode, in the order they were picked. */
   let picked: Element[] = [];
   let drag: { x: number; y: number } | null = null;
@@ -529,11 +589,31 @@ function activate() {
 
   const select = (el: Element | null) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
+    // The state class belongs to the element it was put on, not to the next.
+    holdState(null);
     selected = el;
     editPinned = null;
     renderEdit();
     layout();
     announce();
+  };
+
+  /**
+   * Hold the selection in a state, by putting a class on it.
+   *
+   * The page's own `:hover` rules are re-emitted against this class by the
+   * re-skin script, so the element paints as though the pointer were on it
+   * without the debugger permission and its permanent infobar. Only one
+   * element is ever held, and only one state at a time.
+   */
+  let heldState: string | null = null;
+  const holdState = (cls: string | null) => {
+    if (heldState && selected) selected.classList.remove(heldState);
+    // A re-render may have replaced the node; take the class off anything
+    // still wearing it rather than leaving the page stuck in a state.
+    if (heldState) for (const el of Array.from(document.querySelectorAll(`.${heldState}`))) el.classList.remove(heldState);
+    heldState = cls;
+    if (cls && selected) selected.classList.add(cls);
   };
 
   const walk = (dir: 'parent' | 'child' | 'next' | 'prev') => {
@@ -1249,9 +1329,7 @@ function activate() {
 
   const renderBar = () => {
     barHost.textContent = location.host;
-    // Named after the preset it is, so "did that take?" has an answer.
-    barSize.textContent = viewportLabel({ innerWidth, innerHeight, zoom });
-    barSize.title = `${innerWidth} × ${innerHeight} CSS px at ${Math.round(zoom * 100)}% — viewport presets`;
+    renderDevice();
     barSelect.classList.toggle('on', hoverOn);
     barSelect.setAttribute('aria-checked', String(hoverOn));
     barComment.classList.toggle('on', noteOn);
@@ -1261,7 +1339,7 @@ function activate() {
     barDark.classList.toggle('on', barMode === 'dark');
     barDark.setAttribute('aria-checked', String(barMode === 'dark'));
     // A resized or zoomed viewport is an override too, and only the bar knows about it.
-    barReset.classList.toggle('hidden', resettable === 0 && !canReset);
+    barReset.classList.toggle('hidden', resettable === 0 && !frame);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
     barAgent.classList.toggle('hidden', !agent);
     if (agent) {
@@ -1269,14 +1347,62 @@ function activate() {
     }
   };
 
-  /** The zoom lives in the browser, not the page; ask before trusting the label. */
-  const refreshViewport = async () => {
-    const r = await ask<{ ok: boolean; zoom?: number; canReset?: boolean }>({ type: 'viewport-state' });
-    if (r?.ok && typeof r.zoom === 'number') {
-      zoom = r.zoom;
-      canReset = !!r.canReset;
+  /**
+   * Put back the frame this tab was left in. A reload or a navigation starts
+   * a fresh page with no frame drawn, and the background remembers which one
+   * it was.
+   */
+  const restoreFrame = async () => {
+    if (frame) return;
+    const asked = frameTurn;
+    const r = await ask<{ ok: boolean; frame?: Frame | null }>({ type: 'frame-state' });
+    // A frame picked or taken off while this was asking is the newer word.
+    if (r?.ok && r.frame && !frame && asked === frameTurn) void setFrame(r.frame, true);
+  };
+
+  /**
+   * The device picker: which kind, which frame, and its size.
+   *
+   * With no frame the fields show the window's own size, so typing a
+   * width is how you start; the kind lit up is the frame's, and clicking it
+   * again goes back to the window. Fields that are being typed in are left
+   * alone, or a re-render would take the digits out from under the cursor.
+   */
+  const renderDevice = () => {
+    for (const b of barKinds) {
+      const on = frame?.kind === b.dataset.kind;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
     }
-    if (barOn) renderBar();
+    const value = frame ? (frame.name ?? 'custom') : 'window';
+    if (barFrame.dataset.for !== `${value}:${frame?.kind ?? ''}`) {
+      barFrame.dataset.for = `${value}:${frame?.kind ?? ''}`;
+      barFrame.replaceChildren();
+      const option = (v: string, label: string) => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = label;
+        return o;
+      };
+      barFrame.appendChild(option('window', 'Window'));
+      for (const kind of DEVICE_KINDS) {
+        const group = document.createElement('optgroup');
+        group.label = kind[0]!.toUpperCase() + kind.slice(1);
+        // The name only: W and H beside it already say the size, and repeating
+        // it here truncated the closed menu to "Mobile S · 375 ×".
+        for (const preset of presetsOf(kind)) group.appendChild(option(preset.name, preset.name));
+        barFrame.appendChild(group);
+      }
+      if (frame && !frame.name) barFrame.appendChild(option('custom', 'Custom'));
+    }
+    barFrame.value = value;
+    const root = shadow as unknown as { activeElement: Element | null };
+    if (root.activeElement !== barW) barW.value = String(frame?.width ?? Math.round(innerWidth));
+    if (root.activeElement !== barH) barH.value = String(frame?.height ?? Math.round(innerHeight));
+    barScale.classList.toggle('hidden', scale === 1);
+    barScale.textContent = `${Math.round(scale * 100)}%`;
+    barScale.title = `Shown at ${Math.round(scale * 100)}% to fit the tab; the page's media queries see the full ${frame?.width ?? ''} × ${frame?.height ?? ''}.`;
+    bar.querySelector<HTMLElement>('.device')!.title = viewportLabel(frame, { width: innerWidth, height: innerHeight }, scale);
   };
 
   const applyBarTheme = (theme: OverlayTheme) => {
@@ -1313,82 +1439,78 @@ function activate() {
     }, 4200);
   };
 
-  const closeMenu = () => {
-    menu?.remove();
-    menu = null;
+  /** The page's breakpoints just changed under the selection; the card shows what applies now. */
+  const refreshSelected = () => {
+    if (selected?.isConnected) refreshEdit(readProps(selected));
   };
 
-  interface ResizeReply {
-    ok: boolean;
-    error?: string;
-    zoom?: number;
-    viewport?: { width: number; height: number };
-    canReset?: boolean;
-  }
-
-  const pickPreset = async (p: (typeof DEVICE_PRESETS)[number]) => {
-    // The page sends what it can see; the background knows the window and the zoom.
-    const r = await ask<ResizeReply>({
-      type: 'resize-window',
-      preset: { name: p.name, width: p.width, height: p.height },
-      inner: { width: innerWidth, height: innerHeight },
-      outer: { width: outerWidth, height: outerHeight },
-    });
-    if (!r) {
-      showHint('The panel could not reach the browser to resize the window.');
-      return false;
-    }
-    if (!r.ok) {
-      showHint(`<b>${p.name}</b> — ${escapeHtml(r.error ?? 'the window could not be resized')}`);
-      return false;
-    }
-    zoom = r.zoom ?? 1;
-    canReset = !!r.canReset;
+  /**
+   * Show the page as a frame of a given size.
+   *
+   * Drawn in the page rather than by resizing or emulating: the window stays
+   * where the person put it, the page is centred in the tab, its media
+   * queries answer to the frame, and a frame too big for the tab is scaled
+   * down to fit — which the bar says, so a breakpoint check is never a guess
+   * about what is on screen.
+   */
+  const setFrame = async (size: { width: number; height: number }, quiet = false) => {
+    frameTurn++;
+    frame = frameFor(size);
+    scale = pageFrame.set(frame);
     renderBar();
-    showHint(
-      zoom === 1
-        ? `<b>${p.name}</b> — the window is now ${p.width} × ${p.height}.`
-        : `<b>${p.name}</b> — the display is too small for ${p.width}px beside the panel, so the page is zoomed to ${Math.round(zoom * 100)}%. Its CSS viewport is ${r.viewport?.width ?? p.width} wide, so breakpoints read true.`,
-    );
+    layout();
+    refreshSelected();
+    // Remembered so a reload comes back in it; the frame is on either way.
+    void ask({ type: 'frame-set', width: frame.width, height: frame.height });
+    if (!quiet) {
+      const name = escapeHtml(frame.name ?? 'Custom');
+      const size = `${frame.width} × ${frame.height}`;
+      const unread = pageFrame.unreadable
+        ? ` ${pageFrame.unreadable} ${pageFrame.unreadable === 1 ? 'stylesheet' : 'stylesheets'} from another site could not be read, so their breakpoints still follow the window.`
+        : '';
+      showHint(
+        (scale === 1
+          ? `<b>${name}</b> — the page is ${size}, as its media queries see it. The window has not moved.`
+          : `<b>${name}</b> — shown at ${Math.round(scale * 100)}% to fit the tab; the page is still ${size} as its media queries see it.`) + unread,
+      );
+    }
     return true;
   };
 
   const resetViewport = async (quiet = false) => {
-    const r = await ask<ResizeReply>({ type: 'reset-viewport' });
-    if (!r?.ok) {
-      showHint(`Reset — ${escapeHtml(r?.error ?? 'the window could not be put back')}`);
-      return false;
-    }
-    zoom = r.zoom ?? 1;
-    canReset = false;
-    renderBar();
-    if (!quiet) showHint('<b>Reset</b> — the window and zoom are back where they were.');
+    const had = frame !== null;
+    frameTurn++;
+    pageFrame.clear();
+    frame = null;
+    scale = 1;
+    if (barOn) renderBar();
+    layout();
+    refreshSelected();
+    void ask({ type: 'frame-clear' });
+    if (!quiet && had) showHint('<b>Window</b> — the page is at the window\'s own size again.');
     return true;
   };
 
-  const openMenu = () => {
-    if (menu) return closeMenu();
-    menu = document.createElement('div');
-    menu.className = 'menu';
-    for (const p of DEVICE_PRESETS) {
-      const b = document.createElement('button');
-      b.innerHTML = `${p.name}<span>${p.width} × ${p.height}</span>`;
-      b.addEventListener('click', () => {
-        void pickPreset(p);
-        closeMenu();
-      });
-      menu.appendChild(b);
+  /** Set by Escape, so the blur that follows puts the size back instead of taking it. */
+  let cancelSize = false;
+
+  /** A size typed into W or H, taken when the field is left. */
+  const commitSize = () => {
+    if (cancelSize) {
+      cancelSize = false;
+      return;
     }
-    const reset = document.createElement('button');
-    reset.innerHTML = `Reset<span>100%</span>`;
-    reset.disabled = !canReset;
-    reset.style.opacity = canReset ? '' : '0.4';
-    reset.addEventListener('click', () => {
-      void resetViewport();
-      closeMenu();
-    });
-    menu.appendChild(reset);
-    barSize.appendChild(menu);
+    const width = parseInt(barW.value, 10);
+    const height = parseInt(barH.value, 10);
+    const current = frame ?? { width: Math.round(innerWidth), height: Math.round(innerHeight) };
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      renderBar();
+      return;
+    }
+    if (frame && width === current.width && height === current.height) return;
+    if (!frame && width === current.width && height === current.height) return;
+    // A typed size gets the kind its width implies, and its preset's name if it is one.
+    void setFrame(frameFor({ width, height }));
   };
 
   /**
@@ -1421,15 +1543,48 @@ function activate() {
     pushPage(on);
     if (on) {
       renderBar();
-      void refreshViewport();
-    } else closeMenu();
+      void restoreFrame();
+    }
     layout();
   };
 
-  barSize.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openMenu();
+  for (const b of barKinds) {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const kind = b.dataset.kind as DeviceKind;
+      // The lit kind again is "back to the window", the way a toggle reads.
+      if (frame?.kind === kind) void resetViewport();
+      else {
+        const first = presetsOf(kind)[0];
+        if (first) void setFrame(first);
+      }
+    });
+  }
+  barFrame.addEventListener('change', () => {
+    const v = barFrame.value;
+    if (v === 'window') void resetViewport();
+    else if (v !== 'custom') {
+      const preset = DEVICE_KINDS.flatMap((k) => presetsOf(k)).find((p) => p.name === v);
+      if (preset) void setFrame(preset);
+    }
   });
+  for (const input of [barW, barH]) {
+    input.addEventListener('keydown', (e) => {
+      // Typing in the bar is not a shortcut for anything on the page.
+      e.stopPropagation();
+      if (isEnter(e)) input.blur();
+      if (e.key === 'Escape') {
+        // Put the digits back before leaving: the render skips a focused field,
+        // and the blur would otherwise take what was typed.
+        cancelSize = true;
+        barW.value = String(frame?.width ?? Math.round(innerWidth));
+        barH.value = String(frame?.height ?? Math.round(innerHeight));
+        input.blur();
+      }
+    });
+    input.addEventListener('blur', commitSize);
+    input.addEventListener('focus', () => input.select());
+  }
   barSelect.addEventListener('click', () => setHover(!hoverOn));
   barComment.addEventListener('click', () => setNote(!noteOn));
   const setMode = (mode: Mode) => {
@@ -1448,14 +1603,14 @@ function activate() {
     barMode = 'light';
     resettable = 0;
     agent = null;
-    const viewport = canReset;
+    const viewport = frame !== null;
     renderBar();
     // The selection goes too, so the card and the outline leave with the overrides.
     select(null);
     // One path: the panel takes everything back and asks for the viewport too.
     send({ type: 'reset-all' });
     showHint(
-      `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the window is back where it was' : ''}; the page is reading as itself again. Notes stay.`,
+      `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the page is back at the window\'s size' : ''}; the page is reading as itself again. Notes stay.`,
     );
   });
   barLight.addEventListener('click', () => setMode('light'));
@@ -1469,9 +1624,8 @@ function activate() {
     e.stopPropagation();
     bar.classList.add('collapsed');
   });
-  // A zoom change fires resize too, so the label re-asks rather than trusting its cache.
-  addEventListener('resize', () => barOn && void refreshViewport());
-  addEventListener('click', () => closeMenu(), true);
+  // The window's own size is what the bar shows when there is no frame.
+  addEventListener('resize', () => barOn && !frame && renderBar());
 
   // The panel holds a port open while it is showing this tab; when it goes,
   // the bar and hover mode go with it. The selection stays for its return.
@@ -1482,6 +1636,9 @@ function activate() {
       showBar(false);
       setHover(false);
       setNote(false);
+      // The bar is the only control for the frame, so the frame goes with it:
+      // a narrowed page with nothing on it saying why would read as broken.
+      void resetViewport(true);
     });
   };
   chrome.runtime.onConnect.addListener(onConnect);
@@ -1567,6 +1724,9 @@ function activate() {
       case 'deselect':
         select(null);
         break;
+      case 'state':
+        holdState(msg.state ? `codename-state-${msg.state}` : null);
+        break;
       case 'walk':
         if (msg.dir) walk(msg.dir);
         break;
@@ -1602,6 +1762,11 @@ function activate() {
         if (!hoverOn) hovBox.classList.add('hidden');
         break;
       case 'locate': {
+        const viewport = { width: innerWidth, height: innerHeight };
+        if (!msg.selector) {
+          sendResponse({ ok: true, matches: 0, frame: pageFrame.rect(), viewport });
+          return true;
+        }
         const { first: el, matches } = findAll(msg.selector);
         if (!el) {
           sendResponse({ ok: false, matches, error: `nothing on the page matches ${msg.selector}` });
@@ -1615,23 +1780,36 @@ function activate() {
           ok: true,
           matches,
           rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-          viewport: { width: innerWidth, height: innerHeight },
+          frame: pageFrame.rect(),
+          viewport,
         });
         return true;
       }
       case 'set-viewport': {
-        // The agent wants a width; answer once the window has moved so a capture can follow.
-        const done = (ok: boolean, error?: string) => sendResponse({ ok, zoom, canReset, error });
+        // The agent or a width condition wants a size; answer once it is on,
+        // so a capture can follow.
+        const done = (ok: boolean, error?: string) => sendResponse({ ok, frame, scale, error });
         if (msg.preset === 'reset') {
-          resetViewport(true).then((ok) => done(ok, ok ? undefined : 'the window could not be put back'), (e) => done(false, String(e)));
+          resetViewport(true).then((ok) => done(ok, ok ? undefined : 'the frame could not be taken off'), (e) => done(false, String(e)));
           return true;
         }
-        const preset = DEVICE_PRESETS.find((p) => p.name === msg.preset);
-        if (!preset) {
+        const asked = msg.width;
+        if (typeof asked === 'number' && (asked < WIDTH_RANGE.min || asked > WIDTH_RANGE.max)) {
+          done(false, `a frame ${asked}px wide cannot be shown; ask for ${WIDTH_RANGE.min}–${WIDTH_RANGE.max}px`);
+          return true;
+        }
+        // A width with no device behind it — one of the page's own
+        // breakpoints — keeps the height already in play, since the thing
+        // being asked for is a width.
+        const size =
+          typeof asked === 'number'
+            ? { width: asked, height: frame?.height ?? Math.round(innerHeight) }
+            : DEVICE_PRESETS.find((p) => p.name === msg.preset);
+        if (!size) {
           done(false, `no preset named ${msg.preset}`);
           return true;
         }
-        pickPreset(preset).then((ok) => done(ok, ok ? undefined : 'the window could not be resized'), (e) => done(false, String(e)));
+        setFrame(size, true).then((ok) => done(ok, ok ? undefined : 'the page could not be shown at that size'), (e) => done(false, String(e)));
         return true;
       }
       case 'point': {
@@ -1671,7 +1849,7 @@ function activate() {
         break;
       case 'reset-viewport':
         // Asked by the panel's Reset, which already said what happened.
-        if (canReset) void resetViewport(true);
+        if (frame) void resetViewport(true);
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
@@ -1702,6 +1880,7 @@ function activate() {
     setHover(false);
     setNote(false);
     pushPage(false);
+    pageFrame.clear();
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);
