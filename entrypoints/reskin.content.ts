@@ -35,8 +35,9 @@ import {
   type ConditionRule,
   type HoistedRule,
 } from '@/studio/conditionSheet';
-import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, withoutDarkQuery, type DarkHook } from '@/studio/siteMode';
-import { mediaMatches, refreshFrame, sourceMedia, withSourceMedia } from '@/studio/pageFrame';
+import type { DarkHook } from '@/studio/siteMode';
+import { hoistDark, lightOnlyMedia, previewReach } from '@/studio/siteDark';
+import { mediaMatches, refreshFrame, withSourceMedia } from '@/studio/pageFrame';
 
 interface Override {
   name: string;
@@ -134,7 +135,6 @@ export default defineContentScript({
     let siteDark: HTMLStyleElement | null = null;
     let appliedHooks: DarkHook[] = [];
     let savedColorScheme: string | null = null;
-    let ruleCount = 0;
     /**
      * Applies overlap: the panel sends every few frames and a cross-origin
      * fetch takes longer than that. Each run takes a number, and a run that
@@ -204,16 +204,6 @@ export default defineContentScript({
      */
     const NOT_THE_PAGE = new Set([STATE_ID, ELEMENTS_ID, PREVIEW_ID, MARKS_ID]);
 
-    /** The name a grouping rule was written under, so a re-emitted rule lands in the same layer. */
-    const groupHead = (rule: CSSMediaRule | CSSSupportsRule | CSSLayerBlockRule): string =>
-      rule instanceof CSSMediaRule
-        ? `@media ${sourceMedia(rule.media)}`
-        : rule instanceof CSSSupportsRule
-          ? `@supports ${rule.conditionText}`
-          : rule.name
-            ? `@layer ${rule.name}`
-            : '@layer';
-
     /* -------- hardcoded colours -------- */
 
     /** What a `rem` is worth on this page, for the length rewrites. */
@@ -242,47 +232,6 @@ export default defineContentScript({
 
     /* -------- the site's own dark mode -------- */
 
-    /**
-     * Rules under a dark media query, re-emitted without it. A dark query
-     * joined to a breakpoint keeps the breakpoint; one joined with commas is
-     * left alone. Hooks the stylesheet hangs dark rules off are collected on
-     * the way so they can be set on the root.
-     */
-    const hoistDark = (rules: CSSRuleList, out: string[], hooks: Map<string, DarkHook>, inDark: boolean) => {
-      for (const rule of Array.from(rules)) {
-        if (ruleCount++ > MAX_RULES) return;
-        if (rule instanceof CSSMediaRule) {
-          // As the page wrote it: a copy carries the breakpoint, and the
-          // device frame answers the copy the way it answers the original.
-          const condition = sourceMedia(rule.media);
-          const rest = withoutDarkQuery(condition);
-          if (rest === undefined) {
-            if (isDarkMedia(condition)) continue; // an arm we cannot separate
-            const inner: string[] = [];
-            hoistDark(rule.cssRules, inner, hooks, inDark);
-            if (inner.length) out.push(`@media ${condition}{${inner.join('')}}`);
-            continue;
-          }
-          const inner: string[] = [];
-          hoistDark(rule.cssRules, inner, hooks, true);
-          if (inner.length) out.push(rest ? `@media ${rest}{${inner.join('')}}` : inner.join(''));
-          continue;
-        }
-        if (rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
-          const inner: string[] = [];
-          hoistDark(rule.cssRules, inner, hooks, inDark);
-          if (inner.length) out.push(`${groupHead(rule)}{${inner.join('')}}`);
-          continue;
-        }
-        if (!(rule instanceof CSSStyleRule)) continue;
-        if (inDark) out.push(rule.cssText);
-        for (const sel of rule.selectorText.split(',')) {
-          const hook = hookFromSelector(sel.trim());
-          if (hook) hooks.set(hookKey(hook), hook);
-        }
-      }
-    };
-
     const setHook = (hook: DarkHook, on: boolean) => {
       for (const el of [root, document.body].filter(Boolean)) {
         if (hook.kind === 'class') el.classList.toggle(hook.name, on);
@@ -299,15 +248,10 @@ export default defineContentScript({
      */
     const suppressed: { rule: CSSMediaRule; was: string }[] = [];
     const suppressLight = (rules: CSSRuleList) => {
-      for (const rule of Array.from(rules)) {
-        if (rule instanceof CSSMediaRule && isLightOnly(sourceMedia(rule.media))) {
-          suppressed.push({ rule, was: sourceMedia(rule.media) });
-          rule.media.mediaText = 'not all';
-          continue;
-        }
-        if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule || (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)) {
-          suppressLight(rule.cssRules);
-        }
+      for (const found of lightOnlyMedia([rules])) {
+        const rule = found as CSSMediaRule;
+        suppressed.push({ rule, was: rule.media.mediaText });
+        rule.media.mediaText = 'not all';
       }
     };
 
@@ -341,13 +285,8 @@ export default defineContentScript({
       const lists = await allRules();
       if (run !== modeRun) return { rules: 0, hooks: [] };
       clearSiteDark();
-      ruleCount = 0;
-      const out: string[] = [];
-      const hooks = new Map<string, DarkHook>();
       // A nested rule's text carries its media query; the copy needs the page's own.
-      withSourceMedia(() => {
-        for (const rules of lists) hoistDark(rules, out, hooks, false);
-      });
+      const { css: out, hooks } = withSourceMedia(() => hoistDark(lists, MAX_RULES));
       if (!out.length && !hooks.size) return { rules: 0, hooks: [] };
       // The page's own readable sheets can be edited in place; a fetched
       // sheet is a detached copy, and its light rules were never applied.
@@ -492,53 +431,26 @@ export default defineContentScript({
       preview.textContent = css;
       document.head.appendChild(preview);
       // Read the sheet back to say what it reaches. A selector the page cannot
-      // query is counted as unreadable rather than guessed at.
-      const reached = new Set<Element>();
-      const selectors: string[] = [];
-      // Reach is what applies now — in the device frame, when one is on: a
-      // rule under a media or supports condition
-      // the page does not meet at this moment is counted as a rule but reaches
-      // nothing and is not marked. A rule that sets its own outline is not
-      // marked either, or the mark would paint over the very thing it proposes.
-      const walk = (rules: CSSRuleList, applies: boolean) => {
-        for (const rule of Array.from(rules)) {
-          if (rule instanceof CSSMediaRule) {
-            walk(rule.cssRules, applies && mediaMatches(rule.conditionText));
-            continue;
-          }
-          if (rule instanceof CSSSupportsRule) {
-            walk(rule.cssRules, applies && CSS.supports(rule.conditionText));
-            continue;
-          }
-          if (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) {
-            walk(rule.cssRules, applies);
-            continue;
-          }
-          if (!(rule instanceof CSSStyleRule)) continue;
-          info.rules++;
-          let ownOutline = false;
-          for (const prop of Array.from(rule.style)) {
-            if (prop.startsWith('--') && !info.declares.includes(prop)) info.declares.push(prop);
-            if (prop === 'outline' || prop.startsWith('outline-')) ownOutline = true;
-          }
-          if (!applies) continue;
-          try {
-            const els = document.querySelectorAll(rule.selectorText);
-            els.forEach((el) => reached.add(el));
-            if (!ownOutline && !selectors.includes(rule.selectorText)) selectors.push(rule.selectorText);
-          } catch {
-            info.unreadable++;
-          }
-        }
-      };
+      // query is counted as unreadable rather than guessed at; a rule under a
+      // condition the page does not meet right now is counted but reaches
+      // nothing, and a rule that sets its own outline is not marked.
+      let selectors: string[] = [];
       try {
         const parsed = new CSSStyleSheet();
         parsed.replaceSync(css);
-        walk(parsed.cssRules, true);
+        const reach = previewReach(parsed.cssRules, {
+          mediaMatches,
+          supports: (c) => CSS.supports(c),
+          query: (selector) => document.querySelectorAll(selector),
+        });
+        info.rules = reach.rules;
+        info.unreadable = reach.unreadable;
+        info.declares = reach.declares;
+        info.matched = reach.matched.size;
+        selectors = reach.selectors;
       } catch {
         info.unreadable++;
       }
-      info.matched = reached.size;
       if (selectors.length) {
         marks = document.createElement('style');
         marks.id = MARKS_ID;

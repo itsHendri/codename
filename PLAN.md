@@ -790,10 +790,21 @@ In order.
    drift. `inspector.content.ts` is 1,633 lines and keeps only what is
    stateful: the overlay, the bar, the modes, the composer.
 
-   What is left: the state hoist's CSSOM walk in `reskin.content.ts` — its
-   rewriting half is already pure in `studio/conditionSheet.ts`, but the walk
-   that feeds it is not — and the inspector's bar and note composer, which
-   are DOM built by hand and would want a different kind of test.
+   The re-skin's three remaining walks followed the same day (W23), into
+   `studio/siteDark.ts`: the site's dark rules hoisted out of their query
+   (`hoistDark`, hooks collected on the way), the light-only blocks to switch
+   off while that preview is up (`lightOnlyMedia` — finding is the pure
+   half; the script does the switching, since it has to put them back), and
+   what a proposed stylesheet reaches (`previewReach`, with the page's
+   media, supports and query injected). Structural like every other walk,
+   with `kindOf` saying what a rule is from what it has, so `@page` is not a
+   style rule and a plain object in a test reads as a `CSSMediaRule` does.
+   `reskin.content.ts` is 535 lines and keeps the sheets, the run tokens and
+   the messages.
+
+   What is left in the content scripts is DOM built by hand — the bar and
+   the note composer in the inspector — and would want a different kind of
+   test.
 3. **Field and tree shortcuts (S).** What the W20 comparison found and set
    aside: Tab / Shift-Tab between fields; maths in a number field (`+20`,
    `*2`, `/2`); ⌘F to find a layer; Enter / Shift-Enter for child / parent
