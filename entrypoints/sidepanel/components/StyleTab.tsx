@@ -1,118 +1,101 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
 import type { InspectController, Scope } from '../lib/inspect';
-import { conditionKey, describe as describeCondition, STATES, widthConditions, type MaybeCondition } from '@/studio/conditions';
+import { conditionKey, describe as describeCondition, STATES, type MaybeCondition } from '@/studio/conditions';
+import { active } from '@/studio/changes';
 import type { CommentTarget } from '@/studio/annotations';
 import { CopyIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
-import { LayersTree } from './inspect/LayersTree';
-import { ComponentsStrip } from './inspect/ComponentsStrip';
-import { SplitPane } from './SplitPane';
-
-/** Where the Layers split remembers itself; Reset puts it back. */
-export const LAYERS_SPLIT_KEY = 'codename:layersSplit';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
 
 /**
- * The page as layers, and the one you picked.
+ * The one you picked, and everything about it.
  *
- * Changes and notes used to live here too, which put the colour of a heading
- * a thousand pixels down the scroll. They belong to the page rather than to
- * the selection, so they moved to their own tab and this one starts with what
- * you came to change. Select mode lives on the bar across the page, and only
- * there: one switch, one place to look for it.
+ * The tree used to sit above this in a split; it lives in the rail now, in
+ * the page on the left, where every design tool keeps it. This column is the
+ * styles on the right: what the element is, the state being edited, and its
+ * properties in the order a design tool lays them out.
  */
-export function LayersTab({
+export function StyleTab({
   error,
   ctl,
   scan,
   resolved,
   mode,
+  rail,
+  onShowRail,
 }: {
   error: string | null;
   ctl: InspectController;
   scan: ScanResult | null;
   resolved: ResolvedTokens | null;
   mode: Mode;
+  /** Whether the rail is showing; when it is not, the empty state offers it. */
+  rail: boolean;
+  onShowRail: () => void;
 }) {
   const el = ctl.element;
 
-  // The tree is read when this tab is showing, and again when the page under
-  // it changes. `refreshLayers` keeps its identity until the tab id does, so
-  // this asks once per page rather than on every render — and it asks again
-  // once the tab id arrives, which an empty dependency list would have missed.
-  useEffect(() => {
-    ctl.refreshLayers();
-  }, [ctl.refreshLayers]);
-
-  const layers = (
-    <>
-      <ComponentsStrip
-        nodes={ctl.layers}
-        onPick={(component) => {
-          ctl.selectLayer(component.nodes[0]!);
-          ctl.setScope('all');
-        }}
-      />
-      <LayersTree
-      nodes={ctl.layers}
-      selectedSelector={el?.selector ?? null}
-      onSelect={ctl.selectLayer}
-      onPeek={ctl.peekLayer}
-      onToggleHidden={ctl.toggleHidden}
-      onMove={ctl.move}
-      onRefresh={ctl.refreshLayers}
-      loading={ctl.layersLoading}
-    />
-    </>
-  );
+  // What this log has written for the selection in the state being edited,
+  // so a size mode can be read back from the panel's own words rather than
+  // guessed from a computed pixel count.
+  const written = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (!el) return out;
+    const key = conditionKey(ctl.condition);
+    for (const e of active(ctl.log)) {
+      if (e.selector !== el.selector && e.selector !== el.intent.selector) continue;
+      if (conditionKey(e.condition) !== key) continue;
+      out[e.property] = e.to;
+    }
+    return out;
+  }, [el, ctl.log, ctl.condition]);
 
   if (!el) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-        <p className="shrink-0 text-xs text-ink-muted">
-          Pick a layer below, or turn on <b className="font-medium text-ink-secondary">Select</b> on
-          the bar and click the page.
+        <p className="text-xs text-ink-muted">
+          Nothing selected. Turn on <b className="font-medium text-ink-secondary">Select</b> on the bar and click the
+          page, or pick a row in <b className="font-medium text-ink-secondary">Layers</b> beside it.
         </p>
-        {error && <p className="shrink-0 text-xs text-warn-ink">{error}</p>}
-        {layers}
+        {!rail && (
+          <button
+            onClick={onShowRail}
+            className="self-start rounded-control border border-line px-2.5 py-1 text-xs text-ink-secondary hover:bg-surface-recessed"
+          >
+            Show layers
+          </button>
+        )}
+        {error && <p className="text-xs text-warn-ink">{error}</p>}
       </div>
     );
   }
 
-  // The tree stays in view above the selection, so the next pick is one
-  // click away rather than behind a disclosure. The handle remembers where
-  // you left it.
   return (
-    <SplitPane
-      storageKey={LAYERS_SPLIT_KEY}
-      top={<div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-2">{layers}</div>}
-      bottom={
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-          <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-          <Header element={el} ctl={ctl} />
-          <Contrast element={el} />
-          <PropertyPanel
-            element={el}
-            scan={scan ?? NO_SCAN}
-            resolved={resolved}
-            mode={mode}
-            onChange={ctl.change}
-            onText={ctl.setText}
-            onPlay={ctl.playCondition}
-            playable={ctl.condition?.kind === 'state'}
-          />
-          <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
-        </div>
-      }
-    />
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3">
+      <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
+      <Header element={el} ctl={ctl} />
+      <Contrast element={el} />
+      <PropertyPanel
+        element={el}
+        scan={scan ?? NO_SCAN}
+        resolved={resolved}
+        mode={mode}
+        onChange={ctl.change}
+        onText={ctl.setText}
+        onPlay={ctl.playCondition}
+        playable={ctl.condition?.kind === 'state'}
+        written={written}
+      />
+      <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
+    </div>
   );
 }
 

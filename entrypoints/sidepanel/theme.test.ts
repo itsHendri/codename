@@ -14,7 +14,8 @@ import { OVERLAY } from '@/shared/theme';
  * ink level must stay dimmer than the one above it, or the hierarchy the
  * palette exists to express has stopped working.
  */
-const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+// The palette lives in shared/tokens.css now, where the rail reads it too.
+const css = readFileSync(new URL('../../shared/tokens.css', import.meta.url), 'utf8');
 
 function tokens(selector: string): Record<string, string> {
   const start = css.indexOf(`${selector} {`);
@@ -25,7 +26,7 @@ function tokens(selector: string): Record<string, string> {
   );
 }
 
-const themes = { dark: tokens(':root'), light: tokens(":root[data-theme='light']") };
+const themes = { dark: tokens(':root,\n:host'), light: tokens(":root[data-theme='light'],\n:host([data-theme='light'])") };
 const lc = (text: string, on: string) => Math.round(Math.abs(apca(text, on)));
 
 it('defines every token both themes need', () => {

@@ -10,7 +10,7 @@
  * record lives on `globalThis`, where all of them see the same one.
  */
 
-import { fitZoom, frameCss, rewriteMedia, type FrameSize } from './frame';
+import { availableWidth, fitZoom, frameCss, rewriteMedia, type FrameSize } from './frame';
 
 export const FRAME_SHEET_ID = 'codename-frame';
 
@@ -29,13 +29,15 @@ interface Registry {
   hold: (<T>(read: () => T) => T) | null;
   /** Whether a media query holds for the frame on now; null when there is none. */
   matches: ((mediaText: string) => boolean) | null;
+  /** Fit the frame to the room the page has again; for the rail, which changes that room. */
+  refit: (() => void) | null;
 }
 
 const KEY = '__codenameFrameMedia';
 
 function registry(): Registry {
   const g = globalThis as unknown as Record<string, Registry | undefined>;
-  return (g[KEY] ??= { source: new WeakMap(), written: new WeakMap(), refresh: null, hold: null, matches: null });
+  return (g[KEY] ??= { source: new WeakMap(), written: new WeakMap(), refresh: null, hold: null, matches: null, refit: null });
 }
 
 /**
@@ -72,6 +74,14 @@ export function mediaMatches(mediaText: string): boolean {
 /** Ask a frame that is on to look at every query again. Nothing when none is. */
 export function refreshFrame(): void {
   registry().refresh?.();
+}
+
+/**
+ * Ask a frame that is on to fit the room the page has again. The rail
+ * pushes the page with a root margin, which no resize event reports.
+ */
+export function refitFrame(): void {
+  registry().refit?.();
 }
 
 export interface PageFrame {
@@ -184,7 +194,7 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
 
   const fit = () => {
     if (!frame) return;
-    const next = fitZoom(frame.width, doc.documentElement.clientWidth);
+    const next = fitZoom(frame.width, availableWidth(doc));
     const css = frameCss(frame, next);
     const el = style();
     if (el.textContent !== css) el.textContent = css;
@@ -247,6 +257,7 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
     reg.refresh = answerAll;
     reg.hold = hold;
     reg.matches = matches;
+    reg.refit = fit;
   };
 
   const stop = () => {
@@ -257,6 +268,7 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
     if (reg.refresh === answerAll) reg.refresh = null;
     if (reg.hold === hold) reg.hold = null;
     if (reg.matches === matches) reg.matches = null;
+    if (reg.refit === fit) reg.refit = null;
   };
 
   return {
@@ -264,7 +276,7 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
       const wasOn = frame !== null;
       if (!wasOn) measureEm();
       frame = { width: next.width, height: next.height };
-      zoom = fitZoom(frame.width, doc.documentElement.clientWidth);
+      zoom = fitZoom(frame.width, availableWidth(doc));
       style().textContent = frameCss(frame, zoom);
       answerAll();
       if (!wasOn) start();
@@ -300,10 +312,13 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
       // `body { height: 100% }` runs its content past the body's own box, and
       // the frame is the column, not the box. The bar's strip is not the page.
       const r = doc.body.getBoundingClientRect();
-      const top = Math.max(0, parseFloat(getComputedStyle(doc.documentElement).marginTop) || 0);
+      const rootStyle = getComputedStyle(doc.documentElement);
+      const top = Math.max(0, parseFloat(rootStyle.marginTop) || 0);
+      // The rail's column is not the page either.
+      const left = Math.max(0, parseFloat(rootStyle.marginLeft) || 0);
       const bottom = doc.documentElement.clientHeight;
       if (bottom <= top || r.width <= 0) return null;
-      return { x: Math.max(0, r.left), y: top, width: Math.min(r.width, doc.documentElement.clientWidth), height: bottom - top };
+      return { x: Math.max(left, r.left), y: top, width: Math.min(r.width, availableWidth(doc)), height: bottom - top };
     },
   };
 }

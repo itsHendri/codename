@@ -11,6 +11,8 @@
 
 import type { AgentPresence, ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
+import { RAIL_TAG, SELECTED_EVENT, throughRail } from '@/shared/inpage';
+import { createRootPush } from '@/studio/pushRoot';
 import { DEVICE_KINDS, frameFor, presetsOf, viewportLabel, type DeviceKind, type Frame } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
@@ -23,12 +25,6 @@ import type { LayerNode } from '@/studio/layers';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
 import { createPageFrame } from '@/studio/pageFrame';
-
-declare global {
-  interface Window {
-    __codenameInspector?: { deactivate: () => void };
-  }
-}
 
 export default defineContentScript({
   registration: 'runtime',
@@ -112,7 +108,7 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function isOurs(el: Element | null): boolean {
-  return !!el && (el.tagName === HOST_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
+  return !!el && (el.tagName === HOST_TAG || el.tagName.toLowerCase() === RAIL_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
 }
 
 /** Text is editable only when the element's own children are text. */
@@ -138,6 +134,10 @@ function readProps(el: Element): ElementProps {
   }
   // What rendered it, if the dev build still knows. A built site answers nothing.
   const component = componentOf(el);
+  const parent = el.parentElement;
+  const ps = parent ? getComputedStyle(parent) : null;
+  const pr = parent?.getBoundingClientRect();
+  const inner = (px: string) => parseFloat(px) || 0;
   return {
     ...(component ? { component } : {}),
     selector: sel.selector,
@@ -158,15 +158,36 @@ function readProps(el: Element): ElementProps {
       paddingLeft: cs.paddingLeft,
       width: cs.width,
       height: cs.height,
+      minWidth: cs.minWidth,
+      minHeight: cs.minHeight,
+      maxWidth: cs.maxWidth,
+      maxHeight: cs.maxHeight,
       boxSizing: cs.boxSizing,
       display: cs.display,
       gap: cs.gap,
+      rowGap: cs.rowGap,
+      columnGap: cs.columnGap,
+      overflowX: cs.overflowX,
+      overflowY: cs.overflowY,
     },
     layout: {
       flexDirection: cs.flexDirection,
       justifyContent: cs.justifyContent,
       alignItems: cs.alignItems,
       flexWrap: cs.flexWrap,
+    },
+    position: { type: cs.position, top: cs.top, right: cs.right, bottom: cs.bottom, left: cs.left, zIndex: cs.zIndex },
+    child: {
+      inFlex: !!ps && /flex/.test(ps.display),
+      parentDirection: ps?.flexDirection ?? 'row',
+      flexGrow: cs.flexGrow,
+      flexShrink: cs.flexShrink,
+      flexBasis: cs.flexBasis,
+      alignSelf: cs.alignSelf,
+      order: cs.order,
+      // The parent's content box: what a percentage is a share of.
+      parentWidth: pr && ps ? Math.max(0, pr.width - inner(ps.paddingLeft) - inner(ps.paddingRight) - inner(ps.borderLeftWidth) - inner(ps.borderRightWidth)) : 0,
+      parentHeight: pr && ps ? Math.max(0, pr.height - inner(ps.paddingTop) - inner(ps.paddingBottom) - inner(ps.borderTopWidth) - inner(ps.borderBottomWidth)) : 0,
     },
     opacity: cs.opacity,
     type: {
@@ -317,13 +338,8 @@ function activate() {
       * { box-sizing: border-box; }
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
-      .box.hov { outline-style: dashed; }
-      .tag { position: fixed; pointer-events: none; background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-      .card { position: fixed; pointer-events: none; background: ${c.cardBg}; color: ${c.cardInk}; border: 1px solid ${c.cardLine}; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.24); font: 12px/1.5 ${font}; padding: 8px 10px; max-width: 280px; font-variant-numeric: tabular-nums; }
-      .card .row { display: flex; gap: 6px; align-items: center; }
-      .card .k { color: ${c.cardMuted}; width: 56px; flex-shrink: 0; }
-      .card .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid ${c.cardLine}; display: inline-block; }
-      .card .tok { color: ${c.accent}; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+      .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
+      .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
       .seg.y { width: 1px; }
@@ -372,6 +388,7 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
+      .bar > .mode.layers { border: 1px solid ${d.cardLine}; padding: 3px 8px; }
       /* A narrow window narrows the bar. It gives up words before it gives
          up controls. These sheets are in the shadow root, which a device
          frame does not rewrite, so they follow the window, not the frame. */
@@ -436,6 +453,9 @@ function activate() {
     </style>
     <div class="bar hidden">
       <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
+      <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5M2 8h9M2 12h12"/><path d="M8 3l1.5 1L8 5M13 7l1.5 1L13 9" stroke-width="1.2"/></svg><span class="label">Layers</span>
+      </button>
       <span class="host"></span>
       <div class="device" role="group" aria-label="Frame">
         <div class="kinds" role="radiogroup" aria-label="Device"><button class="kind" data-kind="desktop" role="radio" aria-checked="false" aria-label="Desktop" title="Desktop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M8 11v2.5M5.5 13.5h5"/></svg></button><button class="kind" data-kind="laptop" role="radio" aria-checked="false" aria-label="Laptop" title="Laptop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></svg></button><button class="kind" data-kind="tablet" role="radio" aria-checked="false" aria-label="Tablet" title="Tablet — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button><button class="kind" data-kind="phone" role="radio" aria-checked="false" aria-label="Phone" title="Phone — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button></div>
@@ -457,7 +477,7 @@ function activate() {
         </button>
       </div>
       <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false" title="Select — hover to read, click to pick (Alt+S)">
+        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
         </button>
         <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
@@ -471,8 +491,7 @@ function activate() {
     <div class="edit hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
-    <div class="tag hidden"></div>
-    <div class="card hidden"></div>
+    <div class="size hidden"></div>
     <div class="measure"></div>
     <div class="pins"></div>
     <div class="marquee hidden"></div>
@@ -482,8 +501,7 @@ function activate() {
 
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
   const hovBox = shadow.querySelector<HTMLElement>('.box.hov')!;
-  const tag = shadow.querySelector<HTMLElement>('.tag')!;
-  const card = shadow.querySelector<HTMLElement>('.card')!;
+  const sizeLabel = shadow.querySelector<HTMLElement>('.size')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
@@ -497,6 +515,7 @@ function activate() {
   const barH = bar.querySelector<HTMLInputElement>('.dim .h')!;
   const barScale = bar.querySelector<HTMLElement>('.scale')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
+  const barLayers = bar.querySelector<HTMLButtonElement>('.mode.layers')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
@@ -518,6 +537,9 @@ function activate() {
   let measuring = false;
   let pins: Pin[] = [];
   let barOn = false;
+  // Whether the rail is showing. The panel is the truth; the bar echoes it,
+  // and asks for the change rather than making it.
+  let railOn = false;
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   let barMode: Mode = 'light';
@@ -585,7 +607,12 @@ function activate() {
 
   /* ----- selection ----- */
 
-  const announce = () => send({ type: 'element-selected', data: selected ? readProps(selected) : null });
+  const announce = () => {
+    const props = selected ? readProps(selected) : null;
+    send({ type: 'element-selected', data: props });
+    // The rail listens here, in the same page, rather than through the panel.
+    document.dispatchEvent(new CustomEvent(SELECTED_EVENT, { detail: props?.selector ?? null }));
+  };
 
   const select = (el: Element | null) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
@@ -694,10 +721,21 @@ function activate() {
       raf = 0;
       if (selected?.isConnected) {
         selBox.classList.remove('hidden');
-        place(selBox, rectOf(selected));
+        const r = rectOf(selected);
+        place(selBox, r);
+        // The size under the box, as a design tool labels a selection; above
+        // it when the box runs off the bottom of the viewport.
+        sizeLabel.classList.remove('hidden');
+        sizeLabel.textContent = `${Math.round(r.width)} × ${Math.round(r.height)}`;
+        const below = r.y + r.height + 22 <= innerHeight;
+        Object.assign(sizeLabel.style, {
+          left: `${Math.min(Math.max(40, r.x + r.width / 2), innerWidth - 40)}px`,
+          top: `${below ? r.y + r.height + 3 : Math.max(barOn ? BAR_HEIGHT + 4 : 4, r.y - 21)}px`,
+        });
         placeEdit();
       } else {
         selBox.classList.add('hidden');
+        sizeLabel.classList.add('hidden');
         editCard.classList.add('hidden');
         if (selected) {
           // The page re-rendered it away; say so rather than track a ghost.
@@ -716,8 +754,6 @@ function activate() {
   const clearHover = () => {
     hovered = null;
     hovBox.classList.add('hidden');
-    tag.classList.add('hidden');
-    card.classList.add('hidden');
   };
 
   const onMove = (e: MouseEvent) => {
@@ -729,39 +765,16 @@ function activate() {
     }
     if (!el || el === document.documentElement || el === hovered) return;
     hovered = el;
-    const rect = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
+    // The outline says what a click will hit, and that is all it says: what
+    // the element is made of is on the edit card and in the panel once it is
+    // picked, and a readout here said the same things a third time.
     hovBox.classList.remove('hidden');
     place(hovBox, rectOf(el));
-    tag.classList.remove('hidden');
-    tag.textContent = `${buildSelector(el).intent.selector} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    // Above the element when there is room under the bar; otherwise tucked inside its top edge.
-    const minTop = barOn ? BAR_HEIGHT + 4 : 4;
-    const tagTop = rect.top - 22 >= minTop ? rect.top - 22 : Math.max(minTop, rect.top + 4);
-    Object.assign(tag.style, { left: `${Math.max(4, rect.left)}px`, top: `${tagTop}px` });
-
-    if (measuring && selected) {
-      card.classList.add('hidden');
-      drawMeasure();
-      return;
-    }
-    const fg = toHex(cs.color);
-    const bg = opaqueBackground(el);
-    const ratio = contrast(fg, bg);
-    card.classList.remove('hidden');
-    card.innerHTML = `
-      <div class="row"><span class="k">Font</span><span>${(cs.fontFamily.split(',')[0] ?? '').replace(/["']/g, '')} · ${cs.fontWeight} · ${cs.fontSize}/${cs.lineHeight}</span></div>
-      <div class="row"><span class="k">Text</span><span class="swatch" style="background:${fg ?? 'transparent'}"></span><span>${fg ?? '—'}${named(fg) ? ` <span class="tok">${escapeHtml(named(fg)!)}</span>` : ''}</span></div>
-      <div class="row"><span class="k">Fill</span><span class="swatch" style="background:${bg}"></span><span>${bg}${named(bg) ? ` <span class="tok">${escapeHtml(named(bg)!)}</span>` : ''}</span></div>
-      <div class="row"><span class="k">Contrast</span><span>${ratio ?? '—'}${ratio ? ':1' : ''} ${ratio ? (ratio >= 7 ? 'AAA ✓' : ratio >= 4.5 ? 'AA ✓' : '✗') : ''}</span></div>
-      <div class="row"><span class="k">Box</span><span>pad ${cs.padding} · radius ${cs.borderRadius}</span></div>`;
-    const cardX = Math.min(e.clientX + 16, innerWidth - 296);
-    const cardY = Math.min(e.clientY + 16, innerHeight - 140);
-    Object.assign(card.style, { left: `${cardX}px`, top: `${cardY}px` });
+    if (measuring && selected) drawMeasure();
   };
 
   const onClick = (e: MouseEvent) => {
-    if (e.composedPath().includes(host)) return;
+    if (e.composedPath().includes(host) || throughRail(e)) return;
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
@@ -785,7 +798,7 @@ function activate() {
       renderBar();
       showHint(
         on
-          ? '<b>Select</b> — hover for font, colour and contrast; click to pick an element. Arrow keys walk the tree, Esc lets go.'
+          ? '<b>Select</b> — click an element to edit it. Arrow keys walk the tree, Esc lets go.'
           : null,
       );
     }
@@ -1332,6 +1345,8 @@ function activate() {
     renderDevice();
     barSelect.classList.toggle('on', hoverOn);
     barSelect.setAttribute('aria-checked', String(hoverOn));
+    barLayers.classList.toggle('on', railOn);
+    barLayers.setAttribute('aria-checked', String(railOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
     barLight.classList.toggle('on', barMode === 'light');
@@ -1520,21 +1535,11 @@ function activate() {
    * of the viewport will still sit under the bar; that is stated in the
    * README rather than fought.
    */
-  let pushed: { value: string; priority: string } | null = null;
+  const pushTop = createRootPush('top');
   const pushPage = (on: boolean) => {
-    const root = document.documentElement;
     if (on) {
-      if (pushed) return;
-      pushed = {
-        value: root.style.getPropertyValue('margin-top'),
-        priority: root.style.getPropertyPriority('margin-top'),
-      };
-      root.style.setProperty('margin-top', `${BAR_HEIGHT}px`, 'important');
-    } else if (pushed) {
-      if (pushed.value) root.style.setProperty('margin-top', pushed.value, pushed.priority);
-      else root.style.removeProperty('margin-top');
-      pushed = null;
-    }
+      if (!pushTop.on) pushTop.set(BAR_HEIGHT);
+    } else pushTop.clear();
   };
 
   const showBar = (on: boolean) => {
@@ -1586,6 +1591,16 @@ function activate() {
     input.addEventListener('focus', () => input.select());
   }
   barSelect.addEventListener('click', () => setHover(!hoverOn));
+  /** Show or fold the rail: the bar flips at once and asks the panel, which holds the answer. */
+  const toggleRail = () => {
+    railOn = !railOn;
+    renderBar();
+    send({ type: 'rail-toggled', on: railOn });
+  };
+  barLayers.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleRail();
+  });
   barComment.addEventListener('click', () => setNote(!noteOn));
   const setMode = (mode: Mode) => {
     if (mode === barMode) return;
@@ -1652,6 +1667,8 @@ function activate() {
    * whether the composer or the edit card has the caret.
    */
   const typing = (e: Event) => {
+    // The rail has its own keyboard: arrows walk its rows, not the DOM.
+    if (throughRail(e)) return true;
     const inside = shadow.activeElement as HTMLElement | null;
     const el = inside ?? ((e.composedPath()[0] ?? e.target) as HTMLElement | null);
     return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ''));
@@ -1696,12 +1713,12 @@ function activate() {
 
   /* ----- commands from the panel ----- */
 
-  const onMessage = (
-    msg: { type?: string } & Partial<InspectorCommand>,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (r: unknown) => void,
-  ) => {
-    if (msg?.type !== 'inspector') return false;
+  /**
+   * Run a command. From the panel over `chrome.runtime`, or from the rail in
+   * the same page through the handle on `window`; the answer goes to
+   * `sendResponse` either way, and the return says whether it comes later.
+   */
+  const handle = (msg: Partial<InspectorCommand>, sendResponse: (r: unknown) => void): boolean => {
     switch (msg.cmd) {
       case 'hover':
         setHover(!!msg.on);
@@ -1711,6 +1728,7 @@ function activate() {
         // with no bar and nobody listening; the bar is the sign of a panel.
         if (!barOn) break;
         if (msg.what === 'comment') setNote(!noteOn);
+        else if (msg.what === 'layers') toggleRail();
         else setHover(!hoverOn);
         break;
       case 'tokens':
@@ -1853,6 +1871,7 @@ function activate() {
         break;
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
+        if (typeof msg.rail === 'boolean') railOn = msg.rail;
         if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
         if (msg.agent !== undefined) agent = msg.agent;
@@ -1872,6 +1891,15 @@ function activate() {
     }
     sendResponse({ ok: true, hover: hoverOn, selected: !!selected });
     return true;
+  };
+
+  const onMessage = (
+    msg: { type?: string } & Partial<InspectorCommand>,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (r: unknown) => void,
+  ) => {
+    if (msg?.type !== 'inspector') return false;
+    return handle(msg, sendResponse);
   };
 
   const observer = new MutationObserver(layout);
@@ -1896,5 +1924,11 @@ function activate() {
   addEventListener('resize', layout);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
   chrome.runtime.onMessage.addListener(onMessage);
-  window.__codenameInspector = { deactivate };
+  window.__codenameInspector = {
+    deactivate,
+    handle: (cmd) =>
+      new Promise((resolve) => {
+        if (!handle(cmd, resolve)) resolve(undefined);
+      }),
+  };
 }

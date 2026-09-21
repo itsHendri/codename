@@ -31,6 +31,7 @@ export function NumberField({
   ariaLabel,
   className = '',
   step = 1,
+  bare = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -39,6 +40,8 @@ export function NumberField({
   className?: string;
   /** How much one px of drag, or one arrow press, is worth. */
   step?: number;
+  /** No grip and no frame: a number sitting in a diagram, typed and nudged in place. */
+  bare?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
@@ -68,6 +71,34 @@ export function NumberField({
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
+  if (bare) {
+    return (
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onFocus={(e) => e.currentTarget.select()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setDraft(value);
+            e.currentTarget.blur();
+          }
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            onChange(stepValue(base, e.key === 'ArrowUp' ? stepFor(e, step) : -stepFor(e, step)));
+          }
+        }}
+        spellCheck={false}
+        aria-label={ariaLabel}
+        size={Math.max(3, draft.length)}
+        className={`min-w-0 rounded-sm border border-transparent bg-transparent px-0.5 text-center font-mono text-2xs tabular-nums hover:border-line focus:border-accent focus:bg-surface-recessed ${
+          valid ? 'text-ink-secondary' : 'border-warn bg-warn-soft'
+        } ${className}`}
+      />
+    );
+  }
+
   return (
     <div className={`flex min-w-0 items-center gap-0.5 ${className}`}>
       <span
@@ -86,6 +117,10 @@ export function NumberField({
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setDraft(value);
+            e.currentTarget.blur();
+          }
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
             onChange(stepValue(base, e.key === 'ArrowUp' ? stepFor(e, step) : -stepFor(e, step)));

@@ -93,6 +93,31 @@ is that companion growing up.
   (`studio/commit.ts`), delivered by copy or JSON.
 - `.harness/` renders the panel outside the extension; `?theme=` picks the
   palette and `chrome.__emit` fakes a content-script message.
+- **W20, 21 September 2026 — layers left, styles right.** Framer, Figma and
+  Webflow keep the tree on the left of the canvas and the styles on the
+  right; the panel had five tabs in one column with the tree stacked above
+  the selection. A Chrome side panel cannot be two columns (a 320px floor,
+  no width API, a dragged width forgotten across restarts), so the tree
+  moved into the page: a **rail** on the left (`entrypoints/rail.content.tsx`,
+  React in a closed shadow root, the panel's own `LayersTree` and `SvgsTab`,
+  the page pushed right with a root margin through `studio/pushRoot.ts`),
+  folded by Layers on the bar or Alt+L. It talks to the inspector in the
+  same page through `window.__codenameInspector.handle` (`shared/inpage.ts`)
+  and to the panel only for what belongs in the log (`rail-move`,
+  `rail-hide`, `rail-scope`). The panel is **Style · Variables · Export ·
+  Changes**; the split and the Layers tab are gone. **Select is the only
+  mode**: the hover card and tag were saying what the edit card and the
+  panel say again, so hover is a 1px outline and the selection carries its
+  size under the box. The Style column took the order the three tools agree
+  on — Position · Size · Layout · Spacing · Colour · Type · Border ·
+  Effects · Motion · Text, all open, heads sticky — and the controls the
+  comparison found missing: position and insets, **size modes** (Fixed ·
+  Fill · Fit · Rel, `studio/sizeMode.ts`, which fail closed because a
+  computed width never says what the author wrote), min/max, overflow, the
+  3×3 align grid (`studio/alignGrid.ts`), row/column gap, the flex-child
+  fields, and a box diagram that is typed into, with a link for how far an
+  edit reaches. A device frame fits the room the rail leaves. The decision
+  record and mocks are in `docs/design/panel-layout-wireframes.{md,html}`.
 
 ## Live re-skin
 
@@ -746,7 +771,13 @@ In order.
    hoist's CSSOM walk in `reskin.content.ts` is the other one — its rewriting
    half is already pure in `studio/conditionSheet.ts`, but the walk that feeds
    it is not.
-3. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
+3. **Field and tree shortcuts (S).** What the W20 comparison found and set
+   aside: Tab / Shift-Tab between fields; maths in a number field (`+20`,
+   `*2`, `/2`); ⌘F to find a layer; Enter / Shift-Enter for child / parent
+   in the tree; hold ⌥ to measure to the hovered element; ⌥1 / ⌥2 to focus
+   the rail and the panel; a shortcuts sheet in the app menu. Escape already
+   puts a field's draft back.
+4. **A `critique` tool over the scan (S).** Done. Impeccable's contribution:
    the agent asks the panel what is wrong with the page and gets the contrast
    pairs under AA with element counts, the off-grid spacing, the
    near-duplicate colours, the type-ladder strays, the font-family and radius
@@ -784,7 +815,11 @@ the primary use case.
   moment; one without it wants a reload, and the row says so.
 
 - The bar pushes the page with a root margin; a header the page fixes to the
-  top of the viewport still sits under it. Region notes store page
+  top of the viewport still sits under it. The rail does the same from the
+  left: a fixed header runs under it, and a script reading `innerWidth` still
+  sees the window. The rail cannot load Geist without exposing the
+  extension's files to the page, so it wears the system sans; and it is
+  React in a shadow root, 345 KB injected into the page on first use. Region notes store page
   coordinates, so one drawn with the bar shown lands 40px off when it hides.
 - A device frame is drawn in the page (`studio/frame.ts`,
   `studio/pageFrame.ts`): the body is narrowed, centred and zoomed to fit,

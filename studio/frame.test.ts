@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALWAYS, evaluateFeature, fitZoom, frameCss, MIN_ZOOM, NEVER, rewriteMedia } from './frame';
+import { ALWAYS, availableWidth, evaluateFeature, fitZoom, frameCss, MIN_ZOOM, NEVER, rewriteMedia } from './frame';
 
 const phone = { width: 375, height: 667 };
 const laptop = { width: 1280, height: 800 };
@@ -134,5 +134,24 @@ describe('frameCss', () => {
 
   it('scales only when it has to', () => {
     expect(frameCss(laptop, 0.82)).toContain('zoom: 0.82 !important');
+  });
+});
+
+describe('availableWidth', () => {
+  const doc = (clientWidth: number, marginLeft: string) =>
+    ({
+      documentElement: { clientWidth },
+      defaultView: { getComputedStyle: () => ({ marginLeft }) },
+    }) as unknown as Document;
+
+  it('is the viewport less a root margin on the left', () => {
+    expect(availableWidth(doc(1280, '240px'))).toBe(1040);
+  });
+
+  it('is the viewport itself with no margin, and never negative', () => {
+    expect(availableWidth(doc(1280, '0px'))).toBe(1280);
+    expect(availableWidth(doc(1280, ''))).toBe(1280);
+    expect(availableWidth(doc(100, '240px'))).toBe(0);
+    expect(availableWidth(doc(100, '-20px'))).toBe(100);
   });
 });

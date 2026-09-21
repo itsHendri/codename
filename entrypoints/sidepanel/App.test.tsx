@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 /**
  * The panel, mounted for real against a stubbed page. What the harness
- * checks by hand, pinned: the tab strip, a selection landing on Layers, an
- * edit reaching the badge, Dark previewing without entering the brief, and
- * Reset taking everything back.
+ * checks by hand, pinned: the tab strip, a selection landing on Style, an
+ * edit reaching the badge, the rail beside the page, Dark previewing without
+ * entering the brief, and Reset taking everything back.
  */
 
 import { act } from 'react';
@@ -56,22 +56,76 @@ afterEach(async () => {
 });
 
 describe('the panel', () => {
-  it('opens on Layers with the five tabs in order and the page read', () => {
-    expect(tabs()).toEqual(['layers', 'variables', 'assets', 'export', 'changes']);
-    expect(activeTab()).toBe('layers');
+  it('opens on Style with the four tabs in order and the page read', () => {
+    expect(tabs()).toEqual(['style', 'variables', 'export', 'changes']);
+    expect(activeTab()).toBe('style');
     expect(host.querySelector('footer')?.textContent).toContain('6 colors');
-    // The tree came from the page and the repeating card shows as a component.
-    expect(text()).toContain('h1#title');
-    expect(text()).toContain('×2article.card');
+    // Nothing picked yet: the tree is in the rail, not here.
+    expect(text()).toContain('Nothing selected');
+    expect(text()).not.toContain('Show layers');
   });
 
-  it('shows a selection in a split above the tree, and an edit from the page reaches the badge', async () => {
+  it('shows the rail beside the page, feeds it the assets, and folds it when the bar says so', async () => {
+    const rails = () => stub.sent.filter((m) => m.type === 'rail');
+    expect(rails().find((m) => m.cmd === 'rail')).toMatchObject({ on: true, theme: 'dark' });
+    expect(rails().find((m) => m.cmd === 'assets')).toMatchObject({ svgs: [] });
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ rail: true });
+
+    // Layers on the bar, or Alt+L: the session holds the answer and the page is told.
+    await act(async () => stub.emit({ type: 'rail-toggled', on: false }));
+    await tick(120);
+    expect(getSession().rail).toBe(false);
+    expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: false });
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ rail: false });
+
+    // With it folded, the empty Style tab offers it back.
+    const show = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Show layers') ?? null;
+    expect(show).not.toBeNull();
+    await click(show);
+    await tick(120);
+    expect(getSession().rail).toBe(true);
+    expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: true });
+  });
+
+  it('files a drag in the rail as a move, and the eye as a display edit', async () => {
+    const row = (id: number, selector: string, depth: number) => ({
+      id, depth, label: selector, selector, tag: selector.split(/[.#]/)[0], stable: true, matches: 1, descendants: 0, hidden: false, display: 'block',
+    });
+    const main = row(5, 'main.plate', 2);
+    const card = row(6, 'article.card', 3);
+    const title = row(3, 'h1#title', 3);
+    const header = row(2, 'header.topbar', 2);
+    await act(async () => stub.emit({ type: 'rail-move', node: title, parent: main, before: card, wasIn: header, wasBefore: null }));
+    await tick(120);
+    expect(badge()).toBe('1');
+    const moves = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'moves').at(-1)?.moves;
+    expect(moves).toEqual([{ selector: 'h1#title', parent: 'main.plate', before: 'article.card' }]);
+
+    await act(async () => stub.emit({ type: 'rail-hide', node: card }));
+    await tick(120);
+    expect(badge()).toBe('2');
+    const rules = stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; property: string; value: string }[];
+    expect(rules).toEqual([{ selector: 'article.card', property: 'display', value: 'none' }]);
+    // The eye again is that edit taken back, not a second one.
+    await act(async () => stub.emit({ type: 'rail-hide', node: card }));
+    await tick(120);
+    expect(badge()).toBe('1');
+  });
+
+  it('opens on Style when a stored session was left on a tab that moved into the rail', async () => {
+    await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), activeTab: 'layers' } }));
+    await act(async () => loadSession(1, 'http://localhost:5173/'));
+    await tick();
+    expect(getSession().activeTab).toBe('style');
+    expect(activeTab()).toBe('style');
+  });
+
+  it('shows a selection on Style, and an edit from the page reaches the badge', async () => {
     await click(host.querySelector('#tab-export'));
     expect(activeTab()).toBe('export');
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));
     await tick();
-    expect(activeTab()).toBe('layers');
-    expect(host.querySelector('[role=separator]')).not.toBeNull();
+    expect(activeTab()).toBe('style');
     expect(text()).toContain('h1#title');
 
     await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
@@ -556,5 +610,98 @@ describe('editing a state', () => {
     expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'state').at(-1)).toMatchObject({ state: null });
     // And the hoisted sheet goes with it, rather than sitting in the page.
     expect(stub.sent.filter((m) => m.type === 'state-set').at(-1)).toMatchObject({ state: null, selector: null });
+  });
+});
+
+describe('the Style column', () => {
+  const radio = (group: string, label: string) =>
+    Array.from(host.querySelector(`[role=radiogroup][aria-label="${group}"]`)?.querySelectorAll('[role=radio]') ?? []).find(
+      (b) => b.textContent === label || b.getAttribute('aria-label') === label,
+    ) ?? null;
+  const lastRules = () =>
+    stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { selector: string; property: string; value: string }[];
+  const selectHeading = async (over: Record<string, unknown> = {}) => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element(over) }));
+    await tick();
+  };
+
+  it('lays the groups out in a design tool\'s order, all open', async () => {
+    await selectHeading();
+    const heads = Array.from(host.querySelectorAll('section > button[aria-expanded]')).map((b) => b.textContent?.replace('▶', ''));
+    expect(heads).toEqual(['Position', 'Size', 'Layout', 'Spacing', 'Colour', 'Type', 'Border', 'Effects', 'Motion', 'Text']);
+    expect(host.querySelectorAll('section > button[aria-expanded="false"]')).toHaveLength(0);
+  });
+
+  it('positions the box and opens the insets once it is positioned', async () => {
+    await selectHeading();
+    expect(host.querySelector('[aria-label="Top"]')).toBeNull();
+    await click(radio('Position', 'absolute'));
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'position', value: 'absolute' }]);
+    await selectHeading({ position: { type: 'absolute', top: '0px', right: 'auto', bottom: 'auto', left: '0px', zIndex: '2' } });
+    expect(host.querySelector('[aria-label="Top"]')).not.toBeNull();
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Z-index"]')?.value).toBe('2');
+  });
+
+  it('claims no size mode from a pixel count, and writes one exactly', async () => {
+    await selectHeading();
+    const modes = host.querySelector('[role=radiogroup][aria-label="Width mode"]')!;
+    expect(Array.from(modes.querySelectorAll('[role=radio][aria-checked="true"]'))).toHaveLength(0);
+    // Relative: the box's share of the parent's content box, from the page's own numbers.
+    await click(radio('Width mode', 'rel'));
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'width', value: '10%' }]);
+    // Now the log has said it, the mode reads back.
+    expect(radio('Width mode', 'rel')?.getAttribute('aria-checked')).toBe('true');
+    await click(radio('Height mode', 'fit'));
+    await tick(120);
+    expect(lastRules()).toContainEqual({ selector: 'h1#title', property: 'height', value: 'fit-content' });
+  });
+
+  it('fills a flex child by growing along the parent\'s main axis', async () => {
+    await selectHeading({
+      child: { inFlex: true, parentDirection: 'row', flexGrow: '0', flexShrink: '1', flexBasis: 'auto', alignSelf: 'auto', order: '0', parentWidth: 1000, parentHeight: 600 },
+    });
+    await click(radio('Width mode', 'fill'));
+    await tick(120);
+    expect(lastRules()).toEqual([
+      { selector: 'h1#title', property: 'flex', value: '1 1 0%' },
+      { selector: 'h1#title', property: 'width', value: 'auto' },
+    ]);
+    expect(radio('Width mode', 'fill')?.getAttribute('aria-checked')).toBe('true');
+    // And the flex-child fields are there for it.
+    expect(host.querySelector('[aria-label="Flex grow"]')).not.toBeNull();
+  });
+
+  it('aligns a stack from the grid, as two properties', async () => {
+    await selectHeading({ box: { ...element().box, display: 'flex' } });
+    await click(radio('Align children', 'bottom right'));
+    await tick(120);
+    expect(lastRules()).toEqual([
+      { selector: 'h1#title', property: 'justify-content', value: 'flex-end' },
+      { selector: 'h1#title', property: 'align-items', value: 'flex-end' },
+    ]);
+    expect(badge()).toBe('2');
+  });
+
+  it('edits spacing in the diagram, reaching the sides the link says', async () => {
+    await selectHeading();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    const type = async (label: string, value: string) => {
+      const input = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      await act(async () => {
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await tick(120);
+    };
+    await type('Padding top', '12');
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'padding-top', value: '12' }]);
+    await click(radio('Sides an edit reaches', 'all'));
+    await type('Padding left', '20');
+    expect(lastRules().filter((r) => r.property.startsWith('padding')).map((r) => `${r.property}:${r.value}`).sort()).toEqual(
+      ['padding-bottom:20', 'padding-left:20', 'padding-right:20', 'padding-top:20'],
+    );
   });
 });

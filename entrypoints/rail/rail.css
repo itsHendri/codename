@@ -1,0 +1,30 @@
+/*
+ * The rail's stylesheet: Tailwind, the panel's palette on `:host`, and the
+ * same utilities, so the tree reads the same in the page as it did in the
+ * panel. Injected as a string into the rail's shadow root, since a script
+ * the panel injects on demand has no stylesheet of its own to load.
+ */
+
+@import 'tailwindcss';
+@import '../../shared/tokens.css';
+@import '../../shared/theme.css';
+
+@layer base {
+  :host {
+    display: block;
+  }
+  .rail {
+    @apply bg-surface-app text-ink antialiased;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 17px;
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}

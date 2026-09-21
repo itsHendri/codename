@@ -4,12 +4,17 @@ A designer's toolkit in the browser side panel: read the design system a page
 is actually running, edit it, watch the real page repaint, and hand the change
 to your agent — which can be connected, so you never paste.
 
-## The five tabs
+## The rail, and the four tabs
 
-Layers · Variables · Assets · Export · Changes.
+Layers and Assets stand in the page, in a **rail** on its left, where a
+design tool keeps its tree; the panel on the right is Style · Variables ·
+Export · Changes. A Chrome side panel is one column with no width to spare,
+so the tree could not be a second column of it — it is drawn in the page
+like the bar, pushing the page right by its own width (drag its edge; 180
+to 420px). **Layers** on the bar, or **Alt+L**, folds it.
 
-- **Layers** — the page as a tree you can pick from, and the selection you
-  picked. Above the tree, **Components**: the class selectors that repeat on
+- **Layers** (in the rail) — the page as a tree you can pick from. Above
+  the tree, **Components**: the class selectors that repeat on
   the page with something inside them (`.card` ×12), read off the page rather
   than a framework; pick one and the edit scope is all of them. The tree
   lists every element with its own text beside it, searches
@@ -107,8 +112,9 @@ Layers · Variables · Assets · Export · Changes.
   them, a region in page coordinates, or a quoted run of text — and carries a
   numbered pin on the page. Hold **View original** to see the page without any of it. The
   actions to copy, send or download the brief live at the bottom.
-- **Assets** — every SVG on the page (inline, `<img>`, CSS backgrounds, sprite
-  `<use>`, favicons), previewed with copy, per-file download and ZIP export.
+- **Assets** (in the rail) — every SVG on the page (inline, `<img>`, CSS
+  backgrounds, sprite `<use>`, favicons), previewed with copy, per-file
+  download and ZIP export.
 - **Export** — `brand.md` for agent context, `tokens.json` in W3C DTCG format,
   and for the edited system `tokens.css`, a `SKILL.md` with its
   `DESIGN_SYSTEM.md` reference, a standalone style-guide page, or all of it as
@@ -142,17 +148,18 @@ component's shadow root, iframes, the `media` and `sizes` of responsive
 images, and a stylesheet from another origin the page cannot read (the bar
 says how many). The viewport meta tag plays no part;
 a page is laid out at the frame's width whether or not it has one. The bar
-itself keeps the tab's full width. **Select** hovers for font, colour
-and contrast — naming the page's own variable beside a colour when it has
-one — and clicks to pick an element. The edit card that opens beside the
-selection names the variable behind a colour, a padding, a radius or a size
-where the page has one whose name says what it is, and a click writes
-`var(--x)` in place of the literal. **Comment** marks something up:
+itself keeps the tab's full width. **Select** outlines the element under
+the pointer and picks it on a click; the selection carries its size under
+the box, and nothing else is read out on hover — what an element is made
+of is on the edit card and in the panel once it is picked. The edit card
+that opens beside the selection names the variable behind a colour, a
+padding, a radius or a size where the page has one whose name says what it
+is, and a click writes `var(--x)` in place of the literal. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a
-shortcut — **Alt+S** for Select, **Alt+C** for Comment — that you can rebind
-at `chrome://extensions/shortcuts`. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme
+shortcut — **Alt+S** for Select, **Alt+C** for Comment, **Alt+L** for the
+rail — that you can rebind at `chrome://extensions/shortcuts`. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme
 (dark by default, light, or follow the system), site access, and the agent
 bridge.
 
@@ -401,12 +408,17 @@ npm run harness:scripts
 - **WXT + React + TypeScript + Tailwind v4**, Manifest V3. Side panel only —
   there is no options page and no full-tab UI, because the live site is the
   canvas.
-- `entrypoints/sidepanel/` — the panel. Its own design tokens live in
-  `style.css` (dark default, light override, exposed to Tailwind through
-  `@theme inline`); `theme.test.ts` runs the engine's APCA audit against them.
+- `entrypoints/sidepanel/` — the panel. Its design tokens live in
+  `shared/tokens.css` (dark default, light override, on `:root` for the
+  panel and `:host` for the rail) and the utilities in `shared/theme.css`;
+  `theme.test.ts` runs the engine's APCA audit against them.
   `lib/session.ts` holds everything about the current tab outside any one
-  tab's component tree; `lib/inspect.ts` is the Layers tab's controller;
+  tab's component tree; `lib/inspect.ts` is the Style tab's controller;
   `lib/bridge.ts` owns the WebSocket to the companion.
+- `entrypoints/rail.content.tsx` — the rail: React in a closed shadow root
+  in the page, reusing the panel's `LayersTree` and `SvgsTab`. It reaches
+  the inspector through `window.__codenameInspector.handle` and the panel
+  only for what belongs in the change log (`shared/inpage.ts`).
 - `entrypoints/scanner.content.ts`, `inspector.content.ts`,
   `reskin.content.ts` — runtime registered, injected via `chrome.scripting` on
   demand. The scanner does one element walk. The inspector is a persistent

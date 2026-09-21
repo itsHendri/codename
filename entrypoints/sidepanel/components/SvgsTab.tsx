@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { zipSync, strToU8 } from 'fflate';
-import type { ScanResult, SvgAsset } from '@/shared/types';
+import type { SvgAsset } from '@/shared/types';
 import { download } from '../lib/exporters';
 import { CopyIcon, DownloadIcon } from './icons';
 
@@ -15,17 +15,17 @@ async function fetchViaBackground(url: string): Promise<string | null> {
   return res?.ok && res.text ? res.text : null;
 }
 
-export function SvgsTab({ scan }: { scan: ScanResult }) {
+export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'inline' | 'external'>('all');
   const [zipping, setZipping] = useState(false);
   const [zipNote, setZipNote] = useState<string | null>(null);
 
   const assets = useMemo(() => {
-    if (filter === 'inline') return scan.svgs.filter((s) => s.markup);
-    if (filter === 'external') return scan.svgs.filter((s) => !s.markup);
-    return scan.svgs;
-  }, [scan.svgs, filter]);
+    if (filter === 'inline') return svgs.filter((s) => s.markup);
+    if (filter === 'external') return svgs.filter((s) => !s.markup);
+    return svgs;
+  }, [svgs, filter]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -36,7 +36,7 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
     });
   };
 
-  const chosen = selected.size ? scan.svgs.filter((s) => selected.has(s.id)) : scan.svgs;
+  const chosen = selected.size ? svgs.filter((s) => selected.has(s.id)) : svgs;
 
   const downloadZip = async () => {
     setZipping(true);
@@ -92,8 +92,9 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{scan.svgs.length} SVGs found</span>
+        {/* Wraps: in the rail this has 240px, not the panel's 360. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="shrink-0 font-medium">{svgs.length} SVGs found</span>
           <div className="ml-auto flex gap-1.5 text-xs">
             {(['all', 'inline', 'external'] as const).map((f) => (
               <button
@@ -109,7 +110,7 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2.5">
           {assets.map((asset) => (
             <SvgTile key={asset.id} asset={asset} selected={selected.has(asset.id)} onToggle={() => toggle(asset.id)} />
           ))}
@@ -119,7 +120,7 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
       </div>
 
       <div className="flex flex-col gap-1.5 border-t border-line-subtle px-3 py-2">
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-sm text-ink-muted">
             {selected.size ? (
               <>
@@ -134,11 +135,11 @@ export function SvgsTab({ scan }: { scan: ScanResult }) {
           </span>
           <button
             onClick={downloadZip}
-            disabled={zipping || scan.svgs.length === 0}
+            disabled={zipping || svgs.length === 0}
             className="ml-auto flex flex-1 items-center justify-center gap-2 rounded-card border border-accent bg-accent-soft py-2 font-medium text-accent hover:bg-accent-soft disabled:opacity-50"
           >
             <DownloadIcon />
-            {zipping ? 'Zipping…' : `Download ${selected.size || scan.svgs.length} · ZIP`}
+            {zipping ? 'Zipping…' : `Download ${selected.size || svgs.length} · ZIP`}
           </button>
         </div>
         {zipNote && <p className="text-xs text-warn-ink">{zipNote}</p>}

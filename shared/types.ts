@@ -2,6 +2,7 @@ import type { CommentTarget, Pin } from '@/studio/annotations';
 import type { ComponentOrigin } from '@/studio/framework';
 import type { OverlayTheme } from './theme';
 import type { Mode } from '@/studio/engine/types';
+import type { LayerNode } from '@/studio/layers';
 
 export interface FontFaceInfo {
   family: string;
@@ -173,9 +174,17 @@ export interface ElementProps {
     paddingLeft: string;
     width: string;
     height: string;
+    minWidth: string;
+    minHeight: string;
+    maxWidth: string;
+    maxHeight: string;
     boxSizing: string;
     display: string;
     gap: string;
+    rowGap: string;
+    columnGap: string;
+    overflowX: string;
+    overflowY: string;
   };
   /** How the box lays its children out; only meaningful when display is flex or grid. */
   layout: {
@@ -183,6 +192,23 @@ export interface ElementProps {
     justifyContent: string;
     alignItems: string;
     flexWrap: string;
+  };
+  /** Where the box sits: its `position`, the four insets and the stacking order. */
+  position: { type: string; top: string; right: string; bottom: string; left: string; zIndex: string };
+  /**
+   * How the box sits in its parent. `inFlex` when the parent is a flex
+   * container; the parent's content box is what a relative size is a share of.
+   */
+  child: {
+    inFlex: boolean;
+    parentDirection: string;
+    flexGrow: string;
+    flexShrink: string;
+    flexBasis: string;
+    alignSelf: string;
+    order: string;
+    parentWidth: number;
+    parentHeight: number;
   };
   opacity: string;
   type: {
@@ -221,7 +247,7 @@ export type PinnedElement = ElementProps;
 export type InspectorCommand =
   | { cmd: 'hover'; on: boolean }
   /** Flip a mode, from a keyboard shortcut. */
-  | { cmd: 'toggle'; what: 'select' | 'comment' }
+  | { cmd: 'toggle'; what: 'select' | 'comment' | 'layers' }
   /**
    * The page's own names for its values, so the readout and the edit card can
    * say them: colours by upper-case hex; lengths by px, and only for variables
@@ -257,6 +283,8 @@ export type InspectorCommand =
       darkVia?: 'site' | 'mirror' | null;
       /** What the connected agent is previewing on the page right now, for the chip. */
       agent?: AgentPresence | null;
+      /** Whether the layers rail is showing, so the bar's toggle sits right. */
+      rail?: boolean;
     }
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
@@ -282,6 +310,18 @@ export interface AgentPresence {
   matched: number;
 }
 
+/**
+ * Panel → rail. The rail is the page's tree and assets, drawn in the page on
+ * the left; it talks to the inspector in the page directly, and to the panel
+ * only for what belongs in the change log.
+ */
+export type RailCommand =
+  /** Show or hide the rail. `theme` is the panel's palette. */
+  | { cmd: 'rail'; on: boolean; theme?: OverlayTheme }
+  /** The page's SVGs, from the scan, for the Assets tab. */
+  | { cmd: 'assets'; svgs: SvgAsset[] }
+  | { cmd: 'off' };
+
 export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
   /** The chip on the bar: take the agent's preview off the page. */
@@ -305,6 +345,21 @@ export type RuntimeMessage =
   | { type: 'panel-focus' }
   /** Reset on the bar: every override goes, the page reads as itself. */
   | { type: 'reset-all' }
+  /** Layers on the bar, or Alt+L: show or hide the rail. */
+  | { type: 'rail-toggled'; on: boolean }
+  /** A row dragged in the rail: an element edit, so it lands in the log like any other. */
+  | {
+      type: 'rail-move';
+      node: LayerNode;
+      parent: LayerNode;
+      before: LayerNode | null;
+      wasIn: LayerNode;
+      wasBefore: LayerNode | null;
+    }
+  /** The eye on a rail row: hidden, or shown again. */
+  | { type: 'rail-hide'; node: LayerNode }
+  /** A component picked in the rail: the next edits are for every match. */
+  | { type: 'rail-scope'; scope: 'element' | 'all' }
   | { type: 'fetch-text'; url: string };
 
 export interface TokenLengths {

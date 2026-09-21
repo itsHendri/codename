@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codename panel layout — wireframes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: #f1efe8; --text: #2c2c2a; --text-2: #5f5e5a; --hair: #d3d1c7;
+    --surface-app: #141414; --surface-panel: #1a1a1a; --surface-control: #282828; --surface-selected: #393939;
+    --ink: #bcbcbc; --ink-secondary: #979797; --ink-muted: #767676; --ink-faint: #4e4e4e;
+    --line: #303030; --line-subtle: #282828; --accent: #6bb5ff; --accent-soft: #26313c; --accent-ink: #141414;
+    --site: #e7e4db; --site-ink: #15171b; --site-muted: #6c6a61; --site-rule: #cbc7bc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page: #111; --text: #e6e6e6; --text-2: #a4a4a4; --hair: #2a2a2a; }
+  }
+  body { margin: 0; padding: 32px 24px 64px; background: var(--page); color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+  h2 { font-size: 16px; font-weight: 500; margin: 32px 0 8px; }
+  p.cap { color: var(--text-2); margin: 0 0 8px; font-size: 13px; }
+  p.cap b { color: var(--text); font-weight: 500; }
+  .cn { font-size: 11px; line-height: 1.35; color: var(--ink); }
+  .win { background: var(--site); border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; margin: 0 0 8px; }
+  .title { height: 26px; background: #f1efe8; border-bottom: 1px solid #d3d1c7; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: #5f5e5a; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #d3d1c7; }
+  .body { display: flex; height: 380px; }
+  .page { flex: 1; min-width: 0; position: relative; background: var(--site); color: var(--site-ink); overflow: hidden; display: flex; flex-direction: column; }
+  .bar { height: 24px; background: var(--surface-panel); color: var(--ink-secondary); display: flex; align-items: center; gap: 8px; padding: 0 8px; flex-shrink: 0; }
+  .bar b { color: var(--ink); font-weight: 500; }
+  .pill { border: 1px solid var(--surface-selected); border-radius: 4px; padding: 0 5px; color: var(--ink-secondary); }
+  .pill.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .panel { background: var(--surface-app); border-left: 1px solid var(--line); display: flex; flex-direction: column; flex-shrink: 0; }
+  .tabs { display: flex; height: 28px; border-bottom: 1px solid var(--line-subtle); flex-shrink: 0; }
+  .tab { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); border-bottom: 2px solid transparent; }
+  .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 4px; padding: 2px 6px; font-family: ui-monospace, Menlo, monospace; color: var(--ink-secondary); white-space: nowrap; overflow: hidden; }
+  .row.sel { background: var(--surface-selected); color: var(--ink); }
+  .row .t { color: var(--ink-muted); font-family: inherit; margin-left: 4px; }
+  .badge { margin-left: auto; border: 1px solid var(--surface-selected); border-radius: 8px; padding: 0 4px; color: var(--ink-secondary); }
+  .grp { border-bottom: 1px solid var(--line-subtle); padding: 5px 8px; }
+  .grp h5 { margin: 0 0 4px; font-size: 11px; font-weight: 500; color: var(--ink-secondary); letter-spacing: .04em; text-transform: uppercase; }
+  .f { display: flex; gap: 4px; margin: 2px 0; align-items: center; }
+  .in { flex: 1; min-width: 0; background: var(--surface-app); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, Menlo, monospace; color: var(--ink); text-align: right; }
+  .lb { width: 36px; color: var(--ink-muted); flex-shrink: 0; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; flex: 1; }
+  .seg span { flex: 1; text-align: center; padding: 1px 0; color: var(--ink-muted); }
+  .seg span.on { background: var(--accent); color: var(--accent-ink); }
+  .chip { border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; color: var(--ink-secondary); }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .foot { height: 22px; border-top: 1px solid var(--line-subtle); display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--ink-muted); flex-shrink: 0; margin-top: auto; }
+  .rail { width: 170px; background: var(--surface-panel); border-right: 1px solid var(--line); color: var(--ink-secondary); display: flex; flex-direction: column; flex-shrink: 0; }
+  .canvas { flex: 1; position: relative; min-width: 0; padding: 16px; color: var(--site-ink); }
+  .h1 { font-size: 20px; font-weight: 500; padding: 6px 8px; position: relative; display: inline-block; min-width: 60%; }
+  .h1.sel { outline: 2px solid var(--accent); }
+  .h1.hov { outline: 1px solid var(--accent); }
+  .dim { position: absolute; left: 50%; transform: translateX(-50%); bottom: -15px; background: var(--accent); color: var(--accent-ink); padding: 0 5px; border-radius: 3px; font-weight: 500; white-space: nowrap; }
+  .p { font-size: 12px; line-height: 1.5; color: var(--site-muted); margin: 22px 0 0; padding: 4px 6px; position: relative; }
+  .p.hov { outline: 1px solid var(--accent); }
+  .edit { width: 150px; background: var(--surface-panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px; color: var(--ink-secondary); margin-top: 20px; }
+  .note { font-size: 11px; color: var(--site-muted); margin-top: 10px; }
+  .frame { margin: 12px auto 0; width: 140px; background: #f3f1ea; border: 1px solid var(--site-rule); padding: 8px; color: var(--site-ink); box-shadow: 0 0 0 1px #d5d1c6; }
+  .svg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 6px; }
+  .svg i { display: block; height: 34px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-app); }
+  .svg i.on { border-color: var(--accent); background: var(--accent-soft); }
+  .box { border: 1px dashed var(--ink-muted); padding: 8px; position: relative; color: var(--ink-muted); text-align: center; }
+  .box .box { border-style: solid; border-color: var(--ink-secondary); margin: 0; }
+  .box .c { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent); padding: 4px; }
+  .nine { display: grid; grid-template-columns: repeat(3, 14px); gap: 2px; }
+  .nine i { display: block; width: 14px; height: 10px; border: 1px solid var(--line); border-radius: 2px; }
+  .nine i.on { background: var(--accent); border-color: var(--accent); }
+  .kbd { display: inline-block; border: 1px solid var(--hair); border-radius: 4px; padding: 0 5px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--text); }
+  .keys { padding: 10px 12px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+  .keys div.h { font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .settled { border-left: 3px solid var(--accent); padding: 4px 10px; color: var(--text-2); font-size: 13px; margin: 8px 0 24px; }
+  .settled b { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+<h1>Codename panel layout — wireframes</h1>
+<p class="cap">The mocks behind W20 (21 September 2026). The decision record is <code>panel-layout-wireframes.md</code>. Directions 1, 2 and the two-column workbench were considered and set aside; 5, 6, 7 and 4 are what shipped. Living document: update in place.</p>
+
+<h2>5 · The rail — shipped</h2>
+<p class="cap">The page is pushed 240px right by a Layers rail drawn in the page, as it is pushed 40px down by the bar. The bar gains a Layers toggle; Select is the only picking mode. The side panel is Style · Variables · Export · Changes. One selection, three surfaces: rail row, page outline, style column.</p>
+<div class="cn"><div class="win">
+  <div class="title"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:8px">localhost:5173 — forfontsake</span></div>
+  <div class="body">
+    <div class="page">
+      <div class="bar"><b><i class="ti ti-diamond" aria-hidden="true"></i> Codename</b><span class="pill on">Layers</span><span class="pill">Window · 784×768</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
+      <div style="display:flex;flex:1;min-height:0">
+        <div class="rail">
+          <div class="tabs"><span class="tab on">Layers</span><span class="tab">Assets</span></div>
+          <div class="row" style="font-family:inherit;color:var(--ink-muted)">Find a layer…</div>
+          <div class="row">▾ body</div>
+          <div class="row" style="padding-left:14px">▾ div#root</div>
+          <div class="row" style="padding-left:22px">▸ div.wrap</div>
+          <div class="row" style="padding-left:22px">▾ header.topbar</div>
+          <div class="row sel" style="padding-left:30px">h1#title<span class="t">Grit</span></div>
+          <div class="row" style="padding-left:30px">▸ div.topbar-actions</div>
+          <div class="row" style="padding-left:22px">▾ main.plate</div>
+          <div class="row" style="padding-left:30px">article.card<span class="badge">×2</span></div>
+          <div class="row" style="padding-left:30px">article.card<span class="badge">×2</span></div>
+          <div class="foot">240px · drag the edge</div>
+        </div>
+        <div class="canvas">
+          <div class="h1 sel">Grit<span class="dim">784 × 45</span></div>
+          <div class="edit"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-family:ui-monospace,monospace">h1#title</span><span style="color:var(--accent)">panel ↗</span></div>
+            <div class="f"><span class="lb">Words</span><span class="in" style="text-align:left">Grit</span></div>
+            <div class="f"><span class="lb">Text</span><span class="in">#15171B</span></div>
+            <div class="f"><span class="lb">Size</span><span class="in">28px</span></div>
+            <div class="f"><span class="lb">Pad</span><span class="in">8 16</span></div></div>
+          <div class="note">Fixed page headers sit under the rail, the accepted limit the bar already has. Scripts reading innerWidth still see the window.</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="width:210px">
+      <div class="tabs"><span class="tab on">Style</span><span class="tab">Variables</span><span class="tab">Export</span><span class="tab">Changes</span></div>
+      <div class="grp"><div class="f"><span class="in" style="text-align:left">h1#title</span><span class="chip">×1</span><span style="color:var(--ink-muted)">✕</span></div>
+        <div class="f" style="gap:3px;margin-top:3px"><span class="chip on">default</span><span class="chip">hover</span><span class="chip">dark</span><span class="chip">width…</span></div></div>
+      <div class="grp"><h5>Position</h5><div class="f"><span class="seg"><span class="on">Static</span><span>Rel</span><span>Abs</span><span>Sticky</span></span></div></div>
+      <div class="grp"><h5>Size</h5><div class="f"><span class="lb">W</span><span class="in">784</span><span class="seg" style="flex:0 0 66px"><span class="on">Fill</span><span>Fixed</span></span></div><div class="f"><span class="lb">H</span><span class="in">45</span><span class="seg" style="flex:0 0 66px"><span class="on">Fit</span><span>Fixed</span></span></div></div>
+      <div class="grp"><h5>Layout</h5><div class="f"><span class="seg"><span class="on">Block</span><span>Stack</span><span>Grid</span></span></div></div>
+      <div class="grp"><h5>Spacing</h5><div class="f"><span class="lb">Pad</span><span class="in">8</span><span class="in">16</span><span class="in">8</span><span class="in">16</span></div></div>
+      <div class="grp"><h5>Colour · Type · Border · Effects…</h5></div>
+      <div class="foot">◉ bridge · 6 colours</div>
+    </div>
+  </div>
+</div></div>
+<div class="settled"><b>Settled.</b> Rail width 240 by default, 180–420 by drag, remembered per browser. Folded by Layers on the bar, Alt+L, or the Style tab's Show layers.</div>
+
+<h2>6 · Select is the only mode — shipped</h2>
+<p class="cap">Three states of the page, no card anywhere. Left: pointer over an element, a 1px outline says what a click will hit. Middle: clicked — a 2px outline, the size label, the edit card. Right: a row hovered in the rail peeks the same 1px outline; the selection keeps its 2px.</p>
+<div class="cn"><div class="win">
+  <div class="body" style="height:250px">
+    <div class="page" style="border-right:1px solid var(--site-rule)">
+      <div class="bar"><span class="pill on">Select</span><span style="color:var(--ink-muted)">pointer over</span></div>
+      <div class="canvas"><div class="h1 hov">Grit</div><p class="p">I ask annoying questions and suggest you're wrong. I design it, build it, and the systems underneath.</p><div class="note">Nothing else appears. No tag, no readout: the click is the readout.</div></div>
+    </div>
+    <div class="page" style="border-right:1px solid var(--site-rule)">
+      <div class="bar"><span class="pill on">Select</span><span style="color:var(--ink-muted)">clicked</span></div>
+      <div class="canvas"><div class="h1 sel">Grit<span class="dim">784 × 45</span></div><p class="p">I ask annoying questions and suggest you're wrong.</p>
+        <div class="edit" style="margin-top:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-family:ui-monospace,monospace">h1#title</span><span style="color:var(--accent)">panel ↗</span></div><div class="f"><span class="lb">Text</span><span class="in">#15171B</span></div><div class="f"><span class="lb">Size</span><span class="in">28px</span></div></div></div>
+    </div>
+    <div class="page">
+      <div class="bar"><span class="pill on">Select</span><span style="color:var(--ink-muted)">peek from rail</span></div>
+      <div class="canvas"><div class="h1 sel">Grit<span class="dim">784 × 45</span></div><p class="p hov">I ask annoying questions and suggest you're wrong. I design it, build it, and the systems underneath.</p><div class="note">The rail row under the pointer is p.tagline; its outline is the peek the tree already sends.</div></div>
+    </div>
+  </div>
+</div></div>
+<div class="settled"><b>Settled.</b> The hover card (font · text · fill · contrast · box) and the hover tag are gone. Escape unwinds one level at a time.</div>
+
+<h2>7 · Assets in the rail, with a device frame on — shipped</h2>
+<p class="cap">The rail's second tab is the SVG grid the panel had. A device frame centres the page in what is left beside the rail. Layers off on the bar puts the page back to full width; the Style tab then offers to show it again.</p>
+<div class="cn"><div class="win">
+  <div class="title"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:8px">localhost:5173 — forfontsake</span></div>
+  <div class="body" style="height:280px">
+    <div class="page">
+      <div class="bar"><b><i class="ti ti-diamond" aria-hidden="true"></i> Codename</b><span class="pill on">Layers</span><span class="pill on">Phone · 390×844 · 62%</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
+      <div style="display:flex;flex:1;min-height:0">
+        <div class="rail">
+          <div class="tabs"><span class="tab">Layers</span><span class="tab on">Assets</span></div>
+          <div class="row" style="font-family:inherit;color:var(--ink-muted)">12 SVGs · 3 picked</div>
+          <div class="svg"><i class="on"></i><i></i><i class="on"></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="foot">Copy · Download zip</div>
+        </div>
+        <div class="canvas" style="background:#d5d1c6">
+          <div class="frame"><div style="font-size:14px;font-weight:500">Grit</div><div style="font-size:9px;color:var(--site-muted);margin-top:4px;line-height:1.4">I ask annoying questions and suggest you're wrong. I design it, build it.</div><div style="height:30px;background:#efece4;border:1px solid var(--site-rule);margin-top:8px"></div></div>
+          <div class="note" style="text-align:center">Frame centred in the 784px beside the rail, zoomed to fit.</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="width:150px">
+      <div class="tabs"><span class="tab on">Style</span><span class="tab">Vars</span><span class="tab">Export</span><span class="tab">Changes</span></div>
+      <div class="grp" style="color:var(--ink-muted);line-height:1.5">Nothing selected. Turn on <span style="color:var(--ink)">Select</span> and click the page, or pick a row in <span style="color:var(--accent)">Layers</span> beside it.</div>
+      <div class="foot">◉ bridge · 6 colours</div>
+    </div>
+  </div>
+</div></div>
+
+<h2>4 · The Style column, up close — shipped</h2>
+<p class="cap">Groups in the order Figma, Framer and Webflow agree on, with the controls the inventory found missing: size modes, min/max, position, an editable spacing box, a 3×3 align grid. The shortcuts on the right are the deferred list.</p>
+<div class="cn"><div class="win" style="background:var(--surface-app)">
+  <div class="body" style="height:auto">
+    <div class="panel" style="width:300px;border-left:0;border-right:1px solid var(--line)">
+      <div class="tabs"><span class="tab on">Style</span><span class="tab">Variables</span><span class="tab">Export</span><span class="tab">Changes</span></div>
+      <div class="grp"><div class="f"><span style="color:var(--ink-muted)">body › header ›</span><span class="in" style="text-align:left;flex:0 1 auto">h1#title</span><span class="chip">×1</span><span class="chip" style="margin-left:auto">measure</span><span style="color:var(--ink-muted)">✕</span></div>
+        <div class="f" style="gap:3px;margin-top:4px"><span class="chip on">default</span><span class="chip">hover</span><span class="chip">focus</span><span class="chip">active</span><span class="chip">dark</span><span class="chip">width…</span></div></div>
+      <div class="grp"><h5>Position</h5>
+        <div class="f"><span class="lb">Type</span><span class="seg"><span class="on">Static</span><span>Relative</span><span>Absolute</span><span>Sticky</span></span></div>
+        <div class="f"><span class="lb">Inset</span><span class="in" style="color:var(--ink-muted)">auto</span><span class="in" style="color:var(--ink-muted)">auto</span><span class="in" style="color:var(--ink-muted)">auto</span><span class="in" style="color:var(--ink-muted)">auto</span><span class="lb" style="width:16px;text-align:right">z</span><span class="in" style="flex:0 0 32px">0</span></div></div>
+      <div class="grp"><h5>Size</h5>
+        <div class="f"><span class="lb">Width</span><span class="in">976</span><span class="seg" style="flex:0 0 120px"><span>Fixed</span><span class="on">Fill</span><span>Fit</span><span>Rel</span></span></div>
+        <div class="f"><span class="lb">Height</span><span class="in">45</span><span class="seg" style="flex:0 0 120px"><span>Fixed</span><span>Fill</span><span class="on">Fit</span><span>Rel</span></span></div>
+        <div class="f"><span class="lb">Min</span><span class="in" style="color:var(--ink-muted)">0</span><span class="in" style="color:var(--ink-muted)">0</span><span class="lb" style="width:26px;text-align:right">Max</span><span class="in" style="color:var(--ink-muted)">none</span><span class="in" style="color:var(--ink-muted)">none</span></div>
+        <div class="f"><span class="lb">Overflow</span><span class="seg"><span class="on">Visible</span><span>Hidden</span><span>Scroll</span><span>Auto</span></span></div></div>
+      <div class="grp"><h5>Layout</h5>
+        <div class="f"><span class="lb">Type</span><span class="seg"><span>Block</span><span class="on">Stack</span><span>Grid</span><span>Inline</span></span></div>
+        <div class="f"><span class="lb">Dir</span><span class="seg" style="flex:0 0 52px"><span class="on">→</span><span>↓</span></span><span class="lb" style="width:32px;text-align:right">Align</span><span class="nine"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></span><span class="lb" style="width:26px;text-align:right">Gap</span><span class="in">16</span><span class="in" style="flex:0 0 28px">16</span></div>
+        <div class="f"><span class="lb">Wrap</span><span class="seg" style="flex:0 0 74px"><span class="on">No</span><span>Yes</span></span><span class="lb" style="width:40px;text-align:right">Distrib</span><span class="in" style="text-align:left">space-between ▾</span></div></div>
+      <div class="grp"><h5>Spacing</h5>
+        <div class="box">0<div style="display:flex;align-items:center;gap:6px;justify-content:center"><span>0</span><div class="box" style="flex:1">8<div style="display:flex;align-items:center;gap:6px;justify-content:center"><span>16</span><div class="c">976 × 45</div><span>16</span></div>8</div><span>0</span></div>24</div>
+        <div style="color:var(--ink-muted);margin-top:4px">Click a number to type · arrows nudge · edit reaches each / pairs / all</div></div>
+      <div class="grp"><h5>Colour · Type · Border · Effects · Motion · Text</h5><div style="color:var(--ink-muted)">Unchanged, below the box.</div></div>
+    </div>
+    <div class="keys">
+      <div class="h">Shortcuts, deferred to the next round</div>
+      <div><span class="kbd">⇥</span> next field, <span class="kbd">⇧⇥</span> previous</div>
+      <div><span class="kbd">+20</span> <span class="kbd">*2</span> <span class="kbd">/2</span> maths in any number</div>
+      <div><span class="kbd">⌘F</span> find a layer</div>
+      <div><span class="kbd">⏎</span> child, <span class="kbd">⇧⏎</span> parent in the tree</div>
+      <div><span class="kbd">⌥ hold</span> measure to the hovered element</div>
+      <div><span class="kbd">⌥1</span> <span class="kbd">⌥2</span> focus rail / panel</div>
+      <div class="h" style="margin-top:8px">Already there</div>
+      <div>Arrows nudge, <span class="kbd">⇧</span> ×10, <span class="kbd">⌥</span> ×0.1, <span class="kbd">Esc</span> puts a draft back, scrub on the grip, <span class="kbd">⌘Z</span>, <span class="kbd">⌥S</span> Select, <span class="kbd">⌥C</span> Note, <span class="kbd">⌥L</span> rail, arrows walk the DOM on the page, Esc unwinds.</div>
+    </div>
+  </div>
+</div></div>
+
+<h2>Set aside</h2>
+<p class="cap"><b>1 · Workbench</b> — the side panel dragged wide (~640px) splitting into Layers · Assets | Style · Variables · Export · Changes, folding back to five tabs below that. Not chosen: Chrome floors the side panel at ~320px, gives no width API and forgets a dragged width across restarts, so the columns would have to be re-dragged every session. <b>2 · Same panel, narrow</b> — its fallback. <b>3 · Rail in the page</b> — chosen; became 5.</p>
+</main>
+</body>
+</html>

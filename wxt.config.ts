@@ -39,7 +39,7 @@ export default defineConfig({
       default_title: 'Open Codename',
     },
     /**
-     * The two modes on the bar, from the keyboard. Alt rather than Cmd so
+     * The two modes on the bar and the rail, from the keyboard. Alt rather than Cmd so
      * they never collide with the page's own shortcuts or Chrome's; the user
      * can rebind them at chrome://extensions/shortcuts.
      */
@@ -51,6 +51,10 @@ export default defineConfig({
       'toggle-comment': {
         suggested_key: { default: 'Alt+C' },
         description: 'Toggle Comment mode on the page',
+      },
+      'toggle-layers': {
+        suggested_key: { default: 'Alt+L' },
+        description: 'Show or hide the layers rail on the page',
       },
     },
   },

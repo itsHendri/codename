@@ -216,3 +216,15 @@ export function frameCss(frame: FrameSize, zoom: number): string {
     .filter(Boolean)
     .join('\n');
 }
+
+/**
+ * The width the page has to itself: the viewport less whatever a margin on
+ * the root's left has taken — the rail's column, while it is showing.
+ * `clientWidth` alone still counts that column, and a frame fitted to it
+ * would run under the rail.
+ */
+export function availableWidth(doc: Document): number {
+  const root = doc.documentElement;
+  const left = parseFloat(doc.defaultView?.getComputedStyle(root).marginLeft ?? '') || 0;
+  return Math.max(0, root.clientWidth - Math.max(0, left));
+}

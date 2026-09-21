@@ -95,12 +95,7 @@ export interface InspectController {
   /** The page flipped its own switch; take the state without echoing it back. */
   setNotingFromPage(on: boolean): void;
   /** The page as a list to pick from. Read on demand, not kept in step. */
-  layers: LayerNode[];
-  layersLoading: boolean;
-  refreshLayers(): void;
-  selectLayer(node: LayerNode): void;
   /** Light a layer up on the page without selecting it. */
-  peekLayer(node: LayerNode | null): void;
   /** Hide a layer, or take the hiding back. */
   toggleHidden(node: LayerNode): void;
   /** Put a layer somewhere else among its siblings: before `before`, or last. */
@@ -126,8 +121,27 @@ export function readValue(el: ElementProps, property: string): string {
     'padding-left': el.box.paddingLeft,
     width: el.box.width,
     height: el.box.height,
+    'min-width': el.box.minWidth,
+    'min-height': el.box.minHeight,
+    'max-width': el.box.maxWidth,
+    'max-height': el.box.maxHeight,
     gap: el.box.gap,
+    'row-gap': el.box.rowGap,
+    'column-gap': el.box.columnGap,
+    overflow: el.box.overflowX === el.box.overflowY ? el.box.overflowX : `${el.box.overflowX} ${el.box.overflowY}`,
     display: el.box.display,
+    position: el.position.type,
+    top: el.position.top,
+    right: el.position.right,
+    bottom: el.position.bottom,
+    left: el.position.left,
+    'z-index': el.position.zIndex,
+    flex: `${el.child.flexGrow} ${el.child.flexShrink} ${el.child.flexBasis}`,
+    'flex-grow': el.child.flexGrow,
+    'flex-shrink': el.child.flexShrink,
+    'flex-basis': el.child.flexBasis,
+    'align-self': el.child.alignSelf,
+    order: el.child.order,
     'flex-direction': el.layout.flexDirection,
     'justify-content': el.layout.justifyContent,
     'align-items': el.layout.alignItems,
@@ -191,8 +205,6 @@ export function useInspect(
   const [cascade, setCascade] = useState<HoistedRule[]>([]);
   const [measuring, setMeasuring] = useState(false);
   const [noting, setNoting] = useState(false);
-  const [layers, setLayers] = useState<LayerNode[]>([]);
-  const [layersLoading, setLayersLoading] = useState(false);
   const [holding, setHolding] = useState(false);
 
   // Pins follow the notes; pushed again after a reload, like the rules.
@@ -262,19 +274,6 @@ export function useInspect(
   usePush(tabId, generation, JSON.stringify(moves), moves.length === 0, () => {
     void sendInspector(tabId!, { cmd: 'moves', moves });
   });
-
-  const refreshLayers = useCallback(() => {
-    if (tabId == null) return;
-    setLayersLoading(true);
-    void sendInspector<LayerNode[]>(tabId, { cmd: 'layers' })
-      .then((list) => setLayers(list ?? []))
-      .finally(() => setLayersLoading(false));
-  }, [tabId]);
-
-  // A new page is a new tree; the old one describes something that is gone.
-  useEffect(() => {
-    setLayers([]);
-  }, [tabId, generation]);
 
   const change = useCallback(
     (property: string, to: string, token?: string) => {
@@ -476,11 +475,8 @@ export function useInspect(
       send({ cmd: 'note', on });
     },
     setNotingFromPage: setNoting,
-    layers,
-    layersLoading,
-    refreshLayers,
-    selectLayer: (node) => send({ cmd: 'select', selector: node.selector }),
-    peekLayer: (node) => (node ? send({ cmd: 'peek', selector: node.selector }) : send({ cmd: 'unpeek' })),
+    // The tree lives in the rail, in the page; a drag or the eye there is an
+    // element edit, and this is where element edits are filed.
     move: (node, parent, before, wasIn, wasBefore) => {
       const samePlace = parent.id === wasIn.id && (before?.id ?? null) === (wasBefore?.id ?? null);
       if (before?.id === node.id || samePlace) return;
@@ -497,7 +493,6 @@ export function useInspect(
           move: { parent: parent.selector, before: before?.selector ?? null },
         }),
       );
-      window.setTimeout(refreshLayers, 160);
     },
     toggleHidden: (node) => {
       // Hiding is an element edit like any other, so it undoes, reverts and
@@ -514,7 +509,6 @@ export function useInspect(
         from: node.display,
         to: 'none',
       })));
-      window.setTimeout(refreshLayers, 120);
     },
   };
 }
