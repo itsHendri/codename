@@ -317,13 +317,8 @@ function activate() {
       * { box-sizing: border-box; }
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
-      .box.hov { outline-style: dashed; }
-      .tag { position: fixed; pointer-events: none; background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-      .card { position: fixed; pointer-events: none; background: ${c.cardBg}; color: ${c.cardInk}; border: 1px solid ${c.cardLine}; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.24); font: 12px/1.5 ${font}; padding: 8px 10px; max-width: 280px; font-variant-numeric: tabular-nums; }
-      .card .row { display: flex; gap: 6px; align-items: center; }
-      .card .k { color: ${c.cardMuted}; width: 56px; flex-shrink: 0; }
-      .card .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid ${c.cardLine}; display: inline-block; }
-      .card .tok { color: ${c.accent}; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+      .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
+      .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
       .seg.y { width: 1px; }
@@ -457,7 +452,7 @@ function activate() {
         </button>
       </div>
       <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false" title="Select — hover to read, click to pick (Alt+S)">
+        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
         </button>
         <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
@@ -471,8 +466,7 @@ function activate() {
     <div class="edit hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
-    <div class="tag hidden"></div>
-    <div class="card hidden"></div>
+    <div class="size hidden"></div>
     <div class="measure"></div>
     <div class="pins"></div>
     <div class="marquee hidden"></div>
@@ -482,8 +476,7 @@ function activate() {
 
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
   const hovBox = shadow.querySelector<HTMLElement>('.box.hov')!;
-  const tag = shadow.querySelector<HTMLElement>('.tag')!;
-  const card = shadow.querySelector<HTMLElement>('.card')!;
+  const sizeLabel = shadow.querySelector<HTMLElement>('.size')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
@@ -694,10 +687,21 @@ function activate() {
       raf = 0;
       if (selected?.isConnected) {
         selBox.classList.remove('hidden');
-        place(selBox, rectOf(selected));
+        const r = rectOf(selected);
+        place(selBox, r);
+        // The size under the box, as a design tool labels a selection; above
+        // it when the box runs off the bottom of the viewport.
+        sizeLabel.classList.remove('hidden');
+        sizeLabel.textContent = `${Math.round(r.width)} × ${Math.round(r.height)}`;
+        const below = r.y + r.height + 22 <= innerHeight;
+        Object.assign(sizeLabel.style, {
+          left: `${Math.min(Math.max(40, r.x + r.width / 2), innerWidth - 40)}px`,
+          top: `${below ? r.y + r.height + 3 : Math.max(barOn ? BAR_HEIGHT + 4 : 4, r.y - 21)}px`,
+        });
         placeEdit();
       } else {
         selBox.classList.add('hidden');
+        sizeLabel.classList.add('hidden');
         editCard.classList.add('hidden');
         if (selected) {
           // The page re-rendered it away; say so rather than track a ghost.
@@ -716,8 +720,6 @@ function activate() {
   const clearHover = () => {
     hovered = null;
     hovBox.classList.add('hidden');
-    tag.classList.add('hidden');
-    card.classList.add('hidden');
   };
 
   const onMove = (e: MouseEvent) => {
@@ -729,35 +731,12 @@ function activate() {
     }
     if (!el || el === document.documentElement || el === hovered) return;
     hovered = el;
-    const rect = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
+    // The outline says what a click will hit, and that is all it says: what
+    // the element is made of is on the edit card and in the panel once it is
+    // picked, and a readout here said the same things a third time.
     hovBox.classList.remove('hidden');
     place(hovBox, rectOf(el));
-    tag.classList.remove('hidden');
-    tag.textContent = `${buildSelector(el).intent.selector} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    // Above the element when there is room under the bar; otherwise tucked inside its top edge.
-    const minTop = barOn ? BAR_HEIGHT + 4 : 4;
-    const tagTop = rect.top - 22 >= minTop ? rect.top - 22 : Math.max(minTop, rect.top + 4);
-    Object.assign(tag.style, { left: `${Math.max(4, rect.left)}px`, top: `${tagTop}px` });
-
-    if (measuring && selected) {
-      card.classList.add('hidden');
-      drawMeasure();
-      return;
-    }
-    const fg = toHex(cs.color);
-    const bg = opaqueBackground(el);
-    const ratio = contrast(fg, bg);
-    card.classList.remove('hidden');
-    card.innerHTML = `
-      <div class="row"><span class="k">Font</span><span>${(cs.fontFamily.split(',')[0] ?? '').replace(/["']/g, '')} · ${cs.fontWeight} · ${cs.fontSize}/${cs.lineHeight}</span></div>
-      <div class="row"><span class="k">Text</span><span class="swatch" style="background:${fg ?? 'transparent'}"></span><span>${fg ?? '—'}${named(fg) ? ` <span class="tok">${escapeHtml(named(fg)!)}</span>` : ''}</span></div>
-      <div class="row"><span class="k">Fill</span><span class="swatch" style="background:${bg}"></span><span>${bg}${named(bg) ? ` <span class="tok">${escapeHtml(named(bg)!)}</span>` : ''}</span></div>
-      <div class="row"><span class="k">Contrast</span><span>${ratio ?? '—'}${ratio ? ':1' : ''} ${ratio ? (ratio >= 7 ? 'AAA ✓' : ratio >= 4.5 ? 'AA ✓' : '✗') : ''}</span></div>
-      <div class="row"><span class="k">Box</span><span>pad ${cs.padding} · radius ${cs.borderRadius}</span></div>`;
-    const cardX = Math.min(e.clientX + 16, innerWidth - 296);
-    const cardY = Math.min(e.clientY + 16, innerHeight - 140);
-    Object.assign(card.style, { left: `${cardX}px`, top: `${cardY}px` });
+    if (measuring && selected) drawMeasure();
   };
 
   const onClick = (e: MouseEvent) => {
@@ -785,7 +764,7 @@ function activate() {
       renderBar();
       showHint(
         on
-          ? '<b>Select</b> — hover for font, colour and contrast; click to pick an element. Arrow keys walk the tree, Esc lets go.'
+          ? '<b>Select</b> — click an element to edit it. Arrow keys walk the tree, Esc lets go.'
           : null,
       );
     }

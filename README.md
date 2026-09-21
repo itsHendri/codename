@@ -142,12 +142,13 @@ component's shadow root, iframes, the `media` and `sizes` of responsive
 images, and a stylesheet from another origin the page cannot read (the bar
 says how many). The viewport meta tag plays no part;
 a page is laid out at the frame's width whether or not it has one. The bar
-itself keeps the tab's full width. **Select** hovers for font, colour
-and contrast — naming the page's own variable beside a colour when it has
-one — and clicks to pick an element. The edit card that opens beside the
-selection names the variable behind a colour, a padding, a radius or a size
-where the page has one whose name says what it is, and a click writes
-`var(--x)` in place of the literal. **Comment** marks something up:
+itself keeps the tab's full width. **Select** outlines the element under
+the pointer and picks it on a click; the selection carries its size under
+the box, and nothing else is read out on hover — what an element is made
+of is on the edit card and in the panel once it is picked. The edit card
+that opens beside the selection names the variable behind a colour, a
+padding, a radius or a size where the page has one whose name says what it
+is, and a click writes `var(--x)` in place of the literal. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a
