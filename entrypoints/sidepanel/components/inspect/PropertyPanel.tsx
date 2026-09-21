@@ -12,7 +12,7 @@ import { namedEasings, parseTransition, transitionRoundTrips } from '@/studio/mo
 import { TextInput } from './TextInput';
 import { AlignGrid, Chip, Group, Labelled, LengthField, Segmented, Select, SideLabel, type Change } from './fields';
 
-type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'>;
+type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'> & { fontUsage?: ScanResult['fontUsage'] };
 
 const ALIGNS = ['left', 'center', 'right', 'justify'] as const;
 const BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted'] as const;
@@ -26,6 +26,13 @@ const WRAP_LABELS = { nowrap: 'no', wrap: 'yes' } as const;
 const DISTRIBUTE = ['packed', 'space-between', 'space-around', 'space-evenly'] as const;
 const ALIGN_SELF = ['auto', 'flex-start', 'center', 'flex-end', 'stretch', 'baseline'] as const;
 const POSITIONS = ['static', 'relative', 'absolute', 'fixed', 'sticky'] as const;
+const WEIGHTS = ['100', '200', '300', '400', '500', '600', '700', '800', '900'] as const;
+const WEIGHT_NAMES: Record<(typeof WEIGHTS)[number], string> = {
+  '100': 'Thin', '200': 'Extra light', '300': 'Light', '400': 'Regular', '500': 'Medium',
+  '600': 'Semibold', '700': 'Bold', '800': 'Extra bold', '900': 'Black',
+};
+/** A min or max that says nothing: the box is free on that side. */
+const FREE = new Set(['0px', '0', 'auto', 'none']);
 const OVERFLOWS = ['visible', 'hidden', 'scroll', 'auto'] as const;
 const SIZE_LABELS = { fixed: 'fixed', fill: 'fill', fit: 'fit', relative: 'rel' } as const;
 const SIZE_TITLES = {
@@ -79,6 +86,9 @@ export function PropertyPanel({
   const uneven = new Set([corners.topLeft, corners.topRight, corners.bottomRight, corners.bottomLeft]).size > 1;
   // Four fields when the corners differ, or once you ask for them.
   const [perCorner, setPerCorner] = useState(false);
+  // Min and max only once one is set, or asked for: Framer keeps them
+  // behind "Add", and four fields of nothing are noise.
+  const [moreSize, setMoreSize] = useState(false);
   const toggle = (title: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -151,6 +161,17 @@ export function PropertyPanel({
   );
 
   const overflow = box.overflowX === box.overflowY ? box.overflowX : null;
+  const bounded = ![box.minWidth, box.minHeight, box.maxWidth, box.maxHeight].every((v) => FREE.has(v));
+  // The fonts this page loads, and the weights each is loaded in: what the
+  // family field offers, and how the weight list says which are real here.
+  const families = useMemo(() => (scan.fontUsage ?? []).map((f) => f.family), [scan.fontUsage]);
+  const loadedWeights = useMemo(() => {
+    const usage = (scan.fontUsage ?? []).find((f) => f.family.toLowerCase() === family.toLowerCase());
+    return new Set(usage?.variants.map((v) => v.weight) ?? []);
+  }, [scan.fontUsage, family]);
+  const weightLabels = Object.fromEntries(
+    WEIGHTS.map((w) => [w, `${w} · ${WEIGHT_NAMES[w]}${loadedWeights.has(w) ? '' : loadedWeights.size ? ' (not loaded)' : ''}`]),
+  ) as Record<(typeof WEIGHTS)[number], string>;
   const distributing = /^space-/.test(layout.justifyContent);
   const gapSplit = box.rowGap !== box.columnGap;
 
@@ -194,16 +215,27 @@ export function PropertyPanel({
           {sizeRow('width', 'W', 'Width')}
           {sizeRow('height', 'H', 'Height')}
           <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1.5">
-            <SideLabel>min</SideLabel>
-            <div className="grid grid-cols-2 gap-1">
-              {len('min-width', box.minWidth, 'W', 'Min width', true)}
-              {len('min-height', box.minHeight, 'H', 'Min height', true)}
-            </div>
-            <SideLabel>max</SideLabel>
-            <div className="grid grid-cols-2 gap-1">
-              {len('max-width', box.maxWidth, 'W', 'Max width', true)}
-              {len('max-height', box.maxHeight, 'H', 'Max height', true)}
-            </div>
+            {bounded || moreSize ? (
+              <>
+                <SideLabel>min</SideLabel>
+                <div className="grid grid-cols-2 gap-1">
+                  {len('min-width', box.minWidth, 'W', 'Min width', true)}
+                  {len('min-height', box.minHeight, 'H', 'Min height', true)}
+                </div>
+                <SideLabel>max</SideLabel>
+                <div className="grid grid-cols-2 gap-1">
+                  {len('max-width', box.maxWidth, 'W', 'Max width', true)}
+                  {len('max-height', box.maxHeight, 'H', 'Max height', true)}
+                </div>
+              </>
+            ) : (
+              <>
+                <SideLabel>min/max</SideLabel>
+                <button onClick={() => setMoreSize(true)} className="self-start text-2xs text-ink-muted hover:text-accent">
+                  + Add
+                </button>
+              </>
+            )}
             <SideLabel>overflow</SideLabel>
             <Segmented
               value={overflow}
@@ -386,10 +418,17 @@ export function PropertyPanel({
             ariaLabel="Font family"
             valid={(v) => CSS.supports('font-family', v)}
             onCommit={(v) => onChange('font-family', v)}
+            suggestions={families}
           />
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {len('font-size', type.fontSize, 'Aa', 'Font size')}
-            {len('font-weight', type.fontWeight, 'B', 'Font weight')}
+            <Select
+              value={type.fontWeight}
+              options={WEIGHTS}
+              labels={weightLabels}
+              ariaLabel="Font weight"
+              onChange={(v) => onChange('font-weight', v)}
+            />
             {len('line-height', type.lineHeight, '↕', 'Line height')}
             {len('letter-spacing', type.letterSpacing, '↔', 'Letter spacing')}
           </div>

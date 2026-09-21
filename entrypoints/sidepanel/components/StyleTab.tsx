@@ -236,6 +236,12 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
           measure
         </button>
       </div>
+      {many && ctl.scope === 'all' && (
+        // Webflow says it as a banner on the canvas: an edit here is not to one thing.
+        <p className="text-2xs text-ink-muted">
+          Edits reach all {el.intent.matches} elements matching <code className="font-mono">{el.intent.selector}</code>.
+        </p>
+      )}
       <ConditionBar ctl={ctl} />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LayerIcon } from './LayerIcon';
 import {
   ancestorsOf,
   canHold,
@@ -248,6 +249,7 @@ export function LayersTree({
                 >
                   {collapsed.has(node.id) ? '▸' : '▾'}
                 </button>
+                <LayerIcon tag={node.tag} />
                 <button
                   onClick={() => onSelect(node)}
                   className="min-w-0 flex-1 truncate text-left font-mono"

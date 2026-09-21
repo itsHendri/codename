@@ -34,13 +34,29 @@ export function useRailLayers(on: boolean) {
     if (!on) return;
     void refresh();
     let timer = 0;
-    const observer = new MutationObserver(() => {
+    let stale = false;
+    // A page nobody is looking at is not re-read: a ticker in a background
+    // tab would otherwise walk the tree every second for no one.
+    const settle = () => {
       window.clearTimeout(timer);
+      if (document.visibilityState !== 'visible') {
+        stale = true;
+        return;
+      }
       timer = window.setTimeout(() => void refresh(), SETTLE_MS);
-    });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && stale) {
+        stale = false;
+        settle();
+      }
+    };
+    const observer = new MutationObserver(settle);
     if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       observer.disconnect();
+      document.removeEventListener('visibilitychange', onVisible);
       window.clearTimeout(timer);
     };
   }, [on, refresh]);

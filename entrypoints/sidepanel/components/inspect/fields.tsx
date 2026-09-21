@@ -104,12 +104,15 @@ export function Select<T extends string>({
   options,
   ariaLabel,
   onChange,
+  labels,
   className = '',
 }: {
   value: string;
   options: readonly T[];
   ariaLabel: string;
   onChange: (v: T) => void;
+  /** How an option reads, when the CSS word is not the designer's word. */
+  labels?: Partial<Record<T, string>>;
   className?: string;
 }) {
   const known = options.includes(value as T);
@@ -123,7 +126,7 @@ export function Select<T extends string>({
       {!known && <option value="">{value}</option>}
       {options.map((o) => (
         <option key={o} value={o}>
-          {o}
+          {labels?.[o] ?? o}
         </option>
       ))}
     </select>

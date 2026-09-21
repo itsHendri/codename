@@ -79,7 +79,9 @@ export function writeMode(mode: SizeMode, ev: SizeEvidence, rendered: number, pa
       return [{ property: axis, value: `${Math.min(100, Math.max(0, share))}%` }];
     }
     case 'fill':
-      if (onMainAxis(ev)) return [{ property: 'flex', value: '1 1 0%' }, { property: axis, value: 'auto' }];
+      // One declaration: a basis of 0% is what the axis sizes from, whatever
+      // `width` says, so the brief carries one line rather than two.
+      if (onMainAxis(ev)) return [{ property: 'flex', value: '1 1 0%' }];
       if (ev.inFlex) return [{ property: 'align-self', value: 'stretch' }, { property: axis, value: 'auto' }];
       return [{ property: axis, value: axis === 'width' ? 'auto' : '100%' }];
   }

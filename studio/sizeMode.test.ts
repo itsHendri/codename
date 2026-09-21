@@ -49,10 +49,7 @@ describe('writing a size mode', () => {
   });
 
   it('fills by growing on a flex main axis, stretching across it, and auto or 100% in block flow', () => {
-    expect(writeMode('fill', flexChild(), 1, 1)).toEqual([
-      { property: 'flex', value: '1 1 0%' },
-      { property: 'width', value: 'auto' },
-    ]);
+    expect(writeMode('fill', flexChild(), 1, 1)).toEqual([{ property: 'flex', value: '1 1 0%' }]);
     expect(writeMode('fill', flexChild({ axis: 'height' }), 1, 1)).toEqual([
       { property: 'align-self', value: 'stretch' },
       { property: 'height', value: 'auto' },

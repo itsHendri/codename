@@ -664,10 +664,7 @@ describe('the Style column', () => {
     });
     await click(radio('Width mode', 'fill'));
     await tick(120);
-    expect(lastRules()).toEqual([
-      { selector: 'h1#title', property: 'flex', value: '1 1 0%' },
-      { selector: 'h1#title', property: 'width', value: 'auto' },
-    ]);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'flex', value: '1 1 0%' }]);
     expect(radio('Width mode', 'fill')?.getAttribute('aria-checked')).toBe('true');
     // And the flex-child fields are there for it.
     expect(host.querySelector('[aria-label="Flex grow"]')).not.toBeNull();
