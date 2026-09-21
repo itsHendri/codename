@@ -124,7 +124,8 @@ the parent's content box in %. Fill along a main axis is one declaration
   ⌥1 / ⌥2 to focus the rail and the panel; a shortcuts sheet in the menu.
 - A two-column panel for people who drag the side panel wide. Considered
   and set aside for the rail; nothing prevents it later.
-- Grid template editing, `transform`, background images and gradients.
+- Grid template editing, background images and gradients. (`transform` and
+  `animation` arrived in W25, in Effects and Motion.)
 
 ## Phasing (as built)
 

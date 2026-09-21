@@ -114,6 +114,10 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
   them, a region in page coordinates, or a quoted run of text — and carries a
   numbered pin on the page. Hold **View original** to see the page without any of it. The
   actions to copy, send or download the brief live at the bottom.
+- **Motion** — a transition editor with Play, and an animation editor with
+  Framer's Appear, Loop and Scroll triggers over the page's own keyframes or
+  a few named presets; a transform editor in Effects that takes the computed
+  matrix apart into move, turn, skew and scale.
 - **Assets** (in the rail) — every SVG on the page (inline, `<img>`, CSS
   backgrounds, sprite `<use>`, favicons), previewed with copy, per-file
   download and ZIP export.

@@ -729,3 +729,42 @@ describe('moving to another page on the site', () => {
     expect(getSession().scan).not.toBeNull();
   });
 });
+
+describe('motion, second half', () => {
+  const radio = (group: string, label: string) =>
+    Array.from(host.querySelector(`[role=radiogroup][aria-label="${group}"]`)?.querySelectorAll('[role=radio]') ?? []).find((b) => b.textContent === label) ?? null;
+  const lastRules = () => stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as { property: string; value: string }[];
+
+  it('makes an appear trigger one declaration over a preset, and a scroll trigger adds the timeline', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick();
+    await click(radio('Trigger', 'appear'));
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'animation', value: 'codename-fade-in 600ms ease-out 0s 1 normal both' }]);
+    await click(radio('Trigger', 'scroll'));
+    await tick(120);
+    expect(lastRules().map((r) => r.property).sort()).toEqual(['animation', 'animation-timeline']);
+    expect(lastRules().find((r) => r.property === 'animation-timeline')?.value).toBe('view()');
+    // The page re-read: the element now runs on the view timeline.
+    stub.current = element({ animation: 'codename-fade-in 1000ms linear 0s 1 normal both', animationTimeline: 'view()' });
+    await act(async () => stub.emit({ type: 'element-selected', data: stub.current }));
+    await tick();
+    await click(radio('Trigger', 'none'));
+    await tick(120);
+    expect(lastRules().map((r) => `${r.property}:${r.value}`).sort()).toEqual(['animation-timeline:auto', 'animation:none']);
+  });
+
+  it('edits a transform as fields and writes back the functions', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ transform: 'matrix(1, 0, 0, 1, 10, 0)' }) }));
+    await tick();
+    const rotate = host.querySelector<HTMLInputElement>('[aria-label="Rotate"]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(rotate, '15');
+      rotate.dispatchEvent(new Event('input', { bubbles: true }));
+      rotate.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await tick(120);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'transform', value: 'translate(10px, 0px) rotate(15deg)' }]);
+  });
+});

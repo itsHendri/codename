@@ -19,6 +19,7 @@
  */
 
 import type { Definition } from '@/shared/protocol';
+import { describeKeyframes, namesIn } from './animation';
 import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
@@ -446,6 +447,15 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(
         'A line under a state heading is about that state only: `hover` means `:hover`, `focus` means `:focus-visible`, `active` means `:active`, `dark` means this page\'s own dark mode, and a width means that media query. Lines with no heading are the default state.',
       );
+    }
+    // A named preset is defined nowhere in the project yet; the brief says
+    // what it is, in words, since it carries no rule bodies.
+    const presets = new Set<string>();
+    for (const e of set.elements) if (e.property === 'animation') for (const name of namesIn(e.to)) presets.add(name);
+    const defined = Array.from(presets).map(describeKeyframes).filter((d): d is string => d !== null);
+    if (defined.length) {
+      lines.push('');
+      lines.push(`Keyframes to define, once, wherever the project keeps its animations: ${defined.join('; ')}.`);
     }
     lines.push('');
     const bySelector = new Map<string, ElementEdit[]>();

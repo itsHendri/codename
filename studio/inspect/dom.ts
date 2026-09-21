@@ -11,6 +11,8 @@
 import { buildSelector, isStableClass } from '@/studio/selector';
 import type { LayerNode } from '@/studio/layers';
 import type { Rect } from '@/studio/measure';
+import type { RuleLike } from '@/studio/scan/customProps';
+import { MANAGED_SHEET_IDS } from '@/shared/types';
 
 /** Text is editable only when the element's own children are text. */
 export function ownText(el: Element): string | null {
@@ -120,6 +122,33 @@ export function buildLayers(
   };
   if (root) walk(root, 0);
   return out;
+}
+
+/**
+ * The `@keyframes` names the page's own sheets define, at the top level or
+ * one group deep. Structural, like every other walk: a rule is what its
+ * text says it is. Our own sheets are left out, so a preset this wrote does
+ * not read as the page's.
+ */
+export function pageKeyframes(doc: Document, skipIds: ReadonlySet<string> = new Set(MANAGED_SHEET_IDS)): string[] {
+  const names = new Set<string>();
+  const visit = (rules: ArrayLike<RuleLike>, depth: number) => {
+    for (const rule of Array.from(rules)) {
+      const text = (rule.cssText ?? '').trimStart();
+      const name = /^@keyframes\s+([^\s{]+)/i.exec(text)?.[1];
+      if (name) names.add(name.replace(/^["']|["']$/g, ''));
+      else if (depth < 2 && rule.cssRules && /^@(media|supports|layer)\b/i.test(text)) visit(rule.cssRules, depth + 1);
+    }
+  };
+  for (const sheet of Array.from(doc.styleSheets)) {
+    if (sheet.ownerNode instanceof Element && skipIds.has(sheet.ownerNode.id)) continue;
+    try {
+      visit(sheet.cssRules, 0);
+    } catch {
+      /* another origin */
+    }
+  }
+  return Array.from(names).sort();
 }
 
 /** The first match and how many there are; a selector the page cannot parse is no match. */

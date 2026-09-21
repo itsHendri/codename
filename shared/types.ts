@@ -230,6 +230,13 @@ export interface ElementProps {
   backdropFilter: string;
   /** The `transition` shorthand, which is how this element gets between states. */
   transition: string;
+  /** The computed `transform`: a matrix, or none. */
+  transform: string;
+  /** The `animation` shorthand, and the timeline it runs on (`auto`, or `view()` for a scroll trigger). */
+  animation: string;
+  animationTimeline: string;
+  /** The `@keyframes` names this page defines, so an animation can pick one. */
+  keyframes: string[];
   /** Present only when the element's own children are text. */
   text: string | null;
   contrastRatio: number | null;

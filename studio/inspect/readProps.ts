@@ -9,7 +9,7 @@ import { roundPx } from '@/studio/boxModel';
 import { componentOf } from '@/studio/framework';
 import { buildSelector } from '@/studio/selector';
 import { contrast, opaqueBackground, toHex } from './colour';
-import { ownText, rectOf } from './dom';
+import { ownText, pageKeyframes, rectOf } from './dom';
 
 /**
  * A computed style whose lengths read to two decimals: `96.6641px` reads
@@ -121,6 +121,10 @@ export function readProps(el: Element): ElementProps {
     filter: cs.filter,
     backdropFilter: cs.backdropFilter,
     transition: cs.transition,
+    transform: cs.transform,
+    animation: cs.animation,
+    animationTimeline: (cs as CSSStyleDeclaration & { animationTimeline?: string }).animationTimeline || 'auto',
+    keyframes: pageKeyframes(el.ownerDocument),
     text: ownText(el),
     contrastRatio: contrast(fg, bg),
   };

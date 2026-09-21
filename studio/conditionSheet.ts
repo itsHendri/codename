@@ -9,6 +9,7 @@
  */
 
 import { cascadeOrder, conditionKey, mediaFor, selectorFor, stateClass, type MaybeCondition, type StateName } from './conditions';
+import { keyframesCss, namesIn } from './animation';
 import { eachStyleRule, MAX_RULES, resolveNested, type RuleLike } from './scan/customProps';
 
 export interface ConditionRule {
@@ -28,6 +29,15 @@ export interface ConditionRule {
  */
 export function elementsSheet(rules: ConditionRule[], opts: { darkPreview?: boolean } = {}): string {
   if (!rules.length) return '';
+  // A preset's keyframes are defined once, ahead of the rules that name them.
+  const keyframes = new Set<string>();
+  for (const rule of rules) {
+    if (rule.property !== 'animation') continue;
+    for (const name of namesIn(rule.value)) {
+      const css = keyframesCss(name);
+      if (css) keyframes.add(css);
+    }
+  }
   const groups = new Map<string, { condition: MaybeCondition; bySelector: Map<string, string[]> }>();
 
   for (const rule of rules) {
@@ -40,7 +50,7 @@ export function elementsSheet(rules: ConditionRule[], opts: { darkPreview?: bool
     groups.set(key, group);
   }
 
-  return [...groups.values()]
+  const sheet = [...groups.values()]
     .sort((a, b) => cascadeOrder(a.condition) - cascadeOrder(b.condition))
     .map(({ condition, bySelector }) => {
       const body = [...bySelector].map(([sel, decls]) => `${sel}{${decls.join(';')}}`).join('\n');
@@ -48,6 +58,7 @@ export function elementsSheet(rules: ConditionRule[], opts: { darkPreview?: bool
       return media ? `${media}{\n${body}\n}` : body;
     })
     .join('\n');
+  return [...keyframes, sheet].join('\n');
 }
 
 /* ---------------- holding an element in a state ---------------- */
