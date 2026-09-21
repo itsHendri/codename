@@ -68,6 +68,8 @@ function activate() {
   };
   const c = d;
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
+  // A select's chevron, in ink-muted, which is the same grey in both themes.
+  const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E")`;
   const host = document.createElement(HOST_TAG.toLowerCase());
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const shadow = host.attachShadow({ mode: 'closed' });
@@ -78,7 +80,7 @@ function activate() {
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
       .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
-      .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 7px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
       .seg.y { width: 1px; }
@@ -95,41 +97,47 @@ function activate() {
       .bar { position: fixed; top: 0; left: var(--codename-rail, 0px); right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.chromeBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar .host { color: ${d.cardMuted}; }
       .bar .device { display: flex; align-items: center; gap: 6px; }
-      .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
-      .bar .kind { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; cursor: pointer; }
+      .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.field}; }
+      .bar .kind { display: flex; align-items: center; justify-content: center; width: 26px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; cursor: pointer; }
       .bar .kind svg { width: 14px; height: 14px; }
       .bar .kind:hover { color: ${d.cardInk}; }
-      .bar .kind.on { background: ${d.cardBg}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 0 0 1px ${d.cardLine}; }
-      .bar .frame { height: 26px; max-width: 120px; padding: 0 6px; border: 1px solid ${d.cardLine}; border-radius: 6px; background: transparent; color: ${d.cardInk}; font: inherit; cursor: pointer; }
-      .bar .frame:hover { border-color: ${d.accent}; }
+      .bar .kind.on { background: ${d.thumb}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+      .bar .frame { height: 24px; max-width: 120px; padding: 0 20px 0 8px; border: 0; border-radius: 6px; background: ${d.field} ${CHEVRON} no-repeat right 5px center / 10px 10px; color: ${d.cardInk}; font: inherit; cursor: pointer; appearance: none; }
+      .bar .frame:hover { background-color: ${d.fieldHover}; }
+      .bar .frame:focus-visible { outline: 1px solid ${d.accent}; outline-offset: -1px; }
       .bar .frame option, .bar .frame optgroup { background: ${d.cardBg}; color: ${d.cardInk}; }
-      .bar .dim { display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 6px; border: 1px solid ${d.cardLine}; border-radius: 6px; color: ${d.cardMuted}; cursor: text; }
-      .bar .dim:focus-within { border-color: ${d.accent}; }
+      .bar .dim { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px; border: 0; border-radius: 6px; background: ${d.field}; color: ${d.cardMuted}; cursor: text; }
+      .bar .dim:hover { background: ${d.fieldHover}; }
+      .bar .dim:focus-within { outline: 1px solid ${d.accent}; outline-offset: -1px; }
       .bar .dim input { width: 38px; border: 0; padding: 0; background: transparent; color: ${d.cardInk}; font: inherit; text-align: right; }
       .bar .dim input:focus { outline: none; }
       .bar .dim i { font-style: normal; }
       .bar .scale { color: ${d.cardMuted}; }
-      .bar .reset { cursor: pointer; padding: 3px 9px; border-radius: 4px; border: 1px solid ${d.accent}; color: ${d.accent}; background: transparent; font: inherit; font-weight: 600; white-space: nowrap; }
-      .bar .reset:hover { background: ${d.accentWash}; }
+      .bar .reset { cursor: pointer; height: 24px; padding: 0 9px; border-radius: 6px; border: 0; color: ${d.accent}; background: ${d.accentWash}; font: inherit; font-weight: 600; white-space: nowrap; }
+      .bar .reset:hover { background: color-mix(in srgb, ${d.accent} 24%, transparent); }
       .bar .reset span { margin-left: 5px; font-weight: 500; color: ${d.cardMuted}; }
-      .bar .agent { display: flex; align-items: center; gap: 6px; padding: 3px 5px 3px 9px; border-radius: 4px; border: 1px dashed ${d.accent}; color: ${d.cardInk}; background: transparent; font: inherit; white-space: nowrap; cursor: default; }
+      .bar .agent { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 3px 0 9px; border-radius: 6px; border: 1px dashed ${d.accent}; color: ${d.cardInk}; background: transparent; font: inherit; white-space: nowrap; cursor: default; }
       .bar .agent i { width: 7px; height: 7px; border-radius: 50%; background: ${d.accent}; }
       .bar .agent span { color: ${d.cardMuted}; font-weight: 500; }
-      .bar .agent button { border: 0; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; padding: 0 3px; }
-      .bar .agent button:hover { color: ${d.cardInk}; }
+      .bar .agent button { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; cursor: pointer; padding: 0; }
+      .bar .agent button:hover { color: ${d.cardInk}; background: ${d.fieldHover}; }
+      .bar .agent button svg { width: 10px; height: 10px; }
       .bar .spacer { flex: 1; }
-      .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
-      .bar .mode { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
+      .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.field}; }
+      .bar .mode { display: flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
-      .bar .mode.on { background: ${d.accent}; color: ${d.cardBg}; }
-      .bar > .mode.layers { border: 1px solid ${d.cardLine}; padding: 3px 8px; }
+      .bar .mode.on { background: ${d.thumb}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+      /* Alone rather than in a group, so it wears the track itself. */
+      .bar > .mode.layers { height: 24px; background: ${d.field}; }
+      .bar > .mode.layers:hover { background: ${d.fieldHover}; }
+      .bar > .mode.layers.on { background: ${d.thumb}; }
       /* A narrow window narrows the bar. It gives up words before it gives
          up controls. These sheets are in the shadow root, which a device
          frame does not rewrite, so they follow the window, not the frame. */
       @media (max-width: 1280px) {
         .bar .host, .bar .mode .label, .bar .agent span { display: none; }
-        .bar .mode { padding: 3px 6px; }
+        .bar .mode { padding: 0 6px; }
       }
       @media (max-width: 900px) {
         .bar { gap: 8px; }
@@ -141,10 +149,10 @@ function activate() {
         .bar .dim { padding: 0 4px; }
         .bar .dim input { width: 32px; }
         .bar .kind { width: 22px; }
-        .bar .mode { padding: 3px 4px; }
-        .bar .reset { padding: 3px 6px; }
+        .bar .mode { padding: 0 4px; }
+        .bar .reset { padding: 0 6px; }
       }
-      .hint { position: fixed; z-index: 2; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 6px; padding: 5px 9px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
+      .hint { position: fixed; z-index: 2; top: ${BAR_HEIGHT + 6}px; pointer-events: none; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; padding: 6px 10px; font: 400 11px/1.4 ${font}; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 320px; opacity: 1; transition: opacity 300ms; }
       .hint.fading { opacity: 0; }
       .hint b { font-weight: 600; }
       .composer { position: fixed; pointer-events: auto; width: 280px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); padding: 8px; font: 400 12px/1.4 ${font}; }
@@ -159,25 +167,31 @@ function activate() {
       .composer .save:disabled { opacity: 0.4; cursor: default; }
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
       .edit { position: fixed; z-index: 1; pointer-events: auto; width: 232px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); font: 400 11px/1.4 ${font}; font-variant-numeric: tabular-nums; }
-      .edit .grip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab; border-bottom: 1px solid ${d.cardLine}; color: ${d.cardMuted}; font-size: 10px; user-select: none; }
+      .edit .grip { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 10px; cursor: grab; border-bottom: 1px solid ${d.cardLine}; color: ${d.cardMuted}; font-size: 10px; user-select: none; }
       .edit .grip:active { cursor: grabbing; }
       .edit .grip code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${d.cardInk}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
-      .edit .grip .more { cursor: pointer; color: ${d.accent}; white-space: nowrap; background: none; border: 0; padding: 0; font: 600 10px/1.4 ${font}; }
-      .edit .fields { display: grid; grid-template-columns: 50px 1fr; gap: 5px 8px; padding: 8px; align-items: center; }
+      .edit .grip .more { display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer; color: ${d.cardMuted}; white-space: nowrap; background: none; border: 0; border-radius: 4px; padding: 0 5px; font: 500 10px/1 ${font}; }
+      .edit .grip .more:hover { color: ${d.cardInk}; background: ${d.fieldHover}; }
+      .edit .grip .more svg { width: 10px; height: 10px; }
+      .edit .fields { display: grid; grid-template-columns: 52px 1fr; gap: 4px 8px; padding: 8px 10px 10px; align-items: center; }
       .edit label { color: ${d.cardMuted}; }
-      .edit input, .edit select { width: 100%; box-sizing: border-box; border: 1px solid ${d.cardLine}; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; padding: 3px 5px; }
-      .edit input:focus, .edit select:focus { outline: none; border-color: ${d.accent}; }
+      .edit input, .edit select { width: 100%; box-sizing: border-box; height: 24px; border: 0; border-radius: 6px; background: ${d.field}; color: ${d.cardInk}; font: inherit; padding: 0 7px; }
+      .edit input:hover, .edit select:hover { background-color: ${d.fieldHover}; }
+      .edit input:focus, .edit select:focus { outline: 1px solid ${d.accent}; outline-offset: -1px; }
+      .edit select { appearance: none; padding-right: 20px; background: ${d.field} ${CHEVRON} no-repeat right 5px center / 10px 10px; cursor: pointer; }
       .edit select option { background: ${d.cardBg}; color: ${d.cardInk}; }
       .edit .colour { display: flex; gap: 5px; align-items: center; }
-      .edit .colour input[type=color] { width: 22px; height: 22px; flex: 0 0 22px; padding: 0; cursor: pointer; }
+      .edit .colour input[type=color] { width: 24px; height: 24px; flex: 0 0 24px; padding: 4px; cursor: pointer; appearance: none; }
+      .edit .colour input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+      .edit .colour input[type=color]::-webkit-color-swatch { border: 0; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
       .edit .colour input[type=text] { flex: 1; font-family: ui-monospace, Menlo, monospace; }
-      .edit .colour .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
-      .edit .colour .tok:hover { border-color: ${d.accent}; }
+      .edit .colour .tok { flex: 0 0 auto; max-width: 84px; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 0; border-radius: 4px; padding: 0 6px; background: ${d.field}; color: ${d.cardInk}; font: 500 10px/20px ui-monospace, Menlo, monospace; }
+      .edit .colour .tok:hover { background: ${d.fieldHover}; }
       .edit .colour .tok.hidden { display: none; }
       .edit .len { display: flex; gap: 5px; align-items: center; }
       .edit .len input { flex: 1; }
-      .edit .len .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
-      .edit .len .tok:hover { border-color: ${d.accent}; }
+      .edit .len .tok { flex: 0 0 auto; max-width: 84px; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 0; border-radius: 4px; padding: 0 6px; background: ${d.field}; color: ${d.cardInk}; font: 500 10px/20px ui-monospace, Menlo, monospace; }
+      .edit .len .tok:hover { background: ${d.fieldHover}; }
       .edit .len .tok.hidden { display: none; }
       /* Important, because a rule like \`.bar .agent { display: flex }\` is more
          specific than one class, and hid nothing: the agent chip showed on
@@ -186,11 +200,11 @@ function activate() {
     </style>
     <div class="bar hidden">
       <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5M2 8h9M2 12h12"/><path d="M8 3l1.5 1L8 5M13 7l1.5 1L13 9" stroke-width="1.2"/></svg><span class="label">Layers</span>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5 14 5.5 8 8.5 2 5.5z"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3"/></svg><span class="label">Layers</span>
       </button>
       <div class="modes" role="radiogroup" aria-label="Mode">
         <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 7.5 L8.7 9 L7 13.5 Z"/></svg><span class="label">Select</span>
         </button>
         <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
@@ -206,11 +220,14 @@ function activate() {
       </div>
       <span class="spacer"></span>
       <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits, the agent's preview — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
-      <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page">✕</button></div>
+      <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page" aria-label="Take the agent's preview off the page"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg></button></div>
       <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span class="label">Light</span>
+        </button>
+        <button class="mode system" role="radio" aria-checked="false" title="As the system prefers">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor" stroke="none"/></svg><span class="label">Auto</span>
         </button>
         <button class="mode dark" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg><span class="label">Dark</span>
@@ -252,6 +269,7 @@ function activate() {
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
   const barAgent = bar.querySelector<HTMLElement>('.agent')!;
   const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
+  const barSystem = bar.querySelector<HTMLButtonElement>('.mode.system')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const editCard = shadow.querySelector<HTMLElement>('.edit')!;
@@ -717,7 +735,8 @@ function activate() {
     name.title = props.selector;
     const more = document.createElement('button');
     more.className = 'more';
-    more.textContent = 'More in panel ↗';
+    more.innerHTML =
+      'More in panel <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H2.5v7h7V7M7 2.5h2.5V5M9.5 2.5 5.5 6.5"/></svg>';
     more.addEventListener('click', (e) => {
       e.stopPropagation();
       send({ type: 'panel-focus' });
@@ -1041,6 +1060,9 @@ function activate() {
     barLight.setAttribute('aria-checked', String(barScheme === 'light'));
     barDark.classList.toggle('on', barScheme === 'dark');
     barDark.setAttribute('aria-checked', String(barScheme === 'dark'));
+    // The middle is a position of its own, drawn like the other two.
+    barSystem.classList.toggle('on', barScheme === 'system');
+    barSystem.setAttribute('aria-checked', String(barScheme === 'system'));
     // A resized or zoomed viewport is an override too, and only the bar knows about it.
     barReset.classList.toggle('hidden', resettable === 0 && !frame);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
@@ -1329,6 +1351,7 @@ function activate() {
   });
   barLight.addEventListener('click', () => setScheme(barScheme === 'light' ? 'system' : 'light'));
   barDark.addEventListener('click', () => setScheme(barScheme === 'dark' ? 'system' : 'dark'));
+  barSystem.addEventListener('click', () => setScheme('system'));
   // The window's own size is what the bar shows when there is no frame.
   addEventListener('resize', () => barOn && !frame && renderBar());
 
