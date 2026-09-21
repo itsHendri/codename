@@ -1,12 +1,14 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import type { LayerNode } from '@/studio/layers';
+import { pagesOf } from '@/studio/pages';
+import { callInspector } from '@/shared/inpage';
 import { ComponentsStrip } from '@/entrypoints/sidepanel/components/inspect/ComponentsStrip';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
-type RailTab = 'layers' | 'assets';
+type RailTab = 'pages' | 'layers' | 'assets';
 
 /** Tell the panel something that belongs in its change log. */
 const tell = (msg: unknown) => {
@@ -28,7 +30,36 @@ const tell = (msg: unknown) => {
 export function Rail({ store, onResize }: { store: RailStore; onResize: (width: number) => void }) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const [tab, setTab] = useState<RailTab>('layers');
-  const tree = useRailLayers(state.on);
+  // The tree is read while the rail shows Layers; Pages and Assets do not
+  // need it walked.
+  const tree = useRailLayers(state.on && tab === 'layers');
+  // The site's pages, as this page links to them: read when the tab opens
+  // and on its refresh button, the way Framer's list is a thing you look at
+  // rather than something that ticks.
+  const [pagesTurn, setPagesTurn] = useState(0);
+  const pages = useMemo(
+    () =>
+      tab === 'pages'
+        ? pagesOf(Array.from(document.links, (a) => ({ href: a.href, text: a.textContent ?? '' })), location.href)
+        : [],
+    [tab, pagesTurn],
+  );
+
+  // Undo and Escape work from the rail as they do from the page: the panel
+  // owns the log, the inspector owns the selection.
+  const onKey = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+    if (typing) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      tell({ type: 'inspector-shortcut', action: e.shiftKey ? 'redo' : 'undo' });
+    } else if (e.key === 'Escape') {
+      // The page's own ladder: Select off first, then the selection.
+      e.preventDefault();
+      void callInspector({ cmd: 'escape' });
+    }
+  };
 
   const onEdgeDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -45,14 +76,15 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
   };
 
   const tabs: { key: RailTab; label: string }[] = [
+    { key: 'pages', label: 'Pages' },
     { key: 'layers', label: 'Layers' },
     { key: 'assets', label: 'Assets' },
   ];
 
   return (
-    <div className="rail relative flex h-full flex-col border-r border-line-subtle">
+    <div className="rail relative flex h-full flex-col border-r border-line-subtle" onKeyDown={onKey}>
       {/* h-10 is BAR_HEIGHT: one strip with the bar above and the panel's tabs across. */}
-      <nav role="tablist" aria-label="Rail" className="grid h-10 shrink-0 grid-cols-2 items-stretch border-b border-line-subtle">
+      <nav role="tablist" aria-label="Rail" className="grid h-10 shrink-0 grid-cols-3 items-stretch border-b border-line-subtle">
         {tabs.map(({ key, label }) => (
           <button
             key={key}
@@ -75,7 +107,39 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
         ))}
       </nav>
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
-        {tab === 'layers' ? (
+        {tab === 'pages' ? (
+          <>
+            <div className="flex shrink-0 items-center justify-between text-2xs text-ink-muted">
+              <span>{pages.length ? `${pages.length} pages this page links to` : 'This page links to no other page on its site.'}</span>
+              <button
+                onClick={() => setPagesTurn((t) => t + 1)}
+                title="Read the page's links again"
+                className="rounded-control border border-line px-2 py-0.5 text-ink-secondary hover:bg-surface-control"
+              >
+                ↻
+              </button>
+            </div>
+            {pages.length > 0 && (
+              <ul aria-label="Pages" className="m-0 min-h-0 flex-1 list-none overflow-y-auto rounded-control border border-line-subtle p-0">
+                {pages.map((p) => (
+                  <li key={p.path}>
+                    <a
+                      href={p.href}
+                      aria-current={p.current ? 'page' : undefined}
+                      title={p.count > 1 ? `${p.href} · ${p.count} links here` : p.href}
+                      className={`flex items-baseline gap-1.5 px-2 py-1 text-2xs no-underline ${
+                        p.current ? 'bg-surface-selected text-ink' : 'text-ink-secondary hover:bg-surface-control'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                      <span className="max-w-[45%] shrink-0 truncate font-mono text-ink-muted">{p.path}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : tab === 'layers' ? (
           <>
             <ComponentsStrip
               nodes={tree.layers}

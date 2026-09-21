@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 /** A text value committed on blur or Enter, and flagged while it would not parse. */
 export function TextInput({
@@ -7,13 +7,17 @@ export function TextInput({
   valid,
   onCommit,
   className = '',
+  suggestions,
 }: {
   value: string;
   ariaLabel: string;
   valid: (v: string) => boolean;
   onCommit: (v: string) => void;
   className?: string;
+  /** Values worth offering, as a datalist: the page's own fonts, say. */
+  suggestions?: string[];
 }) {
+  const listId = useId();
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const ok = valid(draft);
@@ -21,7 +25,16 @@ export function TextInput({
     if (ok && draft !== value) onCommit(draft);
   };
   return (
+    <>
+    {suggestions && suggestions.length > 0 && (
+      <datalist id={listId}>
+        {suggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    )}
     <input
+      list={suggestions?.length ? listId : undefined}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -32,5 +45,6 @@ export function TextInput({
         ok ? 'border-line' : 'border-warn bg-warn-soft'
       } ${className}`}
     />
+    </>
   );
 }

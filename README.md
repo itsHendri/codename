@@ -13,8 +13,10 @@ so the tree could not be a second column of it — it is drawn in the page
 like the bar, pushing the page right by its own width (drag its edge; 180
 to 420px). **Layers** on the bar, or **Alt+L**, folds it.
 
-- **Layers** (in the rail) — the page as a tree you can pick from. Above
-  the tree, **Components**: the class selectors that repeat on
+- **Pages** (in the rail) — the site's pages as this page links to them,
+  read off the page and deduped by path; click one to go there.
+- **Layers** (in the rail) — the page as a tree you can pick from, an icon
+  on each row for what kind of thing it is. Above the tree, **Components**: the class selectors that repeat on
   the page with something inside them (`.card` ×12), read off the page rather
   than a framework; pick one and the edit scope is all of them. The tree
   lists every element with its own text beside it, searches

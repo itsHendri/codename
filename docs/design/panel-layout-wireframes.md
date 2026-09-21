@@ -25,12 +25,15 @@ bar and its device frames there.
 | Surface | Holds | Where |
 | --- | --- | --- |
 | **Bar** | Layers toggle · host · device frame · Reset · agent chip · Light/Dark · Select · Comment | Across the top of the page, 40px, pushes the page down |
-| **Rail** | Layers (components strip, filter, tree) · Assets (SVG grid) | In the page on the left, 240px by default (180–420, drag the edge), pushes the page right |
+| **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, 240px by default (180–420, drag the edge), pushes the page right |
 | **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
 | **Selection** | 2px outline, W×H label under the box, the edit card | On the page |
 
 The tree has one home, the rail. The panel keeps no tree; its Style tab
-offers **Show layers** when the rail is folded.
+offers **Show layers** when the rail is folded, and with nothing picked it
+shows what the page is made of — colours with the variables that name
+them, fonts at the sizes used, radii and spacing — each a way into
+Variables, as Figma's design panel does with no selection.
 
 ## Per-surface rules
 
@@ -58,9 +61,13 @@ offers **Show layers** when the rail is folded.
   event the inspector dispatches. Talks to the panel only for what belongs
   in the change log: a drag is `rail-move`, the eye is `rail-hide`, a
   component pick is `rail-scope`.
-- Reads the tree again 600ms after the page stops changing.
+- Reads the tree again 600ms after the page stops changing, and only while
+  Layers is the tab showing and the document is visible.
 - Its keyboard is its own: the inspector's window listeners ignore events
-  that pass through the rail's host.
+  that pass through the rail's host. Undo, redo and Escape still work from
+  it: the rail forwards ⌘Z to the panel and asks the inspector to deselect.
+- Pages is `document.links`, same origin, deduped by path, the current
+  page first (`studio/pages.ts`). Clicking one navigates the tab.
 - A device frame fits the room the rail leaves (`availableWidth` in
   `studio/frame.ts`).
 
@@ -70,15 +77,17 @@ Groups in the order the three tools agree on, all open, heads sticky:
 
 1. **Position** — static / relative / absolute / fixed / sticky; insets and
    z-index once positioned.
-2. **Size** — W and H, each with **Fixed · Fill · Fit · Rel**; min/max;
-   overflow.
+2. **Size** — W and H, each with **Fixed · Fill · Fit · Rel**; min/max
+   behind **+ Add** until one is set; overflow.
 3. **Layout** — Block · Stack · Grid · Inline; direction and wrap; the 3×3
    align grid plus a Distribute select; row and column gap; and, for a
    flex child, grow / shrink / order, basis and align-self.
 4. **Spacing** — the box diagram, every number a field; a link control
    (each / pairs / all) says how far an edit reaches.
-5. Colour · 6. Type · 7. Border · 8. Effects · 9. Motion · 10. Text —
-   unchanged.
+5. Colour · 6. **Type** — the family field offers the fonts the page loads,
+   the weight is a named list that says which weights are not loaded for
+   that family · 7. Border · 8. Effects, with a slider beside opacity ·
+   9. Motion · 10. Text.
 
 **Size modes fail closed.** A computed width is always a pixel count and
 says nothing about what the author wrote, so a mode lights only when the
@@ -87,7 +96,8 @@ that grows along the parent's main axis. Otherwise nothing is lit and the
 raw value stands. Writing is exact: Fixed pins the rendered px, Fill is
 `flex: 1 1 0%` on a main axis (`align-self: stretch` across it, `auto` /
 `100%` in block flow), Fit is `fit-content`, Rel is the rendered share of
-the parent's content box in %.
+the parent's content box in %. Fill along a main axis is one declaration
+(`flex: 1 1 0%`), so the brief carries one line.
 
 ## Cross-cutting rules
 

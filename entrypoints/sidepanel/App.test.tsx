@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { handleBridgeFrame } from './lib/bridge';
 import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
-import { element, installChrome, type StubChrome } from './test/chromeStub';
+import { element, forfontsake, installChrome, type StubChrome } from './test/chromeStub';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -664,10 +664,7 @@ describe('the Style column', () => {
     });
     await click(radio('Width mode', 'fill'));
     await tick(120);
-    expect(lastRules()).toEqual([
-      { selector: 'h1#title', property: 'flex', value: '1 1 0%' },
-      { selector: 'h1#title', property: 'width', value: 'auto' },
-    ]);
+    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'flex', value: '1 1 0%' }]);
     expect(radio('Width mode', 'fill')?.getAttribute('aria-checked')).toBe('true');
     // And the flex-child fields are there for it.
     expect(host.querySelector('[aria-label="Flex grow"]')).not.toBeNull();
@@ -703,5 +700,32 @@ describe('the Style column', () => {
     expect(lastRules().filter((r) => r.property.startsWith('padding')).map((r) => `${r.property}:${r.value}`).sort()).toEqual(
       ['padding-bottom:20', 'padding-left:20', 'padding-right:20', 'padding-top:20'],
     );
+  });
+});
+
+describe('the Style tab with nothing picked', () => {
+  it('shows what the page is made of, and opens Variables from it', async () => {
+    expect(text()).toContain('Colours');
+    expect(text()).toContain('--ink');
+    expect(text()).toContain('Inter');
+    expect(text()).toContain('radius');
+    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '--mark') ?? null);
+    await tick();
+    expect(activeTab()).toBe('variables');
+  });
+});
+
+describe('moving to another page on the site', () => {
+  it('keeps the decisions but reads the new page rather than describing the old one', async () => {
+    await act(async () => setVarOverride('--mark', '#1C7F5C'));
+    await tick(400);
+    await act(async () => loadSession(1, 'http://localhost:5173/about'));
+    await tick();
+    expect(getSession().scan).toBeNull();
+    expect(getSession().varOverrides).toEqual({ '--mark': '#1C7F5C' });
+    // The same document, reached again, keeps its reading.
+    await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), scan: forfontsake } }));
+    await act(async () => loadSession(1, 'http://localhost:5173/#top'));
+    expect(getSession().scan).not.toBeNull();
   });
 });

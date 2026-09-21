@@ -211,12 +211,18 @@ export async function loadSession(id: number, url: string): Promise<void> {
   const stored = raw[key(id)] as Partial<Persisted> | undefined;
   const keep = stored?.scan && sameOrigin(stored.scan.url, url);
   const samePage = keep && stored.logUrl === pageKey(url);
+  // A scan is a reading of one document. Another page on the same site
+  // keeps the decisions — they are deltas over a fresh reading — but not
+  // the reading, so the panel scans again rather than describing the page
+  // you left; the rail's Pages tab is how you get there now.
+  const sameDocument = keep && pageKey(stored.scan!.url) === pageKey(url);
   const allowed = await loadConsent(keyFor(url), writeKeyFor());
   state = keep
     ? {
         ...EMPTY,
         ...allowed,
         ...stored,
+        scan: sameDocument ? stored.scan! : null,
         // A session stored before the preview was counted held a flag here.
         agentPreview: typeof stored.agentPreview === 'object' ? stored.agentPreview : null,
         agentLog: stored.agentLog ?? [],

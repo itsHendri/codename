@@ -129,7 +129,9 @@ function readProps(el: Element): ElementProps {
   const cs = new Proxy(getComputedStyle(el), {
     get: (target, prop) => {
       const v = Reflect.get(target, prop);
-      return typeof v === 'string' ? roundPx(v) : v;
+      if (typeof v === 'string') return roundPx(v);
+      // A method called through the proxy must still run on the real declaration.
+      return typeof v === 'function' ? v.bind(target) : v;
     },
   });
   const sel = buildSelector(el);
@@ -1681,20 +1683,26 @@ function activate() {
     return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ''));
   };
 
+  /**
+   * One level at a time: a half-made note, then note mode, then hover, then
+   * the selection. False when there was nothing to let go of.
+   */
+  const escape = (): boolean => {
+    if (composing) closeComposer();
+    else if (picked.length) {
+      picked = [];
+      drawPicks();
+    } else if (noteOn) setNote(false);
+    else if (hoverOn) setHover(false);
+    else if (selected) select(null);
+    else return false;
+    return true;
+  };
+
   const onKey = (e: KeyboardEvent) => {
     if (typing(e)) return;
     if (e.key === 'Escape') {
-      // One level at a time: a half-made note, then note mode, then hover,
-      // then the selection.
-      if (composing) closeComposer();
-      else if (picked.length) {
-        picked = [];
-        drawPicks();
-      } else if (noteOn) setNote(false);
-      else if (hoverOn) setHover(false);
-      else if (selected) select(null);
-      else return;
-      e.preventDefault();
+      if (escape()) e.preventDefault();
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && selected) {
@@ -1748,6 +1756,10 @@ function activate() {
         break;
       case 'deselect':
         select(null);
+        break;
+      case 'escape':
+        // Escape pressed in the rail: the same ladder as on the page.
+        escape();
         break;
       case 'state':
         holdState(msg.state ? `codename-state-${msg.state}` : null);

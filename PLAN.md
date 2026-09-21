@@ -118,6 +118,19 @@ is that companion growing up.
   fields, and a box diagram that is typed into, with a link for how far an
   edit reaches. A device frame fits the room the rail leaves. The decision
   record and mocks are in `docs/design/panel-layout-wireframes.{md,html}`.
+- **W21, 21 September 2026 — a second pass against the references.** From
+  the rail's first run on forfontsake and another look at the three
+  screenshots: computed lengths round to two decimals on read (`roundPx`);
+  a rail row keeps its name (eye under the pointer only, indent capped); a
+  **Pages** tab in the rail, the site's pages as this page links to them
+  (`studio/pages.ts`); an icon per row for what kind of thing a layer is
+  (`LayerIcon.tsx`), leading the selection header too; the Type group offers
+  the fonts the page loads and names the weights, saying which are not
+  loaded; min/max behind + Add; a scope of all N says so; opacity gets a
+  slider; and with nothing picked the Style tab shows what the page is made
+  of, as Figma's design panel does. Undo and Escape work from the rail; a
+  page nobody is looking at is not re-read; Fill on a main axis is one
+  declaration.
 
 ## Live re-skin
 
