@@ -702,3 +702,15 @@ describe('the Style column', () => {
     );
   });
 });
+
+describe('the Style tab with nothing picked', () => {
+  it('shows what the page is made of, and opens Variables from it', async () => {
+    expect(text()).toContain('Colours');
+    expect(text()).toContain('--ink');
+    expect(text()).toContain('Inter');
+    expect(text()).toContain('radius');
+    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '--mark') ?? null);
+    await tick();
+    expect(activeTab()).toBe('variables');
+  });
+});

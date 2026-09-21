@@ -477,6 +477,7 @@ export default function App() {
             mode={mode}
             rail={railOn}
             onShowRail={() => updateSession({ rail: true })}
+            onOpenVariables={() => setActive('variables')}
           />
         );
         break;

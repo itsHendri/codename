@@ -499,16 +499,28 @@ export function PropertyPanel({
         }`,
         <>
           <Labelled label="opacity">
-            <NumberField
-              value={element.opacity}
-              ariaLabel="Opacity"
-              step={0.1}
-              className="w-16"
-              onChange={(v) => {
-                const n = parseFloat(v);
-                if (Number.isFinite(n)) onChange('opacity', String(Math.min(1, Math.max(0, n))));
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <NumberField
+                value={element.opacity}
+                ariaLabel="Opacity"
+                step={0.1}
+                className="w-16"
+                onChange={(v) => {
+                  const n = parseFloat(v);
+                  if (Number.isFinite(n)) onChange('opacity', String(Math.min(1, Math.max(0, n))));
+                }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={Number.isFinite(parseFloat(element.opacity)) ? parseFloat(element.opacity) : 1}
+                aria-label="Opacity slider"
+                onChange={(e) => onChange('opacity', e.target.value)}
+                className="min-w-0 flex-1 accent-accent"
+              />
+            </div>
           </Labelled>
           <Labelled label="shadow">
             <ShadowField

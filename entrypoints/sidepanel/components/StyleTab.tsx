@@ -11,6 +11,8 @@ import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
+import { PageStyles } from './inspect/PageStyles';
+import { LayerIcon } from './inspect/LayerIcon';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -31,6 +33,7 @@ export function StyleTab({
   mode,
   rail,
   onShowRail,
+  onOpenVariables,
 }: {
   error: string | null;
   ctl: InspectController;
@@ -40,6 +43,8 @@ export function StyleTab({
   /** Whether the rail is showing; when it is not, the empty state offers it. */
   rail: boolean;
   onShowRail: () => void;
+  /** The page's own styles, shown when nothing is picked, are edited there. */
+  onOpenVariables: () => void;
 }) {
   const el = ctl.element;
 
@@ -74,6 +79,7 @@ export function StyleTab({
           </button>
         )}
         {error && <p className="text-xs text-warn-ink">{error}</p>}
+        {scan && <PageStyles scan={scan} onOpenVariables={onOpenVariables} />}
       </div>
     );
   }
@@ -152,6 +158,7 @@ function Header({ element: el, ctl }: { element: ElementProps; ctl: InspectContr
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
+        <LayerIcon tag={el.tag} />
         <code
           className="min-w-0 flex-1 truncate rounded-control border border-line bg-surface-recessed px-1.5 font-mono text-xs"
           title={selector}
