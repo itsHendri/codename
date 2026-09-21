@@ -52,3 +52,10 @@
   --default-transition-duration: 150ms;
 }
 
+/* What an asset or a colour is shown on: a light checker in either theme,
+   as a design tool draws its thumbnails, so a dark icon on a dark panel is
+   not a dark square. */
+.checkerboard {
+  background-image: repeating-conic-gradient(#e2e2e2 0% 25%, #ffffff 0% 50%);
+  background-size: 12px 12px;
+}

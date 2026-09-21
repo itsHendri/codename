@@ -87,10 +87,6 @@ function activate() {
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
       .bar { position: fixed; top: 0; left: 0; right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
-      .bar.collapsed { right: auto; width: auto; border-bottom-right-radius: 8px; border-right: 1px solid ${d.cardLine}; gap: 0; padding: 0 8px; }
-      .bar.collapsed > :not(.mark) { display: none; }
-      .bar .mark { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; letter-spacing: -0.01em; }
-      .bar .mark svg { width: 14px; height: 14px; }
       .bar .host { color: ${d.cardMuted}; }
       .bar .device { display: flex; align-items: center; gap: 6px; }
       .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
@@ -131,7 +127,7 @@ function activate() {
       }
       @media (max-width: 900px) {
         .bar { gap: 8px; }
-        .bar .mark span, .bar .frame, .bar .reset span { display: none; }
+        .bar .frame, .bar .reset span { display: none; }
       }
       @media (max-width: 620px) {
         .bar { gap: 4px; padding: 0 6px; }
@@ -177,18 +173,23 @@ function activate() {
       .edit .len .tok { flex: 0 0 auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 1px solid ${d.cardLine}; border-radius: 999px; padding: 1px 6px; background: transparent; color: ${d.accent}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
       .edit .len .tok:hover { border-color: ${d.accent}; }
       .edit .len .tok.hidden { display: none; }
-      .bar .fold { cursor: pointer; color: ${d.cardMuted}; padding: 2px 4px; }
-      .bar .fold:hover { color: ${d.cardInk}; }
       /* Important, because a rule like \`.bar .agent { display: flex }\` is more
          specific than one class, and hid nothing: the agent chip showed on
          every page with no preview on it. */
       .hidden { display: none !important; }
     </style>
     <div class="bar hidden">
-      <div class="mark" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1 L15 8 L8 15 L1 8 Z"/><path d="M8 5 L11 8 L8 11 L5 8 Z" style="fill: ${d.accent}" stroke="none"/></svg><span>Codename</span></div>
       <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5M2 8h9M2 12h12"/><path d="M8 3l1.5 1L8 5M13 7l1.5 1L13 9" stroke-width="1.2"/></svg><span class="label">Layers</span>
       </button>
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
+        </button>
+        <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
+        </button>
+      </div>
       <span class="host"></span>
       <div class="device" role="group" aria-label="Frame">
         <div class="kinds" role="radiogroup" aria-label="Device"><button class="kind" data-kind="desktop" role="radio" aria-checked="false" aria-label="Desktop" title="Desktop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M8 11v2.5M5.5 13.5h5"/></svg></button><button class="kind" data-kind="laptop" role="radio" aria-checked="false" aria-label="Laptop" title="Laptop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></svg></button><button class="kind" data-kind="tablet" role="radio" aria-checked="false" aria-label="Tablet" title="Tablet — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button><button class="kind" data-kind="phone" role="radio" aria-checked="false" aria-label="Phone" title="Phone — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button></div>
@@ -209,15 +210,6 @@ function activate() {
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg><span class="label">Dark</span>
         </button>
       </div>
-      <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 .8-1.6 3.9z"/></svg><span class="label">Select</span>
-        </button>
-        <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
-        </button>
-      </div>
-      <span class="fold" title="Collapse">‹</span>
     </div>
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
@@ -1134,9 +1126,9 @@ function activate() {
     }
     hint.innerHTML = html;
     hint.classList.remove('hidden', 'fading');
-    // Under the mode buttons, which is what it is explaining.
-    const box = bar.getBoundingClientRect();
-    hint.style.right = `${Math.max(8, innerWidth - box.right + 30)}px`;
+    // Under the tools, which are what it is explaining.
+    hint.style.left = `${Math.max(8, bar.getBoundingClientRect().left + 8)}px`;
+    hint.style.right = 'auto';
     hintTimer = window.setTimeout(() => {
       hint.classList.add('fading');
       hintTimer = window.setTimeout(() => hint.classList.add('hidden'), 300);
@@ -1319,15 +1311,6 @@ function activate() {
   });
   barLight.addEventListener('click', () => setMode('light'));
   barDark.addEventListener('click', () => setMode('dark'));
-  // The mark folds the bar down to a pill and opens it again; the chevron only folds.
-  bar.querySelector('.mark')!.addEventListener('click', (e) => {
-    e.stopPropagation();
-    bar.classList.toggle('collapsed');
-  });
-  bar.querySelector('.fold')!.addEventListener('click', (e) => {
-    e.stopPropagation();
-    bar.classList.add('collapsed');
-  });
   // The window's own size is what the bar shows when there is no frame.
   addEventListener('resize', () => barOn && !frame && renderBar());
 

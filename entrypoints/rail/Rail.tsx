@@ -5,6 +5,8 @@ import { callInspector } from '@/shared/inpage';
 import { ComponentsStrip } from '@/entrypoints/sidepanel/components/inspect/ComponentsStrip';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
+import { TabStrip } from '@/entrypoints/sidepanel/components/TabStrip';
+import { LayersIcon, PagesIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
@@ -75,37 +77,16 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
     onResize(state.width + delta);
   };
 
-  const tabs: { key: RailTab; label: string }[] = [
-    { key: 'pages', label: 'Pages' },
-    { key: 'layers', label: 'Layers' },
-    { key: 'assets', label: 'Assets' },
+  const tabs = [
+    { key: 'pages' as const, label: 'Pages', Icon: PagesIcon },
+    { key: 'layers' as const, label: 'Layers', Icon: LayersIcon },
+    { key: 'assets' as const, label: 'Assets', Icon: SvgsIcon, badge: state.svgs.length },
   ];
 
   return (
-    <div className="rail relative flex h-full flex-col border-r border-line-subtle" onKeyDown={onKey}>
-      {/* h-10 is BAR_HEIGHT: one strip with the bar above and the panel's tabs across. */}
-      <nav role="tablist" aria-label="Rail" className="grid h-10 shrink-0 grid-cols-3 items-stretch border-b border-line-subtle">
-        {tabs.map(({ key, label }) => (
-          <button
-            key={key}
-            role="tab"
-            id={`rail-tab-${key}`}
-            aria-selected={tab === key}
-            tabIndex={tab === key ? 0 : -1}
-            onClick={() => setTab(key)}
-            className={`flex items-center justify-center text-xs ${
-              tab === key
-                ? 'border-b-2 border-accent font-medium text-accent'
-                : 'border-b-2 border-transparent text-ink-muted hover:text-ink'
-            }`}
-          >
-            {label}
-            {key === 'assets' && state.svgs.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-surface-control px-1 font-mono text-2xs text-ink-secondary">{state.svgs.length}</span>
-            )}
-          </button>
-        ))}
-      </nav>
+    <div className="rail relative flex h-full flex-col border-r border-line-strong" onKeyDown={onKey}>
+      {/* The same strip the panel wears, the height of the bar: three pieces of chrome that read as one. */}
+      <TabStrip tabs={tabs} active={tab} onSelect={setTab} ariaLabel="Rail" idPrefix="rail-tab" />
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
         {tab === 'pages' ? (
           <>
