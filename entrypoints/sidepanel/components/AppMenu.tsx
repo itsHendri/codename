@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme, type ThemePref } from '../lib/theme';
-import { LogoIcon } from './icons';
+import { ChevronIcon, LogoIcon } from './icons';
 import { BridgeSection } from './BridgeMenu';
 
 const THEMES: { key: ThemePref; label: string }[] = [
@@ -63,7 +63,7 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
       >
         <LogoIcon className={compact ? 'h-4 w-4 text-ink' : 'h-5 w-5 text-ink'} />
         {!compact && <span className="text-lg font-semibold tracking-tight">Codename</span>}
-        <span aria-hidden className="text-2xs text-ink-muted">▾</span>
+        <ChevronIcon className="h-2.5 w-2.5 rotate-90 text-ink-muted" />
       </button>
 
       {open && (
@@ -74,15 +74,15 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
           }`}
         >
           <div className="subhead mb-1 px-1">Theme</div>
-          <div className="flex rounded-control border border-line p-0.5" role="radiogroup" aria-label="Theme">
+          <div className="flex h-control gap-0.5 rounded-control bg-surface-field p-0.5" role="radiogroup" aria-label="Theme">
             {THEMES.map((t) => (
               <button
                 key={t.key}
                 role="radio"
                 aria-checked={pref === t.key}
                 onClick={() => setPref(t.key)}
-                className={`flex-1 rounded px-2 py-1 text-xs ${
-                  pref === t.key ? 'bg-ink text-surface-app' : 'text-ink-muted hover:text-ink'
+                className={`flex-1 rounded-[4px] px-2 text-xs ${
+                  pref === t.key ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {t.label}
@@ -96,7 +96,7 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
             ) : (
               <button
                 onClick={allowLocal}
-                className="rounded-control border border-line px-2 py-1 text-left text-xs hover:bg-surface-control"
+                className="rounded-control bg-surface-field px-2 py-1.5 text-left text-xs hover:bg-surface-field-hover"
               >
                 Always allow localhost
                 <span className="block text-2xs text-ink-muted">One prompt, then every dev server just works.</span>

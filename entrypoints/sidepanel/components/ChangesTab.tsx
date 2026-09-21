@@ -205,7 +205,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
             disabled={empty}
             className="btn btn-secondary flex-1"
           >
-            {copied === 'prompt' ? 'Copied ✓' : 'Copy brief'}
+            {copied === 'prompt' ? 'Copied' : 'Copy brief'}
           </button>
           <button
             onClick={() => download('codename-changes.json', toJson(set), 'application/json')}

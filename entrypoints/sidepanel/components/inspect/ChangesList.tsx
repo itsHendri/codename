@@ -1,5 +1,6 @@
 import type { ChangeLog, ElementChange } from '@/studio/changes';
 import { active, canRedo, canUndo, grouped } from '@/studio/changes';
+import { RedoIcon, UndoIcon } from '../icons';
 import { describe as describeCondition, describeLong } from '@/studio/conditions';
 
 export function ChangesList({
@@ -26,10 +27,10 @@ export function ChangesList({
         </span>
         <div className="ml-auto flex items-center gap-1">
           <HeaderButton onClick={onUndo} disabled={!canUndo(log)} label="Undo">
-            ↶
+            <UndoIcon />
           </HeaderButton>
           <HeaderButton onClick={onRedo} disabled={!canRedo(log)} label="Redo">
-            ↷
+            <RedoIcon />
           </HeaderButton>
           <button
             onPointerDown={() => onViewOriginal(true)}

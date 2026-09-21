@@ -64,7 +64,7 @@ export function TabStrip<K extends string>({
           {label}
           {active === key && <span className="absolute inset-x-2 -bottom-1 h-0.5 rounded-full bg-accent" />}
           {badge != null && badge > 0 && (
-            <span className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
+            <span data-badge className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
               {badge}
             </span>
           )}

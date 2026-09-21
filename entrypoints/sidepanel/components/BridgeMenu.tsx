@@ -44,7 +44,7 @@ export function BridgeSection() {
       </div>
 
       {pairing ? (
-        <div className="flex items-center gap-2 rounded-control border border-line px-2 py-1.5 text-xs">
+        <div className="flex items-center gap-2 rounded-control bg-surface-field px-2 py-1.5 text-xs">
           <span className="truncate text-ink-muted" title={project?.path}>
             {project ? project.name : `Port ${pairing.port}`}
           </span>
@@ -77,12 +77,12 @@ export function BridgeSection() {
               placeholder="Pairing code"
               spellCheck={false}
               autoComplete="off"
-              className="min-w-0 flex-1 rounded-control border border-line bg-surface-panel px-2 py-1 font-mono text-xs tracking-widest uppercase"
+              className="field min-w-0 flex-1 px-2 font-mono tracking-widest uppercase placeholder:tracking-normal placeholder:normal-case placeholder:text-ink-muted"
             />
             <button
               type="submit"
               disabled={code.trim().length < 4}
-              className="rounded-control bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+              className="btn btn-primary"
             >
               Pair
             </button>
