@@ -16,12 +16,13 @@ import { createRootPush } from '@/studio/pushRoot';
 import { DEVICE_KINDS, frameFor, presetsOf, viewportLabel, type DeviceKind, type Frame } from '@/shared/viewport';
 import type { Mode } from '@/studio/engine/types';
 import { lengthPx } from '@/studio/reskin';
-import { paddingShorthand, roundPx } from '@/studio/boxModel';
-import { componentOf } from '@/studio/framework';
-import { buildSelector, isStableClass } from '@/studio/selector';
+import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
+import { readProps } from '@/studio/inspect/readProps';
+import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
+import { placeCard, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
+import { asLengths, asPx, editValues } from '@/studio/inspect/editValues';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
-import type { LayerNode } from '@/studio/layers';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
 import { createPageFrame } from '@/studio/pageFrame';
@@ -35,71 +36,6 @@ export default defineContentScript({
   },
 });
 
-/* ---------------- colour helpers (sRGB, for the quick readout) ---------------- */
-
-interface Rgba {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-}
-
-function parseRgba(cssColor: string): Rgba | null {
-  const m = cssColor.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.%]+))?\)/);
-  if (!m) return null;
-  const a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
-  return { r: parseFloat(m[1]!), g: parseFloat(m[2]!), b: parseFloat(m[3]!), a };
-}
-
-function rgbToHexStr(r: number, g: number, b: number): string {
-  const h = (n: number) => Math.round(n).toString(16).padStart(2, '0');
-  return `#${h(r)}${h(g)}${h(b)}`.toUpperCase();
-}
-
-function toHex(cssColor: string): string | null {
-  const p = parseRgba(cssColor);
-  if (!p || p.a === 0) return null;
-  return rgbToHexStr(p.r, p.g, p.b);
-}
-
-function luminance(hex: string): number {
-  const c = [1, 3, 5].map((i) => {
-    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
-}
-
-function contrast(fg: string | null, bg: string | null): number | null {
-  if (!fg || !bg) return null;
-  const sorted = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
-  return Math.round(((sorted[0]! + 0.05) / (sorted[1]! + 0.05)) * 10) / 10;
-}
-
-/** The colour actually behind an element: translucent layers composited over white. */
-function opaqueBackground(el: Element): string {
-  const layers: Rgba[] = [];
-  let node: Element | null = el;
-  while (node) {
-    const p = parseRgba(getComputedStyle(node).backgroundColor);
-    if (p && p.a > 0) {
-      layers.push(p);
-      if (p.a >= 1) break;
-    }
-    node = node.parentElement;
-  }
-  let r = 255;
-  let g = 255;
-  let b = 255;
-  for (let i = layers.length - 1; i >= 0; i--) {
-    const l = layers[i]!;
-    r = l.r * l.a + r * (1 - l.a);
-    g = l.g * l.a + g * (1 - l.a);
-    b = l.b * l.a + b * (1 - l.a);
-  }
-  return rgbToHexStr(r, g, b);
-}
-
 /* ---------------- reading an element ---------------- */
 
 const HOST_TAG = 'CODENAME-INSPECTOR';
@@ -109,218 +45,6 @@ const escapeHtml = (s: string) =>
 
 function isOurs(el: Element | null): boolean {
   return !!el && (el.tagName === HOST_TAG || el.tagName.toLowerCase() === RAIL_TAG || el.closest(HOST_TAG.toLowerCase()) !== null);
-}
-
-/** Text is editable only when the element's own children are text. */
-function ownText(el: Element): string | null {
-  const nodes = Array.from(el.childNodes);
-  if (!nodes.length || nodes.some((n) => n.nodeType !== Node.TEXT_NODE)) return null;
-  return el.textContent ?? '';
-}
-
-function rectOf(el: Element): Rect {
-  const r = el.getBoundingClientRect();
-  return { x: r.left, y: r.top, width: r.width, height: r.height };
-}
-
-function readProps(el: Element): ElementProps {
-  // Lengths as a design tool shows them: a computed `96.6641px` reads and
-  // scrubs as `96.66px`. See `roundPx`.
-  const cs = new Proxy(getComputedStyle(el), {
-    get: (target, prop) => {
-      const v = Reflect.get(target, prop);
-      if (typeof v === 'string') return roundPx(v);
-      // A method called through the proxy must still run on the real declaration.
-      return typeof v === 'function' ? v.bind(target) : v;
-    },
-  });
-  const sel = buildSelector(el);
-  const fg = toHex(cs.color);
-  const bg = opaqueBackground(el);
-  const breadcrumb: ElementProps['breadcrumb'] = [];
-  for (let node: Element | null = el; node && node !== document.documentElement; node = node.parentElement) {
-    breadcrumb.unshift({ tag: node.tagName.toLowerCase(), selector: buildSelector(node).selector });
-  }
-  // What rendered it, if the dev build still knows. A built site answers nothing.
-  const component = componentOf(el);
-  const parent = el.parentElement;
-  const ps = parent ? getComputedStyle(parent) : null;
-  const pr = parent?.getBoundingClientRect();
-  const inner = (px: string) => parseFloat(px) || 0;
-  return {
-    ...(component ? { component } : {}),
-    selector: sel.selector,
-    matches: sel.matches,
-    stable: sel.stable,
-    intent: sel.intent,
-    tag: el.tagName.toLowerCase(),
-    breadcrumb,
-    rect: rectOf(el),
-    box: {
-      marginTop: cs.marginTop,
-      marginRight: cs.marginRight,
-      marginBottom: cs.marginBottom,
-      marginLeft: cs.marginLeft,
-      paddingTop: cs.paddingTop,
-      paddingRight: cs.paddingRight,
-      paddingBottom: cs.paddingBottom,
-      paddingLeft: cs.paddingLeft,
-      width: cs.width,
-      height: cs.height,
-      minWidth: cs.minWidth,
-      minHeight: cs.minHeight,
-      maxWidth: cs.maxWidth,
-      maxHeight: cs.maxHeight,
-      boxSizing: cs.boxSizing,
-      display: cs.display,
-      gap: cs.gap,
-      rowGap: cs.rowGap,
-      columnGap: cs.columnGap,
-      overflowX: cs.overflowX,
-      overflowY: cs.overflowY,
-    },
-    layout: {
-      flexDirection: cs.flexDirection,
-      justifyContent: cs.justifyContent,
-      alignItems: cs.alignItems,
-      flexWrap: cs.flexWrap,
-    },
-    position: { type: cs.position, top: cs.top, right: cs.right, bottom: cs.bottom, left: cs.left, zIndex: cs.zIndex },
-    child: {
-      inFlex: !!ps && /flex/.test(ps.display),
-      parentDirection: ps?.flexDirection ?? 'row',
-      flexGrow: cs.flexGrow,
-      flexShrink: cs.flexShrink,
-      flexBasis: cs.flexBasis,
-      alignSelf: cs.alignSelf,
-      order: cs.order,
-      // The parent's content box: what a percentage is a share of.
-      parentWidth: pr && ps ? Math.max(0, pr.width - inner(ps.paddingLeft) - inner(ps.paddingRight) - inner(ps.borderLeftWidth) - inner(ps.borderRightWidth)) : 0,
-      parentHeight: pr && ps ? Math.max(0, pr.height - inner(ps.paddingTop) - inner(ps.paddingBottom) - inner(ps.borderTopWidth) - inner(ps.borderBottomWidth)) : 0,
-    },
-    opacity: cs.opacity,
-    type: {
-      fontFamily: cs.fontFamily,
-      fontSize: cs.fontSize,
-      fontWeight: cs.fontWeight,
-      lineHeight: cs.lineHeight,
-      letterSpacing: cs.letterSpacing,
-      textAlign: cs.textAlign,
-    },
-    color: {
-      text: fg ?? cs.color,
-      background: bg,
-      border: toHex(cs.borderTopColor) ?? cs.borderTopColor,
-    },
-    radius: cs.borderRadius,
-    corners: {
-      topLeft: cs.borderTopLeftRadius,
-      topRight: cs.borderTopRightRadius,
-      bottomRight: cs.borderBottomRightRadius,
-      bottomLeft: cs.borderBottomLeftRadius,
-    },
-    border: {
-      width: cs.borderTopWidth,
-      style: cs.borderTopStyle,
-      color: toHex(cs.borderTopColor) ?? cs.borderTopColor,
-    },
-    shadow: cs.boxShadow,
-    filter: cs.filter,
-    backdropFilter: cs.backdropFilter,
-    transition: cs.transition,
-    text: ownText(el),
-    contrastRatio: contrast(fg, bg),
-  };
-}
-
-/** Structure only: script, style and metadata are not layers. */
-const SKIPPED = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE', 'NOSCRIPT', 'TEMPLATE', 'BR']);
-
-/** A page bigger than this is not worth sending whole; the tree stops here. */
-const MAX_LAYERS = 1500;
-
-/**
- * How a row reads: `input#family.name-field`. The id goes first because it is
- * the most identifying thing an element has, and a row that shows only classes
- * disagrees with the selector the header shows once you pick it.
- */
-function layerLabel(el: Element): string {
-  const id = el.getAttribute('id');
-  const idPart = id && /^[A-Za-z][\w-]*$/.test(id) ? `#${id}` : '';
-  const classes = Array.from(el.classList)
-    .filter(isStableClass)
-    .slice(0, 2)
-    .map((c) => `.${c}`)
-    .join('');
-  return el.tagName.toLowerCase() + idPart + classes;
-}
-
-/**
- * The page as a flat list with depths. Built in one walk; `descendants` is
- * filled in on the way back up so the panel can collapse a subtree by
- * skipping rows.
- */
-function buildLayers(): LayerNode[] {
-  const out: LayerNode[] = [];
-  const walk = (el: Element, depth: number): number => {
-    if (out.length >= MAX_LAYERS) return 0;
-    const index = out.length;
-    const own = Array.from(el.childNodes)
-      .filter((n) => n.nodeType === Node.TEXT_NODE)
-      .map((n) => n.textContent ?? '')
-      .join(' ')
-      .trim();
-    const cs = getComputedStyle(el);
-    // One selector build per node: it walks ancestors and is the expensive part.
-    const sel = buildSelector(el);
-    out.push({
-      id: index,
-      tag: el.tagName.toLowerCase(),
-      label: layerLabel(el),
-      selector: sel.selector,
-      stable: sel.stable,
-      matches: sel.intent.matches,
-      ...(sel.intent.matches > 1 ? { intent: sel.intent.selector } : {}),
-      depth,
-      descendants: 0,
-      hidden: cs.display === 'none' || cs.visibility === 'hidden',
-      display: cs.display,
-      ...(own ? { text: own.slice(0, 60) } : {}),
-    });
-    let count = 0;
-    // An icon is one layer. Its paths and polylines are drawing, not structure,
-    // and on an illustrated page they outnumber everything else several to one.
-    if (el.tagName.toLowerCase() !== 'svg') {
-      for (const child of el.children) {
-        if (SKIPPED.has(child.tagName) || isOurs(child)) continue;
-        count += 1 + walk(child, depth + 1);
-      }
-    }
-    out[index]!.descendants = count;
-    return count;
-  };
-  if (document.body) walk(document.body, 0);
-  return out;
-}
-
-/** The first match and how many there are; a selector the page cannot parse is no match. */
-function findAll(selector: string | undefined): { first: Element | null; matches: number } {
-  if (!selector) return { first: null, matches: 0 };
-  try {
-    const all = document.querySelectorAll(selector);
-    return { first: all[0] ?? null, matches: all.length };
-  } catch {
-    return { first: null, matches: 0 };
-  }
-}
-
-function find(selector: string | undefined): Element | null {
-  if (!selector) return null;
-  try {
-    return document.querySelector(selector);
-  } catch {
-    return null;
-  }
 }
 
 /* ---------------- the overlay ---------------- */
@@ -654,18 +378,8 @@ function activate() {
 
   const walk = (dir: 'parent' | 'child' | 'next' | 'prev') => {
     if (!selected) return;
-    const parent = selected.parentElement;
-    const next =
-      dir === 'parent'
-        ? parent && parent !== document.documentElement
-          ? parent
-          : null
-        : dir === 'child'
-          ? selected.firstElementChild
-          : dir === 'next'
-            ? selected.nextElementSibling
-            : selected.previousElementSibling;
-    if (next && !isOurs(next)) select(next);
+    const next = neighbour(selected, dir, isOurs);
+    if (next) select(next);
   };
 
   /* ----- painting ----- */
@@ -736,11 +450,8 @@ function activate() {
         // it when the box runs off the bottom of the viewport.
         sizeLabel.classList.remove('hidden');
         sizeLabel.textContent = `${Math.round(r.width)} × ${Math.round(r.height)}`;
-        const below = r.y + r.height + 22 <= innerHeight;
-        Object.assign(sizeLabel.style, {
-          left: `${Math.min(Math.max(40, r.x + r.width / 2), innerWidth - 40)}px`,
-          top: `${below ? r.y + r.height + 3 : Math.max(barOn ? BAR_HEIGHT + 4 : 4, r.y - 21)}px`,
-        });
+        const at = placeSizeLabel(r, { width: innerWidth, height: innerHeight }, barOn ? BAR_HEIGHT + 4 : 4);
+        Object.assign(sizeLabel.style, { left: `${at.left}px`, top: `${at.top}px` });
         placeEdit();
       } else {
         selBox.classList.add('hidden');
@@ -859,22 +570,6 @@ function activate() {
 
   const HEX6 = /^#[0-9a-f]{6}$/i;
   const isEnter = (e: KeyboardEvent) => e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
-  const asPx = (v: string) => (/^-?\d*\.?\d+$/.test(v.trim()) ? `${v.trim()}px` : v.trim());
-  /** A shorthand typed as "8 16" means pixels; anything with units is kept. */
-  const asLengths = (v: string) => v.trim().split(/\s+/).map(asPx).join(' ');
-
-  const editValues = (props: ElementProps): Record<string, string> => {
-    const padding = paddingShorthand(props.box);
-    return {
-      ...(props.text !== null ? { text: props.text } : {}),
-      color: props.color.text,
-      'background-color': props.color.background,
-      'font-size': props.type.fontSize,
-      'font-weight': props.type.fontWeight,
-      padding,
-      'border-radius': props.radius,
-    };
-  };
 
   const emitEdit = (property: string, to: string) => send({ type: 'element-edit', property, to });
 
@@ -1102,23 +797,14 @@ function activate() {
   /** Below the element, or above when there is no room; clear of the bar either way. */
   const placeEdit = () => {
     if (!selected?.isConnected || editCard.classList.contains('hidden')) return;
-    const w = editCard.offsetWidth || 232;
-    const h = editCard.offsetHeight || 200;
-    const clear = barOn ? BAR_HEIGHT + 8 : 8;
-    if (editPinned) {
-      Object.assign(editCard.style, {
-        left: `${Math.min(Math.max(8, editPinned.left), innerWidth - w - 8)}px`,
-        top: `${Math.min(Math.max(clear, editPinned.top), innerHeight - h - 8)}px`,
-      });
-      return;
-    }
-    const r = rectOf(selected);
-    const below = r.y + r.height + 8;
-    const top = below + h <= innerHeight - 8 ? below : Math.max(clear, r.y - h - 8);
-    Object.assign(editCard.style, {
-      left: `${Math.min(Math.max(8, r.x), innerWidth - w - 8)}px`,
-      top: `${Math.min(Math.max(clear, top), innerHeight - h - 8)}px`,
-    });
+    const at = placeCard(
+      rectOf(selected),
+      { width: editCard.offsetWidth || 232, height: editCard.offsetHeight || 200 },
+      { width: innerWidth, height: innerHeight },
+      barOn ? BAR_HEIGHT + 8 : 8,
+      editPinned,
+    );
+    Object.assign(editCard.style, { left: `${at.left}px`, top: `${at.top}px` });
   };
 
   /* ----- notes: what a note is about ----- */
@@ -1261,19 +947,13 @@ function activate() {
     e.preventDefault();
     e.stopPropagation();
 
-    const w = Math.abs(e.clientX - start.x);
-    const h = Math.abs(e.clientY - start.y);
-
     // A drag is a region: it can cover empty space that no element owns.
-    if (w >= 6 || h >= 6) {
-      const x = Math.min(start.x, e.clientX);
-      const y = Math.min(start.y, e.clientY);
+    const region = regionFrom(start, { x: e.clientX, y: e.clientY });
+    if (region) {
+      const { x, y, width: w, height: h } = region;
       const centre = document.elementFromPoint(x + w / 2, y + h / 2);
       const within = centre && !isOurs(centre) ? buildSelector(centre).intent.selector : undefined;
-      emitTarget(
-        { kind: 'region', rect: { x: x + scrollX, y: y + scrollY, width: w, height: h }, within },
-        { x, y, width: w, height: h },
-      );
+      emitTarget({ kind: 'region', rect: { x: x + scrollX, y: y + scrollY, width: w, height: h }, within }, region);
       return;
     }
 
@@ -1782,7 +1462,7 @@ function activate() {
         return true;
       }
       case 'layers':
-        sendResponse(buildLayers());
+        sendResponse(buildLayers(document.body, isOurs));
         return true;
       case 'peek': {
         // Hovering a row in the panel lights the element up on the page.
