@@ -746,16 +746,25 @@ In order.
    transition, an animation or a filter also asks for
    `prefers-reduced-motion`.
 
-   **Left for the second half**, and none of it is a small addition to the
-   first: keyframes and the triggers that need them — appear, loop, scroll —
-   which mean `@keyframes` and scroll-driven animations rather than one
-   declaration; `transform` as an editor of its own rather than a property
-   that happens to transition; and **noise**, which is a generated texture
-   (a data-URI background or an SVG filter) rather than a value read off a
-   computed style, so it does not belong in a panel that edits what the page
-   already says. Shadows and easings still have no home in `BrandConfig`
-   beyond the levels and curves already there, so a shadow edited here is an
-   element edit, not a move of the system.
+   **The second half, 21 September 2026 (W25).** `transform` is an editor
+   of its own (`studio/transform.ts`): the computed matrix comes apart into
+   translate, rotate, skew and scale exactly one way and goes back to the
+   same matrix, so the fields show what the page does and write the
+   functions a stylesheet would carry; a 3D matrix keeps its text. The
+   skew is `atan` of the exact ratio, not `atan2`, or a flipped scale turns
+   a small skew into one past a right angle. `animation` is fields too
+   (`studio/animation.ts`, fail closed by round trip like the transition
+   editor, with `none` read as the name of no animation), and over it
+   Framer's three triggers: **Appear** runs once and stays, **Loop** runs
+   forever back and forth, **Scroll** runs along `animation-timeline:
+   view()` — each one declaration, each reading back as itself. What they
+   animate is a `@keyframes` block: the page's own, read off its sheets
+   (`pageKeyframes`), or one of four named presets (fade in, rise, scale
+   in, pulse) that the element sheet defines once ahead of the rules that
+   name them and the brief spells out **in words**, since the brief carries
+   no rule bodies. Still declined: **noise**, a generated texture rather
+   than a value read off a computed style. Shadows and easings still have
+   no home in `BrandConfig` beyond the levels and curves already there.
 2. **Tests under the content scripts (M).** Started, 12 September 2026. The
    two passes that read a page's custom properties and the sheet that repaints
    a page with no variables moved into `studio/scan/` and have 38 tests

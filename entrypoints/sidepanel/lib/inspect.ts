@@ -167,6 +167,9 @@ export function readValue(el: ElementProps, property: string): string {
     filter: el.filter,
     'backdrop-filter': el.backdropFilter,
     transition: el.transition,
+    transform: el.transform,
+    animation: el.animation,
+    'animation-timeline': el.animationTimeline,
     text: el.text ?? '',
   };
   return map[property] ?? '';

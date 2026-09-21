@@ -251,3 +251,16 @@ describe('collectStateRules', () => {
     el.remove();
   });
 });
+
+describe('keyframes in the element sheet', () => {
+  it('defines a preset once, ahead of the rules that name it, and nothing for the page\'s own', () => {
+    const sheet = elementsSheet([
+      { selector: '.a', property: 'animation', value: 'codename-fade-in 600ms ease-out 0s 1 normal both' },
+      { selector: '.b', property: 'animation', value: 'codename-fade-in 300ms ease 0s 1 normal both' },
+      { selector: '.c', property: 'animation', value: 'spin 1s linear 0s infinite normal none' },
+    ]);
+    expect(sheet.split('@keyframes codename-fade-in').length - 1).toBe(1);
+    expect(sheet.indexOf('@keyframes')).toBeLessThan(sheet.indexOf('.a{'));
+    expect(sheet).not.toContain('@keyframes spin');
+  });
+});

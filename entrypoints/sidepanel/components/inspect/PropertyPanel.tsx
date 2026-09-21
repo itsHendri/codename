@@ -10,6 +10,9 @@ import { MotionFields } from './MotionFields';
 import { blurToCss, parseBlur } from '@/studio/effects';
 import { namedEasings, parseTransition, transitionRoundTrips } from '@/studio/motion';
 import { TextInput } from './TextInput';
+import { TransformFields } from './TransformFields';
+import { AnimationFields } from './AnimationFields';
+import { parseAnimation } from '@/studio/animation';
 import { AlignGrid, Chip, Group, Labelled, LengthField, Segmented, Select, SideLabel, type Change } from './fields';
 
 type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'> & { fontUsage?: ScanResult['fontUsage'] };
@@ -521,6 +524,9 @@ export function PropertyPanel({
               onChange={(v, t) => onChange('box-shadow', v, t)}
             />
           </Labelled>
+          <Labelled label="transform">
+            <TransformFields value={element.transform} onChange={(v) => onChange('transform', v)} />
+          </Labelled>
           <BlurRow label="blur" value={element.filter} onChange={(v) => onChange('filter', v)} />
           {/* Behind the element rather than on it: the frosted-glass one. */}
           <BlurRow label="backdrop" value={element.backdropFilter} onChange={(v) => onChange('backdrop-filter', v)} />
@@ -529,16 +535,27 @@ export function PropertyPanel({
 
       {group(
         'Motion',
-        describeMotion(element.transition),
-        <Labelled label="transition">
-          <MotionFields
-            value={element.transition}
-            easings={easings}
-            onChange={(v) => onChange('transition', v)}
-            onPlay={onPlay}
-            playable={playable}
-          />
-        </Labelled>,
+        `${describeMotion(element.transition)}${(parseAnimation(element.animation) ?? []).length ? ` · ${(parseAnimation(element.animation) ?? [])[0]!.name}` : ''}`,
+        <>
+          <Labelled label="transition">
+            <MotionFields
+              value={element.transition}
+              easings={easings}
+              onChange={(v) => onChange('transition', v)}
+              onPlay={onPlay}
+              playable={playable}
+            />
+          </Labelled>
+          <Labelled label="animate">
+            <AnimationFields
+              value={element.animation}
+              timeline={element.animationTimeline}
+              keyframes={element.keyframes}
+              easings={easings}
+              onChange={onChange}
+            />
+          </Labelled>
+        </>,
       )}
 
       {element.text !== null &&
