@@ -11,7 +11,6 @@ import { TokenFileSection } from './design/TokenFileSection';
 import { driftReport } from '@/studio/tokenFile';
 import { useSession } from '../lib/session';
 import { ObservedColoursSection } from './design/ObservedColoursSection';
-import { ColourSection } from './design/ColourSection';
 import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
 import { CritiqueSection } from './design/CritiqueSection';
@@ -40,7 +39,6 @@ export function VariablesTab({
   darkVia,
   varOverrides,
   colorEdits,
-  onLiveChange,
   onConfigChange,
   onResetAll,
   onVar,
@@ -56,7 +54,6 @@ export function VariablesTab({
   darkVia: 'site' | 'mirror' | null;
   varOverrides: Record<string, string>;
   colorEdits: Record<string, string>;
-  onLiveChange: (live: boolean) => void;
   onConfigChange: (config: BrandConfig | null) => void;
   /** Every override, including element edits, back to what the page reads. */
   onResetAll: () => void;
@@ -157,20 +154,6 @@ export function VariablesTab({
           live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'
         }`}
       >
-        <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-          <button
-            role="switch"
-            aria-checked={live}
-            onClick={() => onLiveChange(!live)}
-            className={`flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 ${
-              live ? 'justify-end border-accent bg-accent' : 'justify-start border-line bg-surface-control'
-            }`}
-            title={live ? 'Stop repainting the page as you edit' : 'Repaint the page as you edit'}
-          >
-            <span className="h-3 w-3 rounded-full bg-surface-panel" />
-          </button>
-          <span className={live ? 'text-ink' : 'text-ink-muted'}>Preview on page</span>
-        </label>
         <span className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
           {status}
         </span>
@@ -220,15 +203,6 @@ export function VariablesTab({
           />
         </Section>
       )}
-
-      <Section
-        title="Palette"
-        summary={`3 seeds · ${brand.color.scales.length} ramps${edited ? ' · edited' : ''}`}
-        open={open.has('palette')}
-        onToggle={() => toggle('palette')}
-      >
-        <ColourSection config={brand} resolved={resolved} mode={mode} onSeedChange={setSeed} />
-      </Section>
 
       <Section
         title="Type"

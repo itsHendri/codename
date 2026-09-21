@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RuleLike } from './scan/customProps';
-import { hoistDark, kindOf, lightOnlyMedia, previewReach } from './siteDark';
+import { hoistDark, hoistScheme, kindOf, lightOnlyMedia, previewReach, schemeOnlyMedia } from './siteDark';
 
 /* Rules the way a browser hands them over, built by hand. */
 const style = (selectorText: string, body: string, props: string[] = []): RuleLike => ({
@@ -132,5 +132,15 @@ describe('previewReach', () => {
     expect(reach.selectors).toEqual(['.a', '.b']);
     expect(reach.matched.size).toBe(2);
     expect(reach.unreadable).toBe(1);
+  });
+});
+
+describe('forcing light, the way dark is forced', () => {
+  it('hoists the light rules out of their query and finds the dark-only blocks to switch off', () => {
+    const { css } = hoistScheme([[media(LIGHT, style('.a', 'color: black')), media(DARK, style('.a', 'color: white'))]], 'light');
+    expect(css).toEqual(['.a { color: black }']);
+    const dark = media(DARK, style('.a', 'color: white'));
+    const notLight = media('not (prefers-color-scheme: light)', style('.b', 'color: white'));
+    expect(schemeOnlyMedia([[dark, notLight, media(LIGHT, style('.c', 'color: black'))]], 'dark')).toEqual([dark, notLight]);
   });
 });

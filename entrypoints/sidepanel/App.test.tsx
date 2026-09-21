@@ -768,3 +768,20 @@ describe('motion, second half', () => {
     expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'transform', value: 'translate(10px, 0px) rotate(15deg)' }]);
   });
 });
+
+describe('the Light/Dark switch with a middle', () => {
+  const lastSiteMode = () => stub.sent.filter((m) => m.type === 'site-mode').at(-1)?.mode;
+  it('forces light, forces dark, and puts the system back', async () => {
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'light' }));
+    await tick(120);
+    expect(lastSiteMode()).toBe('light');
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ scheme: 'light' });
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'system' }));
+    await tick(120);
+    expect(lastSiteMode()).toBe('system');
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await tick(120);
+    expect(lastSiteMode()).toBe('dark');
+    expect(getSession().lightForced).toBe(false);
+  });
+});

@@ -114,6 +114,9 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
   them, a region in page coordinates, or a quoted run of text — and carries a
   numbered pin on the page. Hold **View original** to see the page without any of it. The
   actions to copy, send or download the brief live at the bottom.
+- **Light / Dark** on the bar forces one side of the page's own theme —
+  its scheme media rules hoisted, its theme hook set or taken off — whatever
+  the system prefers; the lit side again is the system's choice.
 - **Motion** — a transition editor with Play, and an animation editor with
   Framer's Appear, Loop and Scroll triggers over the page's own keyframes or
   a few named presets; a transform editor in Effects that takes the computed

@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { LayerNode } from '@/studio/layers';
 import { pagesOf } from '@/studio/pages';
 import { callInspector } from '@/shared/inpage';
@@ -39,12 +39,37 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
   // and on its refresh button, the way Framer's list is a thing you look at
   // rather than something that ticks.
   const [pagesTurn, setPagesTurn] = useState(0);
+  // A page that links nowhere — an app with buttons for navigation — still
+  // has a sitemap more often than not. Fetched once per site through the
+  // background, with the access the person already granted.
+  const [sitemap, setSitemap] = useState<{ href: string; text: string }[] | null>(null);
+  const sitemapFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (tab !== 'pages' || sitemapFor.current === location.origin) return;
+    sitemapFor.current = location.origin;
+    let live = true;
+    (async () => {
+      try {
+        const res = (await chrome.runtime.sendMessage({ type: 'fetch-text', url: `${location.origin}/sitemap.xml` })) as
+          | { ok: boolean; text?: string }
+          | undefined;
+        if (!live) return;
+        const locs = res?.ok && res.text ? Array.from(res.text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi), (m) => ({ href: m[1]!, text: '' })) : [];
+        setSitemap(locs);
+      } catch {
+        if (live) setSitemap([]);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [tab]);
   const pages = useMemo(
     () =>
       tab === 'pages'
-        ? pagesOf(Array.from(document.links, (a) => ({ href: a.href, text: a.textContent ?? '' })), location.href)
+        ? pagesOf([...Array.from(document.links, (a) => ({ href: a.href, text: a.textContent ?? '' })), ...(sitemap ?? [])], location.href)
         : [],
-    [tab, pagesTurn],
+    [tab, pagesTurn, sitemap],
   );
 
   // Undo and Escape work from the rail as they do from the page: the panel
@@ -80,18 +105,24 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
   const tabs = [
     { key: 'pages' as const, label: 'Pages', Icon: PagesIcon },
     { key: 'layers' as const, label: 'Layers', Icon: LayersIcon },
-    { key: 'assets' as const, label: 'Assets', Icon: SvgsIcon, badge: state.svgs.length },
+    { key: 'assets' as const, label: 'Assets', Icon: SvgsIcon },
   ];
 
   return (
-    <div className="rail relative flex h-full flex-col border-r border-line-strong" onKeyDown={onKey}>
+    <div className="rail relative flex h-full flex-col border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
       {/* The same strip the panel wears, the height of the bar: three pieces of chrome that read as one. */}
       <TabStrip tabs={tabs} active={tab} onSelect={setTab} ariaLabel="Rail" idPrefix="rail-tab" />
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
         {tab === 'pages' ? (
           <>
             <div className="flex shrink-0 items-center justify-between text-2xs text-ink-muted">
-              <span>{pages.length ? `${pages.length} pages this page links to` : 'This page links to no other page on its site.'}</span>
+              <span>
+                {pages.length
+                  ? `${pages.length} pages${sitemap?.length ? ', from this page and the sitemap' : ' this page links to'}`
+                  : sitemap === null
+                    ? 'Reading the sitemap…'
+                    : 'This page links to no other page on its site, and it has no sitemap.'}
+              </span>
               <button
                 onClick={() => setPagesTurn((t) => t + 1)}
                 title="Read the page's links again"

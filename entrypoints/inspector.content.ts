@@ -86,7 +86,7 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .bar { position: fixed; top: 0; left: 0; right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar { position: fixed; top: 0; left: var(--codename-rail, 0px); right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar .host { color: ${d.cardMuted}; }
       .bar .device { display: flex; align-items: center; gap: 6px; }
       .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
@@ -267,7 +267,8 @@ function activate() {
   let railOn = false;
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
-  let barMode: Mode = 'light';
+  /** Which side of the page's theme is forced; neither is the page as it stands. */
+  let barScheme: 'light' | 'dark' | 'system' = 'system';
   /** The page's own names for its colours, from the scan: `#15171B` → `--ink`. */
   let tokenNames: Record<string, string> = {};
   let tokenLengths: TokenLengths = { space: {}, radius: {}, type: {} };
@@ -1030,10 +1031,10 @@ function activate() {
     barLayers.setAttribute('aria-checked', String(railOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
-    barLight.classList.toggle('on', barMode === 'light');
-    barLight.setAttribute('aria-checked', String(barMode === 'light'));
-    barDark.classList.toggle('on', barMode === 'dark');
-    barDark.setAttribute('aria-checked', String(barMode === 'dark'));
+    barLight.classList.toggle('on', barScheme === 'light');
+    barLight.setAttribute('aria-checked', String(barScheme === 'light'));
+    barDark.classList.toggle('on', barScheme === 'dark');
+    barDark.setAttribute('aria-checked', String(barScheme === 'dark'));
     // A resized or zoomed viewport is an override too, and only the bar knows about it.
     barReset.classList.toggle('hidden', resettable === 0 && !frame);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
@@ -1283,12 +1284,19 @@ function activate() {
     toggleRail();
   });
   barComment.addEventListener('click', () => setNote(!noteOn));
-  const setMode = (mode: Mode) => {
-    if (mode === barMode) return;
-    barMode = mode;
+  /** The lit side again is "as the system": a switch with a middle. */
+  const setScheme = (scheme: 'light' | 'dark' | 'system') => {
+    if (scheme === barScheme) return;
+    barScheme = scheme;
     renderBar();
-    send({ type: 'mode-changed', mode });
-    showHint(mode === 'dark' ? '<b>Dark</b> — looking for the page\'s own dark mode…' : null);
+    send({ type: 'mode-changed', mode: scheme });
+    showHint(
+      scheme === 'dark'
+        ? '<b>Dark</b> — looking for the page\'s own dark mode…'
+        : scheme === 'light'
+          ? '<b>Light</b> — the page\'s own light side, whatever the system prefers. Click again for the system\'s choice.'
+          : null,
+    );
   };
   barAgent.querySelector('button')!.addEventListener('click', () => {
     agent = null;
@@ -1296,7 +1304,7 @@ function activate() {
     send({ type: 'agent-clear' });
   });
   barReset.addEventListener('click', () => {
-    barMode = 'light';
+    barScheme = 'system';
     resettable = 0;
     agent = null;
     const viewport = frame !== null;
@@ -1309,8 +1317,8 @@ function activate() {
       `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the page is back at the window\'s size' : ''}; the page is reading as itself again. Notes stay.`,
     );
   });
-  barLight.addEventListener('click', () => setMode('light'));
-  barDark.addEventListener('click', () => setMode('dark'));
+  barLight.addEventListener('click', () => setScheme(barScheme === 'light' ? 'system' : 'light'));
+  barDark.addEventListener('click', () => setScheme(barScheme === 'dark' ? 'system' : 'dark'));
   // The window's own size is what the bar shows when there is no frame.
   addEventListener('resize', () => barOn && !frame && renderBar());
 
@@ -1554,7 +1562,7 @@ function activate() {
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
         if (typeof msg.rail === 'boolean') railOn = msg.rail;
-        if (msg.mode && msg.mode !== barMode) barMode = msg.mode;
+        if (msg.scheme) barScheme = msg.scheme;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
         if (msg.agent !== undefined) agent = msg.agent;
         if (msg.darkVia !== undefined && msg.darkVia !== darkVia) {

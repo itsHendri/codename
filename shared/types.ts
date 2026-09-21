@@ -294,6 +294,8 @@ export type InspectorCommand =
       agent?: AgentPresence | null;
       /** Whether the layers rail is showing, so the bar's toggle sits right. */
       rail?: boolean;
+      /** Which side of the page's theme is forced, or neither: how the Light/Dark switch sits. */
+      scheme?: 'light' | 'dark' | 'system';
     }
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
@@ -346,8 +348,8 @@ export type RuntimeMessage =
   | { type: 'frame-clear' }
   /** The frame this tab was left in, if any. */
   | { type: 'frame-state' }
-  /** The bar's Light/Dark switch. */
-  | { type: 'mode-changed'; mode: Mode }
+  /** The bar's Light/Dark switch: a side forced, or `system` for neither. */
+  | { type: 'mode-changed'; mode: Mode | 'system' }
   /** A value changed on the edit card that sits on the selected element. */
   | { type: 'element-edit'; property: string; to: string }
   /** "More in panel" on that card. */

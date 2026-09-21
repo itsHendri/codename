@@ -140,6 +140,22 @@ is that companion growing up.
   top bar — tools on the left (Layers, Select, Comment), the page and its
   frame in the middle, the switches on the right — with the mark, the title
   and the fold gone, since none of them was an action.
+- **W27, 21 September 2026 — Hendri's second review in Chrome.** One row
+  across the top: the rail starts at the top of the page and tells the bar
+  where it ends (`--codename-rail` on the root, the one thing that inherits
+  into another script's shadow root), so the rail's tabs, the bar's tools
+  and the panel's tabs are level; tabs read as rectangles with an underline;
+  the rail's edge is the faint ink, not the subtle line; no count on Assets.
+  **Pages falls back to the site's sitemap** (fetched once through the
+  background) for a page that links nowhere. **The preview switch is gone:
+  edits always paint.** **Light is forced the way dark is** — the bar's
+  switch has a middle (neither lit is the system's choice), `session.
+  lightForced`, `hoistScheme`/`schemeOnlyMedia` generalise the dark hoist,
+  and forcing light takes off a hook the page's own script set and puts it
+  back. **The Palette and ramp sections left Variables**: seeds and ramps
+  are the engine's, they did not repaint a page written on variables, and
+  Hendri's rule is that nothing that is not linked to the page being viewed
+  belongs in the panel; they remain what Export is built on.
 
 ## Live re-skin
 
