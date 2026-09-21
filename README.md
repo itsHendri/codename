@@ -165,7 +165,9 @@ click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a
 shortcut — **Alt+S** for Select, **Alt+C** for Comment, **Alt+L** for the
-rail — that you can rebind at `chrome://extensions/shortcuts`. Click the mark to fold the bar to a pill. The mark in the panel's footer opens the menu: theme
+rail — that you can rebind at `chrome://extensions/shortcuts`. The bar is laid out as Framer's: the
+tools on the left, the page and its frame in the middle, the switches on
+the right. The mark in the panel's footer opens the menu: theme
 (dark by default, light, or follow the system), site access, and the agent
 bridge.
 

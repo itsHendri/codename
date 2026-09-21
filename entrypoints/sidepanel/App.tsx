@@ -40,6 +40,7 @@ import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon } from './components/i
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
 import { StyleTab } from './components/StyleTab';
+import { TabStrip } from './components/TabStrip';
 import { ChangesTab } from './components/ChangesTab';
 import { VariablesTab } from './components/VariablesTab';
 import { ExportTab } from './components/ExportTab';
@@ -433,21 +434,6 @@ export default function App() {
     }
   }, [tabId, tabUrl]);
 
-  // Roving tabindex: arrows move both focus and selection, as a tablist should.
-  const onTabKey = (e: React.KeyboardEvent) => {
-    const idx = TABS.findIndex((t) => t.key === active);
-    const next =
-      e.key === 'ArrowRight' ? (idx + 1) % TABS.length
-      : e.key === 'ArrowLeft' ? (idx - 1 + TABS.length) % TABS.length
-      : e.key === 'Home' ? 0
-      : e.key === 'End' ? TABS.length - 1
-      : -1;
-    if (next < 0) return;
-    e.preventDefault();
-    setActive(TABS[next]!.key);
-    document.getElementById(`tab-${TABS[next]!.key}`)?.focus();
-  };
-
   const hostname = (() => {
     try {
       return new URL(tabUrl).hostname || 'this page';
@@ -516,32 +502,12 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col text-base">
       {/* h-10 is BAR_HEIGHT: the same strip as the bar across the page. */}
-      <nav role="tablist" aria-label="Panel" className="grid h-10 grid-cols-4 items-stretch border-b border-line-subtle" onKeyDown={onTabKey}>
-        {TABS.map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            role="tab"
-            id={`tab-${key}`}
-            aria-selected={active === key}
-            aria-controls="panel"
-            tabIndex={active === key ? 0 : -1}
-            onClick={() => setActive(key)}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-2xs ${
-              active === key
-                ? 'border-b-2 border-accent font-medium text-accent'
-                : 'border-b-2 border-transparent text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Icon />
-            {label}
-            {key === 'changes' && pendingCount > 0 && (
-              <span className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
+      <TabStrip
+        tabs={TABS.map((t) => (t.key === 'changes' ? { ...t, badge: pendingCount } : t))}
+        active={active}
+        onSelect={setActive}
+        ariaLabel="Panel"
+      />
 
       <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="relative flex-1 overflow-y-auto">
         {content}

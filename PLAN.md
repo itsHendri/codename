@@ -131,6 +131,15 @@ is that companion growing up.
   of, as Figma's design panel does. Undo and Escape work from the rail; a
   page nobody is looking at is not re-read; Fill on a main axis is one
   declaration.
+- **W26, 21 September 2026 — one chrome.** From Hendri's review of the
+  rail in Chrome: the rail and the panel wear the same tab strip
+  (`TabStrip.tsx`, icon over label, the bar's height); assets sit on a light
+  checker in either theme, as a design tool draws thumbnails, so a dark icon
+  is not a dark square; the rail has an edge (a stronger line and a shadow)
+  so it does not run into a light page; and the bar is laid out as Framer's
+  top bar — tools on the left (Layers, Select, Comment), the page and its
+  frame in the middle, the switches on the right — with the mark, the title
+  and the fold gone, since none of them was an action.
 
 ## Live re-skin
 

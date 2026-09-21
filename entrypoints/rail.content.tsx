@@ -39,7 +39,8 @@ export const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH,
 function activate() {
   const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH });
   const host = document.createElement(RAIL_TAG);
-  host.style.cssText = `all:initial;position:fixed;left:0;top:${BAR_HEIGHT}px;bottom:0;width:${DEFAULT_WIDTH}px;z-index:2147483646;display:none`;
+  // The shadow is the edge: a light rail on a light page would otherwise run into it.
+  host.style.cssText = `all:initial;position:fixed;left:0;top:${BAR_HEIGHT}px;bottom:0;width:${DEFAULT_WIDTH}px;z-index:2147483646;display:none;box-shadow:2px 0 12px rgba(0,0,0,0.18)`;
   const shadow = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
   style.textContent = css;

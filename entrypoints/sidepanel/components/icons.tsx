@@ -40,6 +40,24 @@ export function SvgsIcon({ className = base }: IconProps) {
   );
 }
 
+export function PagesIcon({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M4 1.5h5.5L13 5v9.5H4z" />
+      <path d="M9.5 1.5V5H13" />
+    </svg>
+  );
+}
+
+export function LayersIcon({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 2.5 14 5.5 8 8.5 2 5.5z" />
+      <path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3" />
+    </svg>
+  );
+}
+
 export function ChangesIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
