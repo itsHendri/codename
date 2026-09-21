@@ -23,7 +23,7 @@ export function TransformFields({ value, onChange }: { value: string; onChange: 
           onKeyDown={(e) => e.key === 'Enter' && draft !== value && onChange(draft)}
           aria-label="Transform"
           spellCheck={false}
-          className="w-full rounded-control border border-line bg-surface-recessed px-1 py-0.5 font-mono text-xs"
+          className="field w-full px-2 font-mono"
         />
         <span className="text-2xs text-ink-muted">A 3D transform, which the fields would not give back exactly.</span>
       </div>

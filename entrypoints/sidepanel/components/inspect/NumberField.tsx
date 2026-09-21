@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { GripIcon } from '../icons';
 
 const NUMBER = /^(-?\d*\.?\d+)(.*)$/;
 
@@ -92,24 +93,26 @@ export function NumberField({
         spellCheck={false}
         aria-label={ariaLabel}
         size={Math.max(3, draft.length)}
-        className={`min-w-0 rounded-sm border border-transparent bg-transparent px-0.5 text-center font-mono text-2xs tabular-nums hover:border-line focus:border-accent focus:bg-surface-recessed ${
-          valid ? 'text-ink-secondary' : 'border-warn bg-warn-soft'
+        className={`h-5 min-w-0 rounded-[4px] bg-transparent px-0.5 text-center font-mono text-2xs tabular-nums hover:bg-surface-field-hover focus:bg-surface-field focus:text-ink focus-visible:outline-1 ${
+          valid ? 'text-ink-secondary' : 'field-invalid'
         } ${className}`}
       />
     );
   }
 
+  // One filled field, the letter inside it as the scrub handle, as Figma and
+  // Framer draw theirs; the whole field takes focus, so it shows one edge.
   return (
-    <div className={`flex min-w-0 items-center gap-0.5 ${className}`}>
+    <div className={`field flex min-w-0 items-center ${valid ? '' : 'field-invalid'} ${className}`}>
       <span
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         title="Drag to change · Shift ×10 · Alt ×0.1"
-        className="w-3.5 shrink-0 cursor-ew-resize select-none text-center text-2xs text-ink-muted touch-none"
+        className="flex h-6 min-w-5 shrink-0 cursor-ew-resize select-none items-center justify-center pl-1.5 pr-1 text-2xs text-ink-muted touch-none hover:text-ink"
       >
-        {label ?? '⋮'}
+        {label ?? <GripIcon />}
       </span>
       <input
         value={draft}
@@ -128,9 +131,7 @@ export function NumberField({
         }}
         spellCheck={false}
         aria-label={ariaLabel}
-        className={`w-full min-w-0 rounded-control border bg-surface-recessed px-1 py-0.5 text-right font-mono text-xs tabular-nums ${
-          valid ? 'border-line' : 'border-warn bg-warn-soft'
-        }`}
+        className="h-6 w-full min-w-0 bg-transparent pr-1.5 font-mono text-xs tabular-nums focus-visible:outline-none"
       />
     </div>
   );

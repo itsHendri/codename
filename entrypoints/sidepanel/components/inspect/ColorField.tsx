@@ -27,19 +27,20 @@ export function ColorField({
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <div className="flex items-center gap-1.5">
+      {/* Framer's colour row: the swatch inside the field, the value beside it. */}
+      <div className={`field flex items-center gap-1.5 pl-1 ${valid ? '' : 'field-invalid'}`}>
         {HEX6.test(draft) ? (
           <input
             type="color"
             value={draft}
             onChange={(e) => commitIfValid(e.target.value)}
             aria-label={`${ariaLabel} picker`}
-            className="h-5 w-5 shrink-0 cursor-pointer rounded border border-line bg-transparent p-0"
+            className="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[3px] border-0 bg-transparent p-0 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] [&::-webkit-color-swatch]:rounded-[3px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
           />
         ) : (
           // A var() reference cannot resolve inside the panel; the checkerboard says so.
           <span
-            className="checkerboard h-5 w-5 shrink-0 rounded border border-line"
+            className="checkerboard h-4 w-4 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
             style={valid && !draft.startsWith('var(') ? { background: draft } : undefined}
             aria-hidden
           />
@@ -49,9 +50,7 @@ export function ColorField({
           onChange={(e) => commitIfValid(e.target.value)}
           spellCheck={false}
           aria-label={ariaLabel}
-          className={`w-full min-w-0 rounded-control border bg-surface-recessed px-1 py-0.5 font-mono text-xs ${
-            valid ? 'border-line' : 'border-warn bg-warn-soft'
-          }`}
+          className="h-6 w-full min-w-0 bg-transparent pr-1.5 font-mono text-xs focus-visible:outline-none"
         />
       </div>
       <TokenChips suggestions={suggestions} current={value} onPick={(s) => onChange(asReference(s), s.name)} />

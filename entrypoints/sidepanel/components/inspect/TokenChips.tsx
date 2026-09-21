@@ -27,8 +27,10 @@ export function TokenChips({
             key={s.name}
             onClick={() => onPick(s)}
             title={`${s.name}: ${s.value}`}
-            className={`max-w-full truncate rounded-full border px-1.5 font-mono text-2xs ${
-              chosen ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface-control text-ink-secondary hover:border-line-strong'
+            className={`h-5 max-w-full truncate rounded-control px-1.5 font-mono text-2xs ${
+              chosen
+                ? 'bg-accent-soft text-accent'
+                : 'bg-surface-field text-ink-secondary hover:bg-surface-field-hover hover:text-ink'
             }`}
           >
             <span className="font-sans text-ink-muted">{s.exact ? 'matches' : 'near'} </span>
