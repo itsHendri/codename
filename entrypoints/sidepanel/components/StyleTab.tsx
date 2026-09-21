@@ -13,6 +13,7 @@ import { PropertyPanel } from './inspect/PropertyPanel';
 import { CommentComposer } from './inspect/Comments';
 import { PageStyles } from './inspect/PageStyles';
 import { LayerIcon } from './inspect/LayerIcon';
+import { Empty } from './States';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -80,14 +81,14 @@ export function StyleTab({
   if (!el) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-        <p className="text-xs text-ink-muted">
-          Nothing selected. Turn on <b className="font-medium text-ink-secondary">Select</b> on the bar and click the
-          page, or pick a row in <b className="font-medium text-ink-secondary">Layers</b> beside it.
-        </p>
+        <Empty size="inline" title="Nothing selected">
+          Turn on <b className="font-medium text-ink-secondary">Select</b> on the bar and click the page, or pick a row
+          in <b className="font-medium text-ink-secondary">Layers</b> beside it.
+        </Empty>
         {!rail && (
           <button
             onClick={onShowRail}
-            className="self-start rounded-control border border-line px-2.5 py-1 text-xs text-ink-secondary hover:bg-surface-recessed"
+            className="btn btn-secondary self-start"
           >
             Show layers
           </button>

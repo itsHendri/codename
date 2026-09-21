@@ -33,8 +33,8 @@ export function CommentComposer({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-2xs tracking-wide text-ink-muted uppercase">Note for the agent</span>
-        <span className="rounded-full border border-line px-1.5 text-2xs text-ink-muted">
+        <span className="subhead">Note for the agent</span>
+        <span className="h-4 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-4 text-ink-muted">
           {targetKindLabel(target)}
         </span>
         {onCancel && (
@@ -65,7 +65,7 @@ export function CommentComposer({
         <button
           onClick={submit}
           disabled={!text.trim()}
-          className="ml-auto rounded-control bg-accent px-2 py-0.5 text-2xs font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+          className="btn btn-sm btn-primary ml-auto"
         >
           Pin note
         </button>
@@ -99,7 +99,7 @@ export function CommentList({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
-        <span className="text-2xs tracking-wide text-ink-muted uppercase">
+        <span className="subhead">
           Notes <span className="ml-0.5 font-mono">{open}</span>
         </span>
       </div>
@@ -128,8 +128,8 @@ export function CommentList({
                 {describeTarget(c.target)}
               </button>
               <span
-                className={`shrink-0 rounded-full border px-1.5 text-2xs ${
-                  c.status === 'acknowledged' ? 'border-accent text-accent' : 'border-line text-ink-muted'
+                className={`h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 ${
+                  c.status === 'acknowledged' ? 'bg-accent-soft text-accent' : 'bg-surface-field text-ink-muted'
                 }`}
               >
                 {STATUS_LABEL[c.status]}

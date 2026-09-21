@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CURSOR_MCP_JSON, DEFAULT_PORT } from '@/shared/protocol';
 import { pair, useBridge } from '../lib/bridge';
-import { CopyIcon } from './icons';
+import { CheckIcon, CopyIcon } from './icons';
 
 // One command: installs the codename skill and registers the bridge with Claude Code.
 const CLAUDE_CMD = 'npx codename-bridge setup';
@@ -52,26 +52,30 @@ export function ConnectAgentCard() {
       </div>
 
       <Step n={1} title="Register the bridge with your agent, once">
-        <div className="flex items-center gap-1 text-2xs">
+        <div className="flex items-center gap-1.5 text-2xs">
+          <div role="radiogroup" aria-label="Agent" className="flex gap-0.5 rounded-control bg-surface-field p-0.5">
           {(['claude', 'cursor'] as const).map((a) => (
             <button
               key={a}
+              role="radio"
+              aria-checked={agent === a}
               onClick={() => setAgent(a)}
-              className={`rounded-full border px-2 py-0.5 ${
-                agent === a ? 'border-accent text-accent' : 'border-line-subtle text-ink-muted hover:text-ink-secondary'
+              className={`h-5 rounded-[4px] px-2 text-xs ${
+                agent === a ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
               }`}
             >
               {a === 'claude' ? 'Claude Code' : 'Cursor'}
             </button>
           ))}
+          </div>
           {agent === 'cursor' && <span className="text-ink-muted">in mcp.json</span>}
         </div>
         <div className="flex items-start gap-1.5">
-          <code className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-1.5 py-1 font-mono text-2xs break-all whitespace-pre-wrap">
+          <code className="min-w-0 flex-1 rounded-control bg-surface-field px-2 py-1.5 font-mono text-2xs break-all whitespace-pre-wrap">
             {snippet}
           </code>
-          <button onClick={copy} className="shrink-0 pt-1 text-ink-muted hover:text-accent" aria-label="Copy" title={copied ? 'Copied' : 'Copy'}>
-            {copied ? <span className="text-2xs text-accent">✓</span> : <CopyIcon />}
+          <button onClick={copy} className="flex h-control w-6 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink" aria-label="Copy" title={copied ? 'Copied' : 'Copy'}>
+            {copied ? <CheckIcon className="h-3 w-3 text-accent" /> : <CopyIcon className="h-3 w-3" />}
           </button>
         </div>
       </Step>
@@ -105,12 +109,12 @@ export function ConnectAgentCard() {
             spellCheck={false}
             autoComplete="off"
             aria-label="Pairing code"
-            className="min-w-0 flex-1 rounded-control border border-line bg-surface-recessed px-2 py-1 font-mono text-xs tracking-widest uppercase"
+            className="field min-w-0 flex-1 px-2 font-mono tracking-widest uppercase placeholder:tracking-normal placeholder:normal-case placeholder:text-ink-muted"
           />
           <button
             type="submit"
             disabled={code.trim().length < 4}
-            className="rounded-control bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+            className="btn btn-primary"
           >
             Pair
           </button>

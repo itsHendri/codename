@@ -12,7 +12,7 @@ import type { ScanResult } from '@/shared/types';
 function Head({ children, onOpen }: { children: string; onOpen: () => void }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-2xs tracking-wide text-ink-muted uppercase">{children}</span>
+      <span className="subhead">{children}</span>
       <button onClick={onOpen} className="text-2xs text-ink-muted hover:text-accent">
         edit in Variables
       </button>
@@ -26,7 +26,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
   const radii = scan.shape.radii.slice(0, 6);
   const spacing = scan.shape.spacing.slice(0, 8);
   return (
-    <div className="flex flex-col gap-3 border-t border-dashed border-line-subtle pt-3">
+    <div className="-mx-3 flex flex-col gap-3 border-t border-line-subtle px-3 pt-3">
       {colours.length > 0 && (
         <section className="flex flex-col gap-1.5">
           <Head onOpen={onOpenVariables}>Colours</Head>
@@ -36,9 +36,9 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
                 key={c.hex}
                 onClick={onOpenVariables}
                 title={`${c.hex}${c.varNames[0] ? ` · ${c.varNames[0]}` : ''} · ${c.count} uses`}
-                className="flex items-center gap-1.5 rounded-full border border-line bg-surface-control py-0.5 pr-2 pl-0.5 font-mono text-2xs text-ink-secondary hover:border-line-strong"
+                className="flex h-control-sm items-center gap-1.5 rounded-control bg-surface-field pr-2 pl-1 font-mono text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
               >
-                <span className="h-4 w-4 rounded-full border border-line" style={{ backgroundColor: c.hex }} />
+                <span className="h-3 w-3 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]" style={{ backgroundColor: c.hex }} />
                 {c.varNames[0] ?? c.hex}
               </button>
             ))}
@@ -52,9 +52,9 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
             <button
               key={f.family}
               onClick={onOpenVariables}
-              className="flex items-baseline gap-2 rounded-control border border-line px-2 py-1 text-left hover:border-line-strong"
+              className="flex h-control items-center gap-2 rounded-control bg-surface-field px-2 text-left hover:bg-surface-field-hover"
             >
-              <span className="min-w-0 flex-1 truncate text-sm" style={{ fontFamily: f.family }}>
+              <span className="min-w-0 flex-1 truncate text-xs text-ink" style={{ fontFamily: f.family }}>
                 {f.family}
               </span>
               <span className="shrink-0 font-mono text-2xs text-ink-muted">
@@ -73,13 +73,13 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
           <div className="flex flex-wrap items-center gap-1.5 font-mono text-2xs text-ink-secondary">
             {radii.length > 0 && <span className="text-ink-muted">radius</span>}
             {radii.map((r) => (
-              <span key={`r${r.value}`} className="rounded-control border border-line px-1.5" title={`${r.count} uses`}>
+              <span key={`r${r.value}`} className="h-5 rounded-[4px] bg-surface-field px-1.5 leading-5" title={`${r.count} uses`}>
                 {r.value}
               </span>
             ))}
             {spacing.length > 0 && <span className="ml-1 text-ink-muted">space</span>}
             {spacing.map((s) => (
-              <span key={`s${s.value}`} className="rounded-control border border-line px-1.5" title={`${s.count} uses`}>
+              <span key={`s${s.value}`} className="h-5 rounded-[4px] bg-surface-field px-1.5 leading-5" title={`${s.count} uses`}>
                 {s.value}
               </span>
             ))}

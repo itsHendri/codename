@@ -74,7 +74,7 @@ export function TokenFileSection({ report }: { report: DriftReport | null }) {
           </p>
           <button
             onClick={() => input.current?.click()}
-            className="self-start rounded-control border border-line px-2 py-1 text-xs hover:bg-surface-control"
+            className="btn btn-secondary self-start"
           >
             Choose a token file…
           </button>

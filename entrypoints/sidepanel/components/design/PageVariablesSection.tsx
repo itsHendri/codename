@@ -82,7 +82,7 @@ export function PageVariablesSection({
           placeholder={`Find a variable… (${scan.customProps.length})`}
           aria-label="Find a variable"
           spellCheck={false}
-          className="w-full rounded-control border border-line bg-surface-recessed px-2 py-0.5 text-xs"
+          className="field w-full px-2 placeholder:text-ink-muted"
         />
       )}
       {needle && !groups.length && <p className="text-xs text-ink-muted">Nothing named or valued like that.</p>}
@@ -91,8 +91,8 @@ export function PageVariablesSection({
         const shown = open ? props : props.slice(0, FOLD);
         return (
           <div key={kind} className="flex flex-col gap-1">
-            <div className="flex items-baseline gap-2 text-2xs tracking-wide text-ink-muted">
-              <span className="uppercase">{KIND_LABEL[kind]}</span>
+            <div className="flex items-baseline gap-2 text-2xs text-ink-muted">
+              <span className="font-medium">{KIND_LABEL[kind]}</span>
               <span className="ml-auto font-mono">{props.length}</span>
             </div>
             <div className="divide-y divide-line-subtle overflow-hidden rounded-control border border-line-subtle">
@@ -167,7 +167,7 @@ function VarRow({
             onClick={() => onLock(!locked)}
             aria-pressed={locked}
             aria-label={locked ? `Unlock ${prop.name}` : `Lock ${prop.name}`}
-            className={`shrink-0 rounded-full border px-1.5 text-2xs ${locked ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:border-line hover:text-ink-muted'}`}
+            className={`h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 ${locked ? 'bg-accent-soft text-accent' : 'text-ink-faint hover:bg-surface-field hover:text-ink-muted'}`}
             title={
               locked
                 ? 'Locked: nothing moves this, and the brief says to keep it as is. Click to unlock.'
@@ -212,14 +212,14 @@ function VarRow({
         {locked ? null : manual ? (
           <button
             onClick={() => onChange(null)}
-            className="shrink-0 rounded-full border border-accent px-1.5 text-2xs text-accent hover:bg-accent-soft"
+            className="h-4 shrink-0 rounded-[4px] bg-accent-soft px-1.5 text-2xs leading-4 text-accent hover:bg-accent-soft/70"
             title={`Set by hand; was ${prop.value}. Click to take it back.`}
           >
             by hand ↺
           </button>
         ) : engine ? (
           <span
-            className="shrink-0 rounded-full border border-line-subtle px-1.5 text-2xs text-ink-muted"
+            className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-4 text-ink-muted"
             title={`Moved by the ${movedBy(engine, mode)}; was ${prop.value}`}
           >
             {movedBy(engine, mode)}

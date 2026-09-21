@@ -36,7 +36,7 @@ export function BridgeSection() {
   return (
     <div className="mt-3 flex flex-col gap-2">
       <div className="flex items-center gap-2 px-1">
-        <span className="text-2xs font-semibold tracking-wide text-ink-muted uppercase">Agent bridge</span>
+        <span className="subhead">Agent bridge</span>
         <span className="ml-auto flex items-center gap-1.5 text-2xs text-ink-muted">
           <BridgeDot status={status} />
           {LABEL[status]}

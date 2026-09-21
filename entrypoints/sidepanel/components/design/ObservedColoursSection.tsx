@@ -53,14 +53,14 @@ export function ObservedColoursSection({
                 {manual ? (
                   <button
                     onClick={() => onColor(key, null)}
-                    className="shrink-0 rounded-full border border-accent px-1.5 text-accent hover:bg-accent-soft"
+                    className="h-4 shrink-0 rounded-[4px] bg-accent-soft px-1.5 leading-4 text-accent hover:bg-accent-soft/70"
                     title="Set by hand. Click to take it back."
                   >
                     by hand ↺
                   </button>
                 ) : engine[key] ? (
                   <span
-                    className="shrink-0 rounded-full border border-line-subtle px-1.5 text-ink-muted"
+                    className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 leading-4 text-ink-muted"
                     title={mode === 'dark' ? 'Moved by the dark preview' : 'Moved by a seed'}
                   >
                     {mode === 'dark' ? 'dark' : 'seed'}
