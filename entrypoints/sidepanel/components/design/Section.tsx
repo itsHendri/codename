@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ChevronIcon } from '../icons';
 
 /**
  * One collapsible section of the system. The summary on the right is the point:
@@ -20,17 +21,19 @@ export function Section({
 }) {
   return (
     <div className="border-t border-line-subtle first:border-t-0">
+      {/* The Style column's group head, so the two tabs read as one tool. */}
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-recessed"
+        aria-expanded={open}
+        className="group flex h-[30px] w-full items-center gap-2 px-3 text-left text-xs font-medium text-ink"
       >
-        <span className={`text-2xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>
-          ▶
-        </span>
-        <span className="font-medium">{title}</span>
-        <span className="ml-auto truncate text-xs text-ink-muted">{summary}</span>
+        {title}
+        <span className="min-w-0 flex-1 truncate text-right text-2xs font-normal text-ink-muted">{summary}</span>
+        <ChevronIcon
+          className={`h-3 w-3 shrink-0 text-ink-muted transition-transform group-hover:text-ink ${open ? 'rotate-90' : ''}`}
+        />
       </button>
-      {open && <div className="px-3 pb-4">{children}</div>}
+      {open && <div className="px-3 pb-3">{children}</div>}
     </div>
   );
 }

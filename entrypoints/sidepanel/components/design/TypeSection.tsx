@@ -37,7 +37,7 @@ export function TypeSection({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <div className="text-2xs tracking-wide text-ink-muted">FAMILIES — read off the page</div>
+        <div className="subhead">Families, read off the page</div>
         {stacks.map(({ key, label, stack }) => {
           const first = stack.split(',')[0]!.replace(/["']/g, '').trim();
           const fromPage = scan.fontUsage.some((f) => f.family === first);
@@ -62,10 +62,10 @@ export function TypeSection({
               </div>
               {fromPage && (
                 <span
-                  className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-2xs ${
+                  className={`ml-auto h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 ${
                     face && face.service !== 'self-hosted' && face.service !== 'system'
-                      ? 'border-accent text-accent'
-                      : 'border-line text-ink-muted'
+                      ? 'bg-accent-soft text-accent'
+                      : 'bg-surface-field text-ink-muted'
                   }`}
                 >
                   {SERVICE_LABELS[face?.service ?? 'system']}

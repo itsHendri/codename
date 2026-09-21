@@ -529,7 +529,7 @@ export default function App() {
         {bridge.status === 'off' && (
           <button
             onClick={() => setActive('changes')}
-            className="shrink-0 rounded-control border border-accent/60 px-1.5 py-0.5 text-2xs text-accent hover:bg-accent-soft"
+            className="btn btn-sm btn-accent shrink-0"
             title="Pair the panel with your agent"
           >
             Connect agent
@@ -547,7 +547,7 @@ export default function App() {
         <button
           onClick={handleScan}
           disabled={restricted || scanning || !tabId}
-          className="ml-auto rounded-control border border-line px-2.5 py-0.5 text-xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40"
+          className="btn btn-sm btn-secondary ml-auto"
         >
           {scanning ? 'Reading…' : scan ? 'Rescan' : needsAccess ? 'Allow' : 'Scan'}
         </button>

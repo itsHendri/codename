@@ -34,7 +34,7 @@ export function SpaceSection({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <span className="text-2xs tracking-wide text-ink-muted">SPACING</span>
+          <span className="subhead">Spacing</span>
           <span className="ml-auto text-2xs text-ink-muted">grid</span>
           <NumberField
             value={`${basePx}px`}
@@ -66,7 +66,7 @@ export function SpaceSection({
 
       <div className="flex flex-col gap-2 border-t border-dashed border-line-subtle pt-3">
         <div className="flex items-center gap-2">
-          <span className="w-14 shrink-0 text-2xs tracking-wide text-ink-muted">RADIUS</span>
+          <span className="subhead w-14 shrink-0">Radius</span>
           <NumberField
             value={`${config.radius.basePx}px`}
             ariaLabel="Radius base"
@@ -81,7 +81,7 @@ export function SpaceSection({
               <span
                 key={step}
                 title={`--radius-${step} · ${resolved.radius[step]}px`}
-                className="h-5 w-8 border border-line bg-surface-recessed"
+                className="h-5 w-8 rounded-[4px] bg-surface-field"
                 style={{ borderRadius: resolved.radius[step] }}
               />
             ))}
@@ -89,7 +89,7 @@ export function SpaceSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-14 shrink-0 text-2xs tracking-wide text-ink-muted">ELEVATION</span>
+          <span className="subhead w-14 shrink-0">Elevation</span>
           <span className="text-2xs text-ink-muted">
             {scan.shape.shadows.length ? `${config.shadows.levels.length} from the page` : 'defaults'}
           </span>

@@ -21,7 +21,7 @@ export function ChangesList({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
-        <span className="text-2xs uppercase tracking-wide text-ink-muted">
+        <span className="subhead">
           Changes <span className="ml-0.5 font-mono">{live}</span>
         </span>
         <div className="ml-auto flex items-center gap-1">
@@ -38,7 +38,7 @@ export function ChangesList({
             onPointerCancel={() => onViewOriginal(false)}
             disabled={live === 0}
             title="Hold to see the page without your edits"
-            className="select-none rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="btn btn-sm btn-secondary select-none"
           >
             View original
           </button>
@@ -54,12 +54,12 @@ export function ChangesList({
                 {g.selector}
               </code>
               {first.matches > 1 && (
-                <span className="rounded-full border border-line-strong bg-surface-control px-1.5 font-mono text-2xs text-ink-secondary">
+                <span className="h-4 rounded-[4px] bg-surface-field px-1.5 font-mono text-2xs leading-4 text-ink-secondary">
                   ×{first.matches}
                 </span>
               )}
               {!first.stable && (
-                <span className="rounded-full border border-warn px-1.5 text-2xs text-warn-ink" title="Uses :nth-of-type — a reorder breaks it">
+                <span className="h-4 rounded-[4px] bg-warn-soft px-1.5 text-2xs leading-4 text-warn-ink" title="Uses :nth-of-type — a reorder breaks it">
                   positional
                 </span>
               )}
@@ -84,7 +84,7 @@ function ChangeRow({ change: c, undone, onRevert }: { change: ElementChange; und
     <div className={`flex items-baseline gap-1 font-mono text-2xs ${undone ? 'opacity-50' : ''}`}>
       {c.condition && (
         <span
-          className="shrink-0 rounded-full border border-line-strong bg-surface-control px-1 text-2xs text-ink-secondary"
+          className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1 text-2xs leading-4 text-ink-secondary"
           title={`This edit is about ${describeLong(c.condition)}`}
         >
           {describeCondition(c.condition)}
@@ -125,7 +125,7 @@ function HeaderButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="rounded-control border border-line px-1.5 py-0.5 text-xs text-ink-secondary hover:bg-surface-recessed disabled:opacity-40 disabled:hover:bg-transparent"
+      className="btn btn-sm btn-ghost w-6 px-0"
     >
       {children}
     </button>

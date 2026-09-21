@@ -73,7 +73,7 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
             compact ? 'bottom-full mb-1' : 'top-full mt-1'
           }`}
         >
-          <div className="mb-1 px-1 text-2xs font-semibold tracking-wide text-ink-muted uppercase">Theme</div>
+          <div className="subhead mb-1 px-1">Theme</div>
           <div className="flex rounded-control border border-line p-0.5" role="radiogroup" aria-label="Theme">
             {THEMES.map((t) => (
               <button
@@ -90,7 +90,7 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
             ))}
           </div>
           <div className="mt-3 flex flex-col gap-1">
-            <div className="px-1 text-2xs font-semibold tracking-wide text-ink-muted uppercase">Site access</div>
+            <div className="subhead px-1">Site access</div>
             {localAllowed ? (
               <p className="px-1 text-2xs text-ink-muted">Dev servers on localhost open without asking.</p>
             ) : (

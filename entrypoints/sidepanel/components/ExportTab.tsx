@@ -63,25 +63,25 @@ export function ExportTab({
   return (
     <div className="flex flex-col gap-3 p-3">
       {scan.unreadableSheets.length > 0 && (
-        <p className="rounded-control border border-warn bg-warn-soft px-2.5 py-1.5 text-xs text-warn-ink">
+        <p className="rounded-control bg-warn-soft px-2.5 py-2 text-xs text-warn-ink">
           {scan.unreadableSheets.length} cross-origin stylesheet(s) couldn&apos;t be read — this export may be
           partial.
         </p>
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="text-sm text-ink-muted">Preset</div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="subhead">Preset</div>
+        <div role="radiogroup" aria-label="Preset" className="flex flex-wrap gap-1">
           {PRESETS.map((p) => (
             <button
               key={p.key}
+              role="radio"
+              aria-checked={preset === p.key}
               onClick={() => setPreset(p.key)}
-              className={`rounded-full border px-3 py-0.5 text-sm ${
+              className={`h-control rounded-control px-2.5 text-xs ${
                 preset === p.key
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : p.key === 'custom'
-                    ? 'border-dashed border-line text-ink-muted'
-                    : 'border-line text-ink-secondary'
+                  ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2),inset_0_0_0_1px_var(--line)]'
+                  : 'bg-surface-field text-ink-secondary hover:bg-surface-field-hover hover:text-ink'
               }`}
             >
               {p.label}
@@ -89,7 +89,7 @@ export function ExportTab({
           ))}
         </div>
         {preset === 'custom' && (
-          <div className="flex flex-wrap gap-2.5 rounded-control border border-dashed border-line p-2 text-sm">
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 rounded-control bg-surface-field px-2.5 py-2 text-xs">
             {(Object.keys(sections) as (keyof ExportSections)[]).map((key) => (
               <label key={key} className="flex items-center gap-1.5">
                 <input
@@ -155,7 +155,7 @@ export function ExportTab({
           />
           <button
             onClick={() => downloadBundle(files, slug)}
-            className="rounded-control border border-line-strong bg-surface-control px-3 py-1.5 text-sm font-medium hover:bg-surface-raised"
+            className="btn btn-lg btn-secondary"
           >
             Download everything as a ZIP ({files.length} files)
           </button>
@@ -196,27 +196,21 @@ function ExportCard({
   copyLabel?: string;
 }) {
   return (
-    <div className={`rounded-card border p-3 ${accent ? 'border-accent bg-accent-soft' : 'border-line'}`}>
-      <div className={`font-medium ${accent ? 'text-accent' : ''}`}>{title}</div>
-      <p className="mt-0.5 text-sm text-ink-muted">{description}</p>
-      <div className="mt-2 flex gap-2">
+    <div className={`rounded-card p-3 ${accent ? 'bg-accent-soft' : 'bg-surface-panel shadow-[inset_0_0_0_1px_var(--line-subtle)]'}`}>
+      <div className={`text-sm font-medium ${accent ? 'text-accent' : 'text-ink'}`}>{title}</div>
+      <p className="mt-0.5 text-xs text-ink-muted">{description}</p>
+      <div className="mt-2.5 flex gap-1.5">
         <button
           onClick={onDownload}
-          className={`rounded-control border px-3 py-1 text-sm font-medium ${
-            accent
-              ? 'border-accent bg-surface-panel text-accent hover:bg-accent-soft'
-              : 'border-line-strong bg-surface-control hover:bg-surface-control'
-          }`}
+          className={`btn ${accent ? 'btn-primary' : 'btn-secondary'}`}
         >
           Download
         </button>
         <button
           onClick={onCopy}
-          className={`rounded-control border px-3 py-1 text-sm ${
-            accent ? 'border-accent text-accent' : 'border-line'
-          }`}
+          className="btn btn-ghost"
         >
-          {copied ? 'Copied ✓' : copyLabel}
+          {copied ? 'Copied' : copyLabel}
         </button>
       </div>
     </div>

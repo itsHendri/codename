@@ -12,6 +12,8 @@ import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
 import { ConnectAgentCard } from './ConnectAgentCard';
 import { CommentList } from './inspect/Comments';
+import { Empty } from './States';
+import { ChangesIcon } from './icons';
 
 /**
  * Everything waiting to go to the agent, in one place.
@@ -64,13 +66,10 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
     return (
       <div className="flex flex-col">
         {presence}
-        <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
-          <div className="text-base text-ink-secondary">Nothing to hand over yet</div>
-          <p className="max-w-60 text-sm text-ink-muted">
-            Change a variable in Variables, edit a layer, or turn on Comment on the bar and mark
-            something on the page. Whatever you do collects here as one brief for your agent.
-          </p>
-        </div>
+        <Empty icon={<ChangesIcon className="h-6 w-6" />} title="Nothing to hand over yet">
+          Change a variable in Variables, edit a layer, or turn on Comment on the bar and mark
+          something on the page. Whatever you do collects here as one brief for your agent.
+        </Empty>
         {status === 'off' && (
           <div className="px-3 pb-3">
             <ConnectAgentCard />
@@ -161,21 +160,21 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
         />
 
         {shifted && (
-          <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">
+          <p className="rounded-control bg-warn-soft px-2.5 py-2 text-2xs text-warn-ink">
             A reorder and an edit on a positional selector are both in force, so the edit may have
             moved to a different element. Check the selection on the page before sending.
           </p>
         )}
 
         {set.unreadable.length > 0 && (
-          <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">
+          <p className="rounded-control bg-warn-soft px-2.5 py-2 text-2xs text-warn-ink">
             {set.unreadable.length} stylesheet(s) couldn&apos;t be read, so there may be occurrences not
             counted here.
           </p>
         )}
 
         {!set.local && !empty && (
-          <p className="rounded-control border border-warn bg-warn-soft px-2 py-1.5 text-2xs text-warn-ink">
+          <p className="rounded-control bg-warn-soft px-2.5 py-2 text-2xs text-warn-ink">
             Edited against a deployed site rather than a local dev server — check the mapping to source
             before applying.
           </p>
@@ -196,7 +195,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
           onClick={() => (sendToAgent() ? flash('sent') : null)}
           disabled={empty || !connected}
           title={connected ? 'Hand this to the connected agent' : 'Connect your agent first'}
-          className="rounded-control border border-accent bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-hover disabled:opacity-40"
+          className="btn btn-lg btn-primary"
         >
           {copied === 'sent' ? 'Sent — your agent will pick it up' : handoff ? 'Sent · send again' : 'Send to agent'}
         </button>
@@ -204,14 +203,14 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
           <button
             onClick={() => navigator.clipboard.writeText(prompt).then(() => flash('prompt'))}
             disabled={empty}
-            className="flex-1 rounded-control border border-line px-3 py-1 text-xs hover:bg-surface-control disabled:opacity-40"
+            className="btn btn-secondary flex-1"
           >
             {copied === 'prompt' ? 'Copied ✓' : 'Copy brief'}
           </button>
           <button
             onClick={() => download('codename-changes.json', toJson(set), 'application/json')}
             disabled={empty}
-            className="rounded-control border border-line px-3 py-1 text-xs hover:bg-surface-control disabled:opacity-40"
+            className="btn btn-secondary"
           >
             JSON
           </button>
@@ -224,7 +223,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 function SectionHead({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="text-2xs tracking-wide text-ink-muted uppercase">{title}</span>
+      <span className="subhead">{title}</span>
       <span className="ml-auto font-mono text-2xs text-ink-muted">{count}</span>
     </div>
   );
@@ -258,7 +257,7 @@ function AgentPreviewRow({ rules, matched, at, touchesLocked }: { rules: number;
         </span>
         <button
           onClick={() => void dropAgentPreview()}
-          className="ml-auto shrink-0 rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent"
+          className="btn btn-sm btn-secondary ml-auto shrink-0"
         >
           Clear
         </button>
@@ -289,8 +288,8 @@ function AgentActivity({ entries }: { entries: { at: string; what: string }[] })
   };
   return (
     <section className="flex flex-col gap-1 border-b border-line-subtle px-3 py-2">
-      <div className="flex items-center gap-2 text-2xs tracking-wide text-ink-muted">
-        <span className="uppercase">Agent activity</span>
+      <div className="flex items-center gap-2 text-2xs text-ink-muted">
+        <span className="font-medium">Agent activity</span>
         <span className="font-mono">{entries.length}</span>
         <button onClick={() => clearAgentLog()} className="ml-auto text-2xs text-ink-muted hover:text-ink-secondary">
           clear
@@ -326,7 +325,7 @@ function ProjectRow({ project, mayWrite, local }: { project: ProjectInfo; mayWri
   return (
     <div className="flex flex-col gap-1 border-b border-line-subtle px-3 py-2">
       <div className="flex items-center gap-2 text-2xs">
-        <span className="uppercase tracking-wide text-ink-muted">Project</span>
+        <span className="font-medium text-ink-muted">Project</span>
         <span className="min-w-0 truncate text-ink-secondary" title={project.path}>
           {project.name}
         </span>
@@ -442,7 +441,7 @@ function TokenRow({
               <button
                 onClick={() => void apply()}
                 disabled={busy}
-                className="shrink-0 rounded-control border border-line px-1.5 py-0.5 text-2xs text-ink-secondary hover:border-accent hover:text-accent disabled:opacity-40"
+                className="btn btn-sm btn-secondary shrink-0"
                 title={`Write ${t.to} into ${writable!.file}:${writable!.line}`}
               >
                 {busy ? 'Applying…' : 'Apply'}
