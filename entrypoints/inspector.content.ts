@@ -50,9 +50,10 @@ function isOurs(el: Element | null): boolean {
 /* ---------------- the overlay ---------------- */
 
 function activate() {
-  const c = OVERLAY[matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'];
-  // The bar is the tool's chrome, not part of the page, so it wears the
-  // panel's palette. The panel tells it which; until then, dark.
+  // Everything drawn here — the bar, the cards, the selection and its
+  // labels — is the tool's chrome, not part of the page, so it wears the
+  // panel's palette rather than the system's. The panel tells it which;
+  // until then, dark.
   const d = {
     accent: 'var(--cn-accent)',
     accentWash: 'var(--cn-wash)',
@@ -60,14 +61,19 @@ function activate() {
     cardInk: 'var(--cn-ink)',
     cardMuted: 'var(--cn-muted)',
     cardLine: 'var(--cn-line)',
+    chromeBg: 'var(--cn-app)',
+    field: 'var(--cn-field)',
+    fieldHover: 'var(--cn-field-hover)',
+    thumb: 'var(--cn-thumb)',
   };
+  const c = d;
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
   const host = document.createElement(HOST_TAG.toLowerCase());
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const shadow = host.attachShadow({ mode: 'closed' });
   shadow.innerHTML = `
     <style>
-      :host { --cn-accent: ${OVERLAY.dark.accent}; --cn-wash: ${OVERLAY.dark.accentWash}; --cn-bg: ${OVERLAY.dark.cardBg}; --cn-ink: ${OVERLAY.dark.cardInk}; --cn-muted: ${OVERLAY.dark.cardMuted}; --cn-line: ${OVERLAY.dark.cardLine}; }
+      :host { --cn-accent: ${OVERLAY.dark.accent}; --cn-wash: ${OVERLAY.dark.accentWash}; --cn-bg: ${OVERLAY.dark.cardBg}; --cn-ink: ${OVERLAY.dark.cardInk}; --cn-muted: ${OVERLAY.dark.cardMuted}; --cn-line: ${OVERLAY.dark.cardLine}; --cn-app: ${OVERLAY.dark.chromeBg}; --cn-field: ${OVERLAY.dark.field}; --cn-field-hover: ${OVERLAY.dark.fieldHover}; --cn-thumb: ${OVERLAY.dark.thumb}; }
       * { box-sizing: border-box; }
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
@@ -86,7 +92,7 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .bar { position: fixed; top: 0; left: var(--codename-rail, 0px); right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar { position: fixed; top: 0; left: var(--codename-rail, 0px); right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.chromeBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar .host { color: ${d.cardMuted}; }
       .bar .device { display: flex; align-items: center; gap: 6px; }
       .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, ${d.cardLine} 20%, transparent); border: 1px solid ${d.cardLine}; }
@@ -1110,6 +1116,10 @@ function activate() {
     host.style.setProperty('--cn-ink', t.cardInk);
     host.style.setProperty('--cn-muted', t.cardMuted);
     host.style.setProperty('--cn-line', t.cardLine);
+    host.style.setProperty('--cn-app', t.chromeBg);
+    host.style.setProperty('--cn-field', t.field);
+    host.style.setProperty('--cn-field-hover', t.fieldHover);
+    host.style.setProperty('--cn-thumb', t.thumb);
   };
 
   /**
