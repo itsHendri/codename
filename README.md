@@ -56,8 +56,8 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
   instead of a literal. Select mode lives on the bar across the page.
-- **Variables** — what this page runs on, editable, and live on the page
-  while **Preview on page** is on.
+- **Variables** — what this page runs on, editable, and live on the page as
+  you type.
   - **Page variables** — the custom properties the page's own stylesheets
     define, under the names it gave them (`--ink`, `--paper`, `--mark`),
     grouped by what they hold, with how many declarations use each. A
@@ -72,11 +72,6 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
   - **Colours on the page** — every colour it paints with, named or not, with
     where it is used and how often. On a page with no variables this is the
     handle: setting one rewrites the rules that hold the literal.
-  - **Palette** — three seed colours read off the page with their OKLCH
-    readouts, and the 11-step ramp the engine grows from each. Move a seed and
-    every page colour that sits on its ramp follows. The semantic tokens built
-    on these ramps live in Export: the page never references them, so they
-    cannot be live.
   - **Type** — the families the page really renders and the size/weight/
     line-height ladder it renders them at. Drag any number and the rules that
     set that size follow — `font-size: 15px` says what it is, where a variable
@@ -86,13 +81,6 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
     from the page, with off-grid strays named rather than rounded in. Moving
     the grid rescales the steps the page uses rather than inventing a ladder,
     and rewrites the paddings, margins and gaps that sit on those steps.
-  - **Token file** — hold the page up against a design token file: W3C DTCG
-    JSON as Penpot, Figma and Tokens Studio export it, or a plain map of
-    custom properties. Three kinds of fact come back — variables whose value
-    has drifted from the token of the same name, colours the page paints that
-    no token holds, and tokens nothing on this page reaches. The file is not
-    automatically right, so nothing here offers to make the page match it.
-    Your agent asks for the same comparison with `check_tokens`.
   - **Critique** — what a designer would flag on the page, from what the
     scan measured: contrast under AA with element counts, off-grid spacing,
     near-duplicate colours, type strays; and what a screen reader or a
@@ -100,6 +88,13 @@ to 420px). **Layers** on the bar, or **Alt+L**, folds it.
     skip, controls under 24×24px (inline text links exempt), rules that
     remove the focus outline. Counts with their totals, never a fix. The
     same list the agent gets.
+  - **Token file** — hold the page up against a design token file: W3C DTCG
+    JSON as Penpot, Figma and Tokens Studio export it, or a plain map of
+    custom properties. Three kinds of fact come back — variables whose value
+    has drifted from the token of the same name, colours the page paints that
+    no token holds, and tokens nothing on this page reaches. The file is not
+    automatically right, so nothing here offers to make the page match it.
+    Your agent asks for the same comparison with `check_tokens`.
   The **Light / Dark** switch on the bar shows the page's own dark mode where
   it has one — its `prefers-color-scheme: dark` rules are re-emitted without
   the media query and the theme hook its stylesheet uses (`html.dark`,

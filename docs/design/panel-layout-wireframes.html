@@ -12,6 +12,7 @@
     --surface-app: #141414; --surface-panel: #1a1a1a; --surface-control: #282828; --surface-selected: #393939;
     --ink: #bcbcbc; --ink-secondary: #979797; --ink-muted: #767676; --ink-faint: #4e4e4e;
     --line: #303030; --line-subtle: #282828; --accent: #6bb5ff; --accent-soft: #26313c; --accent-ink: #141414;
+    --field: #222222; --field-hover: #2a2a2a; --thumb: #393939;
     --site: #e7e4db; --site-ink: #15171b; --site-muted: #6c6a61; --site-rule: #cbc7bc;
   }
   @media (prefers-color-scheme: dark) {
@@ -29,28 +30,30 @@
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #d3d1c7; }
   .body { display: flex; height: 380px; }
   .page { flex: 1; min-width: 0; position: relative; background: var(--site); color: var(--site-ink); overflow: hidden; display: flex; flex-direction: column; }
-  .bar { height: 24px; background: var(--surface-panel); color: var(--ink-secondary); display: flex; align-items: center; gap: 8px; padding: 0 8px; flex-shrink: 0; }
+  .bar { height: 24px; background: var(--surface-app); border-bottom: 1px solid var(--line); color: var(--ink-secondary); display: flex; align-items: center; gap: 8px; padding: 0 8px; flex-shrink: 0; }
   .bar b { color: var(--ink); font-weight: 500; }
-  .pill { border: 1px solid var(--surface-selected); border-radius: 4px; padding: 0 5px; color: var(--ink-secondary); }
-  .pill.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .pill { background: var(--field); border-radius: 4px; padding: 1px 6px; color: var(--ink-muted); white-space: nowrap; }
+  .pill.on { background: var(--thumb); color: var(--ink); }
   .panel { background: var(--surface-app); border-left: 1px solid var(--line); display: flex; flex-direction: column; flex-shrink: 0; }
   .tabs { display: flex; height: 28px; border-bottom: 1px solid var(--line-subtle); flex-shrink: 0; }
-  .tab { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); border-bottom: 2px solid transparent; }
-  .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); margin: 3px; border-radius: 5px; position: relative; }
+  .tab.on { color: var(--ink); background: var(--surface-control); }
+  .tab.on::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: -3px; height: 2px; border-radius: 1px; background: var(--accent); }
   .row { display: flex; align-items: center; gap: 4px; padding: 2px 6px; font-family: ui-monospace, Menlo, monospace; color: var(--ink-secondary); white-space: nowrap; overflow: hidden; }
-  .row.sel { background: var(--surface-selected); color: var(--ink); }
+  .row.sel { background: var(--accent-soft); color: var(--ink); border-radius: 4px; }
   .row .t { color: var(--ink-muted); font-family: inherit; margin-left: 4px; }
-  .badge { margin-left: auto; border: 1px solid var(--surface-selected); border-radius: 8px; padding: 0 4px; color: var(--ink-secondary); }
-  .grp { border-bottom: 1px solid var(--line-subtle); padding: 5px 8px; }
-  .grp h5 { margin: 0 0 4px; font-size: 11px; font-weight: 500; color: var(--ink-secondary); letter-spacing: .04em; text-transform: uppercase; }
-  .f { display: flex; gap: 4px; margin: 2px 0; align-items: center; }
-  .in { flex: 1; min-width: 0; background: var(--surface-app); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, Menlo, monospace; color: var(--ink); text-align: right; }
-  .lb { width: 36px; color: var(--ink-muted); flex-shrink: 0; }
-  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; flex: 1; }
-  .seg span { flex: 1; text-align: center; padding: 1px 0; color: var(--ink-muted); }
-  .seg span.on { background: var(--accent); color: var(--accent-ink); }
-  .chip { border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; color: var(--ink-secondary); }
-  .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .badge { margin-left: auto; background: var(--field); border-radius: 3px; padding: 0 4px; color: var(--ink-muted); }
+  .grp { border-bottom: 1px solid var(--line-subtle); padding: 5px 8px 7px; }
+  .grp h5 { margin: 0 0 5px; font-size: 11px; font-weight: 500; color: var(--ink); display: flex; justify-content: space-between; }
+  .grp h5::after { content: '⌄'; color: var(--ink-muted); }
+  .f { display: flex; gap: 4px; margin: 3px 0; align-items: center; }
+  .in { flex: 1; min-width: 0; background: var(--field); border-radius: 5px; padding: 2px 6px; font-family: ui-monospace, Menlo, monospace; color: var(--ink); text-align: left; }
+  .lb { width: 44px; color: var(--ink-muted); flex-shrink: 0; }
+  .seg { display: flex; gap: 2px; background: var(--field); border-radius: 5px; padding: 2px; flex: 1; }
+  .seg span { flex: auto; text-align: center; padding: 1px 3px; border-radius: 3px; color: var(--ink-muted); }
+  .seg span.on { background: var(--thumb); color: var(--ink); }
+  .chip { background: var(--field); border-radius: 4px; padding: 0 6px; color: var(--ink-secondary); }
+  .chip.on { color: var(--ink); background: var(--thumb); }
   .foot { height: 22px; border-top: 1px solid var(--line-subtle); display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--ink-muted); flex-shrink: 0; margin-top: auto; }
   .rail { width: 170px; background: var(--surface-panel); border-right: 1px solid var(--line); color: var(--ink-secondary); display: flex; flex-direction: column; flex-shrink: 0; }
   .canvas { flex: 1; position: relative; min-width: 0; padding: 16px; color: var(--site-ink); }
@@ -64,14 +67,16 @@
   .note { font-size: 11px; color: var(--site-muted); margin-top: 10px; }
   .frame { margin: 12px auto 0; width: 140px; background: #f3f1ea; border: 1px solid var(--site-rule); padding: 8px; color: var(--site-ink); box-shadow: 0 0 0 1px #d5d1c6; }
   .svg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 6px; }
-  .svg i { display: block; height: 34px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-app); }
-  .svg i.on { border-color: var(--accent); background: var(--accent-soft); }
+  .svg i { display: block; height: 34px; border-radius: 5px; background: repeating-conic-gradient(#e2e2e2 0% 25%, #fff 0% 50%) 0 0 / 8px 8px; }
+  .svg i.on { box-shadow: 0 0 0 2px var(--accent); }
   .box { border: 1px dashed var(--ink-muted); padding: 8px; position: relative; color: var(--ink-muted); text-align: center; }
-  .box .box { border-style: solid; border-color: var(--ink-secondary); margin: 0; }
-  .box .c { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent); padding: 4px; }
-  .nine { display: grid; grid-template-columns: repeat(3, 14px); gap: 2px; }
-  .nine i { display: block; width: 14px; height: 10px; border: 1px solid var(--line); border-radius: 2px; }
-  .nine i.on { background: var(--accent); border-color: var(--accent); }
+  .box .box { border: 0; background: var(--field); border-radius: 4px; margin: 0; }
+  .box .c { background: var(--thumb); color: var(--ink); border-radius: 3px; padding: 4px; }
+  .nine { display: grid; grid-template-columns: repeat(3, 14px); gap: 2px; background: var(--field); border-radius: 4px; padding: 2px; }
+  .nine i { display: flex; align-items: center; justify-content: center; width: 14px; height: 10px; border-radius: 2px; }
+  .nine i::before { content: ''; width: 2px; height: 2px; border-radius: 50%; background: var(--ink-faint); }
+  .nine i.on { background: var(--thumb); }
+  .nine i.on::before { width: 4px; height: 4px; background: var(--accent); }
   .kbd { display: inline-block; border: 1px solid var(--hair); border-radius: 4px; padding: 0 5px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--text); }
   .keys { padding: 10px 12px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
   .keys div.h { font-weight: 500; color: var(--text); margin-bottom: 4px; }
@@ -82,7 +87,7 @@
 <body>
 <main>
 <h1>Codename panel layout — wireframes</h1>
-<p class="cap">The mocks behind W20 (21 September 2026). The decision record is <code>panel-layout-wireframes.md</code>. Directions 1, 2 and the two-column workbench were considered and set aside; 5, 6, 7 and 4 are what shipped. Living document: update in place.</p>
+<p class="cap">The mocks behind W20 (21 September 2026), redrawn in W28's visual system (section 8) the same day. The decision record is <code>panel-layout-wireframes.md</code>. Directions 1, 2 and the two-column workbench were considered and set aside; 5, 6, 7, 4 and 8 are what shipped. Living document: update in place.</p>
 
 <h2>5 · The rail — shipped</h2>
 <p class="cap">The page is pushed 240px right by a Layers rail drawn in the page, as it is pushed 40px down by the bar. The bar gains a Layers toggle; Select is the only picking mode. The side panel is Style · Variables · Export · Changes. One selection, three surfaces: rail row, page outline, style column.</p>
@@ -90,7 +95,7 @@
   <div class="title"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:8px">localhost:5173 — forfontsake</span></div>
   <div class="body">
     <div class="page">
-      <div class="bar"><b><i class="ti ti-diamond" aria-hidden="true"></i> Codename</b><span class="pill on">Layers</span><span class="pill">Window · 784×768</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
+      <div class="bar"><span class="pill on">Layers</span><span class="pill">Window · 784×768</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
       <div style="display:flex;flex:1;min-height:0">
         <div class="rail">
           <div class="tabs"><span class="tab on">Layers</span><span class="tab">Assets</span></div>
@@ -159,7 +164,7 @@
   <div class="title"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:8px">localhost:5173 — forfontsake</span></div>
   <div class="body" style="height:280px">
     <div class="page">
-      <div class="bar"><b><i class="ti ti-diamond" aria-hidden="true"></i> Codename</b><span class="pill on">Layers</span><span class="pill on">Phone · 390×844 · 62%</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
+      <div class="bar"><span class="pill on">Layers</span><span class="pill on">Phone · 390×844 · 62%</span><span style="flex:1"></span><span class="pill">Light</span><span class="pill on">Select</span><span class="pill">Note</span></div>
       <div style="display:flex;flex:1;min-height:0">
         <div class="rail">
           <div class="tabs"><span class="tab">Layers</span><span class="tab on">Assets</span></div>
@@ -174,7 +179,7 @@
       </div>
     </div>
     <div class="panel" style="width:150px">
-      <div class="tabs"><span class="tab on">Style</span><span class="tab">Vars</span><span class="tab">Export</span><span class="tab">Changes</span></div>
+      <div class="tabs"><span class="tab on">Style</span><span class="tab">Variables</span><span class="tab">Export</span><span class="tab">Changes</span></div>
       <div class="grp" style="color:var(--ink-muted);line-height:1.5">Nothing selected. Turn on <span style="color:var(--ink)">Select</span> and click the page, or pick a row in <span style="color:var(--accent)">Layers</span> beside it.</div>
       <div class="foot">◉ bridge · 6 colours</div>
     </div>
@@ -219,6 +224,43 @@
     </div>
   </div>
 </div></div>
+
+<h2>8 · The visual system, Framer rows — shipped (W28)</h2>
+<p class="cap">Direction A of five, chosen by Hendri from the Mobbin pass. <b>One palette</b> under the bar, the rail and the panel: the bar sits on the rail strip's ground with the same line. <b>One height</b>: 24px controls, 20px inside a row. <b>Filled fields, no border</b>; the letter inside a number field is its scrub handle. <b>A neutral raised pill</b> marks "on"; the accent is kept for the selection, focus and a held state. <b>One 56px label column</b>, sentence case. Group heads carry a full-width hairline and a chevron, and stick under the strip that holds the selection and its state.</p>
+<div class="cn"><div class="win" style="background:var(--surface-app)">
+  <div class="body" style="height:300px">
+    <div class="rail" style="background:var(--surface-app);border-right-color:var(--ink-faint)">
+      <div class="tabs"><span class="tab">Pages</span><span class="tab on">Layers</span><span class="tab">Assets</span></div>
+      <div class="f" style="padding:4px 6px 0"><span class="in" style="color:var(--ink-muted);font-family:inherit">Find a layer…</span></div>
+      <div style="padding:2px 6px;color:var(--ink)">Components <span style="color:var(--ink-muted)">· pick one to edit all</span></div>
+      <div style="padding:0 6px 4px;display:flex;gap:3px"><span class="chip">×2 div.card</span><span class="chip">×3 .btn</span></div>
+      <div class="row" style="height:18px">⌄ body</div>
+      <div class="row" style="height:18px;padding-left:14px">⌄ main</div>
+      <div class="row sel" style="height:18px;margin:0 4px;padding-left:22px"><span style="color:var(--accent)">T</span> h1#title<span class="t">Grit</span></div>
+      <div class="row" style="height:18px;padding-left:26px">T p.lede</div>
+      <div class="row" style="height:18px;padding-left:18px">› div.card<span class="badge">×2</span></div>
+    </div>
+    <div class="page" style="background:var(--site)">
+      <div class="bar" style="height:28px"><span class="pill on"><i class="ti ti-stack-2" aria-hidden="true"></i></span><span class="pill on"><i class="ti ti-pointer" aria-hidden="true"></i></span><span class="pill"><i class="ti ti-message-circle" aria-hidden="true"></i></span><span style="flex:1"></span><span class="pill">Window ⌄</span><span class="pill">W 1280</span><span style="flex:1"></span><span class="pill"><i class="ti ti-sun" aria-hidden="true"></i></span><span class="pill on"><i class="ti ti-circle-half-2" aria-hidden="true"></i> Auto</span><span class="pill"><i class="ti ti-moon" aria-hidden="true"></i></span></div>
+      <div class="canvas"><div class="h1 sel">Grit<span class="dim">784 × 45</span></div>
+        <div class="edit" style="margin-top:28px;border-radius:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-family:ui-monospace,monospace;color:var(--ink)">h1#title</span><span style="color:var(--ink-muted)">More in panel ↗</span></div>
+          <div class="f"><span class="lb">Text</span><span class="in">#15171B</span></div>
+          <div class="f"><span class="lb">Size</span><span class="in">28px</span></div></div></div>
+    </div>
+    <div class="panel" style="width:230px">
+      <div class="tabs"><span class="tab on">Style</span><span class="tab">Variables</span><span class="tab">Export</span><span class="tab">Changes</span></div>
+      <div class="grp"><div class="f"><span style="color:var(--accent)">T</span><span class="in">h1#title</span><span style="color:var(--ink-muted)">✕</span></div>
+        <div class="seg" style="margin-top:3px"><span class="on">Default</span><span>Hover</span><span>Focus</span><span>Dark</span><span>Width ⌄</span></div></div>
+      <div class="grp"><h5>Size</h5>
+        <div class="f"><span class="lb">Width</span><span class="in">⠿ 784</span><span class="seg" style="flex:0 0 96px"><span>Fixed</span><span class="on">Fill</span><span>Fit</span><span>Rel</span></span></div>
+        <div class="f"><span class="lb">Height</span><span class="in">⠿ 45</span><span class="seg" style="flex:0 0 96px"><span>Fixed</span><span>Fill</span><span>Fit</span><span>Rel</span></span></div></div>
+      <div class="grp"><h5>Layout</h5>
+        <div class="f"><span class="lb">Type</span><span class="seg"><span>Block</span><span class="on">Stack</span><span>Grid</span><span>Inline</span></span></div>
+        <div class="f"><span class="lb">Gap</span><span class="in">↕ 16</span><span class="in">↔ 16</span></div></div>
+    </div>
+  </div>
+</div></div>
+<div class="settled"><b>Settled.</b> The Height row's modes are unlit on purpose: nothing the page or this log says names the mode, so none is claimed. Groups all start open (W20). Declined for the round: a label coloured when this log set its value (Webflow), folding a group with nothing set to a "+" head (Framer), captions above fields in place of the box diagram (Figma).</div>
 
 <h2>Set aside</h2>
 <p class="cap"><b>1 · Workbench</b> — the side panel dragged wide (~640px) splitting into Layers · Assets | Style · Variables · Export · Changes, folding back to five tabs below that. Not chosen: Chrome floors the side panel at ~320px, gives no width API and forgets a dragged width across restarts, so the columns would have to be re-dragged every session. <b>2 · Same panel, narrow</b> — its fallback. <b>3 · Rail in the page</b> — chosen; became 5.</p>

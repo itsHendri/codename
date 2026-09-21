@@ -156,6 +156,29 @@ is that companion growing up.
   are the engine's, they did not repaint a page written on variables, and
   Hendri's rule is that nothing that is not linked to the page being viewed
   belongs in the panel; they remain what Export is built on.
+- **W28, 21 September 2026 — the visual pass, from Mobbin.** Framer,
+  Figma, Webflow, Rive, Jitter and MagicPath pulled up on Mobbin and read
+  against the code; five directions drawn, and Hendri chose **A · Framer
+  rows**. One palette under all three pieces of chrome: the bar sits on
+  `surface-app` with a `line` edge as the rail's strip does, and the
+  selection, size label and marks follow the panel's theme instead of the
+  system's (`OVERLAY` pinned token by token in `theme.test.ts`). One height
+  grid (`h-control` 24px, `h-control-sm` 20px), filled fields with no
+  border (`field`, `field-select`, `field-invalid`), a neutral raised pill
+  for "on" so the accent is left to selection, focus and a held state, one
+  56px sentence-case label column, group heads with a full-width hairline
+  and an SVG chevron that stick under a strip holding the selection and its
+  state. The rail's rows are 24px with an accent-tinted selection and a
+  focus edge; the components strip folds after six. The bar's controls are
+  24px on filled tracks, and the scheme switch draws its middle as **Auto**.
+  The edit card matches the Style column and sits clear of the size label.
+  Buttons are one shape at 20/24/32px (`btn`); subheads are one sentence-case
+  style; every empty state is one `Empty` component at two sizes; text
+  glyphs used as icons became SVGs. **Declined for the round:** a label
+  coloured when the log set its value (Webflow's provenance colour — a new
+  meaning, so a feature), Framer's fold-to-"+" for groups with nothing set
+  (W20's "all open" stands), and Figma's caption-above fields (would have
+  undone the box diagram). PRs #11–#16.
 
 ## Live re-skin
 

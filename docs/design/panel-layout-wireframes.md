@@ -24,7 +24,7 @@ bar and its device frames there.
 
 | Surface | Holds | Where |
 | --- | --- | --- |
-| **Bar** | Layers toggle · host · device frame · Reset · agent chip · Light/Dark · Select · Comment | Across the top of the page, 40px, pushes the page down |
+| **Bar** | Layers · Select · Comment · host · device frame · Reset · agent chip · Light · Auto · Dark | Across the top of the page, 40px, pushes the page down |
 | **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, 240px by default (180–420, drag the edge), pushes the page right |
 | **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
 | **Selection** | 2px outline, W×H label under the box, the edit card | On the page |
@@ -99,6 +99,40 @@ raw value stands. Writing is exact: Fixed pins the rendered px, Fill is
 the parent's content box in %. Fill along a main axis is one declaration
 (`flex: 1 1 0%`), so the brief carries one line.
 
+## The visual system (W28)
+
+Chosen from five directions drawn from Framer, Figma, Webflow, Rive and
+Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
+
+- **One palette.** The bar, the rail and the panel read `shared/tokens.css`;
+  the bar and the overlays read the same values through `OVERLAY`
+  (`shared/theme.ts`), which `theme.test.ts` pins token by token. The bar
+  sits on `surface-app` with a `line` edge, as the rail's strip does. The
+  selection, its size label and the marks follow the panel's theme.
+- **One height.** `h-control` 24px for a field, a button or a segmented
+  group; `h-control-sm` 20px for a chip or an action inside a row;
+  `btn-lg` 32px for the one thing a screen is for.
+- **Fields are fills.** `field`, `field-select`, `field-invalid` in
+  `shared/theme.css`: no border, a lighter fill on hover, a 1px accent edge
+  on focus, a warn fill when a value will not take. A number field's letter
+  sits inside it and is the scrub handle.
+- **Accent is spent sparingly.** "On" in a segmented group is a neutral
+  raised pill (`surface-thumb`). Accent marks the selection (outline, rail
+  row, its icon), focus, a held state (hover, dark, a width), and the one
+  primary button on a screen.
+- **Labels.** One 56px column, sentence case, 11px ink-muted. Group and
+  section heads: 11px medium ink, 30px, full-width hairline, a chevron on
+  the right. Subheads: `subhead`, 10px medium ink-muted, never capitals.
+- **Sticky.** The strip holding the selection and its state sticks at the
+  top of the Style column; the group heads stick under it (`--style-top`).
+- **Tags** are 16px fills with a 4px radius, not outlined pills. **Callouts**
+  are fills. **Empty states** are `Empty` (`components/States.tsx`) at two
+  sizes. **Icons** are SVG; no text glyph stands in for one.
+- **Type scale** stays 10 · 11 · 12 · 13 · 15px, now with a job each: 10 for
+  tags, captions and subheads; 11 for every control and label; 12 for a
+  card's title and a large button; 13 the body default; 15 unused in the
+  chrome.
+
 ## Cross-cutting rules
 
 - Every number field: type, Enter commits, Escape puts the draft back,
@@ -122,6 +156,11 @@ the parent's content box in %. Fill along a main axis is one declaration
   number (`+20`, `*2`, `/2`); ⌘F to find a layer; Enter / Shift-Enter for
   child / parent in the tree; hold ⌥ to measure to the hovered element;
   ⌥1 / ⌥2 to focus the rail and the panel; a shortcuts sheet in the menu.
+- **A label coloured when this log set its value** (Webflow's orange and
+  blue). It would be honest, since it reads only the log, but it gives
+  colour a new meaning, so it is a feature for its own round.
+- **Folding a group with nothing set to a "+" head** (Framer). W20's "all
+  open" stands.
 - A two-column panel for people who drag the side panel wide. Considered
   and set aside for the rail; nothing prevents it later.
 - Grid template editing, background images and gradients. (`transform` and
@@ -133,3 +172,5 @@ the parent's content box in %. Fill along a main axis is one declaration
 2. The rail — new content script, panel to four tabs, the split deleted.
 3. The Style column — new reads, size modes, align grid, editable spacing.
 4. Shortcuts — deferred.
+5. The visual system (W28) — tokens, the Style column, the rail, the bar
+   and edit card, the other tabs; one PR each (#11–#15), docs in #16.
