@@ -3,7 +3,7 @@ import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { asReference } from '@/studio/tokenMatch';
 import { emptyShadow, parseShadow, shadowRoundTrips, shadowToCss, type ShadowLayer } from '@/studio/effects';
 import { NumberField } from './NumberField';
-import { CloseIcon } from '../icons';
+import { CloseIcon, PlusIcon } from '../icons';
 import { TokenChips } from './TokenChips';
 
 export function ShadowField({
@@ -42,10 +42,18 @@ export function ShadowField({
                 style={{ boxShadow: shadowToCss([layer]) }}
                 aria-hidden
               />
-              <label className="flex items-center gap-1 text-2xs text-ink-muted">
-                <input type="checkbox" checked={layer.inset} onChange={(e) => editLayer(i, { inset: e.target.checked })} />
-                inset
-              </label>
+              {/* A toggle drawn as one, not the browser's checkbox. */}
+              <button
+                role="switch"
+                aria-checked={layer.inset}
+                aria-label={`Shadow ${i + 1} inset`}
+                onClick={() => editLayer(i, { inset: !layer.inset })}
+                className={`h-control-sm shrink-0 rounded-[4px] px-1.5 text-2xs ${
+                  layer.inset ? 'bg-surface-thumb text-ink' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
+                }`}
+              >
+                Inset
+              </button>
               <ColourText
                 value={layer.color}
                 label={`Shadow ${i + 1} colour`}
@@ -59,17 +67,25 @@ export function ShadowField({
                 <CloseIcon />
               </button>
             </div>
-            <div className="flex items-center gap-1.5">
-              {(['x', 'y', 'blur', 'spread'] as const).map((part) => (
-                <label key={part} className="flex min-w-0 items-center gap-1 text-2xs text-ink-muted">
-                  {part}
+            {/* Four across, the letter inside each field as Figma's shadow
+                fields have it, so no number is cut to "0p". */}
+            <div className="grid grid-cols-4 gap-1">
+              {(
+                [
+                  ['x', 'X', 'Offset across'],
+                  ['y', 'Y', 'Offset down'],
+                  ['blur', 'B', 'Blur'],
+                  ['spread', 'S', 'Spread'],
+                ] as const
+              ).map(([part, letter, title]) => (
+                <div key={part} title={title} className="min-w-0">
                   <NumberField
                     value={layer[part]}
+                    label={letter}
                     ariaLabel={`Shadow ${i + 1} ${part}`}
-                    className="w-12"
                     onChange={(v) => editLayer(i, { [part]: v } as Partial<ShadowLayer>)}
                   />
-                </label>
+                </div>
               ))}
             </div>
           </div>
@@ -77,8 +93,9 @@ export function ShadowField({
         <div className="flex items-center gap-2">
           <button
             onClick={() => write([...layers, emptyShadow()])}
-            className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink"
+            className="btn btn-sm btn-ghost -ml-2"
           >
+            <PlusIcon />
             Add
           </button>
           {!layers.length && <span className="text-2xs text-ink-muted">No shadow.</span>}

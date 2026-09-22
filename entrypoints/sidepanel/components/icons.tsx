@@ -206,3 +206,9 @@ export const SearchIcon = ({ className }: IconProps) => (
     <path d="M7.6 7.6 10 10" />
   </Small>
 );
+
+export const PlayIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M3.5 2.5v7l6-3.5z" fill="currentColor" />
+  </Small>
+);

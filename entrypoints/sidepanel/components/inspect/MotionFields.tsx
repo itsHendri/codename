@@ -21,7 +21,7 @@ import {
   type TransitionEntry,
 } from '@/studio/motion';
 import { NumberField } from './NumberField';
-import { CloseIcon } from '../icons';
+import { CloseIcon, PlayIcon, PlusIcon } from '../icons';
 
 /** The properties worth offering by name; anything else is typed in. */
 const COMMON = ['all', 'opacity', 'transform', 'color', 'background-color', 'border-color', 'box-shadow', 'filter'];
@@ -146,8 +146,9 @@ export function MotionFields({
       <div className="flex items-center gap-2">
         <button
           onClick={() => write([...entries, { property: 'all', durationMs: 200, delayMs: 0, easing: easings[0] ? easingToCss(easings[0]) : 'ease-out' }])}
-          className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink"
+          className="btn btn-sm btn-ghost -ml-2"
         >
+          <PlusIcon />
           Add
         </button>
         {onPlay && (
@@ -159,8 +160,9 @@ export function MotionFields({
                 ? 'Take the element out of the state and put it back, so the transition runs'
                 : 'Pick hover, focus or active first — a transition needs somewhere to go'
             }
-            className="h-control-sm rounded-control px-2 text-xs text-ink-secondary hover:bg-surface-field hover:text-ink disabled:opacity-40"
+            className="btn btn-sm btn-ghost"
           >
+            <PlayIcon className="h-2.5 w-2.5" />
             Play
           </button>
         )}

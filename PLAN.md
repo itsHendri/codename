@@ -199,6 +199,13 @@ is that companion growing up.
   browser's menu. `placeMenu` in `studio/inspect/geometry.ts` replaces
   `placeCard`; `editValues.ts` is gone with the card. The note composer now
   sits clear of the size label, as the card had to.
+- **W31, 22 September 2026 — the next UI review pass.** The lower half of
+  the Style column: a shadow layer's four numbers cut to "0p" in 48px
+  fields, now four across with the letter inside (X · Y · B · S) as
+  Figma's shadow fields have it; the inset checkbox is a toggle; Add and
+  Play carry icons and share the ghost button. The bar's side columns can
+  no longer shrink under their contents, so a narrow window pushes the
+  middle rather than sliding the tools under it.
 
 ## Live re-skin
 
