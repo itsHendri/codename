@@ -63,3 +63,33 @@ export function regionFrom(start: Point, end: Point): Rect | null {
   if (width < DRAG_MIN && height < DRAG_MIN) return null;
   return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width, height };
 }
+
+/** A box as `getBoundingClientRect` gives it, the parts a drop reads. */
+export interface Box {
+  top: number;
+  bottom: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a dragged element would land among its siblings (the dragged one
+ * already left out): the index of the sibling it goes before, or null for
+ * last. Across (a flex row, a grid) reads the row under the pointer left to
+ * right, and past the end of a row goes before the next row's first; down
+ * reads top to bottom. Midpoints decide, as a design tool's reorder does.
+ */
+export function dropIndex(boxes: Box[], x: number, y: number, across: boolean): number | null {
+  if (!boxes.length) return null;
+  if (!across) {
+    const i = boxes.findIndex((b) => y < b.top + b.height / 2);
+    return i === -1 ? null : i;
+  }
+  const row = boxes.map((b, i) => ({ b, i })).filter(({ b }) => y >= b.top && y <= b.bottom);
+  const pool = row.length ? row : boxes.map((b, i) => ({ b, i }));
+  const past = pool.find(({ b }) => x < b.left + b.width / 2);
+  if (past) return past.i;
+  const next = pool[pool.length - 1]!.i + 1;
+  return next < boxes.length ? next : null;
+}

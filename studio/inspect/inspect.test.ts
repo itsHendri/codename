@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex } from './colour';
 import { buildLayers, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
-import { placeMenu, placeSizeLabel, regionFrom } from './geometry';
+import { dropIndex, placeMenu, placeSizeLabel, regionFrom } from './geometry';
 import { readProps, roundedStyle } from './readProps';
 import { element } from '@/entrypoints/sidepanel/test/chromeStub';
 
@@ -148,6 +148,25 @@ describe('placing the chrome', () => {
     expect(placeSizeLabel({ x: 100, y: 560, width: 200, height: 50 }, viewport, 44)).toEqual({ left: 200, top: 539 });
     expect(placeSizeLabel({ x: -100, y: 0, width: 20, height: 10 }, viewport, 44)).toEqual({ left: 40, top: 13 });
     expect(placeSizeLabel({ x: 100, y: 590, width: 20, height: 10 }, viewport, 44)).toEqual({ left: 110, top: 569 });
+  });
+
+  it('drops a dragged element before the sibling whose middle is past the pointer', () => {
+    const stack = [0, 50, 100].map((top) => ({ top, bottom: top + 40, left: 0, width: 300, height: 40 }));
+    expect(dropIndex(stack, 10, 5, false)).toBe(0);
+    expect(dropIndex(stack, 10, 75, false)).toBe(2);
+    expect(dropIndex(stack, 10, 139, false)).toBeNull();
+    // Two rows of two, across: the row under the pointer, then left to right.
+    const grid = [
+      { top: 0, bottom: 40, left: 0, width: 100, height: 40 },
+      { top: 0, bottom: 40, left: 110, width: 100, height: 40 },
+      { top: 50, bottom: 90, left: 0, width: 100, height: 40 },
+      { top: 50, bottom: 90, left: 110, width: 100, height: 40 },
+    ];
+    expect(dropIndex(grid, 120, 20, true)).toBe(1);
+    expect(dropIndex(grid, 200, 20, true)).toBe(2);
+    expect(dropIndex(grid, 40, 70, true)).toBe(2);
+    expect(dropIndex(grid, 200, 70, true)).toBeNull();
+    expect(dropIndex([], 0, 0, true)).toBeNull();
   });
 
   it('tells a drag from a click', () => {

@@ -20,7 +20,7 @@ import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
-import { placeMenu, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
+import { DRAG_MIN, dropIndex, placeMenu, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -80,6 +80,8 @@ function activate() {
       .box { position: fixed; pointer-events: none; outline: 2px solid ${c.accent}; outline-offset: -1px; background: ${c.accentWash}; }
       .box.sel { background: transparent; box-shadow: 0 0 0 1px ${c.cardBg}; }
       .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
+      .box.sel.moving { background: ${c.accentWash}; }
+      .drop { position: fixed; pointer-events: none; z-index: 1; background: ${c.accent}; border-radius: 2px; }
       .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
@@ -191,8 +193,11 @@ function activate() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5 14 5.5 8 8.5 2 5.5z"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3"/></svg><span class="label">Layers</span>
       </button>
       <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it (Alt+S)">
+        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it, click it again to let go, drag it to move it">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 7.5 L8.7 9 L7 13.5 Z"/></svg><span class="label">Select</span>
+        </button>
+        <button class="mode preview" role="radio" aria-checked="false" title="Preview — use the page as a visitor would: links, buttons, scrolling (Alt+P)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3.5v9l7.5-4.5z"/></svg><span class="label">Preview</span>
         </button>
         <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
@@ -228,6 +233,7 @@ function activate() {
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
     <div class="menu hidden" role="menu" aria-label="Selection"></div>
+    <div class="drop hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="size hidden"></div>
@@ -254,6 +260,7 @@ function activate() {
   const barH = bar.querySelector<HTMLInputElement>('.dim .h')!;
   const barScale = bar.querySelector<HTMLElement>('.scale')!;
   const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
+  const barPreview = bar.querySelector<HTMLButtonElement>('.mode.preview')!;
   const barLayers = bar.querySelector<HTMLButtonElement>('.mode.layers')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
@@ -264,6 +271,7 @@ function activate() {
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const menu = shadow.querySelector<HTMLElement>('.menu')!;
+  const dropLine = shadow.querySelector<HTMLElement>('.drop')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -500,6 +508,7 @@ function activate() {
   };
 
   const onMove = (e: MouseEvent) => {
+    if (moving) return;
     const el = document.elementFromPoint(e.clientX, e.clientY);
     // Over our own bar or pins: drop the highlight so a click there is a click there.
     if (el && isOurs(el)) {
@@ -518,10 +527,155 @@ function activate() {
 
   const onClick = (e: MouseEvent) => {
     if (e.composedPath().includes(host) || throughRail(e)) return;
+    // A drag that just ended is not a click.
+    if (swallowClick) {
+      swallowClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
-    select(hovered);
+    // The selection clicked again lets go of it, as a toggle reads.
+    select(hovered === selected ? null : hovered);
+  };
+
+  /* ----- dragging the selection among its siblings ----- */
+
+  /**
+   * Press on the selection and drag, and it moves among its siblings, as a
+   * row does in the rail: a line says where it will land, and the drop is the
+   * rail's own move — a change in the log, undone the same way, applied as a
+   * real DOM move (a framework may put it back on its next render). Siblings
+   * only, as the rail allows: into another container is a bigger promise.
+   */
+  let swallowClick = false;
+  let press: { x: number; y: number } | null = null;
+  let moving: { parent: Element; others: Element[]; horizontal: boolean; before: Element | null | undefined } | null = null;
+  const ids = new WeakMap<Element, number>();
+  let nextId = 1;
+  const idOf = (el: Element) => {
+    let id = ids.get(el);
+    if (id === undefined) ids.set(el, (id = nextId++));
+    return id;
+  };
+  const nodeOf = (el: Element) => {
+    const { selector } = buildSelector(el);
+    return { id: idOf(el), selector, stable: !selector.includes('nth-of-type'), tag: el.tagName.toLowerCase() };
+  };
+  const shown = (el: Element) => {
+    if (isOurs(el)) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 || r.height > 0;
+  };
+  /** Children laid out across (flex rows, grids) read left to right; the rest top to bottom. */
+  const across = (parent: Element) => {
+    const cs = getComputedStyle(parent);
+    if (/grid/.test(cs.display)) return true;
+    return /flex/.test(cs.display) && !cs.flexDirection.startsWith('column');
+  };
+
+  /** The sibling the selection would land before, or null for last; undefined when it would not move. */
+  const landing = (x: number, y: number): Element | null | undefined => {
+    if (!moving || !selected) return undefined;
+    const { others, horizontal } = moving;
+    const at = dropIndex(others.map((o) => o.getBoundingClientRect()), x, y, horizontal);
+    const before = at === null ? null : others[at]!;
+    const now = others.find((o) => selected!.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING) ?? null;
+    return before === now ? undefined : before;
+  };
+
+  const drawDrop = () => {
+    if (!moving || moving.before === undefined) {
+      dropLine.classList.add('hidden');
+      return;
+    }
+    const { others, horizontal, before } = moving;
+    const ref = before ?? others[others.length - 1];
+    if (!ref) {
+      dropLine.classList.add('hidden');
+      return;
+    }
+    const r = ref.getBoundingClientRect();
+    const at = before ? (horizontal ? r.left : r.top) : horizontal ? r.right : r.bottom;
+    Object.assign(
+      dropLine.style,
+      horizontal
+        ? { left: `${at - 1.5}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` }
+        : { left: `${r.left}px`, top: `${at - 1.5}px`, width: `${r.width}px`, height: '3px' },
+    );
+    dropLine.classList.remove('hidden');
+  };
+
+  const endMove = () => {
+    moving = null;
+    press = null;
+    dropLine.classList.add('hidden');
+    selBox.classList.remove('moving');
+  };
+
+  const onPressDown = (e: PointerEvent) => {
+    if (e.button !== 0 || !selected?.isConnected) return;
+    if (e.composedPath().includes(host) || throughRail(e)) return;
+    const target = e.target as Element | null;
+    if (!target || !selected.contains(target)) return;
+    press = { x: e.clientX, y: e.clientY };
+  };
+
+  const onPressMove = (e: PointerEvent) => {
+    if (!press || !selected) return;
+    if (!moving) {
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_MIN) return;
+      const parent = selected.parentElement;
+      if (!parent || parent === document.documentElement) {
+        press = null;
+        return;
+      }
+      const siblings = Array.from(parent.children).filter(shown);
+      if (siblings.length < 2) {
+        press = null;
+        return;
+      }
+      moving = { parent, others: siblings.filter((s) => s !== selected), horizontal: across(parent), before: undefined };
+      selBox.classList.add('moving');
+      clearHover();
+    }
+    e.preventDefault();
+    moving.before = landing(e.clientX, e.clientY);
+    drawDrop();
+  };
+
+  const onPressUp = () => {
+    if (moving && selected) {
+      const { parent, others, before } = moving;
+      if (before !== undefined) {
+        const wasBefore = others.find((o) => selected!.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING) ?? null;
+        // The rail's message, so the panel files it exactly as a drag there.
+        send({
+          type: 'rail-move',
+          node: nodeOf(selected),
+          parent: nodeOf(parent),
+          before: before ? nodeOf(before) : null,
+          wasIn: nodeOf(parent),
+          wasBefore: wasBefore ? nodeOf(wasBefore) : null,
+        });
+      }
+      swallowClick = true;
+      // A click only follows when the pointer comes up where it went down.
+      setTimeout(() => (swallowClick = false), 0);
+    }
+    endMove();
+  };
+
+  // A press on the selection is a move in the making, not a text selection.
+  const onSelectStart = (e: Event) => {
+    if (press) e.preventDefault();
+  };
+
+  // Links and images start the browser's own drag; in Select, the drag is ours.
+  const onNativeDrag = (e: DragEvent) => {
+    if (!e.composedPath().includes(host)) e.preventDefault();
   };
 
   const setHover = (on: boolean) => {
@@ -532,6 +686,11 @@ function activate() {
       addEventListener('mousemove', onMove, true);
       addEventListener('click', onClick, true);
       addEventListener('contextmenu', onContextMenu, true);
+      addEventListener('pointerdown', onPressDown, true);
+      addEventListener('pointermove', onPressMove, true);
+      addEventListener('pointerup', onPressUp, true);
+      addEventListener('dragstart', onNativeDrag, true);
+      addEventListener('selectstart', onSelectStart, true);
       addEventListener('pointerdown', onAway);
       addEventListener('scroll', closeMenu, true);
       addEventListener('resize', closeMenu);
@@ -539,6 +698,12 @@ function activate() {
       removeEventListener('mousemove', onMove, true);
       removeEventListener('click', onClick, true);
       removeEventListener('contextmenu', onContextMenu, true);
+      removeEventListener('pointerdown', onPressDown, true);
+      removeEventListener('pointermove', onPressMove, true);
+      removeEventListener('pointerup', onPressUp, true);
+      removeEventListener('dragstart', onNativeDrag, true);
+      removeEventListener('selectstart', onSelectStart, true);
+      endMove();
       removeEventListener('pointerdown', onAway);
       removeEventListener('scroll', closeMenu, true);
       removeEventListener('resize', closeMenu);
@@ -550,8 +715,10 @@ function activate() {
       renderBar();
       showHint(
         on
-          ? '<b>Select</b> — click an element to edit it. Arrow keys walk the tree, Esc lets go.'
-          : null,
+          ? '<b>Select</b> — click an element to edit it, click it again to let go, drag it to move it among its siblings. Arrow keys walk the tree.'
+          : !noteOn
+            ? '<b>Preview</b> — the page works as it does for a visitor. Esc, or Preview again, goes back to Select.'
+            : null,
       );
     }
   };
@@ -926,6 +1093,23 @@ function activate() {
     if (barOn) renderBar();
   };
 
+  /**
+   * Select is where Codename is: on whenever the bar is, and where Preview
+   * and Comment come back to. Preview is the page left alone, to be used as
+   * a visitor would; Comment marks it up.
+   */
+  type Mode = 'select' | 'preview' | 'comment';
+  const setMode = (mode: Mode) => {
+    if (mode === 'comment') setNote(true);
+    else {
+      if (noteOn) setNote(false);
+      setHover(mode === 'select');
+    }
+  };
+  /** A mode's button pressed again, or Escape: back to Select. */
+  const toggleMode = (mode: Mode) => setMode(mode === 'select' || modeNow() === mode ? 'select' : mode);
+  const modeNow = (): Mode => (noteOn ? 'comment' : hoverOn ? 'select' : 'preview');
+
   /* ----- the bar ----- */
 
 
@@ -934,6 +1118,9 @@ function activate() {
     renderDevice();
     barSelect.classList.toggle('on', hoverOn);
     barSelect.setAttribute('aria-checked', String(hoverOn));
+    const previewing = !hoverOn && !noteOn;
+    barPreview.classList.toggle('on', previewing);
+    barPreview.setAttribute('aria-checked', String(previewing));
     barLayers.classList.toggle('on', railOn);
     barLayers.setAttribute('aria-checked', String(railOn));
     barComment.classList.toggle('on', noteOn);
@@ -1146,6 +1333,8 @@ function activate() {
     pushPage(on);
     fitRoom();
     if (on) {
+      // Select is where the bar starts: picking things is what it is for.
+      if (!noteOn) setHover(true);
       renderBar();
       void restoreFrame();
     }
@@ -1189,7 +1378,8 @@ function activate() {
     input.addEventListener('blur', commitSize);
     input.addEventListener('focus', () => input.select());
   }
-  barSelect.addEventListener('click', () => setHover(!hoverOn));
+  barSelect.addEventListener('click', () => setMode('select'));
+  barPreview.addEventListener('click', () => toggleMode('preview'));
   /** Show or fold the rail: the bar flips at once and asks the panel, which holds the answer. */
   const toggleRail = () => {
     railOn = !railOn;
@@ -1200,7 +1390,7 @@ function activate() {
     e.stopPropagation();
     toggleRail();
   });
-  barComment.addEventListener('click', () => setNote(!noteOn));
+  barComment.addEventListener('click', () => toggleMode('comment'));
   /** The lit side again is "as the system": a switch with a middle. */
   const setScheme = (scheme: 'light' | 'dark' | 'system') => {
     if (scheme === barScheme) return;
@@ -1273,17 +1463,17 @@ function activate() {
   };
 
   /**
-   * One level at a time: an open menu, a half-made note, then note mode,
-   * then hover, then the selection. False when there was nothing to let go of.
+   * One level at a time: an open menu, a half-made note, then Preview or
+   * Comment back to Select, then the selection. False when there was nothing to let go of.
    */
   const escape = (): boolean => {
-    if (!menu.classList.contains('hidden')) closeMenu();
+    if (moving) endMove();
+    else if (!menu.classList.contains('hidden')) closeMenu();
     else if (composing) closeComposer();
     else if (picked.length) {
       picked = [];
       drawPicks();
-    } else if (noteOn) setNote(false);
-    else if (hoverOn) setHover(false);
+    } else if (modeNow() !== 'select') setMode('select');
     else if (selected) select(null);
     else return false;
     return true;
@@ -1332,9 +1522,9 @@ function activate() {
         // A shortcut on a tab whose panel is closed would light the page up
         // with no bar and nobody listening; the bar is the sign of a panel.
         if (!barOn) break;
-        if (msg.what === 'comment') setNote(!noteOn);
+        if (msg.what === 'comment') toggleMode('comment');
         else if (msg.what === 'layers') toggleRail();
-        else setHover(!hoverOn);
+        else toggleMode('preview');
         break;
       case 'tokens':
         // The page's names for its values were for the edit card, which is

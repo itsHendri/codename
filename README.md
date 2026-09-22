@@ -160,11 +160,16 @@ component's shadow root, iframes, the `media` and `sizes` of responsive
 images, and a stylesheet from another origin the page cannot read (the bar
 says how many). The viewport meta tag plays no part;
 a page is laid out at the frame's width whether or not it has one. The bar
-itself keeps the tab's full width. **Select** outlines the element under
-the pointer and picks it on a click; the selection carries its size under
-the box, and nothing else is read out on hover — what an element is made
-of is in the panel once it is picked, and nothing opens over the page.
-**Right-click** while Select is on picks what is under the pointer and
+itself keeps the tab's full width. **Select** is where Codename starts: it
+outlines the element under the pointer and picks it on a click; clicking
+the selection again lets go. The selection carries its size under the box,
+and nothing else is read out on hover — what an element is made of is in
+the panel once it is picked, and nothing opens over the page. **Drag** the
+selection and it moves among its siblings, a line showing where it will
+land; the move is a change in the log like the rail's drag, undone the same
+way. **Preview** leaves the page alone so links, buttons and scrolling work
+as they do for a visitor; Preview again, or Esc, goes back to Select.
+**Right-click** in Select picks what is under the pointer and
 offers what can be done to it: select its parent or first child, edit all
 the elements that share its class, hide it, add a note, copy its selector,
 show it in the panel, or let go. Alt+right-click keeps the browser's own
@@ -172,7 +177,7 @@ menu. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a
-shortcut — **Alt+S** for Select, **Alt+C** for Comment, **Alt+L** for the
+shortcut — **Alt+P** for Preview, **Alt+C** for Comment, **Alt+L** for the
 rail — that you can rebind at `chrome://extensions/shortcuts`. The bar is laid out as Framer's: the
 tools on the left, the page and its frame in the middle, the switches on
 the right. The mark in the panel's footer opens the menu: theme

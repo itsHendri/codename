@@ -37,7 +37,17 @@ Variables, as Figma's design panel does with no selection.
 
 ## Per-surface rules
 
-### The page (Select is the only mode)
+### The page (Select by default; Preview and Comment beside it)
+
+**W35:** Select is where the bar starts and where Preview and Comment come
+back to (their button again, or Esc). Clicking the selection again lets go.
+Pressing on the selection and dragging moves it among its siblings — a 2px
+accent line where it will land, across for flex rows and grids, down
+otherwise — filed as the rail's `move` and applied as a real DOM move.
+**Preview** is the page left alone, to be used as a visitor would: nothing
+outlined, nothing picked, links and buttons working. Alt+P switches it.
+Moving into another container is deferred: it is a bigger promise than a
+reorder.
 
 - Pointer over an element: a **1px outline**, nothing else. No tag, no
   readout — the click is the readout.
