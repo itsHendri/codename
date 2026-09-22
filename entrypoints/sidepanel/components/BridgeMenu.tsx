@@ -50,7 +50,7 @@ export function BridgeSection() {
           </span>
           {status !== 'connected' && (
             <button onClick={retry} className="text-accent hover:underline">
-              retry
+              Retry
             </button>
           )}
           <button onClick={() => void forget()} className="ml-auto text-ink-muted hover:text-ink">

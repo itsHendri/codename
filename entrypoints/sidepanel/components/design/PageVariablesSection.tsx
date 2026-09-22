@@ -124,9 +124,9 @@ export function PageVariablesSection({
                     return next;
                   })
                 }
-                className="self-start text-xs text-accent hover:underline"
+                className="btn btn-sm btn-ghost -ml-2 self-start"
               >
-                {open ? 'show fewer' : `show all ${props.length}`}
+                {open ? 'Show fewer' : `Show all ${props.length}`}
               </button>
             )}
           </div>

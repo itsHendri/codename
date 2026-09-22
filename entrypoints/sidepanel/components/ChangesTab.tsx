@@ -291,8 +291,8 @@ function AgentActivity({ entries }: { entries: { at: string; what: string }[] })
       <div className="flex items-center gap-2 text-2xs text-ink-muted">
         <span className="font-medium">Agent activity</span>
         <span className="font-mono">{entries.length}</span>
-        <button onClick={() => clearAgentLog()} className="ml-auto text-2xs text-ink-muted hover:text-ink-secondary">
-          clear
+        <button onClick={() => clearAgentLog()} aria-label="Clear agent activity" className="btn btn-sm btn-ghost ml-auto">
+          Clear
         </button>
       </div>
       <ul className="flex flex-col gap-0.5">
@@ -306,8 +306,8 @@ function AgentActivity({ entries }: { entries: { at: string; what: string }[] })
         ))}
       </ul>
       {entries.length > 4 && (
-        <button onClick={() => setOpen((v) => !v)} className="self-start text-2xs text-accent hover:underline">
-          {open ? 'show fewer' : `show all ${entries.length}`}
+        <button onClick={() => setOpen((v) => !v)} className="btn btn-sm btn-ghost -ml-2 self-start">
+          {open ? 'Show fewer' : `Show all ${entries.length}`}
         </button>
       )}
     </section>

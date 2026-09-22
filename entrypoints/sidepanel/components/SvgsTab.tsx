@@ -128,7 +128,7 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
               <>
                 {selected.size} selected ·{' '}
                 <button className="text-accent hover:underline" onClick={() => setSelected(new Set())}>
-                  clear
+                  Clear
                 </button>
               </>
             ) : (

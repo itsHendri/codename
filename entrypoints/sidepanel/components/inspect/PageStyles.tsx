@@ -14,7 +14,7 @@ function Head({ children, onOpen }: { children: string; onOpen: () => void }) {
     <div className="flex items-baseline justify-between">
       <span className="subhead">{children}</span>
       <button onClick={onOpen} className="text-2xs text-ink-muted hover:text-accent">
-        edit in Variables
+        Edit in Variables
       </button>
     </div>
   );

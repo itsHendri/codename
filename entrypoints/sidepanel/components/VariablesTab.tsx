@@ -15,7 +15,7 @@ import { TypeSection } from './design/TypeSection';
 import { SpaceSection } from './design/SpaceSection';
 import { CritiqueSection } from './design/CritiqueSection';
 
-type SectionKey = 'vars' | 'colours' | 'palette' | 'type' | 'space' | 'critique' | 'tokenFile';
+type SectionKey = 'vars' | 'colours' | 'type' | 'space' | 'critique' | 'tokenFile';
 
 /**
  * The variables this page runs on, editable.
@@ -65,7 +65,7 @@ export function VariablesTab({
   // All open. A collapsed section with a summary reads as a fact rather
   // than a door, which is exactly how the editable type ladder went unnoticed.
   const [open, setOpen] = useState<Set<SectionKey>>(
-    new Set<SectionKey>(['vars', 'colours', 'palette', 'type', 'space']),
+    new Set<SectionKey>(['vars', 'colours', 'type', 'space']),
   );
   const { brand, resolved, edited, dirty } = model;
   // Against the page as read, not as edited: the edit is your answer to it.
@@ -154,7 +154,12 @@ export function VariablesTab({
           live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'
         }`}
       >
-        <span className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
+        {/* Announced: an edit elsewhere changes this line, and a screen reader should hear it. */}
+        <span
+          role="status"
+          className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`}
+          title={status}
+        >
           {status}
         </span>
         {(dirty || mode === 'dark') && (

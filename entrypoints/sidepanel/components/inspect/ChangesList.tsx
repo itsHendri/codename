@@ -101,7 +101,7 @@ function ChangeRow({ change: c, undone, onRevert }: { change: ElementChange; und
       ) : (
         !reverted && (
           <button onClick={() => onRevert(c.id)} className="shrink-0 font-sans text-ink-muted hover:text-accent hover:underline">
-            revert
+            Revert
           </button>
         )
       )}

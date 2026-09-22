@@ -63,7 +63,7 @@ export function TabStrip<K extends string>({
           <Icon />
           {label}
           {badge != null && badge > 0 && (
-            <span data-badge className="absolute top-1 right-1/2 translate-x-4 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
+            <span data-badge className="absolute top-0.5 left-1/2 ml-2.5 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
               {badge}
             </span>
           )}
