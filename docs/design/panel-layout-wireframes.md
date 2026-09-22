@@ -26,7 +26,7 @@ bar and its device frames there.
 | --- | --- | --- |
 | **Bar** | Layers · Select · Comment · host · device frame · Reset · agent chip · Light · Auto · Dark | Across the top of the page, 40px, pushes the page down |
 | **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, under the bar, 240px by default (180–420, drag the edge), pushes the page right |
-| **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
+| **Panel** | Style · Variables · Export · Changes | In the page on the right, under the bar (W33), 360px by default (320–520, drag the edge), pushes the page left; Chrome's side panel only on restricted pages |
 | **Selection** | 2px outline, W×H label under the box; a right-click menu | On the page |
 
 The tree has one home, the rail. The panel keeps no tree; its Style tab
@@ -61,7 +61,9 @@ Variables, as Figma's design panel does with no selection.
   spans the whole tab and the rail starts under it (W29)**, as Framer's top bar
   frames both of its side columns; W27's one row, with the rail beside the
   bar, left the bar squeezed into the width beside the rail. The Chrome side
-  panel is Chrome's, not the page's, so the bar cannot reach over it. The
+  panel was Chrome's, not the page's, so the bar could not reach over it —
+  **W33 moved the panel into the page too**, as an iframe of the extension's
+  own panel page, so the bar now frames both columns. The
   page is pushed right with `html { margin-left }` `!important`, saved and
   restored exactly (`studio/pushRoot.ts`), as the bar pushes it down.
 - Shown wherever the bar is; folded by **Layers** on the bar, **Alt+L**, or

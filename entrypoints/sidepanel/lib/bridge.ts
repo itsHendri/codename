@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { embeddedTab } from '@/shared/embed';
 import type { ElementProps } from '@/shared/types';
 import { critique, critiqueToText } from '@/studio/critique';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
@@ -123,6 +124,10 @@ function send(msg: Envelope) {
 
 function connect() {
   if (!pairing || socket) return;
+  // Drawn in the page, there is a panel in every tab Codename is on. Only
+  // the one in view holds the bridge's socket, which keeps it to one per
+  // window, as Chrome's side panel always was.
+  if (embeddedTab() !== null && document.visibilityState !== 'visible') return;
   setStatus('connecting');
   const ws = new WebSocket(`ws://127.0.0.1:${pairing.port}`);
   socket = ws;
@@ -191,6 +196,13 @@ function disconnect() {
   ws?.close();
   settleAsks('the agent bridge disconnected');
   setStatus(pairing ? 'connecting' : 'off');
+}
+
+if (embeddedTab() !== null && typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') connect();
+    else if (socket) disconnect();
+  });
 }
 
 /**

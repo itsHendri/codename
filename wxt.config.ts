@@ -36,8 +36,15 @@ export default defineConfig({
     // reads true inside a scaled frame.
     minimum_chrome_version: '128',
     action: {
-      default_title: 'Open Codename',
+      default_title: 'Codename',
     },
+    /**
+     * The panel's own page, so the panel can be drawn in a page as an iframe
+     * (W33). The one file a page can reach; everything it loads comes from
+     * the extension's own origin and needs no listing. The cost: a page can
+     * tell Codename is installed by asking for this file.
+     */
+    web_accessible_resources: [{ resources: ['sidepanel.html'], matches: ['<all_urls>'] }],
     /**
      * The two modes on the bar and the rail, from the keyboard. Alt rather than Cmd so
      * they never collide with the page's own shortcuts or Chrome's; the user

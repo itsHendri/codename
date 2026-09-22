@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { embeddedTab } from '@/shared/embed';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import {
   applyAgentPreview,
@@ -256,7 +257,11 @@ export default function App() {
 
   useEffect(() => {
     void syncActiveTab();
-    const onActivated = () => void syncActiveTab();
+    // Drawn in the page, the panel belongs to its own tab and does not follow
+    // another one into view; only its tab loading again concerns it.
+    const onActivated = () => {
+      if (embeddedTab() === null) void syncActiveTab();
+    };
     const onUpdated = (updatedTabId: number, info: { status?: string; url?: string }) => {
       if (updatedTabId !== tabIdRef.current) return;
       if (info.status === 'complete' || info.url) void syncActiveTab();
@@ -510,7 +515,12 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col text-base">
+    <div
+      className={`flex h-screen flex-col text-base ${
+        // Drawn in the page, the panel has an edge where it meets the page, as the rail does.
+        embeddedTab() !== null ? 'border-l border-l-[color:var(--ink-faint)]' : ''
+      }`}
+    >
       {/* h-10 is BAR_HEIGHT: the same strip as the bar across the page. */}
       <TabStrip
         tabs={TABS.map((t) => (t.key === 'changes' ? { ...t, badge: pendingCount } : t))}

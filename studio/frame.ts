@@ -225,6 +225,9 @@ export function frameCss(frame: FrameSize, zoom: number): string {
  */
 export function availableWidth(doc: Document): number {
   const root = doc.documentElement;
-  const left = parseFloat(doc.defaultView?.getComputedStyle(root).marginLeft ?? '') || 0;
-  return Math.max(0, root.clientWidth - Math.max(0, left));
+  const style = doc.defaultView?.getComputedStyle(root);
+  // The rail on the left and the panel on the right both push the root.
+  const left = parseFloat(style?.marginLeft ?? '') || 0;
+  const right = parseFloat(style?.marginRight ?? '') || 0;
+  return Math.max(0, root.clientWidth - Math.max(0, left) - Math.max(0, right));
 }

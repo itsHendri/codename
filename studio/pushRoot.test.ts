@@ -28,4 +28,17 @@ describe('pushing the page off an edge', () => {
     push.clear();
     expect(push.on).toBe(false);
   });
+
+  it('pushes from the right on its own margin, leaving the left one alone', () => {
+    const left = createRootPush('left');
+    const right = createRootPush('right');
+    left.set(240);
+    right.set(360);
+    expect(document.documentElement.style.getPropertyValue('margin-left')).toBe('240px');
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('360px');
+    right.clear();
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('margin-left')).toBe('240px');
+    left.clear();
+  });
 });

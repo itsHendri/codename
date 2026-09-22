@@ -1,17 +1,25 @@
 # Codename
 
-A designer's toolkit in the browser side panel: read the design system a page
+A designer's toolkit drawn on the page itself: read the design system a page
 is actually running, edit it, watch the real page repaint, and hand the change
 to your agent — which can be connected, so you never paste.
+
+Click the toolbar button and Codename frames the tab the way a design tool
+frames its canvas: a **bar** across the top, a **rail** on the left, the
+**panel** on the right, all drawn in the page and pushing it inward. Click it
+again to put the page back. On pages Chrome keeps extensions out of, the
+button opens Chrome's side panel instead, to say so.
 
 ## The rail, and the four tabs
 
 Layers and Assets stand in the page, in a **rail** on its left, where a
 design tool keeps its tree; the panel on the right is Style · Variables ·
-Export · Changes. A Chrome side panel is one column with no width to spare,
-so the tree could not be a second column of it — it is drawn in the page
-like the bar, pushing the page right by its own width (drag its edge; 180
-to 420px). **Layers** on the bar, or **Alt+L**, folds it.
+Export · Changes. Both are drawn in the page under the bar, each pushing the
+page in by its own width (drag the rail's edge, 180 to 420px; the panel's,
+320 to 520px). **Layers** on the bar, or **Alt+L**, folds the rail. The
+panel is the extension's own page in a frame, so it has everything the side
+panel had; a navigation redraws it once the new page loads, where the site
+has been allowed.
 
 - **Pages** (in the rail) — the site's pages as this page links to them,
   read off the page and deduped by path; click one to go there.
@@ -413,9 +421,11 @@ npm run harness:scripts
 
 ## Architecture
 
-- **WXT + React + TypeScript + Tailwind v4**, Manifest V3. Side panel only —
-  there is no options page and no full-tab UI, because the live site is the
-  canvas.
+- **WXT + React + TypeScript + Tailwind v4**, Manifest V3. No options page
+  and no full-tab UI, because the live site is the canvas. The panel app runs
+  in the page as an iframe (`entrypoints/panel.content.ts`, `shared/embed.ts`)
+  and in Chrome's side panel only on restricted pages. `sidepanel.html` is
+  web-accessible for that, which lets a page tell Codename is installed.
 - `entrypoints/sidepanel/` — the panel. Its design tokens live in
   `shared/tokens.css` (dark default, light override, on `:root` for the
   panel and `:host` for the rail) and the utilities in `shared/theme.css`;

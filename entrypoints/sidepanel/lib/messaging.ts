@@ -5,17 +5,23 @@ import type { Mode } from '@/studio/engine/types';
 import type { LengthMap } from '@/studio/reskinRules';
 import type { StateName } from '@/studio/conditions';
 import type { ConditionRule, HoistedRule } from '@/studio/conditionSheet';
+import { embeddedTab } from '@/shared/embed';
 
-const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://'];
+export { isRestricted } from '@/shared/embed';
 
-export function isRestricted(url: string | undefined): boolean {
-  if (!url) return true;
-  if (RESTRICTED_PREFIXES.some((p) => url.startsWith(p))) return true;
-  if (url.startsWith('https://chromewebstore.google.com')) return true;
-  return false;
-}
-
+/**
+ * The tab this panel is about. In Chrome's side panel, the active one in its
+ * window; drawn in the page, the one it was drawn in, whichever is active.
+ */
 export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
+  const own = embeddedTab();
+  if (own !== null) {
+    try {
+      return await chrome.tabs.get(own);
+    } catch {
+      return null;
+    }
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab ?? null;
 }
