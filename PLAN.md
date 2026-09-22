@@ -189,6 +189,16 @@ is that companion growing up.
   Framer and Figma: the bar is three blocks with the frame controls
   centred, the find fields carry a search icon, and the Type and Space
   sections lose their last outlines, oversized head and decorative accent.
+- **W30, 22 September 2026 — the edit card goes, a right-click menu comes.**
+  Hendri's call: selecting an element in Figma or Framer opens nothing over
+  the canvas, and the card said again what the panel beside it says. With
+  Select on, a right-click picks what is under the pointer and opens a menu
+  of what can be done to it, every item an action Codename already has —
+  walk to parent or child, the scope switch, the rail's hide, the note
+  composer, copy selector, focus the panel, deselect. Alt keeps the
+  browser's menu. `placeMenu` in `studio/inspect/geometry.ts` replaces
+  `placeCard`; `editValues.ts` is gone with the card. The note composer now
+  sits clear of the size label, as the card had to.
 
 ## Live re-skin
 

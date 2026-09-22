@@ -27,7 +27,7 @@ bar and its device frames there.
 | **Bar** | Layers · Select · Comment · host · device frame · Reset · agent chip · Light · Auto · Dark | Across the top of the page, 40px, pushes the page down |
 | **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, under the bar, 240px by default (180–420, drag the edge), pushes the page right |
 | **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
-| **Selection** | 2px outline, W×H label under the box, the edit card | On the page |
+| **Selection** | 2px outline, W×H label under the box; a right-click menu | On the page |
 
 The tree has one home, the rail. The panel keeps no tree; its Style tab
 offers **Show layers** when the rail is folded, and with nothing picked it
@@ -41,9 +41,16 @@ Variables, as Figma's design panel does with no selection.
 
 - Pointer over an element: a **1px outline**, nothing else. No tag, no
   readout — the click is the readout.
-- Click: a 2px outline, the size label under the box (above it when the
-  box runs off the bottom), the edit card beside it. Escape lets go, one
-  level at a time.
+- Click: a 2px outline and the size label under the box (above it when the
+  box runs off the bottom). Nothing opens over the page: the panel holds the
+  properties. Escape lets go, one level at a time.
+- **Right-click (W30)**, while Select is on: picks what is under the pointer
+  and opens a menu at the pointer — Select parent · Select child · Edit all N
+  matching · Hide · Add a note… · Copy selector · Show in panel · Deselect.
+  Every item is something the rail, the bar or the panel already does, so
+  the menu adds no capability, only reach. Alt+right-click keeps the
+  browser's menu. The **edit card is gone**: Figma and Framer open nothing
+  over the canvas on a selection, and the card repeated the panel beside it.
 - A row hovered in the rail peeks the same 1px outline on the page.
 - The hover card (font · text · fill · contrast · box) is gone: the edit
   card and the panel said the same things again.
@@ -172,6 +179,9 @@ Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
   colour a new meaning, so it is a feature for its own round.
 - **Folding a group with nothing set to a "+" head** (Framer). W20's "all
   open" stands.
+- Menu items that would be new capabilities: duplicate, delete, wrap in a
+  container, copy and paste styles. Each writes structure or copies values
+  the brief has no line for yet.
 - A two-column panel for people who drag the side panel wide. Considered
   and set aside for the rail; nothing prevents it later.
 - Grid template editing, background images and gradients. (`transform` and

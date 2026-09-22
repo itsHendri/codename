@@ -20,8 +20,7 @@ import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
-import { placeCard, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
-import { asLengths, asPx, editValues } from '@/studio/inspect/editValues';
+import { placeMenu, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -169,33 +168,15 @@ function activate() {
       .composer .save { background: ${d.accent}; color: ${d.cardBg}; }
       .composer .save:disabled { opacity: 0.4; cursor: default; }
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
-      .edit { position: fixed; z-index: 1; pointer-events: auto; width: 232px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); font: 400 11px/1.4 ${font}; font-variant-numeric: tabular-nums; }
-      .edit .grip { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 10px; cursor: grab; border-bottom: 1px solid ${d.cardLine}; color: ${d.cardMuted}; font-size: 10px; user-select: none; }
-      .edit .grip:active { cursor: grabbing; }
-      .edit .grip code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${d.cardInk}; font: 500 10px/1.4 ui-monospace, Menlo, monospace; }
-      .edit .grip .more { display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer; color: ${d.cardMuted}; white-space: nowrap; background: none; border: 0; border-radius: 4px; padding: 0 5px; font: 500 10px/1 ${font}; }
-      .edit .grip .more:hover { color: ${d.cardInk}; background: ${d.fieldHover}; }
-      .edit .grip .more svg { width: 10px; height: 10px; }
-      .edit .fields { display: grid; grid-template-columns: 52px 1fr; gap: 4px 8px; padding: 8px 10px 10px; align-items: center; }
-      .edit label { color: ${d.cardMuted}; }
-      .edit input, .edit select { width: 100%; box-sizing: border-box; height: 24px; border: 0; border-radius: 6px; background: ${d.field}; color: ${d.cardInk}; font: inherit; padding: 0 7px; }
-      .edit input:hover, .edit select:hover { background-color: ${d.fieldHover}; }
-      .edit input:focus, .edit select:focus { outline: 1px solid ${d.accent}; outline-offset: -1px; }
-      .edit select { appearance: none; padding-right: 20px; background: ${d.field} ${CHEVRON} no-repeat right 5px center / 10px 10px; cursor: pointer; }
-      .edit select option { background: ${d.cardBg}; color: ${d.cardInk}; }
-      .edit .colour { display: flex; gap: 5px; align-items: center; }
-      .edit .colour input[type=color] { width: 24px; height: 24px; flex: 0 0 24px; padding: 4px; cursor: pointer; appearance: none; }
-      .edit .colour input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-      .edit .colour input[type=color]::-webkit-color-swatch { border: 0; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
-      .edit .colour input[type=text] { flex: 1; font-family: ui-monospace, Menlo, monospace; }
-      .edit .colour .tok { flex: 0 0 auto; max-width: 84px; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 0; border-radius: 4px; padding: 0 6px; background: ${d.field}; color: ${d.cardInk}; font: 500 10px/20px ui-monospace, Menlo, monospace; }
-      .edit .colour .tok:hover { background: ${d.fieldHover}; }
-      .edit .colour .tok.hidden { display: none; }
-      .edit .len { display: flex; gap: 5px; align-items: center; }
-      .edit .len input { flex: 1; }
-      .edit .len .tok { flex: 0 0 auto; max-width: 84px; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 0; border-radius: 4px; padding: 0 6px; background: ${d.field}; color: ${d.cardInk}; font: 500 10px/20px ui-monospace, Menlo, monospace; }
-      .edit .len .tok:hover { background: ${d.fieldHover}; }
-      .edit .len .tok.hidden { display: none; }
+      /* The right-click menu: what can be done to the selection, and nothing
+         about how it looks — that is the panel's, on the right. */
+      .menu { position: fixed; z-index: 3; pointer-events: auto; min-width: 208px; max-width: 260px; padding: 4px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); font: 400 11px/1 ${font}; }
+      .menu .head { display: block; height: 24px; line-height: 24px; padding: 0 8px; color: ${d.cardMuted}; font: 500 10px/1 ui-monospace, Menlo, monospace; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; text-align: left; cursor: pointer; }
+      .menu button:hover, .menu button:focus-visible { background: ${d.fieldHover}; outline: none; }
+      .menu button:disabled { color: ${d.cardMuted}; cursor: default; background: transparent; }
+      .menu button kbd { margin-left: auto; color: ${d.cardMuted}; font: 400 10px/1 ${font}; }
+      .menu hr { height: 1px; margin: 4px 0; border: 0; background: ${d.cardLine}; }
       /* Important, because a rule like \`.bar .agent { display: flex }\` is more
          specific than one class, and hid nothing: the agent chip showed on
          every page with no preview on it. */
@@ -243,7 +224,7 @@ function activate() {
     </div>
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
-    <div class="edit hidden"></div>
+    <div class="menu hidden" role="menu" aria-label="Selection"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="size hidden"></div>
@@ -279,13 +260,7 @@ function activate() {
   const barSystem = bar.querySelector<HTMLButtonElement>('.mode.system')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
-  const editCard = shadow.querySelector<HTMLElement>('.edit')!;
-  // Escape leaves the field, not the selection; the page's own shortcuts stay
-  // out. Wired once: the card's children are rebuilt per selection, the host is not.
-  editCard.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Escape') (e.target as HTMLElement).blur();
-  });
+  const menu = shadow.querySelector<HTMLElement>('.menu')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
@@ -300,16 +275,6 @@ function activate() {
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   /** Which side of the page's theme is forced; neither is the page as it stands. */
   let barScheme: 'light' | 'dark' | 'system' = 'system';
-  /** The page's own names for its colours, from the scan: `#15171B` → `--ink`. */
-  let tokenNames: Record<string, string> = {};
-  let tokenLengths: TokenLengths = { space: {}, radius: {}, type: {} };
-  const named = (hex: string | null) => (hex && tokenNames[hex.toUpperCase()]) || null;
-  /** A single px length's name on this page, for the kind the property says it is. */
-  const namedLength = (kind: keyof TokenLengths, value: string): string | null => {
-    // px or rem, the way the panel keyed the map; rem against the page's root size.
-    const px = lengthPx(value, parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
-    return px === null ? null : (tokenLengths[kind][String(px)] ?? null);
-  };
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
   /** What the connected agent is previewing, for the chip; null when nothing. */
@@ -376,8 +341,7 @@ function activate() {
     // The state class belongs to the element it was put on, not to the next.
     holdState(null);
     selected = el;
-    editPinned = null;
-    renderEdit();
+    closeMenu();
     layout();
     announce();
   };
@@ -476,11 +440,10 @@ function activate() {
         sizeLabel.textContent = `${Math.round(r.width)} × ${Math.round(r.height)}`;
         const at = placeSizeLabel(r, { width: innerWidth, height: innerHeight }, barOn ? BAR_HEIGHT + 4 : 4);
         Object.assign(sizeLabel.style, { left: `${at.left}px`, top: `${at.top}px` });
-        placeEdit();
       } else {
         selBox.classList.add('hidden');
         sizeLabel.classList.add('hidden');
-        editCard.classList.add('hidden');
+        closeMenu();
         if (selected) {
           // The page re-rendered it away; say so rather than track a ghost.
           selected = null;
@@ -532,9 +495,18 @@ function activate() {
       if (noteOn) setNote(false);
       addEventListener('mousemove', onMove, true);
       addEventListener('click', onClick, true);
+      addEventListener('contextmenu', onContextMenu, true);
+      addEventListener('pointerdown', onAway);
+      addEventListener('scroll', closeMenu, true);
+      addEventListener('resize', closeMenu);
     } else {
       removeEventListener('mousemove', onMove, true);
       removeEventListener('click', onClick, true);
+      removeEventListener('contextmenu', onContextMenu, true);
+      removeEventListener('pointerdown', onAway);
+      removeEventListener('scroll', closeMenu, true);
+      removeEventListener('resize', closeMenu);
+      closeMenu();
       clearHover();
       drawMeasure();
     }
@@ -579,258 +551,123 @@ function activate() {
   /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
 
   /** Where the card was dragged to, if it was; otherwise it follows the element. */
-  let editPinned: { left: number; top: number } | null = null;
-  let editDrag: { x: number; y: number; left: number; top: number } | null = null;
-
-  const EDIT_FIELDS: { label: string; property: string }[] = [
-    { label: 'Words', property: 'text' },
-    { label: 'Text', property: 'color' },
-    { label: 'Fill', property: 'background-color' },
-    { label: 'Size', property: 'font-size' },
-    { label: 'Weight', property: 'font-weight' },
-    { label: 'Padding', property: 'padding' },
-    { label: 'Radius', property: 'border-radius' },
-  ];
-
-  const HEX6 = /^#[0-9a-f]{6}$/i;
   const isEnter = (e: KeyboardEvent) => e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
 
-  const emitEdit = (property: string, to: string) => send({ type: 'element-edit', property, to });
+  /* ----- the right-click menu ----- */
 
-  const colourControl = (property: string, value: string): HTMLElement => {
-    const wrap = document.createElement('div');
-    wrap.className = 'colour';
-    const pick = document.createElement('input');
-    pick.type = 'color';
-    pick.value = HEX6.test(value) ? value : '#000000';
-    const text = document.createElement('input');
-    text.type = 'text';
-    text.value = value;
-    text.spellcheck = false;
-    text.dataset.prop = property;
-    pick.addEventListener('input', () => {
-      text.value = pick.value.toUpperCase();
-      emitEdit(property, text.value);
-    });
-    const commit = () => {
-      const v = text.value.trim();
-      if (!v || !CSS.supports('color', v)) return;
-      if (HEX6.test(v)) pick.value = v;
-      emitEdit(property, v);
-    };
-    text.addEventListener('change', commit);
-    text.addEventListener('keydown', (e) => isEnter(e) && commit());
-    // The page's own name for this colour, when it has one: writing `var(--ink)`
-    // is the edit a token system wants, and the brief carries the name.
-    const tok = document.createElement('button');
-    tok.className = 'tok';
-    tok.dataset.tokFor = property;
-    const showTok = (hex: string) => {
-      const name = named(hex);
-      tok.textContent = name ?? '';
-      tok.title = name ? `This is ${name} on this page — click to write var(${name}) instead of the hex` : '';
-      tok.classList.toggle('hidden', !name);
-    };
-    showTok(value);
-    tok.addEventListener('click', () => {
-      const name = named(text.value.trim()) ?? tok.textContent;
-      if (!name) return;
-      text.value = `var(${name})`;
-      emitEdit(property, `var(${name})`);
-    });
-    wrap.append(pick, text, tok);
-    return wrap;
+  /**
+   * What can be done to the selection, where it is. Every item is something
+   * Codename already does from the rail, the bar or the panel: nothing here
+   * is new, only nearer. How the element looks is not in it; that is the
+   * panel's, on the right, as it is in Figma and Framer.
+   */
+  const closeMenu = () => {
+    if (menu.classList.contains('hidden')) return;
+    menu.classList.add('hidden');
+    menu.replaceChildren();
   };
 
-  const LENGTH_KIND: Record<string, keyof TokenLengths> = {
-    padding: 'space',
-    'border-radius': 'radius',
-    'font-size': 'type',
-  };
-
-  const lengthControl = (property: string, value: string, many = false): HTMLElement => {
-    const wrap = document.createElement('div');
-    wrap.className = 'len';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = value;
-    input.spellcheck = false;
-    input.dataset.prop = property;
-    const commit = () => {
-      const v = many ? asLengths(input.value) : asPx(input.value);
-      if (!v || !CSS.supports(property, v)) return;
-      input.value = v;
-      emitEdit(property, v);
-    };
-    input.addEventListener('change', commit);
-    input.addEventListener('keydown', (e) => {
-      if (isEnter(e)) commit();
-      // Arrows nudge a single length by a pixel; shift makes it ten.
-      const dir = e.key === 'ArrowUp' ? 1 : e.key === 'ArrowDown' ? -1 : 0;
-      if (!dir || many) return;
-      const m = /^(-?\d*\.?\d+)(px|rem|em)?$/.exec(input.value.trim());
-      if (!m) return;
-      e.preventDefault();
-      const step = (e.shiftKey ? 10 : 1) * dir;
-      input.value = `${Math.round((parseFloat(m[1]!) + step) * 100) / 100}${m[2] ?? 'px'}`;
-      commit();
-    });
-    // The page's own name for this length, when its variable says what kind it is.
-    const kind = LENGTH_KIND[property];
-    const tok = document.createElement('button');
-    tok.className = 'tok';
-    const showTok = (v: string) => {
-      const name = kind ? namedLength(kind, v) : null;
-      tok.textContent = name ?? '';
-      tok.title = name ? `This is ${name} on this page — click to write var(${name}) instead` : '';
-      tok.classList.toggle('hidden', !name);
-    };
-    showTok(value);
-    input.addEventListener('input', () => showTok(input.value));
-    tok.addEventListener('click', () => {
-      const name = tok.textContent;
-      if (!name) return;
-      input.value = `var(${name})`;
-      emitEdit(property, `var(${name})`);
-    });
-    wrap.append(input, tok);
-    return wrap;
-  };
-
-  /** The element's own words, committed on Enter or blur; the panel's text edit path applies them. */
-  const textControl = (value: string): HTMLElement => {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = value;
-    input.spellcheck = true;
-    input.dataset.prop = 'text';
-    const commit = () => {
-      if (input.value !== value) emitEdit('text', input.value);
-    };
-    input.addEventListener('change', commit);
-    input.addEventListener('keydown', (e) => isEnter(e) && commit());
-    return input;
-  };
-
-  const weightControl = (value: string): HTMLElement => {
-    const sel = document.createElement('select');
-    sel.dataset.prop = 'font-weight';
-    for (let w = 100; w <= 900; w += 100) {
-      const o = document.createElement('option');
-      o.value = String(w);
-      o.textContent = String(w);
-      sel.appendChild(o);
-    }
-    sel.value = String(Math.round(parseFloat(value) / 100) * 100 || 400);
-    sel.addEventListener('change', () => emitEdit('font-weight', sel.value));
-    return sel;
-  };
-
-  const renderEdit = () => {
-    editCard.replaceChildren();
-    if (!selected?.isConnected) {
-      editCard.classList.add('hidden');
-      return;
-    }
+  const openMenu = (x: number, y: number) => {
+    if (!selected?.isConnected) return;
     const props = readProps(selected);
-    const values = editValues(props);
+    const el = selected;
+    const many = props.intent.matches > 1;
+    menu.replaceChildren();
 
-    const grip = document.createElement('div');
-    grip.className = 'grip';
-    const name = document.createElement('code');
-    name.textContent = props.intent.matches > 1 ? props.intent.selector : props.selector;
-    name.title = props.selector;
-    const more = document.createElement('button');
-    more.className = 'more';
-    more.innerHTML =
-      'More in panel <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H2.5v7h7V7M7 2.5h2.5V5M9.5 2.5 5.5 6.5"/></svg>';
-    more.addEventListener('click', (e) => {
-      e.stopPropagation();
-      send({ type: 'panel-focus' });
-    });
-    grip.append(name, more);
+    const head = document.createElement('div');
+    head.className = 'head';
+    // The shared selector when there are several: shorter, and what "all" means.
+    head.textContent = many ? `${props.intent.selector} ×${props.intent.matches}` : props.selector;
+    head.title = props.selector;
+    menu.append(head);
 
-    // Drag by the grip: the card then stays where it was put until the next pick.
-    grip.addEventListener('pointerdown', (e) => {
-      if ((e.target as HTMLElement).closest('button')) return;
-      const box = editCard.getBoundingClientRect();
-      editDrag = { x: e.clientX, y: e.clientY, left: box.left, top: box.top };
-      grip.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    });
-    grip.addEventListener('pointermove', (e) => {
-      if (!editDrag) return;
-      editPinned = {
-        left: editDrag.left + (e.clientX - editDrag.x),
-        top: editDrag.top + (e.clientY - editDrag.y),
-      };
-      placeEdit();
-    });
-    const endDrag = () => {
-      editDrag = null;
-    };
-    grip.addEventListener('pointerup', endDrag);
-    grip.addEventListener('pointercancel', endDrag);
-
-    const fields = document.createElement('div');
-    fields.className = 'fields';
-    for (const f of EDIT_FIELDS) {
-      // Only an element whose own children are text can have its words edited.
-      if (f.property === 'text' && props.text === null) continue;
-      const label = document.createElement('label');
-      label.textContent = f.label;
-      const value = values[f.property] ?? '';
-      const control =
-        f.property === 'text'
-          ? textControl(value)
-          : f.property === 'color' || f.property === 'background-color'
-          ? colourControl(f.property, value)
-          : f.property === 'font-weight'
-            ? weightControl(value)
-            : lengthControl(f.property, value, f.property === 'padding');
-      fields.append(label, control);
-    }
-
-    editCard.append(grip, fields);
-    editCard.classList.remove('hidden');
-    placeEdit();
-  };
-
-  /** After the panel applied a change, the computed values moved; show them, but never under a caret. */
-  const refreshEdit = (props: ElementProps) => {
-    if (editCard.classList.contains('hidden')) return;
-    const values = editValues(props);
-    const focused = shadow.activeElement as HTMLElement | null;
-    for (const el of editCard.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-prop]')) {
-      if (el === focused) continue;
-      const v = values[el.dataset.prop!];
-      if (v === undefined) continue;
-      if (el instanceof HTMLSelectElement) el.value = String(Math.round(parseFloat(v) / 100) * 100 || 400);
-      else el.value = v;
-      const pick = el.previousElementSibling;
-      if (pick instanceof HTMLInputElement && pick.type === 'color' && HEX6.test(v)) pick.value = v;
-      const tok = el.nextElementSibling;
-      if (tok instanceof HTMLButtonElement && tok.classList.contains('tok')) {
-        const kind = LENGTH_KIND[el.dataset.prop!];
-        const name = kind ? namedLength(kind, v) : named(v);
-        tok.textContent = name ?? '';
-        tok.classList.toggle('hidden', !name);
+    const item = (label: string, run: () => void, key?: string, disabled = false) => {
+      const b = document.createElement('button');
+      b.setAttribute('role', 'menuitem');
+      b.textContent = label;
+      b.disabled = disabled;
+      if (key) {
+        const k = document.createElement('kbd');
+        k.textContent = key;
+        b.append(k);
       }
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeMenu();
+        run();
+      });
+      menu.append(b);
+    };
+    const rule = () => menu.append(document.createElement('hr'));
+
+    const parent = el.parentElement;
+    item('Select parent', () => walk('parent'), '↑', !parent || parent === document.documentElement);
+    item('Select child', () => walk('child'), '↓', !el.firstElementChild);
+    rule();
+    if (many) {
+      // The scope switch in the panel, from here: an edit then reaches them all.
+      item(`Edit all ${props.intent.matches} matching`, () => send({ type: 'rail-scope', scope: 'all' }));
     }
+    // The rail's eye: a display edit in the log, undone the same way.
+    item('Hide', () => send({ type: 'rail-hide', node: { selector: props.selector, stable: props.stable, display: props.box.display } }));
+    item('Add a note…', () => {
+      const sel = buildSelector(el);
+      emitTarget({ kind: 'element', selector: sel.selector, matches: sel.matches }, rectOf(el));
+    });
+    item('Copy selector', () => void navigator.clipboard.writeText(many ? props.intent.selector : props.selector).catch(() => {}));
+    rule();
+    item('Show in panel', () => send({ type: 'panel-focus' }));
+    item('Deselect', () => select(null), 'Esc');
+
+    menu.classList.remove('hidden');
+    const at = placeMenu(
+      { x, y },
+      { width: menu.offsetWidth || 208, height: menu.offsetHeight || 220 },
+      { width: innerWidth, height: innerHeight },
+      barOn ? BAR_HEIGHT + 4 : 4,
+    );
+    Object.assign(menu.style, { left: `${at.left}px`, top: `${at.top}px` });
+    // Focus the first item a frame later: the selection this opened with
+    // is announced to the rail in the same turn, and anything that takes
+    // focus there would take it back from the menu.
+    setTimeout(() => menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true }), 0);
   };
 
-  /** Below the element, or above when there is no room; clear of the bar either way. */
-  const placeEdit = () => {
-    if (!selected?.isConnected || editCard.classList.contains('hidden')) return;
-    const at = placeCard(
-      rectOf(selected),
-      { width: editCard.offsetWidth || 232, height: editCard.offsetHeight || 200 },
-      { width: innerWidth, height: innerHeight },
-      barOn ? BAR_HEIGHT + 8 : 8,
-      editPinned,
-    );
-    Object.assign(editCard.style, { left: `${at.left}px`, top: `${at.top}px` });
+  // Keys inside the menu stay in the menu: arrows move, Escape closes it
+  // rather than letting go of the selection.
+  menu.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    const items = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    const at = items.indexOf(shadow.activeElement as HTMLButtonElement);
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMenu();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length];
+      next?.focus();
+    }
+  });
+
+  /**
+   * Right-click on the page while Select is on: pick what is under the
+   * pointer and offer what can be done to it. Alt keeps the browser's own
+   * menu, so inspecting the page the usual way is one key away.
+   */
+  const onContextMenu = (e: MouseEvent) => {
+    if (e.altKey || e.composedPath().includes(host) || throughRail(e)) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isOurs(el) || el === document.documentElement) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (el !== selected) select(el);
+    openMenu(e.clientX, e.clientY);
   };
+  // A press anywhere else closes it, as a menu does. The menu sits in a
+  // closed shadow root, so a listener on the window cannot see that a press
+  // landed inside it; the menu stops its own presses before they bubble out.
+  const onAway = () => closeMenu();
+  menu.addEventListener('pointerdown', (e) => e.stopPropagation());
 
   /* ----- notes: what a note is about ----- */
 
@@ -911,9 +748,12 @@ function activate() {
     // thing you just pointed at makes you move it before you can describe it.
     const w = 280;
     const h = composer.offsetHeight || 140;
-    const below = anchor.y + anchor.height + 8;
+    // Clear of the size label when the note is about the selection, which
+    // sits in the 22px under (or over) the box.
+    const gap = selected ? 28 : 8;
+    const below = anchor.y + anchor.height + gap;
     const clear = BAR_HEIGHT + 8;
-    const top = below + h <= innerHeight - 8 ? below : Math.max(clear, anchor.y - h - 8);
+    const top = below + h <= innerHeight - 8 ? below : Math.max(clear, anchor.y - h - gap);
     Object.assign(composer.style, {
       left: `${Math.min(Math.max(8, anchor.x), innerWidth - w - 8)}px`,
       top: `${Math.min(Math.max(clear, top), innerHeight - h - 8)}px`,
@@ -1052,7 +892,6 @@ function activate() {
 
   /* ----- the bar ----- */
 
-  let menu: HTMLElement | null = null;
 
   const renderBar = () => {
     barHost.textContent = location.host;
@@ -1175,10 +1014,6 @@ function activate() {
     }, 4200);
   };
 
-  /** The page's breakpoints just changed under the selection; the card shows what applies now. */
-  const refreshSelected = () => {
-    if (selected?.isConnected) refreshEdit(readProps(selected));
-  };
 
   /**
    * Show the page as a frame of a given size.
@@ -1195,7 +1030,6 @@ function activate() {
     scale = pageFrame.set(frame);
     renderBar();
     layout();
-    refreshSelected();
     // Remembered so a reload comes back in it; the frame is on either way.
     void ask({ type: 'frame-set', width: frame.width, height: frame.height });
     if (!quiet) {
@@ -1221,7 +1055,6 @@ function activate() {
     scale = 1;
     if (barOn) renderBar();
     layout();
-    refreshSelected();
     void ask({ type: 'frame-clear' });
     if (!quiet && had) showHint('<b>Window</b> — the page is at the window\'s own size again.');
     return true;
@@ -1395,11 +1228,12 @@ function activate() {
   };
 
   /**
-   * One level at a time: a half-made note, then note mode, then hover, then
-   * the selection. False when there was nothing to let go of.
+   * One level at a time: an open menu, a half-made note, then note mode,
+   * then hover, then the selection. False when there was nothing to let go of.
    */
   const escape = (): boolean => {
-    if (composing) closeComposer();
+    if (!menu.classList.contains('hidden')) closeMenu();
+    else if (composing) closeComposer();
     else if (picked.length) {
       picked = [];
       drawPicks();
@@ -1458,9 +1292,8 @@ function activate() {
         else setHover(!hoverOn);
         break;
       case 'tokens':
-        tokenNames = msg.colors ?? {};
-        tokenLengths = msg.lengths ?? { space: {}, radius: {}, type: {} };
-        if (!editCard.classList.contains('hidden')) renderEdit();
+        // The page's names for its values were for the edit card, which is
+        // gone; the panel shows them now. Accepted and ignored.
         break;
       case 'select':
         select(find(msg.selector));
@@ -1488,7 +1321,6 @@ function activate() {
       }
       case 'read': {
         const props = selected ? readProps(selected) : null;
-        if (props) refreshEdit(props);
         sendResponse(props);
         return true;
       }

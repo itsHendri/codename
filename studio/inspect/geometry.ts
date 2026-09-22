@@ -23,26 +23,19 @@ export const EDGE = 8;
 const LABEL = 22;
 
 /**
- * The edit card: under the selection when there is room, else above it,
- * always inside the viewport and below the bar. A pinned card — one that
- * was dragged — stays where it was put, clamped the same way.
+ * The right-click menu: its top-left corner at the pointer, as a context
+ * menu opens; flipped to the pointer's other side when it would run off the
+ * right or the bottom, and never under the bar.
  */
-export function placeCard(
-  anchor: Rect,
-  card: Size,
-  viewport: Size,
-  clear: number,
-  pinned: { left: number; top: number } | null = null,
-): { left: number; top: number } {
-  const clampLeft = (x: number) => Math.min(Math.max(EDGE, x), viewport.width - card.width - EDGE);
-  const clampTop = (y: number) => Math.min(Math.max(clear, y), viewport.height - card.height - EDGE);
-  if (pinned) return { left: clampLeft(pinned.left), top: clampTop(pinned.top) };
-  // Far enough off the box to leave the size label its row: the label sits
-  // on the same side the card does, and the card used to cover it.
-  const gap = LABEL + 6;
-  const below = anchor.y + anchor.height + gap;
-  const top = below + card.height <= viewport.height - EDGE ? below : Math.max(clear, anchor.y - card.height - gap);
-  return { left: clampLeft(anchor.x), top: clampTop(top) };
+export function placeMenu(pointer: { x: number; y: number }, menu: Size, viewport: Size, clear: number): { left: number; top: number } {
+  const left = pointer.x + menu.width + EDGE <= viewport.width ? pointer.x : pointer.x - menu.width;
+  const top = pointer.y + menu.height + EDGE <= viewport.height ? pointer.y : pointer.y - menu.height;
+  return {
+    // Clamped to the far edge first and the near edge last, so a viewport
+    // smaller than the menu shows its top under the bar, not its middle.
+    left: Math.max(EDGE, Math.min(left, viewport.width - menu.width - EDGE)),
+    top: Math.max(clear, Math.min(top, viewport.height - menu.height - EDGE)),
+  };
 }
 
 /**
