@@ -155,10 +155,12 @@ a page is laid out at the frame's width whether or not it has one. The bar
 itself keeps the tab's full width. **Select** outlines the element under
 the pointer and picks it on a click; the selection carries its size under
 the box, and nothing else is read out on hover — what an element is made
-of is on the edit card and in the panel once it is picked. The edit card
-that opens beside the selection names the variable behind a colour, a
-padding, a radius or a size where the page has one whose name says what it
-is, and a click writes `var(--x)` in place of the literal. **Comment** marks something up:
+of is in the panel once it is picked, and nothing opens over the page.
+**Right-click** while Select is on picks what is under the pointer and
+offers what can be done to it: select its parent or first child, edit all
+the elements that share its class, hide it, add a note, copy its selector,
+show it in the panel, or let go. Alt+right-click keeps the browser's own
+menu. **Comment** marks something up:
 click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. Each mode says what it does as you enter it, and each has a

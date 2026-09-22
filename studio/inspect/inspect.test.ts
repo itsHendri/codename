@@ -2,8 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex } from './colour';
 import { buildLayers, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
-import { placeCard, placeSizeLabel, regionFrom } from './geometry';
-import { asLengths, asPx, editValues } from './editValues';
+import { placeMenu, placeSizeLabel, regionFrom } from './geometry';
 import { readProps, roundedStyle } from './readProps';
 import { element } from '@/entrypoints/sidepanel/test/chromeStub';
 
@@ -134,13 +133,14 @@ describe('reading an element', () => {
 
 describe('placing the chrome', () => {
   const viewport = { width: 1000, height: 600 };
-  const card = { width: 232, height: 200 };
+  const menu = { width: 208, height: 220 };
 
-  it('puts the edit card under the selection, clear of its size label, above it when there is no room, and inside the viewport', () => {
-    expect(placeCard({ x: 100, y: 100, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 168 });
-    expect(placeCard({ x: 100, y: 500, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 100, top: 272 });
-    expect(placeCard({ x: 900, y: 10, width: 300, height: 40 }, card, viewport, 48)).toEqual({ left: 760, top: 78 });
-    expect(placeCard({ x: 0, y: 0, width: 10, height: 10 }, card, viewport, 48, { left: -50, top: 590 })).toEqual({ left: 8, top: 392 });
+  it('opens the menu at the pointer, flipped at the right and bottom edges, and never under the bar', () => {
+    expect(placeMenu({ x: 100, y: 100 }, menu, viewport, 44)).toEqual({ left: 100, top: 100 });
+    expect(placeMenu({ x: 900, y: 100 }, menu, viewport, 44)).toEqual({ left: 692, top: 100 });
+    expect(placeMenu({ x: 100, y: 500 }, menu, viewport, 44)).toEqual({ left: 100, top: 280 });
+    expect(placeMenu({ x: 100, y: 10 }, menu, viewport, 44)).toEqual({ left: 100, top: 44 });
+    expect(placeMenu({ x: 100, y: 200 }, menu, { width: 1000, height: 150 }, 44)).toEqual({ left: 100, top: 44 });
   });
 
   it('centres the size label under the box, or above it at the bottom of the viewport', () => {
@@ -153,27 +153,5 @@ describe('placing the chrome', () => {
   it('tells a drag from a click', () => {
     expect(regionFrom({ x: 10, y: 10 }, { x: 14, y: 12 })).toBeNull();
     expect(regionFrom({ x: 50, y: 40 }, { x: 10, y: 60 })).toEqual({ x: 10, y: 40, width: 40, height: 20 });
-  });
-});
-
-describe('the edit card\'s values', () => {
-  it('turns typed numbers into pixels and keeps units', () => {
-    expect(asPx('8')).toBe('8px');
-    expect(asPx(' 1.5rem ')).toBe('1.5rem');
-    expect(asLengths('8 16')).toBe('8px 16px');
-    expect(asLengths('8px 1em')).toBe('8px 1em');
-  });
-
-  it('picks the most-reached-for properties, text only when it is editable', () => {
-    expect(editValues(element() as never)).toEqual({
-      text: 'Grit',
-      color: '#15171B',
-      'background-color': '#E7E4DB',
-      'font-size': '28px',
-      'font-weight': '600',
-      padding: '8px 16px',
-      'border-radius': '0px',
-    });
-    expect(editValues(element({ text: null }) as never)).not.toHaveProperty('text');
   });
 });
