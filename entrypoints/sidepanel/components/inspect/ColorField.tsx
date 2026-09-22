@@ -35,12 +35,12 @@ export function ColorField({
             value={draft}
             onChange={(e) => commitIfValid(e.target.value)}
             aria-label={`${ariaLabel} picker`}
-            className="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[3px] border-0 bg-transparent p-0 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] [&::-webkit-color-swatch]:rounded-[3px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            className="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[3px] border-0 bg-transparent p-0 swatch [&::-webkit-color-swatch]:rounded-[3px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
           />
         ) : (
           // A var() reference cannot resolve inside the panel; the checkerboard says so.
           <span
-            className="checkerboard h-4 w-4 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
+            className="checkerboard h-4 w-4 shrink-0 rounded-[3px] swatch"
             style={valid && !draft.startsWith('var(') ? { background: draft } : undefined}
             aria-hidden
           />

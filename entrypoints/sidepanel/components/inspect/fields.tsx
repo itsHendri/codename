@@ -48,7 +48,7 @@ export function Group({
 export function Chip({ color }: { color: string }) {
   return (
     <span
-      className="inline-block h-3 w-3 rounded-sm shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
+      className="inline-block h-3 w-3 rounded-sm swatch"
       style={{ background: color }}
       title={color}
     />

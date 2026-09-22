@@ -6,7 +6,7 @@ import type { InspectController, Scope } from '../lib/inspect';
 import { conditionKey, describe as describeCondition, STATES, type MaybeCondition } from '@/studio/conditions';
 import { active } from '@/studio/changes';
 import type { CommentTarget } from '@/studio/annotations';
-import { CheckIcon, CloseIcon, CopyIcon, PlusIcon } from './icons';
+import { CheckIcon, CloseIcon, CopyIcon, PlusIcon, RulerIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
@@ -209,6 +209,16 @@ function Selection({ element: el, ctl }: { element: ElementProps; ctl: InspectCo
       <button onClick={copy} className={iconButton} aria-label="Copy selector" title={copied ? 'Copied' : 'Copy selector'}>
         {copied ? <CheckIcon className="h-3 w-3 text-accent" /> : <CopyIcon className="h-3 w-3" />}
       </button>
+      {/* Distances from the selection to whatever the pointer is over. */}
+      <button
+        onClick={() => ctl.measure(!ctl.measuring)}
+        aria-pressed={ctl.measuring}
+        aria-label="Measure"
+        title="Measure — distances from this to what the pointer is over"
+        className={`${iconButton} ${ctl.measuring ? 'bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent' : ''}`}
+      >
+        <RulerIcon />
+      </button>
       <button onClick={ctl.clear} className={iconButton} aria-label="Deselect element" title="Deselect">
         <CloseIcon />
       </button>
@@ -216,9 +226,10 @@ function Selection({ element: el, ctl }: { element: ElementProps; ctl: InspectCo
   );
 }
 
-/** How far an edit reaches, and the measure switch. */
+/** How far an edit reaches, when there is more than one element it could. */
 function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectController }) {
   const many = el.intent.matches > 1;
+  if (!many) return null;
   return (
     <>
       <div className="flex items-center gap-1.5">
@@ -246,15 +257,6 @@ function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectContro
             ))}
           </div>
         )}
-        <button
-          onClick={() => ctl.measure(!ctl.measuring)}
-          aria-pressed={ctl.measuring}
-          className={`ml-auto h-control rounded-control px-2 text-xs ${
-            ctl.measuring ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
-          }`}
-        >
-          Measure
-        </button>
       </div>
       {many && ctl.scope === 'all' && (
         // Webflow says it as a banner on the canvas: an edit here is not to one thing.

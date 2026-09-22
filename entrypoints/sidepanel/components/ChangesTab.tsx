@@ -231,7 +231,7 @@ function SectionHead({ title, count }: { title: string; count: number }) {
 
 function Swatch({ color }: { color: string }) {
   return (
-    <span className="h-3 w-3 shrink-0 rounded-sm border border-line" style={{ background: color }} />
+    <span className="swatch h-3 w-3 shrink-0 rounded-[3px]" style={{ background: color }} />
   );
 }
 

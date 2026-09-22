@@ -212,3 +212,10 @@ export const PlayIcon = ({ className }: IconProps) => (
     <path d="M3.5 2.5v7l6-3.5z" fill="currentColor" />
   </Small>
 );
+
+export const RulerIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <path d="M1.5 8.5 8.5 1.5l2 2-7 7z" />
+    <path d="M4 6l1 1M5.5 4.5l1 1M7 3l1 1" />
+  </Small>
+);
