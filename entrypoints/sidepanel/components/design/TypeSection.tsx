@@ -45,15 +45,15 @@ export function TypeSection({
           return (
             <div
               key={key}
-              className={`flex items-center gap-2.5 rounded-card border px-2.5 py-1.5 ${
-                fromPage ? 'border-line' : 'border-dashed border-line'
+              className={`flex items-center gap-2.5 rounded-control px-2.5 py-1.5 ${
+                fromPage ? 'bg-surface-field' : 'border border-dashed border-line text-ink-muted'
               }`}
             >
               <span className="text-lg leading-none" style={{ fontFamily: stack }}>
                 Aa
               </span>
               <div className="min-w-0">
-                <div className="truncate text-base">{fromPage ? first : `${label} — not set here`}</div>
+                <div className="truncate text-sm text-ink">{fromPage ? first : `${label} — not set here`}</div>
                 <div className="text-2xs text-ink-muted">
                   {fromPage
                     ? `${label} · ${scan.fontUsage.find((f) => f.family === first)?.elementCount ?? 0} elements`
@@ -76,17 +76,17 @@ export function TypeSection({
         })}
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-dashed border-line-subtle pt-3">
+      <div className="flex flex-col gap-1 pt-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-base">Scale</span>
+          <span className="subhead">Scale</span>
           <span className="ml-auto text-2xs text-ink-muted">px · weight · line-height</span>
         </div>
         {config.typography.roles.map((role) => (
           <div
             key={role.role}
-            className="flex items-center gap-1 border-b border-dotted border-line-subtle py-1"
+            className="flex items-center gap-1 py-0.5"
           >
-            <span className="w-16 shrink-0 truncate text-2xs" title={role.role}>
+            <span className="w-16 shrink-0 truncate text-xs text-ink-muted" title={role.role}>
               {role.role}
             </span>
             <NumberField
@@ -101,7 +101,7 @@ export function TypeSection({
             <NumberField
               value={String(role.weight)}
               ariaLabel={`${role.role} weight`}
-              className="w-12 shrink-0"
+              className="w-14 shrink-0"
               step={100}
               onChange={(v) => {
                 const w = parseFloat(v);
@@ -111,7 +111,7 @@ export function TypeSection({
             <NumberField
               value={String(role.lineHeight)}
               ariaLabel={`${role.role} line height`}
-              className="w-12 shrink-0"
+              className="w-14 shrink-0"
               step={0.1}
               onChange={(v) => {
                 const lh = parseFloat(v);

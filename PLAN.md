@@ -179,6 +179,16 @@ is that companion growing up.
   meaning, so a feature), Framer's fold-to-"+" for groups with nothing set
   (W20's "all open" stands), and Figma's caption-above fields (would have
   undone the box diagram). PRs #11–#17 (#17 the self-review pass).
+- **W29, 22 September 2026 — Hendri's review of W28.** The bar spans the
+  whole tab and the rail starts under it (W27's one row squeezed the bar
+  into what the rail left; the side panel is Chrome's, so the bar cannot
+  reach over it). Tabs mark the active one with the fill alone, no
+  underline. Page variables and the colours on the page are one row each,
+  name left and value right, the other tags under the name only when there
+  are any; a locked variable shows its held value. From a second look at
+  Framer and Figma: the bar is three blocks with the frame controls
+  centred, the find fields carry a search icon, and the Type and Space
+  sections lose their last outlines, oversized head and decorative accent.
 
 ## Live re-skin
 

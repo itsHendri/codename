@@ -15,6 +15,7 @@ import { createRoot } from 'react-dom/client';
 import css from './rail/rail.css?inline';
 import type { RailCommand } from '@/shared/types';
 import { RAIL_TAG } from '@/shared/inpage';
+import { BAR_HEIGHT } from '@/shared/theme';
 import { createRootPush } from '@/studio/pushRoot';
 import { refitFrame } from '@/studio/pageFrame';
 import { Rail } from './rail/Rail';
@@ -39,7 +40,9 @@ function activate() {
   const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH });
   const host = document.createElement(RAIL_TAG);
   // The shadow is the edge: a light rail on a light page would otherwise run into it.
-  host.style.cssText = `all:initial;position:fixed;left:0;top:0;bottom:0;width:${DEFAULT_WIDTH}px;z-index:2147483646;display:none;box-shadow:2px 0 12px rgba(0,0,0,0.18)`;
+  // It starts under the bar, which spans the whole tab as Framer's does: the
+  // bar is the frame the tool sits in, and the rail is one of its columns.
+  host.style.cssText = `all:initial;position:fixed;left:0;top:${BAR_HEIGHT}px;bottom:0;width:${DEFAULT_WIDTH}px;z-index:2147483646;display:none;box-shadow:2px 0 12px rgba(0,0,0,0.18)`;
   const shadow = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
   style.textContent = css;
@@ -59,12 +62,6 @@ function activate() {
     host.style.display = on ? 'block' : 'none';
     if (on) push.set(width);
     else push.clear();
-    // The bar starts where the rail ends: one row across the top, the rail's
-    // tabs level with the bar's tools and the panel's tabs. A custom
-    // property, since the bar lives in another script's shadow root and
-    // custom properties are the one thing that inherits into it.
-    if (on) document.documentElement.style.setProperty('--codename-rail', `${width}px`);
-    else document.documentElement.style.removeProperty('--codename-rail');
     refitFrame();
   };
   store.subscribe(apply);
@@ -122,7 +119,6 @@ function activate() {
   function deactivate() {
     root.unmount();
     push.clear();
-    document.documentElement.style.removeProperty('--codename-rail');
     chrome.runtime.onMessage.removeListener(onMessage);
     chrome.runtime.onConnect.removeListener(onConnect);
     host.remove();

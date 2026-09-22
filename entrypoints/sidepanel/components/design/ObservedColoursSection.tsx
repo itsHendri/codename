@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ColorInfo } from '@/shared/types';
 import type { Mode } from '@/studio/engine/types';
+import { UndoIcon } from '../icons';
 import { ColorField } from '../inspect/ColorField';
 
 const FOLD = 12;
@@ -39,33 +40,40 @@ export function ObservedColoursSection({
           const manual = colorEdits[key];
           const value = manual ?? engine[key] ?? key;
           return (
-            <div key={key} className={`flex flex-col gap-1 px-2 py-1.5 ${manual ? 'bg-surface-selected/40' : ''}`}>
-              <div className="flex items-center gap-1.5 text-2xs">
-                <span className="h-4 w-4 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]" style={{ background: key }} />
-                <code className="text-xs">{key}</code>
-                <span className="text-ink-muted">{c.usage.join(' · ')}</span>
-                {c.varNames.length > 0 && (
-                  <code className="min-w-0 truncate text-ink-muted" title={c.varNames.join(', ')}>
-                    {c.varNames[0]}
-                  </code>
-                )}
-                <span className="ml-auto shrink-0 font-mono text-ink-muted">×{c.count}</span>
-                {manual ? (
-                  <button
-                    onClick={() => onColor(key, null)}
-                    className="h-4 shrink-0 rounded-[4px] bg-accent-soft px-1.5 leading-4 text-accent hover:bg-accent-soft/70"
-                    title="Set by hand. Click to take it back."
-                  >
-                    by hand ↺
-                  </button>
-                ) : engine[key] ? (
-                  <span
-                    className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 leading-4 text-ink-muted"
-                    title={mode === 'dark' ? 'Moved by the dark preview' : 'Moved by a seed'}
-                  >
-                    {mode === 'dark' ? 'dark' : 'seed'}
+            // One row: where the colour is used on the left, what it becomes
+            // on the right. The field holds the value, so the hex is said
+            // again on the left only once it has moved.
+            <div
+              key={key}
+              className={`grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-2 px-2 py-1 ${manual ? 'bg-accent-soft/40' : ''}`}
+            >
+              <div className="flex min-w-0 flex-col text-2xs" title={`${key} · ${c.usage.join(' · ')}`}>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 truncate text-xs text-ink">
+                    {c.varNames.length > 0 ? <code title={c.varNames.join(', ')}>{c.varNames[0]}</code> : c.usage.join(' · ')}
                   </span>
-                ) : null}
+                  <span className="shrink-0 font-mono text-ink-faint">×{c.count}</span>
+                </div>
+                <div className="flex min-w-0 items-center gap-1.5 text-ink-muted">
+                  {c.varNames.length > 0 && <span className="truncate">{c.usage.join(' · ')}</span>}
+                  {value !== key && <code className="shrink-0">from {key}</code>}
+                  {manual ? (
+                    <button
+                      onClick={() => onColor(key, null)}
+                      className="flex h-4 shrink-0 items-center gap-1 rounded-[4px] bg-accent-soft px-1.5 leading-4 text-accent hover:bg-accent-soft/70"
+                      title="Set by hand. Click to take it back."
+                    >
+                      by hand <UndoIcon className="h-2.5 w-2.5" />
+                    </button>
+                  ) : engine[key] ? (
+                    <span
+                      className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 leading-4 text-ink-muted"
+                      title={mode === 'dark' ? 'Moved by the dark preview' : 'Moved by a seed'}
+                    >
+                      {mode === 'dark' ? 'dark' : 'seed'}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <ColorField value={value} ariaLabel={`${key} becomes`} onChange={(v) => onColor(key, v)} />
             </div>

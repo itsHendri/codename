@@ -94,7 +94,7 @@ function activate() {
       .pin.done { opacity: 0.45; }
       .marquee { position: fixed; pointer-events: none; border: 1px dashed ${d.accent}; background: ${d.accentWash}; }
       .picked { position: fixed; pointer-events: none; outline: 2px solid ${d.accent}; outline-offset: -1px; background: ${d.accentWash}; }
-      .bar { position: fixed; top: 0; left: var(--codename-rail, 0px); right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: flex; align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.chromeBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
+      .bar { position: fixed; top: 0; left: 0; right: 0; z-index: 2; height: ${BAR_HEIGHT}px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 0 10px; pointer-events: auto; background: ${d.chromeBg}; color: ${d.cardInk}; border-bottom: 1px solid ${d.cardLine}; font: 500 11px/1 ${font}; font-variant-numeric: tabular-nums; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
       .bar .host { color: ${d.cardMuted}; }
       .bar .device { display: flex; align-items: center; gap: 6px; }
       .bar .kinds { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.field}; }
@@ -122,16 +122,19 @@ function activate() {
       .bar .agent button { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; cursor: pointer; padding: 0; }
       .bar .agent button:hover { color: ${d.cardInk}; background: ${d.fieldHover}; }
       .bar .agent button svg { width: 10px; height: 10px; }
-      .bar .spacer { flex: 1; }
+      /* Framer's top bar: tools left, the page and its frame centred, the
+         switches right, whatever the widths on either side. */
+      .bar .side, .bar .middle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .bar .side.right { justify-content: flex-end; }
       .bar .modes { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: ${d.field}; }
       .bar .mode { display: flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardMuted}; font: inherit; cursor: pointer; }
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.thumb}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
       /* Alone rather than in a group, so it wears the track itself. */
-      .bar > .mode.layers { height: 24px; background: ${d.field}; }
-      .bar > .mode.layers:hover { background: ${d.fieldHover}; }
-      .bar > .mode.layers.on { background: ${d.thumb}; }
+      .bar .side > .mode.layers { height: 24px; background: ${d.field}; }
+      .bar .side > .mode.layers:hover { background: ${d.fieldHover}; }
+      .bar .side > .mode.layers.on { background: ${d.thumb}; }
       /* A narrow window narrows the bar. It gives up words before it gives
          up controls. These sheets are in the shadow root, which a device
          frame does not rewrite, so they follow the window, not the frame. */
@@ -199,6 +202,7 @@ function activate() {
       .hidden { display: none !important; }
     </style>
     <div class="bar hidden">
+      <div class="side left">
       <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5 14 5.5 8 8.5 2 5.5z"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3"/></svg><span class="label">Layers</span>
       </button>
@@ -210,6 +214,8 @@ function activate() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
         </button>
       </div>
+      </div>
+      <div class="middle">
       <span class="host"></span>
       <div class="device" role="group" aria-label="Frame">
         <div class="kinds" role="radiogroup" aria-label="Device"><button class="kind" data-kind="desktop" role="radio" aria-checked="false" aria-label="Desktop" title="Desktop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M8 11v2.5M5.5 13.5h5"/></svg></button><button class="kind" data-kind="laptop" role="radio" aria-checked="false" aria-label="Laptop" title="Laptop — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></svg></button><button class="kind" data-kind="tablet" role="radio" aria-checked="false" aria-label="Tablet" title="Tablet — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button><button class="kind" data-kind="phone" role="radio" aria-checked="false" aria-label="Phone" title="Phone — click again to go back to the window"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7.5 12.5h1"/></svg></button></div>
@@ -218,10 +224,10 @@ function activate() {
         <label class="dim" title="Height the page's media queries see"><span>H</span><input class="h" inputmode="numeric" aria-label="Frame height" /><i>px</i></label>
         <span class="scale hidden"></span>
       </div>
-      <span class="spacer"></span>
+      </div>
+      <div class="side right">
       <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits, the agent's preview — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
       <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page" aria-label="Take the agent's preview off the page"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg></button></div>
-      <span class="spacer"></span>
       <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
         <button class="mode light" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span class="label">Light</span>
@@ -232,6 +238,7 @@ function activate() {
         <button class="mode dark" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg><span class="label">Dark</span>
         </button>
+      </div>
       </div>
     </div>
     <div class="hint hidden"></div>

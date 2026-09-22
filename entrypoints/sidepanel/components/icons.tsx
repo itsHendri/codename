@@ -199,3 +199,10 @@ export const RedoIcon = ({ className }: IconProps) => (
     <path d="M10 5.2H4.7a2.7 2.7 0 0 0 0 5.4H7" />
   </Small>
 );
+
+export const SearchIcon = ({ className }: IconProps) => (
+  <Small className={className}>
+    <circle cx="5.2" cy="5.2" r="3.2" />
+    <path d="M7.6 7.6 10 10" />
+  </Small>
+);
