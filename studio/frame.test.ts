@@ -138,14 +138,19 @@ describe('frameCss', () => {
 });
 
 describe('availableWidth', () => {
-  const doc = (clientWidth: number, marginLeft: string) =>
+  const doc = (clientWidth: number, marginLeft: string, marginRight = '') =>
     ({
       documentElement: { clientWidth },
-      defaultView: { getComputedStyle: () => ({ marginLeft }) },
+      defaultView: { getComputedStyle: () => ({ marginLeft, marginRight }) },
     }) as unknown as Document;
 
   it('is the viewport less a root margin on the left', () => {
     expect(availableWidth(doc(1280, '240px'))).toBe(1040);
+  });
+
+  it('is less the panel on the right too, when both columns are in the page', () => {
+    expect(availableWidth(doc(1600, '240px', '360px'))).toBe(1000);
+    expect(availableWidth(doc(500, '240px', '360px'))).toBe(0);
   });
 
   it('is the viewport itself with no margin, and never negative', () => {

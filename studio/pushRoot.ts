@@ -1,8 +1,8 @@
 /**
  * Push a document off one of its edges, and put it back exactly.
  *
- * The bar takes its strip from the top of the page and the rail its column
- * from the left, and both do it the same way: the root's inline margin, with
+ * The bar takes its strip from the top of the page, the rail its column
+ * from the left and the panel its column from the right, all the same way: the root's inline margin, with
  * `!important`, which is the one declaration nothing in a stylesheet can
  * outrank. What the page had there is kept and restored as written — value
  * and priority — rather than cleared.
@@ -16,7 +16,7 @@ export interface RootPush {
   readonly on: boolean;
 }
 
-export function createRootPush(side: 'top' | 'left', doc: Document = document): RootPush {
+export function createRootPush(side: 'top' | 'left' | 'right', doc: Document = document): RootPush {
   const prop = `margin-${side}`;
   let kept: { value: string; priority: string } | null = null;
   return {

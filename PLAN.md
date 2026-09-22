@@ -215,6 +215,23 @@ is that companion growing up.
   the translucent black edge vanished under the first. Measure moved into
   the selection strip as an icon beside Copy and Deselect, which took away
   a row that held nothing else when the selection has one match.
+- **W33, 22 September 2026 — the panel in the page.** Hendri wanted the bar
+  above the right-hand panel too, which Chrome's side panel cannot allow: it
+  is drawn beside the tab, outside the page. Offered the choice between
+  restyling the seam and moving the panel, Hendri chose to move it. It is the
+  same app, not a copy: `entrypoints/panel.content.ts` docks an iframe of the
+  extension's own `sidepanel.html?tab=N` on the right under the bar, pushing
+  the page left (`createRootPush('right')`, 320–520px, edge to drag, width
+  remembered). An extension page in a frame keeps the extension's APIs, so
+  the panel changed only where it assumed it followed the active tab:
+  `shared/embed.ts` names its tab, `getActiveTab` returns it, tab activation
+  is ignored, and the bridge socket is held only while the tab is visible —
+  one per window, as before. The toolbar button now toggles the in-page
+  chrome (`on:<tab>` in session storage); a navigation redraws it once the
+  new page loads where the site is allowed; restricted pages get Chrome's
+  side panel. Costs, accepted: `sidepanel.html` is web-accessible, so a page
+  can detect the extension; each tab with Codename on runs its own panel;
+  a page whose CSP forbids frames may refuse it (to be seen in Chrome).
 
 ## Live re-skin
 
