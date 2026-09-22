@@ -20,6 +20,12 @@
 export interface FrameSize {
   width: number;
   height: number;
+  /**
+   * The room between the rail and the panel rather than a device: it fills
+   * that room exactly, at zoom 1, with no outline and nothing dimmed around
+   * it. Only the media queries are answered.
+   */
+  fill?: boolean;
 }
 
 /** A condition that always holds, written as a query the browser already evaluates. */
@@ -198,13 +204,13 @@ export function frameCss(frame: FrameSize, zoom: number): string {
     `  width: ${frame.width}px !important;`,
     `  min-width: ${frame.width}px !important;`,
     `  max-width: ${frame.width}px !important;`,
-    // A short page still fills the device's height.
-    `  min-height: ${frame.height}px !important;`,
+    // A short page still fills the device's height; the room is the page's own.
+    frame.fill ? '' : `  min-height: ${frame.height}px !important;`,
     '  margin-left: auto !important;',
     '  margin-right: auto !important;',
     '  box-sizing: border-box !important;',
     zoom === 1 ? '' : `  zoom: ${zoom} !important;`,
-    '  box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35), 0 0 0 100vmax rgba(0, 0, 0, 0.22) !important;',
+    frame.fill ? '' : '  box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35), 0 0 0 100vmax rgba(0, 0, 0, 0.22) !important;',
     '}',
     // Something sized in `vw` would spill past the frame; a device clips it.
     // On the body this does nothing — a body's overflow is handed to the

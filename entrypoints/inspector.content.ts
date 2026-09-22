@@ -25,6 +25,7 @@ import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
 import { createPageFrame } from '@/studio/pageFrame';
+import { availableWidth } from '@/studio/frame';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -299,6 +300,39 @@ function activate() {
     if (barOn) renderBar();
     layout();
   });
+  /**
+   * The room the page has between the rail and the panel, when no device
+   * frame is chosen. Chrome's side panel narrowed the tab itself, so the
+   * page's media queries saw the width it really had; a panel drawn in the
+   * page does not, and a responsive page laid its desktop layout into a
+   * column half as wide. So the page is shown in a frame the size of the
+   * room — the same machinery as a device frame, at zoom 1 — and its media
+   * queries answer to the width it has. Not remembered: it is the window.
+   */
+  let room: { width: number; height: number } | null = null;
+  const fitRoom = () => {
+    if (frame) return;
+    const width = Math.round(availableWidth(document));
+    const height = Math.round(innerHeight - (barOn ? BAR_HEIGHT : 0));
+    if (width >= Math.round(innerWidth) - 1) {
+      if (room) {
+        room = null;
+        pageFrame.clear();
+        scale = 1;
+      }
+    } else if (!room || room.width !== width || room.height !== height) {
+      room = { width, height };
+      scale = pageFrame.set({ ...room, fill: true });
+    } else return;
+    if (barOn) renderBar();
+    layout();
+  };
+  // The rail and the panel push the root with its inline margins; a change
+  // there is a column shown, hidden or dragged, and the room with it.
+  const roomWatch = new MutationObserver(() => fitRoom());
+  roomWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+  addEventListener('resize', fitRoom);
+
   /** Elements shift-clicked in note mode, in the order they were picked. */
   let picked: Element[] = [];
   let drag: { x: number; y: number } | null = null;
@@ -970,8 +1004,8 @@ function activate() {
     }
     barFrame.value = value;
     const root = shadow as unknown as { activeElement: Element | null };
-    if (root.activeElement !== barW) barW.value = String(frame?.width ?? Math.round(innerWidth));
-    if (root.activeElement !== barH) barH.value = String(frame?.height ?? Math.round(innerHeight));
+    if (root.activeElement !== barW) barW.value = String(frame?.width ?? room?.width ?? Math.round(innerWidth));
+    if (root.activeElement !== barH) barH.value = String(frame?.height ?? room?.height ?? Math.round(innerHeight));
     barScale.classList.toggle('hidden', scale === 1);
     barScale.textContent = `${Math.round(scale * 100)}%`;
     barScale.title = `Shown at ${Math.round(scale * 100)}% to fit the tab; the page's media queries see the full ${frame?.width ?? ''} × ${frame?.height ?? ''}.`;
@@ -1029,6 +1063,7 @@ function activate() {
   const setFrame = async (size: { width: number; height: number }, quiet = false) => {
     frameTurn++;
     frame = frameFor(size);
+    room = null;
     scale = pageFrame.set(frame);
     renderBar();
     layout();
@@ -1055,10 +1090,17 @@ function activate() {
     pageFrame.clear();
     frame = null;
     scale = 1;
+    // Back to the window, which beside the columns is the room they leave.
+    fitRoom();
     if (barOn) renderBar();
     layout();
     void ask({ type: 'frame-clear' });
-    if (!quiet && had) showHint('<b>Window</b> — the page is at the window\'s own size again.');
+    if (!quiet && had)
+      showHint(
+        room
+          ? `<b>Window</b> — the page fills the ${room.width}px between the rail and the panel again, and its media queries see that width.`
+          : '<b>Window</b> — the page is at the window\'s own size again.',
+      );
     return true;
   };
 
@@ -1102,6 +1144,7 @@ function activate() {
     barOn = on;
     bar.classList.toggle('hidden', !on);
     pushPage(on);
+    fitRoom();
     if (on) {
       renderBar();
       void restoreFrame();
@@ -1472,6 +1515,9 @@ function activate() {
     setHover(false);
     setNote(false);
     pushPage(false);
+    roomWatch.disconnect();
+    removeEventListener('resize', fitRoom);
+    room = null;
     pageFrame.clear();
     removeEventListener('keydown', onKey, true);
     removeEventListener('scroll', layout, true);

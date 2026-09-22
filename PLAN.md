@@ -232,6 +232,16 @@ is that companion growing up.
   side panel. Costs, accepted: `sidepanel.html` is web-accessible, so a page
   can detect the extension; each tab with Codename on runs its own panel;
   a page whose CSP forbids frames may refuse it (to be seen in Chrome).
+- **W34, 22 September 2026 — the page gets the room it really has.** A
+  review of the three columns together found what W33 broke: Chrome's side
+  panel narrowed the tab, so a page's media queries saw its true width; the
+  in-page panel does not, and a responsive page laid its desktop layout into
+  a column less than half as wide. With no device frame chosen, the
+  inspector now frames the page at the room between the rail and the panel
+  (`FrameSize.fill`: zoom 1, no outline, no surround), re-fitting when a
+  column is shown, hidden or dragged (a MutationObserver on the root's
+  inline style). The bar's W and H read the room. A device frame takes over
+  from it and hands back to it.
 
 ## Live re-skin
 

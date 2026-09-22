@@ -137,6 +137,16 @@ describe('frameCss', () => {
   });
 });
 
+describe('the room between the columns', () => {
+  it('fills it at zoom 1, with no outline, no dimmed surround and no forced height', () => {
+    const css = frameCss({ width: 424, height: 728, fill: true }, fitZoom(424, 424, 0));
+    expect(css).toContain('width: 424px !important');
+    expect(css).not.toContain('zoom:');
+    expect(css).not.toContain('box-shadow');
+    expect(css).not.toContain('min-height');
+  });
+});
+
 describe('availableWidth', () => {
   const doc = (clientWidth: number, marginLeft: string, marginRight = '') =>
     ({
