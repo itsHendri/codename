@@ -254,7 +254,7 @@ export type PinnedElement = ElementProps;
 export type InspectorCommand =
   | { cmd: 'hover'; on: boolean }
   /** Flip a mode, from a keyboard shortcut. */
-  | { cmd: 'toggle'; what: 'select' | 'comment' | 'layers' }
+  | { cmd: 'toggle'; what: 'preview' | 'comment' | 'layers' }
   /**
    * The page's own names for its values, so the readout and the edit card can
    * say them: colours by upper-case hex; lengths by px, and only for variables

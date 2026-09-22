@@ -242,6 +242,18 @@ is that companion growing up.
   column is shown, hidden or dragged (a MutationObserver on the root's
   inline style). The bar's W and H read the room. A device frame takes over
   from it and hands back to it.
+- **W35, 22 September 2026 — Select by default, Preview beside it, drag on
+  the page.** Hendri: selecting and adjusting is what he does most, so Select
+  should be where the bar starts rather than a mode to switch into. The bar's
+  group is Select · Preview · Comment, Select lit whenever the bar appears;
+  Preview (Alt+P, replacing Alt+S) leaves the page alone for links, buttons
+  and scrolling; Preview or Comment pressed again, or Esc, returns to Select.
+  Clicking the selection again lets go. Pressing on the selection and
+  dragging moves it among its siblings: a 3px accent line where it will land
+  (`dropIndex` in `studio/inspect/geometry.ts`: across for flex rows and
+  grids, the row under the pointer then left to right; down otherwise), the
+  drop sent as the rail's `rail-move` so the panel files and undoes it the
+  same way. Esc cancels a drag. Moving into another container is deferred.
 
 ## Live re-skin
 

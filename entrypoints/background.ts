@@ -82,7 +82,7 @@ export default defineBackground(() => {
   // inspector (the panel is not open there) simply does not answer.
   chrome.commands?.onCommand.addListener((command) => {
     const what =
-      command === 'toggle-select' ? 'select'
+      command === 'toggle-preview' ? 'preview'
       : command === 'toggle-comment' ? 'comment'
       : command === 'toggle-layers' ? 'layers'
       : null;

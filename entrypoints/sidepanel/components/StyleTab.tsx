@@ -82,8 +82,8 @@ export function StyleTab({
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
         <Empty size="inline" title="Nothing selected">
-          Turn on <b className="font-medium text-ink-secondary">Select</b> on the bar and click the page, or pick a row
-          in <b className="font-medium text-ink-secondary">Layers</b> beside it.
+          Click anything on the page, or pick a row in <b className="font-medium text-ink-secondary">Layers</b> beside it.
+          <b className="font-medium text-ink-secondary">Preview</b> on the bar lets you use the page instead.
         </Empty>
         {!rail && (
           <button
