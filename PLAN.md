@@ -206,6 +206,15 @@ is that companion growing up.
   Play carry icons and share the ghost button. The bar's side columns can
   no longer shrink under their contents, so a narrow window pushes the
   middle rather than sliding the tools under it.
+- **W32, 22 September 2026 — the next UI review pass.** Variables' radius
+  previews were filled boxes on a dark panel that showed no curve: now a
+  corner drawn as an outline. Elevation previews sit on a fixed light plate
+  in either theme, as asset thumbnails do, since a shadow on the dark panel
+  was invisible. Every swatch has one edge (`swatch`, on `line-strong`) that
+  shows around a near-black colour on dark and a near-white one on light;
+  the translucent black edge vanished under the first. Measure moved into
+  the selection strip as an icon beside Copy and Deselect, which took away
+  a row that held nothing else when the selection has one match.
 
 ## Live re-skin
 

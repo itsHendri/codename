@@ -267,7 +267,7 @@ function VarRow({
 function Swatch({ colour, size = 'sm' }: { colour: string; size?: 'sm' | 'md' }) {
   return (
     <i
-      className={`inline-block shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] ${size === 'md' ? 'h-4 w-4' : 'h-3 w-3'}`}
+      className={`inline-block shrink-0 rounded-[3px] swatch ${size === 'md' ? 'h-4 w-4' : 'h-3 w-3'}`}
       style={{ background: colour }}
     />
   );

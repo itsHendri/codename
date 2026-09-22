@@ -221,3 +221,10 @@
     }
   }
 }
+
+/* A colour's edge: line-strong, which shows against a near-black swatch on
+   the dark panel and a near-white one on the light, where a translucent
+   black edge disappeared into the first. */
+@utility swatch {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}

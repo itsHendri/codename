@@ -81,8 +81,10 @@ export function SpaceSection({
               <span
                 key={step}
                 title={`--radius-${step} · ${resolved.radius[step]}px`}
-                className="h-5 w-8 rounded-[4px] bg-surface-field"
-                style={{ borderRadius: resolved.radius[step] }}
+                // A corner, drawn as an outline: a filled box on a dark panel
+                // shows no curve at all.
+                className="h-5 w-7 border-t-[1.5px] border-l-[1.5px] border-ink-secondary"
+                style={{ borderTopLeftRadius: resolved.radius[step] }}
               />
             ))}
           </span>
@@ -93,12 +95,14 @@ export function SpaceSection({
           <span className="text-2xs text-ink-muted">
             {scan.shape.shadows.length ? `${config.shadows.levels.length} from the page` : 'defaults'}
           </span>
-          <span className="ml-auto flex items-center gap-2">
+          {/* On a light plate in either theme, as asset thumbnails are: a
+              shadow on a dark panel is a shadow nobody can see. */}
+          <span className="ml-auto flex items-center gap-2.5 rounded-control bg-[#f1f1f1] px-2.5 py-2">
             {config.shadows.levels.map((level) => (
               <span
                 key={level.name}
                 title={`--shadow-${level.name}`}
-                className="h-5 w-7 rounded-[4px] bg-surface-panel"
+                className="h-5 w-7 rounded-[4px] bg-white"
                 style={{ boxShadow: level.layers.join(', ') }}
               />
             ))}

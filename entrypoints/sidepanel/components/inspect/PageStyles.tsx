@@ -38,7 +38,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
                 title={`${c.hex}${c.varNames[0] ? ` · ${c.varNames[0]}` : ''} · ${c.count} uses`}
                 className="flex h-control-sm items-center gap-1.5 rounded-control bg-surface-field pr-2 pl-1 font-mono text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
               >
-                <span className="h-3 w-3 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]" style={{ backgroundColor: c.hex }} />
+                <span className="h-3 w-3 rounded-[3px] swatch" style={{ backgroundColor: c.hex }} />
                 {c.varNames[0] ?? c.hex}
               </button>
             ))}
