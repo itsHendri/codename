@@ -47,13 +47,13 @@ export function TokenFileSection({ report }: { report: DriftReport | null }) {
             </code>
             <span className="shrink-0 font-mono text-2xs text-ink-muted">{report.tokens} tokens</span>
             <button onClick={() => input.current?.click()} className="shrink-0 text-2xs text-accent hover:underline">
-              replace
+              Replace
             </button>
             <button
               onClick={() => updateSession({ tokenFile: null })}
               className="shrink-0 text-2xs text-ink-muted hover:text-ink-secondary"
             >
-              clear
+              Clear
             </button>
           </div>
           <FindingList

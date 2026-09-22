@@ -39,7 +39,7 @@ export function CommentComposer({
         </span>
         {onCancel && (
           <button onClick={onCancel} className="ml-auto text-2xs text-ink-muted hover:text-ink">
-            cancel
+            Cancel
           </button>
         )}
       </div>
@@ -145,16 +145,16 @@ export function CommentList({
             <div className="flex items-center gap-2 text-2xs">
               {!done && (
                 <button onClick={() => onStatus(c.id, 'resolved')} className="text-ink-muted hover:text-accent">
-                  resolve
+                  Resolve
                 </button>
               )}
               {done && (
                 <button onClick={() => onStatus(c.id, 'pending')} className="text-ink-muted hover:text-accent">
-                  reopen
+                  Reopen
                 </button>
               )}
               <button onClick={() => onRemove(c.id)} className="ml-auto text-ink-muted hover:text-warn-ink">
-                delete
+                Delete
               </button>
             </div>
           </div>

@@ -81,8 +81,8 @@ export function ObservedColoursSection({
         })}
       </div>
       {colors.length > FOLD && (
-        <button onClick={() => setShowAll((v) => !v)} className="self-start text-xs text-accent hover:underline">
-          {showAll ? 'show fewer' : `show all ${colors.length}`}
+        <button onClick={() => setShowAll((v) => !v)} className="btn btn-sm btn-ghost -ml-2 self-start">
+          {showAll ? 'Show fewer' : `Show all ${colors.length}`}
         </button>
       )}
     </div>

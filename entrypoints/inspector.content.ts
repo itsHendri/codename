@@ -180,6 +180,8 @@ function activate() {
       /* Important, because a rule like \`.bar .agent { display: flex }\` is more
          specific than one class, and hid nothing: the agent chip showed on
          every page with no preview on it. */
+      .bar button, .bar select, .bar .dim, .menu button { transition: color 120ms cubic-bezier(0.2, 0, 0, 1), background-color 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 120ms cubic-bezier(0.2, 0, 0, 1); }
+      @media (prefers-reduced-motion: reduce) { .bar button, .bar select, .bar .dim, .menu button, .hint { transition: none; } }
       .hidden { display: none !important; }
     </style>
     <div class="bar hidden">

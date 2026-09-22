@@ -191,7 +191,7 @@ describe('the panel', () => {
     await click(host.querySelector('#tab-changes'));
     expect(text()).toContain('Agent activity');
     expect(text()).toContain('painted a preview: 2 rule(s) reaching 4 element(s)');
-    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'clear') ?? null);
+    await click(host.querySelector('[aria-label="Clear agent activity"]'));
     await tick(60);
     expect(text()).not.toContain('Agent activity');
   });

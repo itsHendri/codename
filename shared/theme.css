@@ -192,3 +192,32 @@
   font-weight: 500;
   color: var(--ink-muted);
 }
+
+/*
+ * State changes ease rather than snap: a hover fill, a pill moving, a row's
+ * eye appearing. 120ms, out-quad-ish, on the properties a state changes and
+ * never on layout. Utilities that set their own transition win (they sit in
+ * a later layer). Reduced motion turns every transition and animation off,
+ * the spinner included — the icon still says it is reading.
+ */
+@layer base {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role='treeitem'] {
+    transition-property: color, background-color, box-shadow, opacity, outline-color;
+    transition-duration: 120ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+}
