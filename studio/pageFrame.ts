@@ -194,7 +194,7 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
 
   const fit = () => {
     if (!frame) return;
-    const next = fitZoom(frame.width, availableWidth(doc));
+    const next = fitZoom(frame.width, availableWidth(doc), frame.fill ? 0 : undefined);
     const css = frameCss(frame, next);
     const el = style();
     if (el.textContent !== css) el.textContent = css;
@@ -275,8 +275,8 @@ export function createPageFrame(doc: Document = document, onChange?: () => void)
     set(next) {
       const wasOn = frame !== null;
       if (!wasOn) measureEm();
-      frame = { width: next.width, height: next.height };
-      zoom = fitZoom(frame.width, availableWidth(doc));
+      frame = { width: next.width, height: next.height, ...(next.fill ? { fill: true } : {}) };
+      zoom = fitZoom(frame.width, availableWidth(doc), frame.fill ? 0 : undefined);
       style().textContent = frameCss(frame, zoom);
       answerAll();
       if (!wasOn) start();

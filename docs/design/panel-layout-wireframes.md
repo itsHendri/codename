@@ -165,6 +165,14 @@ Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
 
 - A page header fixed to the viewport sits under the rail, as it sits
   under the bar. Scripts reading `innerWidth` still see the window.
+- **The room between the columns (W34).** Chrome's side panel narrowed the
+  tab, so media queries saw the width the page really had; the panel drawn in
+  the page does not. With no device frame chosen, the page is shown in a
+  *fill* frame the size of that room — zoom 1, no outline, nothing dimmed —
+  so its media queries answer to it and "Window" on the bar reads the room's
+  width. It re-fits as a column is shown, hidden or dragged. The frame's
+  limits apply: `vw`, `innerWidth` and a script's `matchMedia` still see the
+  window.
 - The rail cannot load Geist without exposing the extension's files to the
   page; it falls back to the system sans.
 - The rail is React in a shadow root inside the page: 345 KB injected on
