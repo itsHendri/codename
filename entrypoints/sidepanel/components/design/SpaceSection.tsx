@@ -50,7 +50,7 @@ export function SpaceSection({
           {blessed.slice(0, 8).map((px) => (
             <div key={px} className="flex flex-col items-center gap-1">
               <span
-                className="bg-accent"
+                className="rounded-[2px] bg-surface-thumb"
                 style={{ width: Math.min(px, 44), height: Math.min(px, 44) }}
               />
               <span className="text-2xs tabular-nums text-ink-muted">{px}</span>
@@ -64,7 +64,7 @@ export function SpaceSection({
         )}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-dashed border-line-subtle pt-3">
+      <div className="flex flex-col gap-2 pt-1">
         <div className="flex items-center gap-2">
           <span className="subhead w-14 shrink-0">Radius</span>
           <NumberField
@@ -98,7 +98,7 @@ export function SpaceSection({
               <span
                 key={level.name}
                 title={`--shadow-${level.name}`}
-                className="h-5 w-7 rounded border border-line-subtle bg-surface-panel"
+                className="h-5 w-7 rounded-[4px] bg-surface-panel"
                 style={{ boxShadow: level.layers.join(', ') }}
               />
             ))}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronIcon, EyeIcon, EyeOffIcon, RefreshIcon } from '../icons';
+import { ChevronIcon, EyeIcon, EyeOffIcon, RefreshIcon, SearchIcon } from '../icons';
 import { LayerIcon } from './LayerIcon';
 import {
   ancestorsOf,
@@ -147,14 +147,17 @@ export function LayersTree({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div className="flex shrink-0 items-center gap-1">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Find a layer…"
-          aria-label="Find a layer"
-          spellCheck={false}
-          className="field min-w-0 flex-1 px-2 placeholder:text-ink-muted"
-        />
+        <label className="field flex min-w-0 flex-1 items-center gap-1.5 px-2 text-ink-muted">
+          <SearchIcon />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Find a layer…"
+            aria-label="Find a layer"
+            spellCheck={false}
+            className="h-6 min-w-0 flex-1 bg-transparent text-ink placeholder:text-ink-muted focus-visible:outline-none"
+          />
+        </label>
         {hiddenCount > 0 && (
           <button
             onClick={() => setSkipHidden((v) => !v)}

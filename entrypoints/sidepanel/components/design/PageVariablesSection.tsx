@@ -4,7 +4,7 @@ import type { Mode } from '@/studio/engine/types';
 import type { Override } from '@/studio/reskin';
 import { widthLabel } from '@/studio/siteMode';
 import { groupCustomProps, type VarKind } from '@/studio/varGroups';
-import { UndoIcon } from '../icons';
+import { SearchIcon, UndoIcon } from '../icons';
 import { ColorField } from '../inspect/ColorField';
 import { NumberField } from '../inspect/NumberField';
 import { TextInput } from '../inspect/TextInput';
@@ -77,14 +77,17 @@ export function PageVariablesSection({
     <div className="flex flex-col gap-3">
       {/* A Tailwind page defines hundreds; the one you want is a name away. */}
       {scan.customProps.length > FOLD && (
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Find a variable… (${scan.customProps.length})`}
-          aria-label="Find a variable"
-          spellCheck={false}
-          className="field w-full px-2 placeholder:text-ink-muted"
-        />
+        <label className="field flex w-full items-center gap-1.5 px-2 text-ink-muted">
+          <SearchIcon />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`Find a variable… (${scan.customProps.length})`}
+            aria-label="Find a variable"
+            spellCheck={false}
+            className="h-6 min-w-0 flex-1 bg-transparent text-ink placeholder:text-ink-muted focus-visible:outline-none"
+          />
+        </label>
       )}
       {needle && !groups.length && <p className="text-xs text-ink-muted">Nothing named or valued like that.</p>}
       {groups.map(({ kind, props }) => {
