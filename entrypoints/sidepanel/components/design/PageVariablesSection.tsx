@@ -4,6 +4,7 @@ import type { Mode } from '@/studio/engine/types';
 import type { Override } from '@/studio/reskin';
 import { widthLabel } from '@/studio/siteMode';
 import { groupCustomProps, type VarKind } from '@/studio/varGroups';
+import { UndoIcon } from '../icons';
 import { ColorField } from '../inspect/ColorField';
 import { NumberField } from '../inspect/NumberField';
 import { TextInput } from '../inspect/TextInput';
@@ -156,78 +157,116 @@ function VarRow({
   const changed = value !== prop.value.trim();
   const source = prop.source?.split('/').pop();
 
+  // What else there is to know, shown under the name only when there is
+  // something: most variables are a name and a value, one row, as Figma's
+  // variables table and Webflow's are.
+  const widths = Object.entries(prop.atWidth ?? {});
+  const meta = !!prop.dark || !!prop.onlyAt || widths.length > 0 || (!locked && (!!manual || !!engine));
+
   return (
-    <div className={`flex flex-col gap-1 px-2 py-1.5 ${manual && !locked ? 'bg-surface-selected/40' : ''}`}>
-      <div className="flex items-center gap-1.5">
-        <code className="min-w-0 flex-1 truncate text-xs" title={`${prop.name}: ${prop.value}${source ? ` — ${source}` : ''}`}>
-          {prop.name}
-        </code>
-        {onLock && (
-          <button
-            onClick={() => onLock(!locked)}
-            aria-pressed={locked}
-            aria-label={locked ? `Unlock ${prop.name}` : `Lock ${prop.name}`}
-            className={`h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 ${locked ? 'bg-accent-soft text-accent' : 'text-ink-faint hover:bg-surface-field hover:text-ink-muted'}`}
-            title={
-              locked
-                ? 'Locked: nothing moves this, and the brief says to keep it as is. Click to unlock.'
-                : 'Lock this variable so no seed, scale or agent preview moves it; the brief says to keep it as is.'
-            }
-          >
-            {locked ? 'locked' : 'lock'}
-          </button>
+    <div
+      className={`group grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-2 px-2 py-1 ${
+        manual && !locked ? 'bg-accent-soft/40' : ''
+      }`}
+    >
+      <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <code className="min-w-0 truncate text-xs text-ink" title={`${prop.name}: ${prop.value}${source ? ` — ${source}` : ''}`}>
+            {prop.name}
+          </code>
+          {prop.uses != null && prop.uses > 0 && (
+            <span className="shrink-0 font-mono text-2xs text-ink-faint" title={`${prop.uses} declarations use it`}>
+              ×{prop.uses}
+            </span>
+          )}
+          {onLock && (
+            <button
+              onClick={() => onLock(!locked)}
+              aria-pressed={locked}
+              aria-label={locked ? `Unlock ${prop.name}` : `Lock ${prop.name}`}
+              className={`ml-auto h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 focus-visible:opacity-100 ${
+                locked
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-ink-muted opacity-0 group-hover:opacity-100 hover:bg-surface-field hover:text-ink'
+              }`}
+              title={
+                locked
+                  ? 'Locked: nothing moves this, and the brief says to keep it as is. Click to unlock.'
+                  : 'Lock this variable so no seed, scale or agent preview moves it; the brief says to keep it as is.'
+              }
+            >
+              {locked ? 'locked' : 'lock'}
+            </button>
+          )}
+        </div>
+        {meta && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
+            {prop.dark && (
+              <span
+                className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
+                title={`Under the page's dark mode: ${prop.dark}`}
+              >
+                {kind === 'colour' && <Swatch colour={prop.dark} />}
+                dark
+              </span>
+            )}
+            {prop.onlyAt && (
+              <span
+                className="shrink-0 font-mono text-2xs text-ink-muted"
+                title={`Defined only at ${prop.onlyAt}: the page has no base value for it.`}
+              >
+                only {widthLabel(prop.onlyAt)}
+              </span>
+            )}
+            {widths.map(([query, value]) => (
+              <span
+                key={query}
+                className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
+                title={`At ${query}: ${value}. A token edit leaves this alone; the brief says so.`}
+              >
+                {kind === 'colour' && <Swatch colour={value} />}
+                {widthLabel(query)}
+              </span>
+            ))}
+            {locked ? null : manual ? (
+              <button
+                onClick={() => onChange(null)}
+                className="flex h-4 shrink-0 items-center gap-1 rounded-[4px] bg-accent-soft px-1.5 text-2xs leading-4 text-accent hover:bg-accent-soft/70"
+                title={`Set by hand; was ${prop.value}. Click to take it back.`}
+              >
+                by hand <UndoIcon className="h-2.5 w-2.5" />
+              </button>
+            ) : engine ? (
+              <span
+                className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-4 text-ink-muted"
+                title={`Moved by the ${movedBy(engine, mode)}; was ${prop.value}`}
+              >
+                {movedBy(engine, mode)}
+              </span>
+            ) : null}
+          </div>
         )}
-        {prop.dark && (
-          <span
-            className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
-            title={`Under the page's dark mode: ${prop.dark}`}
-          >
-            {kind === 'colour' && <i className="inline-block h-3 w-3 rounded-sm border border-line" style={{ background: prop.dark }} />}
-            dark
-          </span>
-        )}
-        {prop.onlyAt && (
-          <span
-            className="shrink-0 font-mono text-2xs text-ink-muted"
-            title={`Defined only at ${prop.onlyAt}: the page has no base value for it.`}
-          >
-            only {widthLabel(prop.onlyAt)}
-          </span>
-        )}
-        {Object.entries(prop.atWidth ?? {}).map(([query, value]) => (
-          <span
-            key={query}
-            className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
-            title={`At ${query}: ${value}. A token edit leaves this alone; the brief says so.`}
-          >
-            {kind === 'colour' && <i className="inline-block h-3 w-3 rounded-sm border border-line" style={{ background: value }} />}
-            {widthLabel(query)}
-          </span>
-        ))}
-        {prop.uses != null && prop.uses > 0 && (
-          <span className="shrink-0 font-mono text-2xs text-ink-muted" title={`${prop.uses} declarations use it`}>
-            ×{prop.uses}
-          </span>
-        )}
-        {locked ? null : manual ? (
-          <button
-            onClick={() => onChange(null)}
-            className="h-4 shrink-0 rounded-[4px] bg-accent-soft px-1.5 text-2xs leading-4 text-accent hover:bg-accent-soft/70"
-            title={`Set by hand; was ${prop.value}. Click to take it back.`}
-          >
-            by hand ↺
-          </button>
-        ) : engine ? (
-          <span
-            className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-4 text-ink-muted"
-            title={`Moved by the ${movedBy(engine, mode)}; was ${prop.value}`}
-          >
-            {movedBy(engine, mode)}
-          </span>
-        ) : null}
       </div>
-      {locked ? null : <Editor kind={kind} value={value} changed={changed} name={prop.name} onChange={onChange} />}
+      {locked ? (
+        // Locked shows the value it is held at, not a field that would not take an edit.
+        <span className="flex h-control min-w-0 items-center gap-1.5 px-1.5 font-mono text-xs text-ink-muted" title="Locked">
+          {kind === 'colour' && <Swatch colour={value} size="md" />}
+          <span className="truncate">{value}</span>
+        </span>
+      ) : (
+        <Editor kind={kind} value={value} changed={changed} name={prop.name} onChange={onChange} />
+      )}
     </div>
+  );
+}
+
+/** A colour, as a square the size of its line. */
+function Swatch({ colour, size = 'sm' }: { colour: string; size?: 'sm' | 'md' }) {
+  return (
+    <i
+      className={`inline-block shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] ${size === 'md' ? 'h-4 w-4' : 'h-3 w-3'}`}
+      style={{ background: colour }}
+    />
   );
 }
 

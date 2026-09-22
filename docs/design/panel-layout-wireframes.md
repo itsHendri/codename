@@ -25,7 +25,7 @@ bar and its device frames there.
 | Surface | Holds | Where |
 | --- | --- | --- |
 | **Bar** | Layers · Select · Comment · host · device frame · Reset · agent chip · Light · Auto · Dark | Across the top of the page, 40px, pushes the page down |
-| **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, 240px by default (180–420, drag the edge), pushes the page right |
+| **Rail** | Pages (the site's pages as this page links to them) · Layers (components strip, filter, tree with an icon per row) · Assets (SVG grid) | In the page on the left, under the bar, 240px by default (180–420, drag the edge), pushes the page right |
 | **Panel** | Style · Variables · Export · Changes | The Chrome side panel on the right |
 | **Selection** | 2px outline, W×H label under the box, the edit card | On the page |
 
@@ -50,7 +50,11 @@ Variables, as Figma's design panel does with no selection.
 
 ### The rail
 
-- Docked left, under the bar, above the page's own fixed elements. The
+- Docked left, under the bar, above the page's own fixed elements. **The bar
+  spans the whole tab and the rail starts under it (W29)**, as Framer's top bar
+  frames both of its side columns; W27's one row, with the rail beside the
+  bar, left the bar squeezed into the width beside the rail. The Chrome side
+  panel is Chrome's, not the page's, so the bar cannot reach over it. The
   page is pushed right with `html { margin-left }` `!important`, saved and
   restored exactly (`studio/pushRoot.ts`), as the bar pushes it down.
 - Shown wherever the bar is; folded by **Layers** on the bar, **Alt+L**, or
@@ -120,6 +124,13 @@ Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
   raised pill (`surface-thumb`). Accent marks the selection (outline, rail
   row, its icon), focus, a held state (hover, dark, a width), and the one
   primary button on a screen.
+- **Tabs** are a filled rectangle for the active one, no underline (W29):
+  two marks for one state was one too many.
+- **Variables are one row each (W29):** name and use count on the left, the
+  value field on the right at a fixed 9rem; dark, width and by-hand tags go on
+  a small line under the name only when there are any; the lock shows on
+  hover, or always once locked, and a locked variable shows its held value
+  instead of a field.
 - **Labels.** One 56px column, sentence case, 11px ink-muted. Group and
   section heads: 11px medium ink, 30px, full-width hairline, a chevron on
   the right. Subheads: `subhead`, 10px medium ink-muted, never capitals.
