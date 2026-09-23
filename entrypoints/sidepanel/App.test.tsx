@@ -10,6 +10,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
+import type { RunSnapshot } from '@/shared/protocol';
 import { forget, handleBridgeFrame, pair } from './lib/bridge';
 import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
 import { element, forfontsake, installChrome, type StubChrome } from './test/chromeStub';
@@ -936,6 +937,44 @@ describe('Make changes', () => {
     expect(text()).toContain('src/Title.tsx');
     expect(text()).toContain('Recoloured the title.');
     expect(getSession().agentLog.at(-1)?.what).toBe('Claude Code changed 1 file: src/Title.tsx');
+  });
+
+  it('keeps what it let go of before the reload, and does not act on the same run again after it', async () => {
+    await connect([claude]);
+    await act(async () => updateSession({ agentsMayRun: ['claude'] }));
+    await editAndOpenChanges();
+    await click(button('Make changes'));
+    await tick();
+    const done = snapshot({ runId: 'r-loop', status: 'done', files: ['src/Title.tsx'], endedAt: new Date().toISOString() });
+    await act(async () => ws.receive({ type: 'run', payload: done }));
+    // Well inside the save debounce: what the reloaded panel will read must
+    // already say the run is handled and the edits are gone.
+    await tick(60);
+    expect(stub.reloaded).toEqual([1]);
+    const kept = (await chrome.storage.session.get('session:1'))['session:1'] as { run?: { status: string }; log?: { entries: { status: string }[] } };
+    expect(kept.run?.status).toBe('done');
+    expect(kept.log?.entries.every((e) => e.status !== 'applied')).toBe(true);
+
+    // The panel that comes back pairs again, and the bridge's hello carries
+    // the same finished run. It is news to nobody now.
+    const logged = getSession().agentLog.length;
+    await act(async () =>
+      ws.receive({ type: 'response', replyTo: 'hello', ok: true, payload: { bridgeVersion: '0.2.0', project: { name: 'ffs', path: '/Users/x/ffs' }, agents: [claude], run: done } }),
+    );
+    await tick(120);
+    expect(stub.reloaded).toEqual([1]);
+    expect(getSession().agentLog).toHaveLength(logged);
+  });
+
+  it('does not act on a run the kept session already holds ended, whatever this panel remembers', async () => {
+    await connect([claude]);
+    const done = snapshot({ runId: 'r-kept', status: 'done', files: ['a.css'], endedAt: new Date().toISOString() });
+    await act(async () => updateSession({ run: done as RunSnapshot }));
+    await act(async () =>
+      ws.receive({ type: 'response', replyTo: 'hello', ok: true, payload: { bridgeVersion: '0.2.0', project: { name: 'ffs', path: '/Users/x/ffs' }, agents: [claude], run: done } }),
+    );
+    await tick(120);
+    expect(stub.reloaded).toEqual([]);
   });
 
   it('keeps the edits when the agent stops, and says why', async () => {

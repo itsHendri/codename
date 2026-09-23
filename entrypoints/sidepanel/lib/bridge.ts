@@ -750,8 +750,13 @@ export function onRunApplied(fn: ((run: RunSnapshot) => void) | null): void {
 export function adoptRun(run: RunSnapshot, fromHello: boolean): void {
   const shown = getSession().run;
   if (fromHello && run.status !== 'running' && shown?.runId !== run.runId) return;
+  // Its ending was acted on already if the session holds it ended: the
+  // session is kept across the reload a run can cause, and the memory of
+  // this module is not — which is how a finished run once reloaded the page
+  // again on every reconnect, for ever.
+  const settled = shown?.runId === run.runId && shown.status !== 'running';
   updateSession({ run });
-  if (run.status === 'running' || ended.has(run.runId)) return;
+  if (run.status === 'running' || settled || ended.has(run.runId)) return;
   ended.add(run.runId);
   if (run.status === 'done') {
     const files = run.files.length;
