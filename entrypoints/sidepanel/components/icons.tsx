@@ -51,6 +51,18 @@ export function PagesIcon({ className = base }: IconProps) {
   );
 }
 
+/** Four diamonds, the mark design tools use for a component. */
+export function ComponentsIcon({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+      <path d="M8 1.8 10.2 4 8 6.2 5.8 4z" />
+      <path d="M8 9.8 10.2 12 8 14.2 5.8 12z" />
+      <path d="M4 5.8 6.2 8 4 10.2 1.8 8z" />
+      <path d="M12 5.8 14.2 8 12 10.2 9.8 8z" />
+    </svg>
+  );
+}
+
 export function LayersIcon({ className = base }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

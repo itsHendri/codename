@@ -20,12 +20,18 @@ export function TabStrip<K extends string>({
   onSelect,
   ariaLabel,
   idPrefix = 'tab',
+  fit = false,
 }: {
   tabs: readonly TabDef<K>[];
   active: K;
   onSelect: (key: K) => void;
   ariaLabel: string;
   idPrefix?: string;
+  /**
+   * Each tab as wide as its label wants, the room left over shared out,
+   * rather than all the same width: the rail's four have one long name.
+   */
+  fit?: boolean;
 }) {
   const onKeyDown = (e: React.KeyboardEvent) => {
     const idx = tabs.findIndex((t) => t.key === active);
@@ -45,7 +51,7 @@ export function TabStrip<K extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className="grid h-10 shrink-0 items-stretch border-b border-line"
-      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      style={{ gridTemplateColumns: fit ? `repeat(${tabs.length}, minmax(0, auto))` : `repeat(${tabs.length}, minmax(0, 1fr))` }}
       onKeyDown={onKeyDown}
     >
       {tabs.map(({ key, label, Icon, badge }) => (
@@ -61,7 +67,7 @@ export function TabStrip<K extends string>({
           }`}
         >
           <Icon />
-          {label}
+          <span className="max-w-full truncate px-0.5">{label}</span>
           {badge != null && badge > 0 && (
             <span data-badge className="absolute top-0.5 left-1/2 ml-2.5 rounded-full bg-accent px-1 font-mono text-2xs leading-4 text-accent-ink">
               {badge}

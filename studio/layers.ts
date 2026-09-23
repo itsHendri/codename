@@ -147,6 +147,58 @@ export function nextSiblingOf(nodes: LayerNode[], id: number): LayerNode | null 
   return at >= 0 ? (siblings[at + 1] ?? null) : null;
 }
 
+/**
+ * Where a dragged row would land, and where to draw the line that says so.
+ *
+ * `parent` and `before` are the move itself (before null: last); `depth` is
+ * the indent the line is drawn at, so it shows which level the row joins;
+ * `where` is which edge of `target` the line sits on, or `into` to light the
+ * row up instead.
+ */
+export interface LayerDrop {
+  target: number;
+  where: 'before' | 'after' | 'into';
+  parent: number;
+  before: number | null;
+  depth: number;
+}
+
+/**
+ * The drop a pointer over `target` means, `y` being how far down the row it
+ * is (0 at the top edge, 1 at the bottom). As Figma and Framer read it:
+ *
+ * - the top half is before the row, the bottom half after it, at its level;
+ * - the middle band of a row that can hold children is into it, last;
+ * - after a row that is open, with its children showing under it, is its
+ *   first child — the line sits where that child is, one level in;
+ * - a row never lands in itself or anything inside it, the root never moves,
+ *   and a drop that would leave the row where it is is no drop at all, so no
+ *   line is drawn for it.
+ */
+export function dropTarget(nodes: LayerNode[], dragged: LayerNode, target: LayerNode, y: number, open: boolean): LayerDrop | null {
+  if (dragged.id === target.id || isWithin(nodes, dragged, target.id)) return null;
+  const parent = parentOf(nodes, target.id);
+  const hold = canHold(target);
+  let drop: LayerDrop | null;
+  if (hold && ((y >= 0.3 && y <= 0.7) || !parent)) {
+    drop = { target: target.id, where: 'into', parent: target.id, before: null, depth: target.depth + 1 };
+  } else if (!parent) {
+    return null;
+  } else if (y < 0.5) {
+    drop = { target: target.id, where: 'before', parent: parent.id, before: target.id, depth: target.depth };
+  } else if (open && hold && target.descendants > 0) {
+    const first = childrenOf(nodes, target)[0] ?? null;
+    drop = { target: target.id, where: 'after', parent: target.id, before: first?.id ?? null, depth: target.depth + 1 };
+  } else {
+    drop = { target: target.id, where: 'after', parent: parent.id, before: nextSiblingOf(nodes, target.id)?.id ?? null, depth: target.depth };
+  }
+  // Where it is now: a drop that says the same is not a move.
+  const home = parentOf(nodes, dragged.id);
+  const next = nextSiblingOf(nodes, dragged.id)?.id ?? null;
+  if (home && drop.parent === home.id && (drop.before === next || drop.before === dragged.id)) return null;
+  return drop;
+}
+
 /** The chain from the root down to `id`, for expanding to a selection. */
 export function ancestorsOf(nodes: LayerNode[], id: number): number[] {
   const target = nodes.find((n) => n.id === id);

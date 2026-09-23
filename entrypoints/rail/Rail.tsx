@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { LayerNode } from '@/studio/layers';
 import { pagesOf } from '@/studio/pages';
 import { callInspector } from '@/shared/inpage';
-import { ComponentsStrip } from '@/entrypoints/sidepanel/components/inspect/ComponentsStrip';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
 import { TabStrip } from '@/entrypoints/sidepanel/components/TabStrip';
-import { LayersIcon, PagesIcon, RefreshIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
+import { ComponentsIcon, LayersIcon, PagesIcon, RefreshIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
+import { ComponentsTab } from './ComponentsTab';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
-type RailTab = 'pages' | 'layers' | 'assets';
+type RailTab = 'pages' | 'layers' | 'components' | 'assets';
 
 /** Tell the panel something that belongs in its change log. */
 const tell = (msg: unknown) => {
@@ -32,9 +32,9 @@ const tell = (msg: unknown) => {
 export function Rail({ store, onResize }: { store: RailStore; onResize: (width: number) => void }) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const [tab, setTab] = useState<RailTab>('layers');
-  // The tree is read while the rail shows Layers; Pages and Assets do not
-  // need it walked.
-  const tree = useRailLayers(state.on && tab === 'layers');
+  // The tree is read while the rail shows Layers or Components (its
+  // repeating styles come from it); Pages and Assets do not need it walked.
+  const tree = useRailLayers(state.on && (tab === 'layers' || tab === 'components'));
   // The site's pages, as this page links to them: read when the tab opens
   // and on its refresh button, the way Framer's list is a thing you look at
   // rather than something that ticks.
@@ -105,13 +105,14 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
   const tabs = [
     { key: 'pages' as const, label: 'Pages', Icon: PagesIcon },
     { key: 'layers' as const, label: 'Layers', Icon: LayersIcon },
+    { key: 'components' as const, label: 'Components', Icon: ComponentsIcon },
     { key: 'assets' as const, label: 'Assets', Icon: SvgsIcon },
   ];
 
   return (
     <div className="rail relative flex h-full flex-col border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
       {/* The same strip the panel wears, the height of the bar: three pieces of chrome that read as one. */}
-      <TabStrip tabs={tabs} active={tab} onSelect={setTab} ariaLabel="Rail" idPrefix="rail-tab" />
+      <TabStrip tabs={tabs} active={tab} onSelect={setTab} ariaLabel="Rail" idPrefix="rail-tab" fit />
       <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
         {tab === 'pages' ? (
           <>
@@ -121,7 +122,7 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
                   ? `${pages.length} ${pages.length === 1 ? 'page' : 'pages'}${sitemap?.length ? ', from this page and the sitemap' : ' this page links to'}`
                   : sitemap === null
                     ? 'Reading the sitemap…'
-                    : 'This page links to no other page on its site, and it has no sitemap.'}
+                    : 'No other pages found: this page links to none on its site, and there is no sitemap. An app that changes screens without changing its address has none to list.'}
               </span>
               <button
                 onClick={() => setPagesTurn((t) => t + 1)}
@@ -153,15 +154,10 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
               </ul>
             )}
           </>
+        ) : tab === 'components' ? (
+          <ComponentsTab layers={tree.layers} />
         ) : tab === 'layers' ? (
           <>
-            <ComponentsStrip
-              nodes={tree.layers}
-              onPick={(component) => {
-                tree.select(component.nodes[0]!);
-                tell({ type: 'rail-scope', scope: 'all' });
-              }}
-            />
             <LayersTree
               nodes={tree.layers}
               selectedSelector={tree.selected}

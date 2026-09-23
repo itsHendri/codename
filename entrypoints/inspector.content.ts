@@ -192,14 +192,11 @@ function activate() {
       <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5 14 5.5 8 8.5 2 5.5z"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3"/></svg><span class="label">Layers</span>
       </button>
-      <div class="modes" role="radiogroup" aria-label="Mode">
-        <button class="mode select" role="radio" aria-checked="false" title="Select — click an element to edit it, click it again to let go, drag it to move it">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 7.5 L8.7 9 L7 13.5 Z"/></svg><span class="label">Select</span>
-        </button>
-        <button class="mode preview" role="radio" aria-checked="false" title="Preview — use the page as a visitor would: links, buttons, scrolling (Alt+P)">
+      <div class="modes" role="group" aria-label="Mode">
+        <button class="mode preview" role="switch" aria-checked="false" title="Preview — use the page as a visitor would: links, buttons, scrolling. P, or click again to go back to selecting">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3.5v9l7.5-4.5z"/></svg><span class="label">Preview</span>
         </button>
-        <button class="mode comment" role="radio" aria-checked="false" title="Comment — mark something up for the agent (Alt+C)">
+        <button class="mode comment" role="switch" aria-checked="false" title="Comment — mark something up for the agent. C, or click again to go back to selecting">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5V11.5h-.5a2 2 0 01-2-2z"/></svg><span class="label">Comment</span>
         </button>
       </div>
@@ -259,7 +256,6 @@ function activate() {
   const barW = bar.querySelector<HTMLInputElement>('.dim .w')!;
   const barH = bar.querySelector<HTMLInputElement>('.dim .h')!;
   const barScale = bar.querySelector<HTMLElement>('.scale')!;
-  const barSelect = bar.querySelector<HTMLButtonElement>('.mode.select')!;
   const barPreview = bar.querySelector<HTMLButtonElement>('.mode.preview')!;
   const barLayers = bar.querySelector<HTMLButtonElement>('.mode.layers')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
@@ -608,7 +604,54 @@ function activate() {
     dropLine.classList.remove('hidden');
   };
 
-  const endMove = () => {
+  /**
+   * The element in hand, lifted: it follows the pointer while its slot stays
+   * where it was, so the drag feels like carrying it rather than aiming a
+   * line. Only inline styles the move itself set, and each put back exactly
+   * as it was found; `translate` is its own property, so a transform the
+   * page set is left to compose with it.
+   */
+  let lifted: { el: HTMLElement | SVGElement; was: Record<'translate' | 'position' | 'zIndex' | 'opacity' | 'transition' | 'pointerEvents' | 'boxShadow', string> } | null = null;
+  const lift = (el: Element) => {
+    // A drop still waiting to land is set down first, so what is kept as
+    // "how it was" is never the lifted look itself.
+    if (lifted) {
+      window.clearTimeout(landingTimer);
+      setDown();
+    }
+    if (!(el instanceof HTMLElement || el instanceof SVGElement)) return;
+    const st = el.style;
+    lifted = {
+      el,
+      was: { translate: st.translate, position: st.position, zIndex: st.zIndex, opacity: st.opacity, transition: st.transition, pointerEvents: st.pointerEvents, boxShadow: st.boxShadow },
+    };
+    // Above its siblings, under Codename's own chrome.
+    if (getComputedStyle(el).position === 'static') st.position = 'relative';
+    st.zIndex = '2147483000';
+    st.opacity = '0.9';
+    // Lifted off the page, as a held layer is drawn in a design tool.
+    st.boxShadow = '0 10px 28px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12)';
+    st.transition = 'none';
+    st.pointerEvents = 'none';
+  };
+  const follow = (dx: number, dy: number) => {
+    if (!lifted) return;
+    lifted.el.style.translate = `${dx}px ${dy}px`;
+    layout();
+  };
+  const setDown = () => {
+    if (!lifted) return;
+    Object.assign(lifted.el.style, lifted.was);
+    lifted = null;
+    layout();
+  };
+
+  /** Set when a drop was sent: the element stays in hand until the move lands, so it never flashes home first. */
+  let landingTimer = 0;
+  const endMove = (keepLifted = false) => {
+    window.clearTimeout(landingTimer);
+    if (keepLifted && lifted) landingTimer = window.setTimeout(setDown, 800);
+    else setDown();
     moving = null;
     press = null;
     dropLine.classList.add('hidden');
@@ -640,8 +683,10 @@ function activate() {
       moving = { parent, others: siblings.filter((s) => s !== selected), horizontal: across(parent), before: undefined };
       selBox.classList.add('moving');
       clearHover();
+      lift(selected);
     }
     e.preventDefault();
+    follow(e.clientX - press.x, e.clientY - press.y);
     moving.before = landing(e.clientX, e.clientY);
     drawDrop();
   };
@@ -664,6 +709,11 @@ function activate() {
       swallowClick = true;
       // A click only follows when the pointer comes up where it went down.
       setTimeout(() => (swallowClick = false), 0);
+      // A real drop: held where it was let go until the panel's move puts it
+      // in its new place, and set down in the same frame (or after a moment,
+      // if the panel never answers).
+      endMove(before !== undefined);
+      return;
     }
     endMove();
   };
@@ -715,9 +765,9 @@ function activate() {
       renderBar();
       showHint(
         on
-          ? '<b>Select</b> — click an element to edit it, click it again to let go, drag it to move it among its siblings. Arrow keys walk the tree.'
+          ? '<b>Selecting</b> — click an element to edit it, click it again to let go, drag it to move it among its siblings. Arrow keys walk the tree.'
           : !noteOn
-            ? '<b>Preview</b> — the page works as it does for a visitor. Esc, or Preview again, goes back to Select.'
+            ? '<b>Preview</b> — the page works as it does for a visitor. P, Esc, or Preview again goes back to selecting.'
             : null,
       );
     }
@@ -1094,9 +1144,12 @@ function activate() {
   };
 
   /**
-   * Select is where Codename is: on whenever the bar is, and where Preview
-   * and Comment come back to. Preview is the page left alone, to be used as
-   * a visitor would; Comment marks it up.
+   * Selecting is where Codename is: on whenever the bar is, and where Preview
+   * and Comment come back to. It has no button of its own — Hendri found a
+   * third button for the state you are already in one too many — so Preview
+   * and Comment are switches, and turning the lit one off is how you get
+   * back. Preview is the page left alone, to be used as a visitor would;
+   * Comment marks it up.
    */
   type Mode = 'select' | 'preview' | 'comment';
   const setMode = (mode: Mode) => {
@@ -1116,8 +1169,6 @@ function activate() {
   const renderBar = () => {
     barHost.textContent = location.host;
     renderDevice();
-    barSelect.classList.toggle('on', hoverOn);
-    barSelect.setAttribute('aria-checked', String(hoverOn));
     const previewing = !hoverOn && !noteOn;
     barPreview.classList.toggle('on', previewing);
     barPreview.setAttribute('aria-checked', String(previewing));
@@ -1378,7 +1429,6 @@ function activate() {
     input.addEventListener('blur', commitSize);
     input.addEventListener('focus', () => input.select());
   }
-  barSelect.addEventListener('click', () => setMode('select'));
   barPreview.addEventListener('click', () => toggleMode('preview'));
   /** Show or fold the rail: the bar flips at once and asks the panel, which holds the answer. */
   const toggleRail = () => {
@@ -1488,6 +1538,15 @@ function activate() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && selected) {
       e.preventDefault();
       send({ type: 'inspector-shortcut', action: e.shiftKey ? 'redo' : 'undo' });
+      return;
+    }
+    // P and C, as a design tool's single keys: on, and off again. Only while
+    // the bar is up, and never with a modifier, so the page's and the
+    // browser's own shortcuts keep theirs.
+    const bare = !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat;
+    if (barOn && bare && (e.key === 'p' || e.key === 'P' || e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      toggleMode(e.key.toLowerCase() === 'p' ? 'preview' : 'comment');
       return;
     }
     if (!selected) return;
@@ -1651,6 +1710,11 @@ function activate() {
       }
       case 'moves':
         applyMoves(msg.moves ?? []);
+        // The element in hand is in its new place now; set it down there.
+        if (lifted && !moving) {
+          window.clearTimeout(landingTimer);
+          setDown();
+        }
         layout();
         break;
       case 'pins':

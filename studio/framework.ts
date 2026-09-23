@@ -55,7 +55,7 @@ const clean = (name: string): string => {
 };
 
 /** The wrapper comes off before the name is judged, so `Memo(Field)` is `Field`. */
-const named = (raw: unknown): string | null => {
+export const named = (raw: unknown): string | null => {
   if (typeof raw !== 'string') return null;
   const n = clean(raw);
   return usable(n) ? n : null;

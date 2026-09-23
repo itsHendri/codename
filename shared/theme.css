@@ -70,6 +70,12 @@
   background-size: 12px 12px;
 }
 
+/* The same, for artwork that is light itself: a white icon on white is not there. */
+.checkerboard-dark {
+  background-image: repeating-conic-gradient(#2a2a2a 0% 25%, #1f1f1f 0% 50%);
+  background-size: 12px 12px;
+}
+
 /*
  * The field: a filled 24px control with no border, as Framer, Figma and
  * Rive draw theirs. Hover lifts the fill; focus draws a 1px accent edge.

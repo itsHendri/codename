@@ -1,4 +1,5 @@
 import { frameFor, type Frame } from '@/shared/viewport';
+import { componentsSource, refineComponents, ROOTS_KEPT, SCAN_LIMIT } from '@/studio/components';
 import { isRestricted } from '@/shared/embed';
 
 export default defineBackground(() => {
@@ -123,6 +124,15 @@ export default defineBackground(() => {
     if (msg?.type === 'frame-state' && tabId != null) {
       getFrame(tabId, originOf(sender.tab?.url))
         .then((frame) => sendResponse({ ok: true, frame }))
+        .catch(fail);
+      return true;
+    }
+    // The rail's Components tab: the page's framework asked in its own world,
+    // which only an extension page or this worker can inject into.
+    if (msg?.type === 'components-scan' && tabId != null) {
+      chrome.scripting
+        .executeScript({ target: { tabId }, world: 'MAIN', func: componentsSource, args: [SCAN_LIMIT, ROOTS_KEPT] })
+        .then(([r]) => sendResponse({ ok: true, components: refineComponents(r?.result) }))
         .catch(fail);
       return true;
     }
