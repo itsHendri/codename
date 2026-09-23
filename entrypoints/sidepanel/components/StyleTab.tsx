@@ -10,6 +10,7 @@ import { CheckIcon, CloseIcon, CopyIcon, PlusIcon, RulerIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
+import { SelectionColours } from './inspect/SelectionColours';
 import { CommentComposer } from './inspect/Comments';
 import { PageStyles } from './inspect/PageStyles';
 import { LayerIcon } from './inspect/LayerIcon';
@@ -120,6 +121,7 @@ export function StyleTab({
         playable={ctl.condition?.kind === 'state'}
         written={written}
       />
+      <SelectionColours ctl={ctl} scan={scan ?? NO_SCAN} resolved={resolved} mode={mode} />
       <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
     </div>
   );

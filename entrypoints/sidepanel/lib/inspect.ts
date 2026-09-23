@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElementProps } from '@/shared/types';
+import type { ElementProps, SelectionColour } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
@@ -91,6 +91,8 @@ export interface InspectController {
   changeMany(edits: ManyEdit[]): void;
   /** The elements shift-clicked beside the picked one; an edit reaches them too. */
   also: ElementProps[];
+  /** Every colour painted inside the selection, with where, read from the page. */
+  readColours(): Promise<SelectionColour[]>;
   undo(): void;
   redo(): void;
   revert(id: string): void;
@@ -513,6 +515,11 @@ export function useInspect(
     setText,
     changeMany,
     also,
+    readColours: async () => {
+      if (tabId == null) return [];
+      const list = await sendInspector<SelectionColour[]>(tabId, { cmd: 'colours' }).catch(() => null);
+      return Array.isArray(list) ? list : [];
+    },
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),
     redo: () => setLog((l) => (canRedo(l) ? redoLog(l) : l)),
     revert: (id) => setLog((l) => revertLog(l, id)),

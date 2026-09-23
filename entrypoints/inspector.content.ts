@@ -22,6 +22,7 @@ import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
 import { shortcutSheet } from '@/studio/inspect/commands';
+import { selectionColours, toHex, type ColourSample } from '@/studio/inspect/colour';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -1630,6 +1631,45 @@ function activate() {
     return true;
   };
 
+  /* ----- selection colours ----- */
+
+  /**
+   * Every colour painted inside the selection (and the rest of a shift-click
+   * one): text where there is text, fills that show, borders that are drawn,
+   * an icon's fill and stroke. A few hundred elements is plenty for a
+   * component; a selection the size of the page stops there.
+   */
+  const coloursInSelection = () => {
+    const samples: ColourSample[] = [];
+    const seen = new Set<Element>();
+    let budget = 600;
+    const visit = (el: Element) => {
+      if (budget-- <= 0 || seen.has(el) || isOurs(el)) return;
+      seen.add(el);
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none') return;
+      const add = (property: ColourSample['use']['property'], value: string) => {
+        const hex = toHex(value);
+        if (!hex) return;
+        const { selector, matches } = buildSelector(el);
+        samples.push({ hex, use: { selector, matches, stable: !selector.includes('nth-of-type'), property, value: hex } });
+      };
+      if (Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())) add('color', cs.color);
+      add('background-color', cs.backgroundColor);
+      const drawn = ['Top', 'Right', 'Bottom', 'Left'].some(
+        (side) => parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 && cs.getPropertyValue(`border-${side.toLowerCase()}-style`) !== 'none',
+      );
+      if (drawn) add('border-color', cs.borderTopColor);
+      if (el instanceof SVGElement) {
+        if (cs.fill && cs.fill !== 'none') add('fill', cs.fill);
+        if (cs.stroke && cs.stroke !== 'none') add('stroke', cs.stroke);
+      }
+      for (const child of Array.from(el.children)) visit(child);
+    };
+    for (const root of [selected, ...also]) if (root?.isConnected) visit(root);
+    return selectionColours(samples);
+  };
+
   /* ----- copy style, paste style ----- */
 
   /** ⌘⌥C: the panel keeps what the selection looks like. */
@@ -1804,6 +1844,9 @@ function activate() {
       }
       case 'read-also':
         sendResponse(also.filter((el) => el.isConnected).map(readProps));
+        return true;
+      case 'colours':
+        sendResponse(coloursInSelection());
         return true;
       case 'layers':
         sendResponse(buildLayers(document.body, isOurs));

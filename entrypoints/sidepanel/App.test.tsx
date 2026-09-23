@@ -1092,3 +1092,39 @@ describe('editing several at once', () => {
     expect(getSession().log.entries).toHaveLength(0);
   });
 });
+
+describe('selection colours', () => {
+  const use = (selector: string, property: string, value: string) => ({ selector, matches: 1, stable: true, property, value });
+
+  it('lists the colours inside the selection and swaps one everywhere it is painted', async () => {
+    stub.colours = [
+      { hex: '#BE3A22', uses: [use('button.btn', 'background-color', '#BE3A22'), use('p.lede', 'color', '#BE3A22')] },
+      { hex: '#15171B', uses: [use('h1#title', 'color', '#15171B')] },
+    ];
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ selector: 'div.card' }) }));
+    await tick(120);
+    expect(text()).toContain('Selection colours');
+    expect(text()).toContain('2 places');
+
+    const row = Array.from(host.querySelectorAll('[aria-label="Selection colours"] button')).find((b) => b.textContent?.includes('#BE3A22'))!;
+    await click(row);
+    const field = host.querySelector('input[aria-label="Replace #BE3A22"]') as HTMLInputElement;
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      set.call(field, '#1C7F5C');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await tick();
+    expect(getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to])).toEqual([
+      ['button.btn', 'background-color', '#BE3A22', '#1C7F5C'],
+      ['p.lede', 'color', '#BE3A22', '#1C7F5C'],
+    ]);
+  });
+
+  it('says nothing when there is only one colour inside', async () => {
+    stub.colours = [{ hex: '#15171B', uses: [use('h1#title', 'color', '#15171B')] }];
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick(120);
+    expect(text()).not.toContain('Selection colours');
+  });
+});
