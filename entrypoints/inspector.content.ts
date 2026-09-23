@@ -652,6 +652,15 @@ function activate() {
     last: { name: string; to: string; token?: string }[];
   } | null = null;
   let letGoTimer = 0;
+  /** The last drag's preview, still on the element until the panel's rule arrives. */
+  let pendingRestore: (() => void) | null = null;
+  /** Take a waiting preview off now: a new drag must not find it, nor record it as "how it was". */
+  const flushRestore = () => {
+    window.clearTimeout(letGoTimer);
+    const run = pendingRestore;
+    pendingRestore = null;
+    run?.();
+  };
 
   const px = (v: string) => parseFloat(v) || 0;
   /** The gap between the first two children laid out, when the box has one to hold. */
@@ -716,7 +725,7 @@ function activate() {
     if (!(selected instanceof HTMLElement || selected instanceof SVGElement)) return;
     e.preventDefault();
     e.stopPropagation();
-    window.clearTimeout(letGoTimer);
+    flushRestore();
     try {
       dot.setPointerCapture(e.pointerId);
     } catch {
@@ -803,7 +812,8 @@ function activate() {
       swallowClick = true;
       setTimeout(() => (swallowClick = false), 0);
       // The panel's rule takes over in a moment; the preview stays until then.
-      letGoTimer = window.setTimeout(() => restoreHandle(h), 700);
+      pendingRestore = () => restoreHandle(h);
+      letGoTimer = window.setTimeout(flushRestore, 700);
     } else restoreHandle(h);
     drawHandles();
   };
@@ -2408,6 +2418,8 @@ function activate() {
     removeEventListener('resize', fitRoom);
     room = null;
     pageFrame.clear();
+    // Nothing Codename painted inline outlives it.
+    flushRestore();
     removeEventListener('keydown', onKey, true);
     removeEventListener('keyup', onKeyUp, true);
     removeEventListener('blur', onBlurWindow);

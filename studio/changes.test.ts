@@ -52,9 +52,17 @@ describe('commit', () => {
       ['.a', '8px', '12px'],
       ['.b', '4px', '12px'],
     ]);
-    // Something else in between ends the run: that is a new edit.
+    // A swap through a selection moves two properties at once; still one entry each.
     log = commit(log, { ...a, property: 'color', from: '#000', to: '#fff' }, 1150);
     log = commit(log, { ...b, to: '14px' }, 1200);
+    log = commit(log, { ...a, property: 'color', from: '#000', to: '#eee' }, 1250);
+    expect(log.entries.map((e) => [e.selector, e.property, e.to])).toEqual([
+      ['.a', 'padding-top', '12px'],
+      ['.b', 'padding-top', '14px'],
+      ['.a', 'color', '#eee'],
+    ]);
+    // Once the moment has passed, the same property again is a new edit.
+    log = commit(log, { ...b, to: '20px' }, 2000);
     expect(log.entries).toHaveLength(4);
   });
 
