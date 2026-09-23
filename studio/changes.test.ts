@@ -41,6 +41,23 @@ describe('commit', () => {
     expect(log.entries).toHaveLength(3);
   });
 
+  it('folds a multi-selection scrub into one entry per element', () => {
+    const a = { ...base, selector: '.a' };
+    const b = { ...base, selector: '.b', from: '4px' };
+    let log = commit(emptyLog(), { ...a, to: '9px' }, 1000);
+    log = commit(log, { ...b, to: '9px' }, 1000);
+    log = commit(log, { ...a, to: '12px' }, 1100);
+    log = commit(log, { ...b, to: '12px' }, 1100);
+    expect(log.entries.map((e) => [e.selector, e.from, e.to])).toEqual([
+      ['.a', '8px', '12px'],
+      ['.b', '4px', '12px'],
+    ]);
+    // Something else in between ends the run: that is a new edit.
+    log = commit(log, { ...a, property: 'color', from: '#000', to: '#fff' }, 1150);
+    log = commit(log, { ...b, to: '14px' }, 1200);
+    expect(log.entries).toHaveLength(4);
+  });
+
   it('discards the undone branch on a new commit', () => {
     let log = commit(emptyLog(), { ...base, to: '9px' }, 1000);
     log = commit(log, { ...base, property: 'color', from: '#000', to: '#fff' }, 2000);

@@ -86,25 +86,24 @@ export function commit(
 ): ChangeLog {
   // Committing after an undo discards the undone branch, as every editor does.
   const live = log.entries.slice(0, log.cursor);
-  const last = live[live.length - 1];
-  if (
-    last &&
-    last.selector === change.selector &&
-    last.property === change.property &&
-    // A scrub in one state is one edit; the same property in another state is
-    // a different decision and gets its own entry.
-    conditionKey(last.condition) === conditionKey(change.condition) &&
-    last.status === 'applied' &&
-    now - Date.parse(last.at) <= COALESCE_MS
-  ) {
+  // A scrub is one edit. The entry to fold it into is usually the last one,
+  // but a multi-selection scrubs several elements at once, so their entries
+  // alternate: look back through the run of entries that are this same
+  // scrub — same property, same state, still warm — for this element's.
+  for (let i = live.length - 1; i >= 0; i--) {
+    const e = live[i]!;
+    if (
+      e.property !== change.property ||
+      // The same property in another state is a different decision.
+      conditionKey(e.condition) !== conditionKey(change.condition) ||
+      e.status !== 'applied' ||
+      now - Date.parse(e.at) > COALESCE_MS
+    )
+      break;
+    if (e.selector !== change.selector) continue;
     // Keep the original `from`: undoing a scrub returns to where it started.
-    const merged: ElementChange = {
-      ...last,
-      to: change.to,
-      token: change.token,
-      at: new Date(now).toISOString(),
-    };
-    return { entries: [...live.slice(0, -1), merged], cursor: live.length };
+    const merged: ElementChange = { ...e, to: change.to, token: change.token, at: new Date(now).toISOString() };
+    return { entries: [...live.slice(0, i), merged, ...live.slice(i + 1)], cursor: live.length };
   }
   const entry: ElementChange = {
     ...change,

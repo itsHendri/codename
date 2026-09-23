@@ -6,6 +6,7 @@ import {
   attachBar,
   ensureHostAccess,
   getActiveTab,
+  isElementProps,
   isRestricted,
   runScan,
   sendInspector,
@@ -28,7 +29,8 @@ import {
   useSession,
 } from './lib/session';
 import { dropAgentPreview, onRunApplied, useBridge, useBridgeSync } from './lib/bridge';
-import { useInspect } from './lib/inspect';
+import { readValue, useInspect } from './lib/inspect';
+import { pasteEdits, STYLE_PROPS, type StyleValues } from '@/studio/styleCopy';
 import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
 import type { TokenLengths } from '@/shared/types';
@@ -64,6 +66,10 @@ const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'export', label: 'Export', Icon: ExportIcon },
   { key: 'changes', label: 'Changes', Icon: ChangesIcon },
 ];
+
+/** What an element looks like, as copy style reads it. */
+const styleValues = (props: ElementProps): StyleValues =>
+  Object.fromEntries(STYLE_PROPS.map((p) => [p, readValue(props, p)])) as StyleValues;
 
 export default function App() {
   // The session remembers the tab, so closing and reopening the panel does
@@ -315,11 +321,27 @@ export default function App() {
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
         if (msg.data) setActive('style');
+      } else if (msg?.type === 'selection-also') {
+        // Shift-clicked on the page: the rest of a multi-selection.
+        const list = (msg as { data?: unknown }).data;
+        updateSession({ also: Array.isArray(list) ? list.filter(isElementProps) : [] });
+      } else if (msg?.type === 'style-copy') {
+        const from = (msg as { data?: unknown }).data;
+        if (isElementProps(from)) updateSession({ copiedStyle: { selector: from.selector, values: styleValues(from) } });
+      } else if (msg?.type === 'style-paste') {
+        // Each target made to look like the copied one: an edit per property that differs.
+        const copied = getSession().copiedStyle;
+        const targets = (msg as { targets?: unknown }).targets;
+        if (copied && Array.isArray(targets)) {
+          ctlRef.current.changeMany(
+            targets.filter(isElementProps).flatMap((t) => pasteEdits(copied.values as StyleValues, styleValues(t)).map((e) => ({ target: t, ...e }))),
+          );
+        }
       } else if (msg?.type === 'element-edit') {
         // The edit card on the page: same log, same rules, same undo and brief.
-        const edit = msg as unknown as { property: string; to: string };
+        const edit = msg as unknown as { property: string; to: string; token?: string };
         if (edit.property === 'text') ctlRef.current.setText(edit.to);
-        else ctlRef.current.change(edit.property, edit.to);
+        else ctlRef.current.change(edit.property, edit.to, edit.token);
       } else if (msg?.type === 'panel-focus') {
         setActive('style');
       } else if (msg?.type === 'rail-toggled') {

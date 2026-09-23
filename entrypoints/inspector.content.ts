@@ -251,6 +251,7 @@ function activate() {
     <div class="pins"></div>
     <div class="marquee hidden"></div>
     <div class="picks"></div>
+    <div class="alsos"></div>
 `;
   document.documentElement.appendChild(host);
 
@@ -261,6 +262,7 @@ function activate() {
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
   const pickLayer = shadow.querySelector<HTMLElement>('.picks')!;
+  const alsoLayer = shadow.querySelector<HTMLElement>('.alsos')!;
 
   const bar = shadow.querySelector<HTMLElement>('.bar')!;
   const barHost = bar.querySelector<HTMLElement>('.host')!;
@@ -392,11 +394,51 @@ function activate() {
     document.dispatchEvent(new CustomEvent(SELECTED_EVENT, { detail: props?.selector ?? null }));
   };
 
-  const select = (el: Element | null) => {
+  /**
+   * Shift-clicked beside the selection, as Figma adds to one: each outlined
+   * like the selection, and an edit made in the panel reaches all of them.
+   * The first one picked stays the one the panel shows.
+   */
+  let also: Element[] = [];
+  const announceAlso = () => send({ type: 'selection-also', data: also.filter((el) => el.isConnected).map(readProps) });
+  const setAlso = (next: Element[]) => {
+    also = next;
+    announceAlso();
+    layout();
+  };
+  const toggleAlso = (el: Element) => {
+    if (!selected) return select(el);
+    if (el === selected) {
+      // Shift-clicking the first one hands the lead to the next, or lets go.
+      const [lead, ...rest] = also;
+      also = rest;
+      select(lead ?? null, true);
+      announceAlso();
+      return;
+    }
+    setAlso(also.includes(el) ? also.filter((a) => a !== el) : [...also, el]);
+  };
+  const drawAlso = () => {
+    alsoLayer.replaceChildren();
+    for (const el of also) {
+      if (!el.isConnected) continue;
+      const box = document.createElement('div');
+      box.className = 'box sel';
+      place(box, rectOf(el));
+      alsoLayer.appendChild(box);
+    }
+  };
+
+  const select = (el: Element | null, keepAlso = false) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
     // The state class belongs to the element it was put on, not to the next.
     holdState(null);
     selected = el;
+    // A plain click starts a new selection.
+    if (!keepAlso && also.length) {
+      also = [];
+      announceAlso();
+    }
     closeMenu();
     layout();
     announce();
@@ -509,6 +551,7 @@ function activate() {
       drawMeasure();
       drawPins();
       drawPicks();
+      drawAlso();
     });
   };
 
@@ -552,6 +595,7 @@ function activate() {
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
+    if (e.shiftKey) return toggleAlso(hovered);
     // The selection clicked again lets go of it, as a toggle reads.
     select(hovered === selected ? null : hovered);
   };
@@ -928,6 +972,9 @@ function activate() {
       emitTarget({ kind: 'element', selector: sel.selector, matches: sel.matches }, rectOf(el));
     });
     item('Copy selector', () => void navigator.clipboard.writeText(many ? props.intent.selector : props.selector).catch(() => {}));
+    rule();
+    item('Copy style', copyStyle, isMac ? '⌘⌥C' : 'Ctrl+Alt+C');
+    item('Paste style', pasteStyle, isMac ? '⌘⌥V' : 'Ctrl+Alt+V');
     rule();
     item('Show in panel', () => send({ type: 'panel-focus' }));
     item('Deselect', () => select(null), 'Esc');
@@ -1576,10 +1623,25 @@ function activate() {
     else if (picked.length) {
       picked = [];
       drawPicks();
-    } else if (modeNow() !== 'select') setMode('select');
+    } else if (also.length) setAlso([]);
+    else if (modeNow() !== 'select') setMode('select');
     else if (selected) select(null);
     else return false;
     return true;
+  };
+
+  /* ----- copy style, paste style ----- */
+
+  /** ⌘⌥C: the panel keeps what the selection looks like. */
+  const copyStyle = () => {
+    if (!selected) return;
+    send({ type: 'style-copy', data: readProps(selected) });
+    showHint(`<b>Style copied</b> from ${escapeHtml(buildSelector(selected).selector)}. ${isMac ? '⌘⌥V' : 'Ctrl+Alt+V'} pastes it onto a selection.`);
+  };
+  /** ⌘⌥V: every selected element made to look like the copied one. */
+  const pasteStyle = () => {
+    if (!selected) return;
+    send({ type: 'style-paste', targets: [selected, ...also].filter((el) => el.isConnected).map(readProps) });
   };
 
   /* ----- the shortcut sheet ----- */
@@ -1640,6 +1702,13 @@ function activate() {
     if (barOn && e.key === '?' && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       toggleSheet();
+      return;
+    }
+    // ⌘⌥C and ⌘⌥V, read by code: with ⌥ held, a Mac's `key` is "ç" and "√".
+    if ((e.metaKey || e.ctrlKey) && e.altKey && selected && (e.code === 'KeyC' || e.code === 'KeyV')) {
+      e.preventDefault();
+      if (e.code === 'KeyC') copyStyle();
+      else pasteStyle();
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && selected) {
@@ -1733,6 +1802,9 @@ function activate() {
         sendResponse(props);
         return true;
       }
+      case 'read-also':
+        sendResponse(also.filter((el) => el.isConnected).map(readProps));
+        return true;
       case 'layers':
         sendResponse(buildLayers(document.body, isOurs));
         return true;

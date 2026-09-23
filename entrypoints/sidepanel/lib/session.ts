@@ -57,6 +57,10 @@ export interface TabSession {
   /** A design token file to hold the page up against: its name and what was read out of it. */
   tokenFile: { name: string; tokens: FileToken[] } | null;
   pinned: PinnedElement | null;
+  /** Shift-clicked beside `pinned`: an edit reaches these too. Not kept, as the selection is not. */
+  also: PinnedElement[];
+  /** A style copied with ⌘⌥C, to be pasted with ⌘⌥V: which element, and what it looked like. */
+  copiedStyle: { selector: string; values: Record<string, string> } | null;
   /**
    * Moves on intent — a hand-off, a comment, a pin — never on a drag tick.
    * The bridge's `watch` tool resolves when it does.
@@ -108,7 +112,7 @@ export interface TabSession {
 }
 
 /** The part of a session that is worth keeping across a panel reopen. */
-type Persisted = Omit<TabSession, 'pinned' | 'generation'>;
+type Persisted = Omit<TabSession, 'pinned' | 'generation' | 'also'>;
 
 const EMPTY: TabSession = {
   scan: null,
@@ -124,6 +128,8 @@ const EMPTY: TabSession = {
   locks: [],
   tokenFile: null,
   pinned: null,
+  also: [],
+  copiedStyle: null,
   revision: 0,
   handoff: null,
   agentMayWrite: false,
@@ -184,7 +190,7 @@ function sameOrigin(a: string | undefined, b: string): boolean {
 
 /** The session as it is kept: everything but the live selection and the reload counter. */
 function writeSession(id: number): Promise<void> {
-  const { pinned: _pinned, generation: _generation, ...rest } = state;
+  const { pinned: _pinned, generation: _generation, also: _also, ...rest } = state;
   // A quota overflow would otherwise be an unhandled rejection and the
   // session would silently stop being kept.
   return chrome.storage.session.set({ [key(id)]: rest satisfies Persisted }).catch((err) => {
@@ -272,6 +278,8 @@ export async function loadSession(id: number, url: string): Promise<void> {
         // Edits always paint: the switch that could turn that off is gone.
         live: true,
         pinned: null,
+        also: [],
+        copiedStyle: stored.copiedStyle ?? null,
         log: samePage ? soundLog(stored.log) : emptyLog(),
         logUrl: pageKey(url),
         generation: state.generation + 1,

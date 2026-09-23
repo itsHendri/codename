@@ -1052,3 +1052,43 @@ describe('Make changes', () => {
     expect(text()).toContain('No coding agent found on this machine');
   });
 });
+
+describe('editing several at once', () => {
+  it('reaches every shift-clicked element, each from its own value', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () =>
+      stub.emit({ type: 'selection-also', data: [element({ selector: 'p.lede', color: { text: '#6C6A61', background: '#E7E4DB', border: '#CBC7BC' } })] }),
+    );
+    await tick();
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+    const entries = getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to]);
+    expect(entries).toEqual([
+      ['h1#title', 'color', '#15171B', '#ff0000'],
+      ['p.lede', 'color', '#6C6A61', '#ff0000'],
+    ]);
+    // A plain click on the page starts over: the list comes back empty.
+    await act(async () => stub.emit({ type: 'selection-also', data: [] }));
+    expect(getSession().also).toEqual([]);
+  });
+
+  it('pastes a copied style as one edit per property that differs', async () => {
+    const source = element({ color: { text: '#FFFFFF', background: '#BE3A22', border: '#BE3A22' } });
+    const target = element({ selector: 'button.btn', color: { text: '#FFFFFF', background: '#E7E4DB', border: '#CBC7BC' } });
+    await act(async () => stub.emit({ type: 'style-copy', data: source }));
+    expect(getSession().copiedStyle?.selector).toBe('h1#title');
+    await act(async () => stub.emit({ type: 'style-paste', targets: [target] }));
+    await tick();
+    const entries = getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to]);
+    // Only the background differs: the text is white on both, and the
+    // border colour is read from the border, which is the same on both.
+    expect(entries).toEqual([['button.btn', 'background-color', '#E7E4DB', '#BE3A22']]);
+  });
+
+  it('pastes nothing when nothing was copied', async () => {
+    await act(async () => updateSession({ copiedStyle: null }));
+    await act(async () => stub.emit({ type: 'style-paste', targets: [element()] }));
+    await tick();
+    expect(getSession().log.entries).toHaveLength(0);
+  });
+});

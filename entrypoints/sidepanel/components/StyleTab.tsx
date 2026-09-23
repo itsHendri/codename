@@ -264,6 +264,12 @@ function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectContro
           Edits reach all {el.intent.matches} elements matching <code className="font-mono">{el.intent.selector}</code>.
         </p>
       )}
+      {ctl.also.length > 0 && (
+        // Shift-clicked on the page: the values shown are the first one's.
+        <p className="text-2xs text-ink-muted">
+          {ctl.also.length + 1} selected. Edits reach all of them; the values shown are this one's. Esc on the page lets go of the others.
+        </p>
+      )}
     </>
   );
 }
