@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex } from './colour';
 import { buildLayers, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
-import { dropIndex, placeMenu, placeSizeLabel, regionFrom } from './geometry';
+import { dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from './geometry';
 import { readProps, roundedStyle } from './readProps';
 import { element } from '@/entrypoints/sidepanel/test/chromeStub';
 
@@ -172,5 +172,42 @@ describe('placing the chrome', () => {
   it('tells a drag from a click', () => {
     expect(regionFrom({ x: 10, y: 10 }, { x: 14, y: 12 })).toBeNull();
     expect(regionFrom({ x: 50, y: 40 }, { x: 10, y: 60 })).toEqual({ x: 10, y: 40, width: 40, height: 20 });
+  });
+});
+
+describe('dropping on the page', () => {
+  const card = { top: 100, left: 0, width: 300, height: 120, bottom: 220, right: 300 };
+
+  it('reads the edges of a box as beside it and its middle as into it', () => {
+    expect(dropZone(card, 150, 105, false, true)).toBe('before');
+    expect(dropZone(card, 150, 160, false, true)).toBe('into');
+    expect(dropZone(card, 150, 215, false, true)).toBe('after');
+  });
+
+  it('reads a box laid out side by side along its x', () => {
+    expect(dropZone(card, 5, 160, true, true)).toBe('before');
+    expect(dropZone(card, 295, 160, true, true)).toBe('after');
+    expect(dropZone(card, 150, 102, true, true)).toBe('into');
+  });
+
+  it('splits a box that takes nothing in at its midpoint', () => {
+    expect(dropZone(card, 150, 150, false, false)).toBe('before');
+    expect(dropZone(card, 150, 170, false, false)).toBe('after');
+  });
+
+  it('keeps the edge bands usable on small and large boxes', () => {
+    const chip = { top: 0, left: 0, width: 40, height: 20, bottom: 20, right: 40 };
+    // A fifth of 20 is 4, held at 6: the middle 8px is still into.
+    expect(dropZone(chip, 20, 5, false, true)).toBe('before');
+    expect(dropZone(chip, 20, 10, false, true)).toBe('into');
+    const hero = { top: 0, left: 0, width: 800, height: 600, bottom: 600, right: 800 };
+    // A fifth of 600 would swallow the box; 18px is the edge.
+    expect(dropZone(hero, 400, 30, false, true)).toBe('into');
+    expect(dropZone(hero, 400, 590, false, true)).toBe('after');
+  });
+
+  it('takes boxes in, and keeps text and replaced elements out', () => {
+    for (const tag of ['div', 'section', 'main', 'li', 'ul', 'nav', 'header', 'article']) expect(takesChildren(tag)).toBe(true);
+    for (const tag of ['p', 'h2', 'a', 'button', 'img', 'svg', 'input', 'SPAN']) expect(takesChildren(tag)).toBe(false);
   });
 });

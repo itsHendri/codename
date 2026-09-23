@@ -20,7 +20,7 @@ import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
-import { DRAG_MIN, dropIndex, placeMenu, placeSizeLabel, regionFrom } from '@/studio/inspect/geometry';
+import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -137,6 +137,9 @@ function activate() {
       .bar .side > .mode.layers { height: 24px; background: ${d.field}; }
       .bar .side > .mode.layers:hover { background: ${d.fieldHover}; }
       .bar .side > .mode.layers.on { background: ${d.thumb}; }
+      /* The panel's pane fills in while it is open, as a dock icon shows. */
+      .bar .mode.layers .pane { fill: transparent; }
+      .bar .mode.layers.on .pane { fill: currentColor; opacity: 0.45; }
       /* A narrow window narrows the bar. It gives up words before it gives
          up controls. These sheets are in the shadow root, which a device
          frame does not rewrite, so they follow the window, not the frame. */
@@ -189,8 +192,8 @@ function activate() {
     </style>
     <div class="bar hidden">
       <div class="side left">
-      <button class="mode layers" role="switch" aria-checked="false" title="Layers — the page as a tree, beside it (Alt+L)">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5 14 5.5 8 8.5 2 5.5z"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3"/></svg><span class="label">Layers</span>
+      <button class="mode layers" role="switch" aria-checked="false" aria-label="Left panel" title="Show or hide the left panel — pages, layers, components, assets (Alt+L)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect class="pane" x="2.7" y="3.2" width="3.3" height="9.6" rx="0.6" stroke="none"/><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M6.5 2.5v11"/></svg>
       </button>
       <div class="modes" role="group" aria-label="Mode">
         <button class="mode preview" role="switch" aria-checked="false" title="Preview — use the page as a visitor would: links, buttons, scrolling. P, or click again to go back to selecting">
@@ -537,18 +540,28 @@ function activate() {
     select(hovered === selected ? null : hovered);
   };
 
-  /* ----- dragging the selection among its siblings ----- */
+  /* ----- dragging the selection, anywhere on the page ----- */
 
   /**
-   * Press on the selection and drag, and it moves among its siblings, as a
-   * row does in the rail: a line says where it will land, and the drop is the
-   * rail's own move — a change in the log, undone the same way, applied as a
-   * real DOM move (a framework may put it back on its next render). Siblings
-   * only, as the rail allows: into another container is a bigger promise.
+   * Press on the selection and drag, and it moves wherever it is let go, as
+   * a layer does on a design tool's canvas and in the rail: over the edge of
+   * a box it goes beside that box, over the middle of one that can take it
+   * in it goes inside, among that box's own children. The box it would join
+   * is outlined and a line says where in it. The drop is the rail's own move
+   * — a change in the log, undone the same way, applied as a real DOM move
+   * (a framework may put it back on its next render).
+   *
+   * Siblings only, at first; Hendri asked for into as well (W38), since the
+   * rail already allowed it and the page not doing the same read as broken.
    */
   let swallowClick = false;
   let press: { x: number; y: number } | null = null;
-  let moving: { parent: Element; others: Element[]; horizontal: boolean; before: Element | null | undefined } | null = null;
+  /**
+   * `home` is where it sits now; `into` is the box it would land in, with
+   * `before` the child it would go before (null: last). `before` undefined
+   * means no move: over itself, or back where it already is.
+   */
+  let moving: { home: Element; into: Element | null; before: Element | null | undefined } | null = null;
   const ids = new WeakMap<Element, number>();
   let nextId = 1;
   const idOf = (el: Element) => {
@@ -572,35 +585,71 @@ function activate() {
     return /flex/.test(cs.display) && !cs.flexDirection.startsWith('column');
   };
 
-  /** The sibling the selection would land before, or null for last; undefined when it would not move. */
-  const landing = (x: number, y: number): Element | null | undefined => {
-    if (!moving || !selected) return undefined;
-    const { others, horizontal } = moving;
-    const at = dropIndex(others.map((o) => o.getBoundingClientRect()), x, y, horizontal);
-    const before = at === null ? null : others[at]!;
-    const now = others.find((o) => selected!.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING) ?? null;
-    return before === now ? undefined : before;
+  /** A box's children as they are laid out, without the one in hand and without Codename's own. */
+  const kidsOf = (box: Element) => Array.from(box.children).filter((c) => c !== selected && shown(c));
+  /** The next shown sibling of `el` that is not the one in hand, or null. */
+  const nextOf = (el: Element) => {
+    for (let n = el.nextElementSibling; n; n = n.nextElementSibling) if (n !== selected && shown(n)) return n;
+    return null;
+  };
+  /** Whether `box` is the one in hand or inside it: nothing lands in itself. */
+  const inHand = (box: Element) => !!selected && (box === selected || selected.contains(box));
+
+  /** Where a drop at (x, y) would put the selection: the box it joins, and the child it goes before. */
+  const aim = (x: number, y: number): { into: Element | null; before: Element | null | undefined } => {
+    if (!selected) return { into: null, before: undefined };
+    // The one in hand ignores the pointer while it is lifted, so this is what is under it.
+    let over = document.elementFromPoint(x, y);
+    while (over && (isOurs(over) || inHand(over) || !shown(over))) over = over.parentElement;
+    if (!over || over === document.documentElement) over = document.body;
+    const parent = over === document.body ? null : over.parentElement;
+    const zone = parent ? dropZone(over.getBoundingClientRect(), x, y, across(parent), takesChildren(over.tagName)) : 'into';
+
+    let into: Element;
+    let before: Element | null;
+    if (zone === 'into') {
+      into = over;
+      const kids = kidsOf(over);
+      const at = dropIndex(kids.map((k) => k.getBoundingClientRect()), x, y, across(over));
+      before = at === null ? null : kids[at]!;
+    } else {
+      into = parent!;
+      before = zone === 'before' ? over : nextOf(over);
+    }
+    if (inHand(into)) return { into: null, before: undefined };
+    // Back where it already is is not a move.
+    if (into === selected.parentElement && before === nextOf(selected)) return { into, before: undefined };
+    return { into, before };
   };
 
   const drawDrop = () => {
-    if (!moving || moving.before === undefined) {
+    const into = moving?.into;
+    if (!moving || !into || moving.before === undefined) {
       dropLine.classList.add('hidden');
+      hovBox.classList.add('hidden');
       return;
     }
-    const { others, horizontal, before } = moving;
-    const ref = before ?? others[others.length - 1];
+    // The box it would join, outlined, unless that is just where it already lives.
+    if (into !== moving.home) {
+      hovBox.classList.remove('hidden');
+      place(hovBox, rectOf(into));
+    } else hovBox.classList.add('hidden');
+
+    const { before } = moving;
+    const horizontal = across(into);
+    const kids = kidsOf(into);
+    const ref = before ?? kids[kids.length - 1] ?? null;
+    let line: { left: number; top: number; width: number; height: number };
     if (!ref) {
-      dropLine.classList.add('hidden');
-      return;
+      // An empty box: the line runs along its inside top.
+      const r = into.getBoundingClientRect();
+      line = { left: r.left + 6, top: r.top + 6, width: Math.max(0, r.width - 12), height: 3 };
+    } else {
+      const r = ref.getBoundingClientRect();
+      const at = before ? (horizontal ? r.left : r.top) : horizontal ? r.right : r.bottom;
+      line = horizontal ? { left: at - 1.5, top: r.top, width: 3, height: r.height } : { left: r.left, top: at - 1.5, width: r.width, height: 3 };
     }
-    const r = ref.getBoundingClientRect();
-    const at = before ? (horizontal ? r.left : r.top) : horizontal ? r.right : r.bottom;
-    Object.assign(
-      dropLine.style,
-      horizontal
-        ? { left: `${at - 1.5}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` }
-        : { left: `${r.left}px`, top: `${at - 1.5}px`, width: `${r.width}px`, height: '3px' },
-    );
+    Object.assign(dropLine.style, { left: `${line.left}px`, top: `${line.top}px`, width: `${line.width}px`, height: `${line.height}px` });
     dropLine.classList.remove('hidden');
   };
 
@@ -655,6 +704,7 @@ function activate() {
     moving = null;
     press = null;
     dropLine.classList.add('hidden');
+    hovBox.classList.add('hidden');
     selBox.classList.remove('moving');
   };
 
@@ -670,39 +720,37 @@ function activate() {
     if (!press || !selected) return;
     if (!moving) {
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_MIN) return;
-      const parent = selected.parentElement;
-      if (!parent || parent === document.documentElement) {
+      const home = selected.parentElement;
+      // The page's own root boxes stay where they are.
+      if (!home || home === document.documentElement || selected === document.body) {
         press = null;
         return;
       }
-      const siblings = Array.from(parent.children).filter(shown);
-      if (siblings.length < 2) {
-        press = null;
-        return;
-      }
-      moving = { parent, others: siblings.filter((s) => s !== selected), horizontal: across(parent), before: undefined };
+      moving = { home, into: null, before: undefined };
       selBox.classList.add('moving');
       clearHover();
       lift(selected);
     }
     e.preventDefault();
     follow(e.clientX - press.x, e.clientY - press.y);
-    moving.before = landing(e.clientX, e.clientY);
+    const aimed = aim(e.clientX, e.clientY);
+    moving.into = aimed.into;
+    moving.before = aimed.before;
     drawDrop();
   };
 
   const onPressUp = () => {
     if (moving && selected) {
-      const { parent, others, before } = moving;
-      if (before !== undefined) {
-        const wasBefore = others.find((o) => selected!.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING) ?? null;
+      const { home, into, before } = moving;
+      if (into && before !== undefined) {
+        const wasBefore = nextOf(selected);
         // The rail's message, so the panel files it exactly as a drag there.
         send({
           type: 'rail-move',
           node: nodeOf(selected),
-          parent: nodeOf(parent),
+          parent: nodeOf(into),
           before: before ? nodeOf(before) : null,
-          wasIn: nodeOf(parent),
+          wasIn: nodeOf(home),
           wasBefore: wasBefore ? nodeOf(wasBefore) : null,
         });
       }
@@ -712,7 +760,7 @@ function activate() {
       // A real drop: held where it was let go until the panel's move puts it
       // in its new place, and set down in the same frame (or after a moment,
       // if the panel never answers).
-      endMove(before !== undefined);
+      endMove(!!into && before !== undefined);
       return;
     }
     endMove();
@@ -761,15 +809,11 @@ function activate() {
       clearHover();
       drawMeasure();
     }
+    // No hint for a mode: the lit button says it, and Hendri found the
+    // sentences under the bar more noise than help (W38).
     if (barOn) {
       renderBar();
-      showHint(
-        on
-          ? '<b>Selecting</b> — click an element to edit it, click it again to let go, drag it to move it among its siblings. Arrow keys walk the tree.'
-          : !noteOn
-            ? '<b>Preview</b> — the page works as it does for a visitor. P, Esc, or Preview again goes back to selecting.'
-            : null,
-      );
+      showHint(null);
     }
   };
 
@@ -1124,9 +1168,7 @@ function activate() {
       addEventListener('mousemove', onNoteMove, true);
       addEventListener('mouseup', onNoteUp, true);
       addEventListener('click', onNoteClick, true);
-      showHint(
-        '<b>Comment</b> — click an element, drag a box over anything, shift-click several, or select text. Type the note where it lands.',
-      );
+      showHint(null);
     } else {
       removeEventListener('mousedown', onNoteDown, true);
       removeEventListener('mousemove', onNoteMove, true);
@@ -1447,13 +1489,7 @@ function activate() {
     barScheme = scheme;
     renderBar();
     send({ type: 'mode-changed', mode: scheme });
-    showHint(
-      scheme === 'dark'
-        ? '<b>Dark</b> — looking for the page\'s own dark mode…'
-        : scheme === 'light'
-          ? '<b>Light</b> — the page\'s own light side, whatever the system prefers. Click again for the system\'s choice.'
-          : null,
-    );
+    showHint(null);
   };
   barAgent.querySelector('button')!.addEventListener('click', () => {
     agent = null;
@@ -1736,11 +1772,7 @@ function activate() {
         if (msg.scheme) barScheme = msg.scheme;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
         if (msg.agent !== undefined) agent = msg.agent;
-        if (msg.darkVia !== undefined && msg.darkVia !== darkVia) {
-          darkVia = msg.darkVia;
-          if (darkVia === 'site') showHint("<b>Dark</b> — this is the page's own dark mode, switched on from its stylesheet. Light puts it back.");
-          else if (darkVia === 'mirror') showHint('<b>Dark</b> — this page has no dark mode of its own, so it repaints with the dark side of its system. Light puts it back.');
-        }
+        if (msg.darkVia !== undefined) darkVia = msg.darkVia;
         showBar(!!msg.on);
         break;
       case 'note':

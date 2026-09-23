@@ -5,7 +5,7 @@ import { callInspector } from '@/shared/inpage';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
 import { TabStrip } from '@/entrypoints/sidepanel/components/TabStrip';
-import { ComponentsIcon, LayersIcon, PagesIcon, RefreshIcon, SvgsIcon } from '@/entrypoints/sidepanel/components/icons';
+import { ComponentsIcon, ImageIcon, LayersIcon, PagesIcon, RefreshIcon } from '@/entrypoints/sidepanel/components/icons';
 import { ComponentsTab } from './ComponentsTab';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
@@ -106,7 +106,7 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
     { key: 'pages' as const, label: 'Pages', Icon: PagesIcon },
     { key: 'layers' as const, label: 'Layers', Icon: LayersIcon },
     { key: 'components' as const, label: 'Components', Icon: ComponentsIcon },
-    { key: 'assets' as const, label: 'Assets', Icon: SvgsIcon },
+    { key: 'assets' as const, label: 'Assets', Icon: ImageIcon },
   ];
 
   return (
