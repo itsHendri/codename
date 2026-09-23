@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ancestorsOf,
   canHold,
+  dropTarget,
   childrenOf,
   componentsOf,
   isWithin,
@@ -154,5 +155,52 @@ describe('siblings', () => {
     expect(nextSiblingOf(tree, 4)!.id).toBe(5);
     expect(nextSiblingOf(tree, 5)).toBeNull();
     expect(nextSiblingOf(tree, 1)!.id).toBe(3);
+  });
+});
+
+describe('dropTarget', () => {
+  // body > main > (h1, card > (p, img), footer)
+  const tree = [
+    node(0, 0, 'body', 6),
+    node(1, 1, 'main.plate', 5),
+    node(2, 2, 'h1#title', 0),
+    node(3, 2, 'div.card', 2),
+    node(4, 3, 'p.lede', 0),
+    node(5, 3, 'img.hero', 0),
+    node(6, 2, 'footer.foot', 0),
+  ];
+  const at = (id: number) => tree[id]!;
+
+  it('reads the top half as before and the bottom half as after, at the row’s level', () => {
+    expect(dropTarget(tree, at(6), at(2), 0.1, false)).toMatchObject({ where: 'before', parent: 1, before: 2, depth: 2 });
+    expect(dropTarget(tree, at(2), at(6), 0.9, false)).toMatchObject({ where: 'after', parent: 1, before: null, depth: 2 });
+  });
+
+  it('reads the middle of a row that can hold children as into it, last', () => {
+    expect(dropTarget(tree, at(2), at(3), 0.5, false)).toEqual({ target: 3, where: 'into', parent: 3, before: null, depth: 3 });
+    // An image holds nothing: its middle is before or after.
+    expect(dropTarget(tree, at(2), at(5), 0.45, false)).toMatchObject({ where: 'before', parent: 3, before: 5 });
+  });
+
+  it('puts a drop after an open row in as its first child, one level in', () => {
+    expect(dropTarget(tree, at(6), at(3), 0.9, true)).toEqual({ target: 3, where: 'after', parent: 3, before: 4, depth: 3 });
+    // Folded, the same spot is after it, beside it.
+    expect(dropTarget(tree, at(2), at(3), 0.9, false)).toMatchObject({ where: 'after', parent: 1, before: 6, depth: 2 });
+  });
+
+  it('never lands a row in itself or inside itself, and never moves the root', () => {
+    expect(dropTarget(tree, at(3), at(3), 0.5, false)).toBeNull();
+    expect(dropTarget(tree, at(3), at(4), 0.1, false)).toBeNull();
+    // The root has no level beside it; anywhere on it is into it.
+    expect(dropTarget(tree, at(6), at(0), 0.1, false)).toMatchObject({ where: 'into', parent: 0 });
+    expect(dropTarget(tree, at(2), at(0), 0.05, false)).toMatchObject({ where: 'into', parent: 0 });
+  });
+
+  it('draws nothing for a drop that would leave the row where it is', () => {
+    // Just before its own next sibling, or just after its previous one.
+    expect(dropTarget(tree, at(2), at(3), 0.1, false)).toBeNull();
+    expect(dropTarget(tree, at(3), at(2), 0.9, false)).toBeNull();
+    // Into the parent it is already last in.
+    expect(dropTarget(tree, at(6), at(1), 0.5, false)).toBeNull();
   });
 });

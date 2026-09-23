@@ -182,6 +182,16 @@ function sameOrigin(a: string | undefined, b: string): boolean {
   }
 }
 
+/** The session as it is kept: everything but the live selection and the reload counter. */
+function writeSession(id: number): Promise<void> {
+  const { pinned: _pinned, generation: _generation, ...rest } = state;
+  // A quota overflow would otherwise be an unhandled rejection and the
+  // session would silently stop being kept.
+  return chrome.storage.session.set({ [key(id)]: rest satisfies Persisted }).catch((err) => {
+    console.warn('[codename] the session could not be kept:', err);
+  });
+}
+
 /** Writes are coalesced: a seed drag fires per frame and the scan is large. */
 function schedulePersist() {
   if (tabId == null) return;
@@ -189,13 +199,21 @@ function schedulePersist() {
   const id = tabId;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    const { pinned: _pinned, generation: _generation, ...rest } = state;
-    // A quota overflow would otherwise be an unhandled rejection and the
-    // session would silently stop being kept.
-    void chrome.storage.session.set({ [key(id)]: rest satisfies Persisted }).catch((err) => {
-      console.warn('[codename] the session could not be kept:', err);
-    });
+    void writeSession(id);
   }, 300);
+}
+
+/**
+ * Keep everything now rather than in a moment: before the panel reloads the
+ * page it sits in, which takes the panel with it. A write still waiting in
+ * the debounce would be lost, and what the panel read back would be the
+ * state from before — edits it had just let go of, a run it had just handled.
+ */
+export async function flushSession(): Promise<void> {
+  flushSaveEdits();
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = null;
+  if (tabId != null) await writeSession(tabId);
 }
 
 export function getSession(): TabSession {

@@ -14,6 +14,7 @@ import {
   type BarLook,
 } from './lib/messaging';
 import {
+  flushSession,
   getSession,
   loadSession,
   setColorEdit,
@@ -191,7 +192,13 @@ export default function App() {
       ctlRef.current.clear();
       if (getSession().agentPreview) void dropAgentPreview();
       const tab = tabIdRef.current;
-      if (tab != null) void chrome.tabs.reload(tab).catch(() => {});
+      // Kept first, then reloaded: the reload takes this panel with it, and
+      // the one that comes back must read the edits gone and the run handled,
+      // or it replays the one and acts on the other again.
+      if (tab != null)
+        void flushSession()
+          .then(() => chrome.tabs.reload(tab))
+          .catch(() => {});
     });
     return () => onRunApplied(null);
   }, []);

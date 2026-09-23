@@ -1,16 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronIcon, EyeIcon, EyeOffIcon, RefreshIcon, SearchIcon } from '../icons';
 import { LayerIcon } from './LayerIcon';
 import {
   ancestorsOf,
-  canHold,
+  dropTarget,
   initialCollapsed,
-  isWithin,
   nextSiblingOf,
   parentOf,
   visibleRows,
+  type LayerDrop,
   type LayerNode,
 } from '@/studio/layers';
+
+/** How far the pointer goes before a press on a row is a drag. */
+const DRAG_START = 4;
+/** How long a folded row is held over before it opens to take the drop. */
+const OPEN_AFTER_MS = 500;
+/** How close to the list's edge the pointer has to be for it to scroll. */
+const EDGE = 28;
+/** The indent of one level, and where level zero starts. */
+const INDENT = 10;
+const INDENT_BASE = 2;
+
+/** A drag in progress: the row in hand, the tree it was picked from, where it would land. */
+interface Carry {
+  node: LayerNode;
+  /** The snapshot at the moment it was picked up; the tree holds still until it is put down. */
+  tree: LayerNode[];
+  x: number;
+  y: number;
+  drop: LayerDrop | null;
+}
 
 /**
  * The page as a list you can pick from.
@@ -39,85 +59,241 @@ export function LayersTree({
   onRefresh: () => void;
   loading: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState('');
   const [skipHidden, setSkipHidden] = useState(false);
-  // A drag in progress: the row being carried, and where it would land.
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [drop, setDrop] = useState<{ id: number; where: 'before' | 'after' | 'into' } | null>(null);
-  const hiddenCount = useMemo(() => nodes.filter((n) => n.hidden).length, [nodes]);
+  const [carry, setCarry] = useState<Carry | null>(null);
+  const carryRef = useRef<Carry | null>(null);
+  carryRef.current = carry;
+  // While a row is in hand the tree is the one it was picked from: a page
+  // that re-renders mid-drag (most do, all the time) must not swap the rows
+  // out from under the pointer.
+  const tree = carry?.tree ?? nodes;
+  const hiddenCount = useMemo(() => tree.filter((n) => n.hidden).length, [tree]);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
 
-  // A fresh snapshot starts calm: the top two levels open, the rest folded.
+  /**
+   * What is folded, by selector rather than by row number: the tree is read
+   * again whenever the page settles, and numbers only mean something within
+   * one reading. A row seen for the first time folds or opens by the calm
+   * default; a row seen before keeps what the person did to it.
+   */
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const seen = useRef(new Set<string>());
   useEffect(() => {
-    setCollapsed(initialCollapsed(nodes));
+    const fresh = nodes.filter((n) => !seen.current.has(n.selector));
+    if (!fresh.length) return;
+    const calm = initialCollapsed(nodes);
+    setFolded((prev) => {
+      const next = new Set(prev);
+      for (const n of fresh) if (calm.has(n.id)) next.add(n.selector);
+      return next;
+    });
+    for (const n of fresh) seen.current.add(n.selector);
   }, [nodes]);
+  const collapsed = useMemo(() => new Set(tree.filter((n) => folded.has(n.selector)).map((n) => n.id)), [tree, folded]);
 
-  const rows = useMemo(() => visibleRows(nodes, collapsed, query, skipHidden), [nodes, collapsed, query, skipHidden]);
+  const rows = useMemo(() => visibleRows(tree, collapsed, query, skipHidden), [tree, collapsed, query, skipHidden]);
 
   const selectedId = useMemo(
-    () => (selectedSelector ? (nodes.find((n) => n.selector === selectedSelector)?.id ?? null) : null),
-    [nodes, selectedSelector],
+    () => (selectedSelector ? (tree.find((n) => n.selector === selectedSelector)?.id ?? null) : null),
+    [tree, selectedSelector],
   );
 
   // Selecting on the page opens the tree to it and scrolls it into view.
   useEffect(() => {
     if (selectedId === null) return;
-    setCollapsed((prev) => {
-      const chain = ancestorsOf(nodes, selectedId);
-      if (!chain.some((id) => prev.has(id))) return prev;
+    setFolded((prev) => {
+      const chain = ancestorsOf(tree, selectedId).map((id) => tree.find((n) => n.id === id)!.selector);
+      if (!chain.some((sel) => prev.has(sel))) return prev;
       const next = new Set(prev);
-      for (const id of chain) next.delete(id);
+      for (const sel of chain) next.delete(sel);
       return next;
     });
-  }, [nodes, selectedId]);
+  }, [tree, selectedId]);
 
   useEffect(() => {
     if (selectedId === null) return;
     rowRefs.current.get(selectedId)?.scrollIntoView({ block: 'nearest' });
   }, [selectedId, rows]);
 
-  const toggle = (id: number) =>
-    setCollapsed((prev) => {
+  const toggle = (id: number) => {
+    const sel = tree.find((n) => n.id === id)?.selector;
+    if (!sel) return;
+    setFolded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(sel)) next.delete(sel);
+      else next.add(sel);
       return next;
     });
+  };
+
+  /* ---------------- moving by drag ---------------- */
 
   /**
-   * Moving by drag. The top and bottom quarters of a row mean before and
-   * after it, wherever it is in the tree; the middle means into it, as its
-   * last child, when it is something that can hold children. A row cannot be
-   * dropped into itself or anything inside it, and the root stays put.
+   * A row is carried the way Figma and Framer carry a layer: pressed and
+   * pulled, it comes away with the pointer as a floating copy, its own row
+   * dims, and a line with a dot at its start shows where it will land and at
+   * which level. Held over a folded group, the group opens. Near the top or
+   * bottom of the list, the list scrolls. Escape puts it back.
+   *
+   * Pointer events rather than the browser's drag and drop: those would not
+   * start from the name (it is a button), draw no line of their own, and
+   * are unreliable inside a page's closed shadow root, which is where the
+   * rail lives.
    */
-  const dropFor = (target: LayerNode, e: React.DragEvent): { id: number; where: 'before' | 'after' | 'into' } | null => {
-    if (dragId === null || dragId === target.id) return null;
-    const dragged = nodes.find((n) => n.id === dragId);
-    if (!dragged || isWithin(nodes, dragged, target.id)) return null;
-    const box = e.currentTarget.getBoundingClientRect();
-    const y = (e.clientY - box.top) / box.height;
-    if (canHold(target) && y >= 0.3 && y <= 0.7) return { id: target.id, where: 'into' };
-    if (!parentOf(nodes, target.id)) return null;
-    return { id: target.id, where: y < 0.5 ? 'before' : 'after' };
+  const press = useRef<{ node: LayerNode; x: number; y: number; id: number } | null>(null);
+  const moved = useRef(false);
+  const openTimer = useRef<{ id: number; timer: number } | null>(null);
+  const scrollRaf = useRef(0);
+
+  /** The row under the pointer, and how far down it the pointer is. */
+  const rowAt = useCallback(
+    (y: number): { node: LayerNode; frac: number } | null => {
+      for (const node of rows) {
+        const el = rowRefs.current.get(node.id);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (y >= r.top && y < r.bottom) return { node, frac: (y - r.top) / r.height };
+      }
+      // Past the last row: after the last row.
+      const last = rows[rows.length - 1];
+      const el = last ? rowRefs.current.get(last.id) : null;
+      if (last && el && y >= el.getBoundingClientRect().bottom) return { node: last, frac: 0.99 };
+      return null;
+    },
+    [rows],
+  );
+
+  const stopScroll = () => {
+    cancelAnimationFrame(scrollRaf.current);
+    scrollRaf.current = 0;
+  };
+  const stopOpen = () => {
+    if (openTimer.current) window.clearTimeout(openTimer.current.timer);
+    openTimer.current = null;
   };
 
-  const finishDrop = () => {
-    if (dragId !== null && drop) {
-      const node = nodes.find((n) => n.id === dragId)!;
-      const target = nodes.find((n) => n.id === drop.id)!;
-      const wasIn = parentOf(nodes, dragId)!;
-      if (drop.where === 'into') onMove(node, target, null, wasIn, nextSiblingOf(nodes, node.id));
-      else {
-        const parent = parentOf(nodes, target.id)!;
-        const before = drop.where === 'before' ? target : nextSiblingOf(nodes, target.id);
-        onMove(node, parent, before, wasIn, nextSiblingOf(nodes, node.id));
+  const place = useCallback(
+    (x: number, y: number) => {
+      const c = carryRef.current;
+      if (!c) return;
+      const hit = rowAt(y);
+      const drop = hit ? dropTarget(c.tree, c.node, hit.node, hit.frac, !collapsed.has(hit.node.id)) : null;
+      setCarry({ ...c, x, y, drop });
+      // Held over a folded group, it opens.
+      if (hit && drop?.where === 'into' && hit.node.descendants > 0 && collapsed.has(hit.node.id)) {
+        if (openTimer.current?.id !== hit.node.id) {
+          stopOpen();
+          const id = hit.node.id;
+          openTimer.current = { id, timer: window.setTimeout(() => toggle(id), OPEN_AFTER_MS) };
+        }
+      } else stopOpen();
+      // Near an edge, the list scrolls, and keeps scrolling while held there.
+      const list = listRef.current;
+      if (!list) return;
+      const box = list.getBoundingClientRect();
+      const speed = y < box.top + EDGE ? -Math.ceil((box.top + EDGE - y) / 4) : y > box.bottom - EDGE ? Math.ceil((y - box.bottom + EDGE) / 4) : 0;
+      stopScroll();
+      if (speed) {
+        const step = () => {
+          list.scrollTop += speed;
+          scrollRaf.current = requestAnimationFrame(step);
+        };
+        scrollRaf.current = requestAnimationFrame(step);
       }
-    }
-    setDragId(null);
-    setDrop(null);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowAt, collapsed],
+  );
+
+  const endCarry = () => {
+    stopScroll();
+    stopOpen();
+    press.current = null;
+    setCarry(null);
   };
+
+  const putDown = () => {
+    const c = carryRef.current;
+    if (c?.drop) {
+      const byId = (id: number | null) => (id === null ? null : c.tree.find((n) => n.id === id) ?? null);
+      const parent = byId(c.drop.parent);
+      const wasIn = parentOf(c.tree, c.node.id);
+      if (parent && wasIn) onMove(c.node, parent, byId(c.drop.before), wasIn, nextSiblingOf(c.tree, c.node.id));
+    }
+    endCarry();
+  };
+
+  const onRowPointerDown = (node: LayerNode) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || query) return;
+    // The fold chevron and the eye are buttons of their own.
+    if ((e.target as HTMLElement).closest('[data-row-control]')) return;
+    press.current = { node, x: e.clientX, y: e.clientY, id: e.pointerId };
+    moved.current = false;
+  };
+
+  const onRowPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = press.current;
+    if (!p || p.id !== e.pointerId) return;
+    if (!carryRef.current) {
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_START) return;
+      // The root stays where it is.
+      if (!parentOf(nodes, p.node.id)) {
+        press.current = null;
+        return;
+      }
+      moved.current = true;
+      // Kept by this row while it is carried, so the pointer can leave the
+      // list (to scroll it) and still be heard. A pointer the browser no
+      // longer knows cannot be captured; the carry goes on regardless.
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* not a live pointer */
+      }
+      onPeek(null);
+      const c: Carry = { node: p.node, tree: nodes, x: e.clientX, y: e.clientY, drop: null };
+      carryRef.current = c;
+      setCarry(c);
+    }
+    place(e.clientX, e.clientY);
+  };
+
+  const onRowPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (press.current?.id !== e.pointerId) return;
+    if (carryRef.current) putDown();
+    else press.current = null;
+  };
+
+  // Escape puts it back, from wherever the focus is.
+  useEffect(() => {
+    if (!carry) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      endCarry();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(carry)]);
+
+  useEffect(() => () => {
+    stopScroll();
+    stopOpen();
+  }, []);
+
+  /** Where the line goes, in the list's own coordinates, so it scrolls with the rows. */
+  const line = useMemo(() => {
+    const d = carry?.drop;
+    if (!d || d.where === 'into') return null;
+    const el = rowRefs.current.get(d.target);
+    if (!el) return null;
+    return { top: el.offsetTop + (d.where === 'after' ? el.offsetHeight : 0), left: INDENT_BASE + 14 + Math.min(d.depth, 12) * INDENT };
+    // Rows are measured after they render; the carry moving is what changes it.
+  }, [carry]);
 
   /**
    * The tree from the keyboard, as a file browser works: up and down move the
@@ -193,8 +369,15 @@ export function LayersTree({
           aria-label="Layers"
           onKeyDown={onKeyDown}
           onMouseLeave={() => onPeek(null)}
-          className="group/tree -mx-1 min-h-0 flex-1 overflow-y-auto px-1 focus-visible:outline-none"
+          className="group/tree relative -mx-1 min-h-0 flex-1 overflow-y-auto px-1 focus-visible:outline-none"
         >
+          {/* Where the row in hand will land: a line at the level it joins, a dot where the line starts. */}
+          {line && (
+            <div aria-hidden className="pointer-events-none absolute right-1 z-10 h-0" style={{ top: line.top, left: line.left }}>
+              <span className="absolute -left-[3px] -top-[3px] h-[7px] w-[7px] rounded-full border-[1.5px] border-accent bg-surface-app" />
+              <span className="absolute left-1 right-0 -top-px h-0.5 rounded-full bg-accent" />
+            </div>
+          )}
           {rows.map((node) => {
             const isSelected = node.id === selectedId;
             const foldable = node.descendants > 0 && !query;
@@ -208,45 +391,24 @@ export function LayersTree({
                   if (el) rowRefs.current.set(node.id, el);
                   else rowRefs.current.delete(node.id);
                 }}
-                onMouseEnter={() => onPeek(node)}
-                draggable={!query}
-                onDragStart={(e) => {
-                  setDragId(node.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', node.selector);
-                }}
-                onDragOver={(e) => {
-                  const d = dropFor(node, e);
-                  if (!d) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  if (d.id !== drop?.id || d.where !== drop?.where) setDrop(d);
-                }}
-                onDragLeave={() => drop?.id === node.id && setDrop(null)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  finishDrop();
-                }}
-                onDragEnd={() => {
-                  setDragId(null);
-                  setDrop(null);
-                }}
-                className={`group flex h-6 items-center gap-1 rounded-[5px] pr-1 text-xs ${
+                onMouseEnter={() => !carry && onPeek(node)}
+                onPointerDown={onRowPointerDown(node)}
+                onPointerMove={onRowPointerMove}
+                onPointerUp={onRowPointerUp}
+                onPointerCancel={endCarry}
+                className={`group flex h-6 select-none items-center gap-1 rounded-[5px] pr-1 text-xs ${
                   isSelected
                     ? 'bg-accent-soft text-ink group-focus-visible/tree:shadow-[inset_0_0_0_1px_var(--accent)]'
-                    : 'text-ink-secondary hover:bg-surface-field'
-                } ${node.hidden ? 'opacity-50' : ''} ${dragId === node.id ? 'opacity-40' : ''} ${
-                  drop?.id === node.id
-                    ? drop.where === 'before'
-                      ? 'shadow-[inset_0_2px_0_0_var(--accent)]'
-                      : drop.where === 'after'
-                        ? 'shadow-[inset_0_-2px_0_0_var(--accent)]'
-                        : 'shadow-[inset_0_0_0_2px_var(--accent)] bg-accent-soft'
-                    : ''
-                }`}
-                style={{ paddingLeft: `${2 + Math.min(node.depth, 12) * 10}px` }}
+                    : carry
+                      ? 'text-ink-secondary'
+                      : 'text-ink-secondary hover:bg-surface-field'
+                } ${node.hidden ? 'opacity-50' : ''} ${carry?.node.id === node.id ? 'opacity-35' : ''} ${
+                  carry?.drop?.where === 'into' && carry.drop.target === node.id ? 'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]' : ''
+                } ${carry ? 'cursor-grabbing' : ''}`}
+                style={{ paddingLeft: `${INDENT_BASE + Math.min(node.depth, 12) * INDENT}px` }}
               >
                 <button
+                  data-row-control
                   onClick={() => foldable && toggle(node.id)}
                   aria-label={foldable ? (collapsed.has(node.id) ? 'Expand' : 'Collapse') : undefined}
                   tabIndex={foldable ? 0 : -1}
@@ -256,7 +418,14 @@ export function LayersTree({
                 </button>
                 <LayerIcon tag={node.tag} className={isSelected ? 'text-accent' : 'text-ink-muted'} />
                 <button
-                  onClick={() => onSelect(node)}
+                  onClick={() => {
+                    // The press that became a drag is not also a pick.
+                    if (moved.current) {
+                      moved.current = false;
+                      return;
+                    }
+                    onSelect(node);
+                  }}
                   className="min-w-0 flex-1 truncate text-left font-mono"
                   title={node.selector}
                 >
@@ -279,6 +448,7 @@ export function LayersTree({
                   </span>
                 )}
                 <button
+                  data-row-control
                   onClick={() => onToggleHidden(node)}
                   aria-label={node.hidden ? 'Show' : 'Hide'}
                   title={node.hidden ? 'Show' : 'Hide'}
@@ -291,6 +461,18 @@ export function LayersTree({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* The row in hand, following the pointer. */}
+      {carry && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed z-[2147483647] flex h-6 max-w-[220px] items-center gap-1 rounded-[5px] bg-surface-raised px-1.5 text-xs text-ink shadow-[0_6px_16px_rgb(0_0_0/0.28),0_0_0_1px_var(--line)]"
+          style={{ left: carry.x + 10, top: carry.y - 12 }}
+        >
+          <LayerIcon tag={carry.node.tag} className="text-accent" />
+          <span className="truncate font-mono">{carry.node.label}</span>
         </div>
       )}
     </div>
