@@ -49,24 +49,27 @@ const bar = (cx: number, cy: number, horizontal: boolean): Rect => ({
  */
 export function handlesFor(r: Rect, padding: Edges, margin: Edges, gap: { between: Rect; axis: 'x' | 'y' } | null): Handle[] {
   if (r.width < MIN_BOX || r.height < MIN_BOX) return [];
-  const cx = r.x + r.width / 2;
   const cy = r.y + r.height / 2;
+  // The top and bottom bars stand a third of the way in, and the height bar
+  // two thirds: the middle of the bottom edge is where the size label sits.
+  const third = r.x + r.width / 3;
+  const twoThirds = r.x + (r.width * 2) / 3;
   const right = r.x + r.width;
   const bottom = r.y + r.height;
   // A band too thin to show sits a few pixels in, so it can still be caught.
   const inside = (p: number) => Math.max(6, p / 2);
   const outside = (m: number) => Math.max(6, m / 2);
   const out: Handle[] = [
-    { kind: 'padding-top', axis: 'y', box: bar(cx, r.y + inside(padding.top), true) },
-    { kind: 'padding-bottom', axis: 'y', box: bar(cx, bottom - inside(padding.bottom), true) },
+    { kind: 'padding-top', axis: 'y', box: bar(third, r.y + inside(padding.top), true) },
+    { kind: 'padding-bottom', axis: 'y', box: bar(third, bottom - inside(padding.bottom), true) },
     { kind: 'padding-left', axis: 'x', box: bar(r.x + inside(padding.left), cy, false) },
     { kind: 'padding-right', axis: 'x', box: bar(right - inside(padding.right), cy, false) },
-    { kind: 'margin-top', axis: 'y', box: bar(cx, r.y - outside(margin.top), true) },
-    { kind: 'margin-bottom', axis: 'y', box: bar(cx, bottom + outside(margin.bottom), true) },
+    { kind: 'margin-top', axis: 'y', box: bar(third, r.y - outside(margin.top), true) },
+    { kind: 'margin-bottom', axis: 'y', box: bar(third, bottom + outside(margin.bottom), true) },
     { kind: 'margin-left', axis: 'x', box: bar(r.x - outside(margin.left), cy, false) },
     { kind: 'margin-right', axis: 'x', box: bar(right + outside(margin.right), cy, false) },
     { kind: 'width', axis: 'x', box: { x: right - 2, y: cy - 10, width: 4, height: 20 } },
-    { kind: 'height', axis: 'y', box: { x: cx + BAR, y: bottom - 2, width: 20, height: 4 } },
+    { kind: 'height', axis: 'y', box: { x: twoThirds - 10, y: bottom - 2, width: 20, height: 4 } },
     { kind: 'size', axis: 'xy', box: { x: right - 4, y: bottom - 4, width: 8, height: 8 } },
   ];
   if (gap) {

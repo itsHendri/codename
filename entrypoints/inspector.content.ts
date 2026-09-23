@@ -21,7 +21,7 @@ import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
-import { shortcutSheet } from '@/studio/inspect/commands';
+import { search, shortcutSheet } from '@/studio/inspect/commands';
 import { dragged, handlesFor, snap, stepsOf, written, type HandleKind } from '@/studio/inspect/handles';
 import { selectionColours, toHex, type ColourSample } from '@/studio/inspect/colour';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
@@ -186,13 +186,22 @@ function activate() {
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
       /* The right-click menu: what can be done to the selection, and nothing
          about how it looks — that is the panel's, on the right. */
+      .cmdk { position: fixed; z-index: 5; left: 50%; top: 88px; transform: translateX(-50%); width: min(520px, calc(100vw - 32px)); pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); font: 400 12px/1.4 ${font}; overflow: hidden; }
+      .cmdk input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 14px; border: 0; border-bottom: 1px solid ${d.cardLine}; background: transparent; color: ${d.cardInk}; font: 400 13px/1 ${font}; outline: none; }
+      .cmdk ul { list-style: none; margin: 0; padding: 4px; max-height: 320px; overflow: auto; }
+      .cmdk li { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer; }
+      .cmdk li[aria-selected="true"] { background: ${d.field}; }
+      .cmdk li .kind { color: ${d.cardMuted}; font-size: 11px; }
+      .cmdk li kbd { margin-left: auto; color: ${d.cardMuted}; font: 500 11px/1 ${mono}; }
+      .cmdk li.none { cursor: default; color: ${d.cardMuted}; }
       .sheet { position: fixed; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 96px); overflow: auto; pointer-events: auto; padding: 16px 18px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); font: 400 12px/1.4 ${font}; }
       .sheet h2 { margin: 0 0 12px; font: 600 13px/1 ${font}; }
       .sheet .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
       .sheet h3 { margin: 0 0 6px; font: 500 11px/1 ${font}; color: ${d.cardMuted}; text-transform: uppercase; letter-spacing: 0.04em; }
-      .sheet dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: baseline; }
-      .sheet dt { margin: 0; font: 500 11px/1.3 ${mono}; color: ${d.cardInk}; white-space: nowrap; }
-      .sheet dd { margin: 0; color: ${d.cardMuted}; }
+      .sheet dl { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+      .sheet dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+      .sheet dt { margin: 0; color: ${d.cardInk}; }
+      .sheet dd { margin: 0; font: 500 11px/1.3 ${mono}; color: ${d.cardMuted}; white-space: nowrap; }
       .menu { position: fixed; z-index: 3; pointer-events: auto; min-width: 208px; max-width: 260px; padding: 4px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); font: 400 11px/1 ${font}; }
       .menu .head { display: block; height: 24px; line-height: 24px; padding: 0 8px; color: ${d.cardMuted}; font: 500 10px/1 ui-monospace, Menlo, monospace; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       .menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; text-align: left; cursor: pointer; }
@@ -251,6 +260,7 @@ function activate() {
     <div class="composer hidden"></div>
     <div class="menu hidden" role="menu" aria-label="Selection"></div>
     <div class="sheet hidden" role="dialog" aria-label="Keyboard shortcuts"></div>
+    <div class="cmdk hidden" role="dialog" aria-label="Command menu"><input role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-label="Search commands and layers" placeholder="Search commands and layers…" spellcheck="false" autocomplete="off" /><ul id="cmdk-list" role="listbox"></ul></div>
     <div class="drop hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
@@ -295,6 +305,9 @@ function activate() {
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const menu = shadow.querySelector<HTMLElement>('.menu')!;
   const sheet = shadow.querySelector<HTMLElement>('.sheet')!;
+  const cmdk = shadow.querySelector<HTMLElement>('.cmdk')!;
+  const cmdkInput = cmdk.querySelector<HTMLInputElement>('input')!;
+  const cmdkList = cmdk.querySelector<HTMLUListElement>('ul')!;
   const dropLine = shadow.querySelector<HTMLElement>('.drop')!;
 
   let selected: Element | null = null;
@@ -1869,7 +1882,8 @@ function activate() {
    * Comment back to Select, then the selection. False when there was nothing to let go of.
    */
   const escape = (): boolean => {
-    if (sheetOpen()) closeSheet();
+    if (cmdkOpen()) closeCmdk();
+    else if (sheetOpen()) closeSheet();
     else if (handling) endHandle(false);
     else if (moving) endMove();
     else if (!menu.classList.contains('hidden')) closeMenu();
@@ -1937,6 +1951,127 @@ function activate() {
     send({ type: 'style-paste', targets: [selected, ...also].filter((el) => el.isConnected).map(readProps) });
   };
 
+  /* ----- the command menu ----- */
+
+  /**
+   * ⌘K, as Framer's and Figma's quick actions: one box that finds anything
+   * the bar can do and any layer on the page by name. Each command is the
+   * same thing its button or key does — clicking the bar's own button where
+   * there is one — so the menu cannot drift from the bar.
+   */
+  type Runnable = { id: string; label: string; also?: string; keys?: string; kind: string; run: () => void };
+  const cmdkOpen = () => !cmdk.classList.contains('hidden');
+  let cmdkItems: Runnable[] = [];
+  let cmdkAt = 0;
+  const commandsNow = (): Runnable[] => {
+    const m = isMac ? '⌘' : 'Ctrl+';
+    const a = isMac ? '⌥' : 'Alt+';
+    const click = (b: Element | undefined) => () => (b as HTMLButtonElement | undefined)?.click();
+    const all: (Runnable & { needs?: boolean })[] = [
+      { id: 'preview', label: 'Preview', also: 'visitor play use', keys: 'P', kind: 'Mode', run: () => toggleMode('preview') },
+      { id: 'comment', label: 'Comment', also: 'note mark annotate', keys: 'C', kind: 'Mode', run: () => toggleMode('comment') },
+      { id: 'panel', label: 'Left panel', also: 'rail layers pages components assets', keys: `${a}L`, kind: 'View', run: toggleRail },
+      { id: 'parent', label: 'Select parent', keys: 'Shift+Enter', kind: 'Selection', run: () => walk('parent'), needs: true },
+      { id: 'child', label: 'Select first child', keys: 'Enter', kind: 'Selection', run: () => walk('child'), needs: true },
+      { id: 'next', label: 'Select next sibling', keys: 'Tab', kind: 'Selection', run: () => walk('next'), needs: true },
+      { id: 'prev', label: 'Select previous sibling', keys: 'Shift+Tab', kind: 'Selection', run: () => walk('prev'), needs: true },
+      { id: 'wrap', label: 'Wrap in a stack', also: 'auto layout flex group', keys: 'Shift+A', kind: 'Edit', run: wrapSelection, needs: true },
+      { id: 'copy-style', label: 'Copy style', keys: `${m}${a}C`, kind: 'Edit', run: copyStyle, needs: true },
+      { id: 'paste-style', label: 'Paste style', keys: `${m}${a}V`, kind: 'Edit', run: pasteStyle, needs: true },
+      { id: 'hide', label: 'Hide', also: 'display none', kind: 'Edit', run: () => selected && send({ type: 'rail-hide', node: (() => { const p = readProps(selected!); return { selector: p.selector, stable: p.stable, display: p.box.display }; })() }), needs: true },
+      { id: 'show-panel', label: 'Show in panel', also: 'style inspect', kind: 'View', run: () => send({ type: 'panel-focus' }), needs: true },
+      { id: 'deselect', label: 'Deselect', keys: 'Esc', kind: 'Selection', run: () => select(null), needs: true },
+      ...barKinds.map((b) => ({ id: `frame-${b.dataset.kind}`, label: `${b.getAttribute('aria-label')} frame`, also: 'device viewport breakpoint', kind: 'Frame', run: click(b) })),
+      { id: 'window', label: 'Window size', also: 'frame off reset viewport', kind: 'Frame', run: () => void resetViewport() },
+      { id: 'light', label: 'Light', also: 'scheme theme', kind: 'Page', run: click(barLight) },
+      { id: 'dark', label: 'Dark', also: 'scheme theme', kind: 'Page', run: click(barDark) },
+      { id: 'system', label: 'As the system prefers', also: 'scheme theme auto', kind: 'Page', run: click(barSystem) },
+      { id: 'reset', label: 'Reset every change', also: 'revert undo all', kind: 'Page', run: click(barReset) },
+      { id: 'shortcuts', label: 'Keyboard shortcuts', also: 'keys help', keys: 'Shift+?', kind: 'Help', run: toggleSheet },
+    ];
+    return all.filter((c) => !c.needs || selected);
+  };
+  const renderCmdk = () => {
+    const q = cmdkInput.value;
+    const commands = search(commandsNow(), q, 12);
+    // Layers by name, once there is something to look for.
+    const layers = q.trim()
+      ? search(
+          buildLayers(document.body, isOurs).map((n) => ({ id: `layer-${n.id}`, label: n.label, also: n.text ?? '', kind: 'Layer', run: () => select(find(n.selector)) })),
+          q,
+          8,
+        )
+      : [];
+    cmdkItems = [...commands, ...layers];
+    cmdkAt = Math.min(cmdkAt, Math.max(0, cmdkItems.length - 1));
+    cmdkList.replaceChildren();
+    if (!cmdkItems.length) {
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = 'Nothing matches.';
+      cmdkList.append(li);
+      return;
+    }
+    cmdkItems.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(i === cmdkAt));
+      const kind = document.createElement('span');
+      kind.className = 'kind';
+      kind.textContent = item.kind;
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      li.append(label, kind);
+      if (item.keys) {
+        const k = document.createElement('kbd');
+        k.textContent = item.keys;
+        li.append(k);
+      }
+      li.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        runCmdk(i);
+      });
+      cmdkList.append(li);
+    });
+    cmdkList.children[cmdkAt]?.scrollIntoView({ block: 'nearest' });
+  };
+  const closeCmdk = () => {
+    cmdk.classList.add('hidden');
+    cmdkInput.value = '';
+  };
+  const openCmdk = () => {
+    closeMenu();
+    closeSheet();
+    cmdk.classList.remove('hidden');
+    cmdkAt = 0;
+    renderCmdk();
+    setTimeout(() => cmdkInput.focus({ preventScroll: true }), 0);
+  };
+  const runCmdk = (i: number) => {
+    const item = cmdkItems[i];
+    closeCmdk();
+    item?.run();
+  };
+  cmdkInput.addEventListener('input', () => {
+    cmdkAt = 0;
+    renderCmdk();
+  });
+  cmdkInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdkAt = (cmdkAt + (e.key === 'ArrowDown' ? 1 : -1) + cmdkItems.length) % Math.max(1, cmdkItems.length);
+      renderCmdk();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      runCmdk(cmdkAt);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeCmdk();
+    }
+  });
+  cmdkInput.addEventListener('blur', () => setTimeout(() => cmdkOpen() && shadow.activeElement !== cmdkInput && closeCmdk(), 120));
+
   /* ----- the shortcut sheet ----- */
 
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -1955,12 +2090,15 @@ function activate() {
       const t = document.createElement('h3');
       t.textContent = group.title;
       const dl = document.createElement('dl');
+      // As Figma's sheet reads: what it does on the left, the keys on the right.
       for (const item of group.items) {
+        const row = document.createElement('div');
         const dt = document.createElement('dt');
-        dt.textContent = item.keys;
+        dt.textContent = item.what;
         const dd = document.createElement('dd');
-        dd.textContent = item.what;
-        dl.append(dt, dd);
+        dd.textContent = item.keys;
+        row.append(dt, dd);
+        dl.append(row);
       }
       col.append(t, dl);
       cols.append(col);
@@ -1990,6 +2128,12 @@ function activate() {
     if (e.key === 'Alt' && hoverOn && selected && !altHeld) {
       altHeld = true;
       drawMeasure();
+      return;
+    }
+    if (barOn && (e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyK') {
+      e.preventDefault();
+      if (cmdkOpen()) closeCmdk();
+      else openCmdk();
       return;
     }
     if (barOn && e.key === '?' && !e.metaKey && !e.ctrlKey) {

@@ -181,7 +181,28 @@ click an element, drag a box over anything including empty space, shift-click
 several, or select a run of text, then type the note in a composer that opens
 where it lands. **P** and **C** switch Preview and Comment on and off while
 the bar is up; **Alt+P**, **Alt+C** and **Alt+L** (the rail) work from
-anywhere in the tab and can be rebound at `chrome://extensions/shortcuts`. The bar is laid out as Framer's: the
+anywhere in the tab and can be rebound at `chrome://extensions/shortcuts`.
+
+The selection answers to what design tools taught everyone:
+
+- **Handles** near the selection: padding bars inside the edges, margin bars
+  outside (Alt pulls every side), a gap bar between the first two children,
+  and size on the right edge, bottom edge and corner. A drag snaps to the
+  page's spacing scale and lands as `var(--space-4)` where a variable holds
+  the step.
+- **Shift-click** adds to the selection; an edit in the panel reaches all
+  of it.
+- **⌘⌥C / ⌘⌥V** copy and paste style: paint, type and padding, not position
+  or size.
+- **Shift+A** wraps the selection in a stack running the way it already
+  runs, with the gap it already has; the brief says to make the element.
+- **Enter**, **Shift+Enter** and **Tab** walk into, out of and along the
+  tree; **hold Alt** to measure to whatever is under the pointer.
+- **⌘K** finds any command or layer by name; **Shift+?** lists every key.
+- **Selection colours** in the Style tab list every colour inside the
+  selection; change one and every place it is painted follows.
+
+The bar is laid out as Framer's: the
 tools on the left, the page and its frame in the middle, the switches on
 the right. The mark in the panel's footer opens the menu: theme
 (dark by default, light, or follow the system), site access, and the agent

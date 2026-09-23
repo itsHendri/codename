@@ -15,6 +15,8 @@ describe('matching a command', () => {
     expect(matchScore('wrap st', 'Wrap in a stack')).toBeGreaterThan(matchScore('ap in', 'Wrap in a stack')!);
     expect(matchScore('ap in', 'Wrap in a stack')).toBeGreaterThan(matchScore('wst', 'Wrap in a stack')!);
     expect(matchScore('zzz', 'Wrap in a stack')).toBeNull();
+    // Two letters in order are in nearly everything; they are not a match.
+    expect(matchScore('wr', 'Window size')).toBeNull();
   });
 
   it('searches a list, best first, and finds by other words too', () => {
@@ -23,8 +25,7 @@ describe('matching a command', () => {
       { label: 'Paste style' },
       { label: 'Select parent' },
     ];
-    // Words that start with it first; a looser hit, if any, comes after.
-    expect(search(items, 'pa').map((i) => i.label).slice(0, 2)).toEqual(['Paste style', 'Select parent']);
+    expect(search(items, 'pa').map((i) => i.label)).toEqual(['Paste style', 'Select parent']);
     expect(search(items, 'play').map((i) => i.label)).toEqual(['Preview']);
     expect(search(items, '').map((i) => i.label)).toEqual(['Preview', 'Paste style', 'Select parent']);
   });
