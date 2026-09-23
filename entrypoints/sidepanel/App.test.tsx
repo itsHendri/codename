@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
-import { handleBridgeFrame } from './lib/bridge';
+import { forget, handleBridgeFrame, pair } from './lib/bridge';
 import { allow, getSession, loadSession, setVarOverride, updateSession } from './lib/session';
 import { element, forfontsake, installChrome, type StubChrome } from './test/chromeStub';
 
@@ -784,5 +784,232 @@ describe('the Light/Dark switch with a middle', () => {
     await tick(120);
     expect(lastSiteMode()).toBe('dark');
     expect(getSession().lightForced).toBe(false);
+  });
+});
+
+describe('Make changes', () => {
+  /** A socket the test answers for the bridge. */
+  class FakeSocket {
+    static OPEN = 1;
+    static last: FakeSocket | null = null;
+    readyState = 0;
+    frames: { type: string; id: string; payload?: Record<string, unknown> }[] = [];
+    onopen: (() => void) | null = null;
+    onmessage: ((e: { data: string }) => void) | null = null;
+    onclose: ((e: { code: number; reason?: string }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    constructor(public url: string) {
+      FakeSocket.last = this;
+    }
+    send(raw: string) {
+      this.frames.push(JSON.parse(raw));
+    }
+    close() {
+      this.readyState = 3;
+      this.onclose?.({ code: 1000 });
+    }
+    open() {
+      this.readyState = 1;
+      this.onopen?.();
+    }
+    receive(frame: Record<string, unknown>) {
+      this.onmessage?.({ data: JSON.stringify({ v: 1, id: `b${Math.random()}`, ...frame }) });
+    }
+    asks(method: string) {
+      return this.frames.filter((f) => f.type === 'ask' && f.payload?.method === method);
+    }
+  }
+
+  const claude = { id: 'claude', name: 'Claude Code', can: 'It can read and edit files in this folder. It cannot run commands or use the internet.' };
+  const codex = { id: 'codex', name: 'Codex', can: 'It can edit files in this folder and run commands in a sandbox with no internet.' };
+  const button = (label: string) => Array.from(host.querySelectorAll('button')).find((b) => b.textContent === label) ?? null;
+  let ws: FakeSocket;
+
+  const connect = async (agents: unknown[], run: unknown = undefined) => {
+    (globalThis as unknown as { WebSocket: unknown }).WebSocket = FakeSocket;
+    await act(async () => pair('ABCDEF'));
+    ws = FakeSocket.last!;
+    await act(async () => ws.open());
+    await act(async () =>
+      ws.receive({ type: 'response', replyTo: 'hello', ok: true, payload: { bridgeVersion: '0.1.0', project: { name: 'ffs', path: '/Users/x/ffs' }, agents, run } }),
+    );
+    await tick(120);
+  };
+
+  const editAndOpenChanges = async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(200);
+    await click(host.querySelector('#tab-changes'));
+  };
+
+  const snapshot = (over: Record<string, unknown>) => ({
+    runId: 'r1',
+    agent: 'claude',
+    agentName: 'Claude Code',
+    status: 'running',
+    steps: [],
+    files: [],
+    filesKnown: true,
+    startedAt: new Date().toISOString(),
+    ...over,
+  });
+
+  afterEach(async () => {
+    await act(async () => forget());
+  });
+
+  it('is the one action, with no Send to agent anywhere', async () => {
+    await connect([claude, codex]);
+    await editAndOpenChanges();
+    expect(button('Make changes')).not.toBeNull();
+    expect(text()).not.toMatch(/send to agent/i);
+    // Two agents here, so there is a choice of which.
+    const picker = host.querySelector('select[aria-label="Agent that makes the changes"]') as HTMLSelectElement;
+    expect(Array.from(picker.options).map((o) => o.textContent)).toEqual(['Claude Code', 'Codex']);
+    expect(text()).toContain('Claude Code edits the files in ffs');
+  });
+
+  it('asks once per agent, then runs it on the brief and shows it working', async () => {
+    await connect([claude, codex]);
+    await editAndOpenChanges();
+
+    await click(button('Make changes'));
+    expect(text()).toContain('Let Claude Code edit files in ffs?');
+    expect(text()).toContain('It cannot run commands');
+    expect(ws.asks('run_agent')).toHaveLength(0);
+
+    await click(button('Allow and make changes'));
+    await tick();
+    const [runAsk] = ws.asks('run_agent');
+    expect(runAsk?.payload).toMatchObject({ method: 'run_agent', agent: 'claude', mayRun: true, locks: [] });
+    expect(String(runAsk?.payload?.brief)).toMatch(/color/);
+    expect(await chrome.storage.local.get('consent:run:project:/Users/x/ffs')).toEqual({ 'consent:run:project:/Users/x/ffs': ['claude'] });
+    // Not a hand-off: an agent watching from a chat must not apply it a second time.
+    expect(getSession().handoff).toBeNull();
+
+    await act(async () => ws.receive({ type: 'run', payload: snapshot({ steps: [{ at: new Date().toISOString(), text: 'Editing src/Title.tsx' }] }) }));
+    await act(async () => ws.receive({ type: 'response', replyTo: runAsk!.id, ok: true, payload: { runId: 'r1' } }));
+    await tick();
+    expect(text()).toContain('Claude Code is working');
+    expect(text()).toContain('Editing src/Title.tsx');
+    expect(button('Working… · Cancel')).not.toBeNull();
+
+    // Cancel is the same button while it works.
+    await click(button('Working… · Cancel'));
+    expect(ws.asks('cancel_run')).toHaveLength(1);
+
+    // Another agent is another question.
+    await act(async () => ws.receive({ type: 'run', payload: snapshot({ status: 'cancelled', endedAt: new Date().toISOString() }) }));
+    await tick();
+    const picker = host.querySelector('select[aria-label="Agent that makes the changes"]') as HTMLSelectElement;
+    await act(async () => {
+      picker.value = 'codex';
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await click(button('Make changes'));
+    expect(text()).toContain('Let Codex edit files in ffs?');
+    expect(text()).toContain('run commands in a sandbox');
+  });
+
+  it('lets go of the edits and reloads the page once the change is in source', async () => {
+    await connect([claude]);
+    await act(async () => updateSession({ agentsMayRun: ['claude'] }));
+    await editAndOpenChanges();
+    expect(badge()).toBe('1');
+
+    await click(button('Make changes'));
+    await tick();
+    const [runAsk] = ws.asks('run_agent');
+    await act(async () => ws.receive({ type: 'response', replyTo: runAsk!.id, ok: true, payload: { runId: 'r2' } }));
+    await act(async () =>
+      ws.receive({
+        type: 'run',
+        payload: snapshot({ runId: 'r2', status: 'done', files: ['src/Title.tsx'], summary: 'Recoloured the title.', endedAt: new Date().toISOString() }),
+      }),
+    );
+    await tick(200);
+
+    expect(badge()).toBe('0');
+    expect(stub.reloaded).toEqual([1]);
+    expect(text()).toContain('Done · 1 file changed');
+    expect(text()).toContain('src/Title.tsx');
+    expect(text()).toContain('Recoloured the title.');
+    expect(getSession().agentLog.at(-1)?.what).toBe('Claude Code changed 1 file: src/Title.tsx');
+  });
+
+  it('keeps the edits when the agent stops, and says why', async () => {
+    await connect([claude]);
+    await act(async () => updateSession({ agentsMayRun: ['claude'] }));
+    await editAndOpenChanges();
+    await click(button('Make changes'));
+    await tick();
+    await act(async () =>
+      ws.receive({ type: 'run', payload: snapshot({ runId: 'r3', status: 'failed', error: 'Claude Code is not signed in.', endedAt: new Date().toISOString() }) }),
+    );
+    await tick(120);
+    expect(badge()).toBe('1');
+    expect(stub.reloaded).toEqual([]);
+    expect(text()).toContain('Claude Code is not signed in.');
+    expect(text()).toContain('Your edits are still here');
+  });
+
+  it('does not take an old, finished run from the hello as news', async () => {
+    await connect([claude], snapshot({ runId: 'old', status: 'done', files: ['a.css'], endedAt: new Date().toISOString() }));
+    await editAndOpenChanges();
+    expect(badge()).toBe('1');
+    expect(stub.reloaded).toEqual([]);
+    expect(getSession().run).toBeNull();
+  });
+
+  it('says how to sign the agent in before the first press, and waits for it', async () => {
+    const bundled = '"/Users/x/Library/Application Support/Claude/claude-code/2.1.280/claude.app/Contents/MacOS/claude" auth login';
+    await connect([{ ...claude, signIn: { text: 'Claude Code needs signing in once for Codename.', command: bundled } }]);
+    await editAndOpenChanges();
+    expect(button('Make changes')?.disabled).toBe(true);
+    expect(text()).toContain('Claude Code needs signing in once for Codename.');
+    expect(Array.from(host.querySelectorAll('code')).map((c) => c.textContent)).toContain(bundled);
+    expect(host.querySelector('[aria-label="Copy command"]')).not.toBeNull();
+
+    // Signed in from a terminal; Check again asks the bridge, and the button comes on.
+    await click(button('Check again'));
+    const [list] = ws.asks('list_agents');
+    expect(list).toBeDefined();
+    await act(async () => ws.receive({ type: 'response', replyTo: list!.id, ok: true, payload: [claude] }));
+    await tick();
+    expect(button('Make changes')?.disabled).toBe(false);
+    expect(text()).not.toContain('needs signing in');
+  });
+
+  it('keeps the edits after a tool that cannot say what it changed', async () => {
+    await connect([{ id: 'custom', name: 'Stand-in', can: 'It runs a command.' }]);
+    await act(async () => updateSession({ agentsMayRun: ['custom'] }));
+    await editAndOpenChanges();
+    await click(button('Make changes'));
+    await tick();
+    await act(async () =>
+      ws.receive({ type: 'run', payload: snapshot({ runId: 'r4', agent: 'custom', agentName: 'Stand-in', status: 'done', filesKnown: false, endedAt: new Date().toISOString() }) }),
+    );
+    await tick(120);
+    expect(badge()).toBe('1');
+    expect(stub.reloaded).toEqual([]);
+    expect(text()).toContain('Stand-in finished');
+    expect(text()).toContain('does not say which files it changed');
+    expect(text()).not.toContain('changed nothing');
+  });
+
+  it('tells a bridge that predates Make changes from one with no agents', async () => {
+    await connect(undefined as unknown as unknown[]);
+    await editAndOpenChanges();
+    expect(button('Make changes')?.disabled).toBe(true);
+    expect(text()).toContain('older than Make changes');
+    expect(text()).not.toContain('No coding agent found');
+  });
+
+  it('says what is missing when there is no agent to run', async () => {
+    await connect([]);
+    await editAndOpenChanges();
+    expect(button('Make changes')?.disabled).toBe(true);
+    expect(text()).toContain('No coding agent found on this machine');
   });
 });

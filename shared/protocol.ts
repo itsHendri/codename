@@ -58,10 +58,47 @@ export interface ProjectInfo {
   dirty?: boolean;
 }
 
+/** A coding agent the bridge found and can run in its folder. */
+export interface AgentInfo {
+  id: string;
+  name: string;
+  /** What it can be held to, in a sentence, for the consent row. */
+  can: string;
+  /** Set when the bridge knows this copy is not signed in: what to say, and the command that fixes it. */
+  signIn?: { text: string; command: string };
+}
+
+/**
+ * One Make changes run, whole, as it stands. Sent again on every step, and
+ * with the hello ack, so a panel that closed mid-run comes back to it.
+ */
+export interface RunSnapshot {
+  runId: string;
+  agent: string;
+  agentName: string;
+  status: 'running' | 'done' | 'failed' | 'cancelled';
+  steps: { at: string; text: string }[];
+  /** Project-relative paths the agent edited, as far as its output says. */
+  files: string[];
+  /** False for a tool whose output does not say which files it touched; `files` is then empty, not "none". */
+  filesKnown: boolean;
+  /** The agent's own last word on what it did. */
+  summary?: string;
+  error?: string;
+  /** A command that puts the error right, to run in a terminal. */
+  fix?: string;
+  startedAt: string;
+  endedAt?: string;
+}
+
 /** What the bridge says back to a hello it accepted. */
 export interface HelloAck {
   bridgeVersion: string;
   project?: ProjectInfo;
+  /** The agents Make changes can run here; absent from a bridge that cannot run any. */
+  agents?: AgentInfo[];
+  /** The latest run, if there has been one since the bridge started. */
+  run?: RunSnapshot | null;
 }
 
 /** An element the user has pinned in the panel. */
@@ -110,7 +147,10 @@ export interface SessionState {
   changes: ChangeSet | null;
   /** The brief for `changes`, precomputed so the bridge never renders one. */
   prompt: string | null;
-  /** Set when the user pressed "Send to agent". Cleared by the agent or the user. */
+  /**
+   * An explicit hand-off to an agent in a chat. Make changes does not set it:
+   * the run applies the change, and a watching agent must not apply it twice.
+   */
   handoff: { changes: ChangeSet; prompt: string; at: string } | null;
   selection: SelectedElement | null;
   comments: Comment[];
@@ -210,7 +250,16 @@ export type PanelRequest =
    * project's write switch on, and unless the definition is still exactly
    * where and what it was when it was found.
    */
-  | { method: 'apply_definition'; name: string; from: string; to: string; file: string; line: number };
+  | { method: 'apply_definition'; name: string; from: string; to: string; file: string; line: number }
+  /**
+   * Make changes: run a coding agent in the bridge's folder on this brief.
+   * The brief and the person's answer travel with the request rather than
+   * being read from the last state frame, which may still be on its way.
+   */
+  | { method: 'run_agent'; agent: string; brief: string; locks: string[]; mayRun: boolean }
+  | { method: 'cancel_run' }
+  /** The agents again, asked afresh: after the person signed one in, say. */
+  | { method: 'list_agents' };
 
 export interface AppliedDefinition {
   name: string;
@@ -220,4 +269,4 @@ export interface AppliedDefinition {
   to: string;
 }
 
-export type MessageType = 'hello' | 'state' | 'request' | 'response' | 'definitions' | 'ask';
+export type MessageType = 'hello' | 'state' | 'request' | 'response' | 'definitions' | 'ask' | 'run';

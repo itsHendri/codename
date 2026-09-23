@@ -6,11 +6,12 @@ import type { ProjectInfo } from '@/shared/protocol';
 import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
-import { applyDefinition, dropAgentPreview, refreshDefinitions, rereadSelection, sendToAgent, useBridge } from '../lib/bridge';
+import { applyDefinition, dropAgentPreview, refreshDefinitions, rereadSelection, useBridge } from '../lib/bridge';
 import { allow, clearAgentLog, markApplied } from '../lib/session';
 import { useSession } from '../lib/session';
 import { ChangesList } from './inspect/ChangesList';
 import { ConnectAgentCard } from './ConnectAgentCard';
+import { MakeChanges, RunCard } from './MakeChanges';
 import { CommentList } from './inspect/Comments';
 import { Empty } from './States';
 import { ChangesIcon } from './icons';
@@ -26,8 +27,7 @@ import { ChangesIcon } from './icons';
 export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectController }) {
   const [copied, setCopied] = useState<string | null>(null);
   const { status, project } = useBridge();
-  const { handoff, log, comments, agentPreview, agentLog, locks, bridgeMayWrite } = useSession();
-  const connected = status === 'connected';
+  const { log, comments, agentPreview, agentLog, locks, bridgeMayWrite, run } = useSession();
 
   const prompt = useMemo(() => toPrompt(set), [set]);
   const empty = isEmpty(set);
@@ -66,11 +66,18 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
     return (
       <div className="flex flex-col">
         {presence}
-        <Empty icon={<ChangesIcon className="h-6 w-6" />} title="Nothing to hand over yet">
+        {/* A run that landed takes the queue with it; what it did stays in view. */}
+        {run && (
+          <div className="px-3 pt-3">
+            <RunCard run={run} />
+          </div>
+        )}
+        <Empty icon={<ChangesIcon className="h-6 w-6" />} title="No changes yet">
           Change a variable in Variables, edit a layer, or turn on Comment on the bar and mark
-          something on the page. Whatever you do collects here as one brief for your agent.
+          something on the page. Whatever you do collects here, and Make changes writes it into
+          your project.
         </Empty>
-        {status === 'off' && (
+        {status !== 'connected' && status !== 'connecting' && (
           <div className="px-3 pb-3">
             <ConnectAgentCard />
           </div>
@@ -182,23 +189,8 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
       </div>
 
       <div className="sticky bottom-0 flex flex-col gap-1.5 border-t border-line bg-surface-app px-3 py-2">
-        {status === 'off' ? (
-          <ConnectAgentCard />
-        ) : (
-          <p className="text-2xs text-ink-muted">
-            {connected
-              ? 'Nothing is written until your agent runs — review its diff as usual.'
-              : 'Looking for the bridge — start your agent, or copy the brief meanwhile.'}
-          </p>
-        )}
-        <button
-          onClick={() => (sendToAgent() ? flash('sent') : null)}
-          disabled={empty || !connected}
-          title={connected ? 'Hand this to the connected agent' : 'Connect your agent first'}
-          className="btn btn-lg btn-primary"
-        >
-          {copied === 'sent' ? 'Sent — your agent will pick it up' : handoff ? 'Sent · send again' : 'Send to agent'}
-        </button>
+        {/* Wherever a code is what is missing, the place to type one. */}
+        {status === 'connected' || status === 'connecting' ? <MakeChanges empty={empty} local={set.local} /> : <ConnectAgentCard />}
         <div className="flex gap-2">
           <button
             onClick={() => navigator.clipboard.writeText(prompt).then(() => flash('prompt'))}

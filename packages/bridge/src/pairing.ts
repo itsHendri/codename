@@ -33,6 +33,8 @@ export interface BridgeFile {
    * stops a different extension from doing the same.
    */
   extensionId?: string;
+  /** The folder the bridge runs in, so `open` can tell whether it is this project's. */
+  cwd?: string;
 }
 
 export const bridgeFilePath = (home = homedir()): string => join(home, '.codename', 'bridge.json');
@@ -47,6 +49,7 @@ export function readBridgeFile(path: string): BridgeFile | null {
       pid: raw.pid,
       startedAt: String(raw.startedAt ?? ''),
       ...(typeof raw.extensionId === 'string' && raw.extensionId ? { extensionId: raw.extensionId } : {}),
+      ...(typeof raw.cwd === 'string' && raw.cwd ? { cwd: raw.cwd } : {}),
     };
   } catch {
     return null;

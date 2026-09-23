@@ -1,45 +1,39 @@
 import { useState } from 'react';
-import { CURSOR_MCP_JSON, DEFAULT_PORT } from '@/shared/protocol';
+import { DEFAULT_PORT } from '@/shared/protocol';
 import { pair, useBridge } from '../lib/bridge';
 import { CheckIcon, CopyIcon } from './icons';
 
-// One command: installs the codename skill and registers the bridge with Claude Code.
-const CLAUDE_CMD = 'npx codename-bridge setup';
-const CURSOR_JSON = CURSOR_MCP_JSON;
+/** One command, run in the project: the bridge, the dev server, the page, and the code. */
+const OPEN_CMD = 'npx codename-bridge open .';
 
 const LABEL: Record<string, string> = {
   off: 'Not connected',
   connecting: 'Looking for the bridge…',
   connected: 'Connected',
-  unauthorized: 'That code did not match — check it with your agent',
+  unauthorized: 'That code did not match — check the terminal running codename-bridge open',
   locked: 'Too many wrong codes — the panel tries again by itself once the bridge opens, in five minutes',
   'other-extension':
     'This bridge paired with a different copy of Codename, such as a development build. Run npx codename-bridge unpin, then enter the code again.',
 };
 
 /**
- * How the panel meets the agent, in the steps it takes, where you first need
- * it: on the tab that hands work over. Register the bridge with the agent,
- * start the agent (it launches the bridge), and type the code the bridge is
- * waiting for. The code goes to the bridge's stderr, which an agent swallows,
- * so the card says how to read it: ask the agent, or run `codename-bridge
- * code` in a terminal.
+ * How the panel meets the project, where you first need it: on the tab that
+ * makes the changes. One command in the project folder starts the bridge and
+ * the dev server, opens the page and prints the code; the code goes in here.
+ * After that, Make changes runs the person's own coding agent from that
+ * folder — no chat has to be open for it.
  *
- * `codename-bridge open` prints the code in the terminal the person is
- * already looking at, which is the shortest honest path to it. Handing the
- * code out over the socket to whoever asks was tried and removed: an Origin
- * header only means something coming from a real browser, so it would have
- * replaced the code with a public extension id.
+ * Handing the code out over the socket to whoever asks was tried and
+ * removed: an Origin header only means something coming from a real
+ * browser, so it would have replaced the code with a public extension id.
  */
 export function ConnectAgentCard() {
   const { status } = useBridge();
   const [code, setCode] = useState('');
-  const [agent, setAgent] = useState<'claude' | 'cursor'>('claude');
   const [copied, setCopied] = useState(false);
 
-  const snippet = agent === 'claude' ? CLAUDE_CMD : CURSOR_JSON;
   const copy = async () => {
-    await navigator.clipboard.writeText(snippet);
+    await navigator.clipboard.writeText(OPEN_CMD);
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   };
@@ -47,53 +41,25 @@ export function ConnectAgentCard() {
   return (
     <div className="flex flex-col gap-2.5 rounded-card border border-line bg-surface-panel p-3 text-xs">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-ink">Connect your agent</span>
+        <span className="text-sm font-medium text-ink">Connect your project</span>
         <span className="ml-auto text-2xs text-ink-muted">{LABEL[status] ?? status}</span>
       </div>
 
-      <Step n={1} title="Register the bridge with your agent, once">
-        <div className="flex items-center gap-1.5 text-2xs">
-          <div role="radiogroup" aria-label="Agent" className="flex gap-0.5 rounded-control bg-surface-field p-0.5">
-          {(['claude', 'cursor'] as const).map((a) => (
-            <button
-              key={a}
-              role="radio"
-              aria-checked={agent === a}
-              onClick={() => setAgent(a)}
-              className={`h-5 rounded-[4px] px-2 text-xs ${
-                agent === a ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              {a === 'claude' ? 'Claude Code' : 'Cursor'}
-            </button>
-          ))}
-          </div>
-          {agent === 'cursor' && <span className="text-ink-muted">in mcp.json</span>}
-        </div>
+      <Step n={1} title="In your project folder, run">
         <div className="flex items-start gap-1.5">
           <code className="min-w-0 flex-1 rounded-control bg-surface-field px-2 py-1.5 font-mono text-2xs break-all whitespace-pre-wrap">
-            {snippet}
+            {OPEN_CMD}
           </code>
           <button onClick={copy} className="flex h-control w-6 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink" aria-label="Copy" title={copied ? 'Copied' : 'Copy'}>
             {copied ? <CheckIcon className="h-3 w-3 text-accent" /> : <CopyIcon className="h-3 w-3" />}
           </button>
         </div>
-      </Step>
-
-      <Step n={2} title="Start your agent — it launches the bridge for you">
         <p className="text-2xs text-ink-muted">
-          In the folder you are working in. Then, in a second terminal,{' '}
-          <code className="font-mono">npx codename-bridge open .</code> starts the dev server, opens
-          the page, and prints the pairing code.
-        </p>
-        <p className="text-2xs text-ink-muted">
-          The bridge itself prints the code where the agent, not you, can see it. So ask the agent —{' '}
-          <i>what is the Codename pairing code?</i> (it has a <code>pairing_code</code> tool) — or run{' '}
-          <code className="font-mono">npx codename-bridge code</code>.
+          It starts the bridge and your dev server, opens the page, and prints a pairing code.
         </p>
       </Step>
 
-      <Step n={3} title="Enter the code">
+      <Step n={2} title="Enter the code">
         <form
           className="flex gap-1.5"
           onSubmit={(e) => {
@@ -122,9 +88,9 @@ export function ConnectAgentCard() {
       </Step>
 
       <p className="text-2xs text-ink-muted">
-        Everything stays on this machine: the bridge listens on 127.0.0.1 only. The only thing it
-        writes to source is a variable definition you apply yourself, after you turn that on for the
-        project.
+        Make changes then runs Claude Code, Cursor or Codex in that folder, signed in with your own
+        account. The bridge listens on 127.0.0.1 only; the agent talks to its own model service, as it
+        always does.
       </p>
     </div>
   );

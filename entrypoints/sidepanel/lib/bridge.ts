@@ -17,6 +17,7 @@ import {
   DEFAULT_PORT,
   DESIGN_FILES,
   PROTOCOL_VERSION,
+  type AgentInfo,
   type AppliedDefinition,
   type BridgeRequest,
   type DefinitionsPayload,
@@ -26,6 +27,7 @@ import {
   type HelloAck,
   type PanelRequest,
   type ProjectInfo,
+  type RunSnapshot,
   type SessionState,
 } from '@/shared/protocol';
 import { isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
@@ -63,11 +65,20 @@ let status: BridgeStatus = 'off';
 let pairing: Pairing | null = null;
 /** The folder the paired bridge is running in, as its hello ack named it. */
 let project: ProjectInfo | null = null;
+/** The coding agents that bridge can run for Make changes; null from a bridge older than Make changes. */
+let agents: AgentInfo[] | null = [];
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 const setStatus = (s: BridgeStatus) => {
   if (s === status) return;
   status = s;
+  emit();
+};
+
+const setAgents = (next: AgentInfo[] | null) => {
+  // Whole, not by id: the same agent signing in or out is news too.
+  if (JSON.stringify(next) === JSON.stringify(agents)) return;
+  agents = next;
   emit();
 };
 
@@ -155,6 +166,7 @@ function connect() {
     if (socket !== ws) return;
     socket = null;
     setProject(null);
+    setAgents([]);
     // A bridge that went away mid-question will never answer it, and waiting
     // out the timeout left an Apply button saying "Applying…" for twenty seconds.
     settleAsks('the agent bridge disconnected');
@@ -226,7 +238,24 @@ export function handleBridgeFrame(msg: Envelope): boolean {
     // Not something we asked for, so it is the answer to the hello. Known by
     // its shape rather than its id, which saves holding on to the id at all.
     const ack = msg.payload as HelloAck | undefined;
-    if (ack && typeof ack.bridgeVersion === 'string') setProject(ack.project ?? null);
+    if (ack && typeof ack.bridgeVersion === 'string') {
+      setProject(ack.project ?? null);
+      // An ack with no list at all is from a bridge that cannot run agents.
+      setAgents(Array.isArray(ack.agents) ? ack.agents : null);
+      if (ack.run) adoptRun(ack.run, true);
+      // A run this panel thought was going, that the bridge no longer knows:
+      // the bridge was restarted under it, and it is not coming back.
+      const shown = getSession().run;
+      if (shown?.status === 'running' && ack.run?.runId !== shown.runId) {
+        adoptRun({ ...shown, status: 'failed', error: 'The bridge was restarted while it was working.', endedAt: new Date().toISOString() }, false);
+      }
+    }
+    return true;
+  }
+
+  if (msg.type === 'run') {
+    const run = msg.payload as RunSnapshot | undefined;
+    if (run && typeof run.runId === 'string') adoptRun(run, false);
     return true;
   }
 
@@ -592,18 +621,18 @@ const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
 };
-const snapshot = () => ({ status, pairing, project });
+const snapshot = () => ({ status, pairing, project, agents });
 let memo = snapshot();
 const getSnapshot = () => {
   const next = snapshot();
-  if (next.status !== memo.status || next.pairing !== memo.pairing || next.project !== memo.project) memo = next;
+  if (next.status !== memo.status || next.pairing !== memo.pairing || next.project !== memo.project || next.agents !== memo.agents) memo = next;
   return memo;
 };
 
 /** The same store `useBridge` reads, for code that is not a component. */
 export const bridgeStatus = (): BridgeStatus => status;
 
-export function useBridge(): { status: BridgeStatus; pairing: Pairing | null; project: ProjectInfo | null } {
+export function useBridge(): { status: BridgeStatus; pairing: Pairing | null; project: ProjectInfo | null; agents: AgentInfo[] | null } {
   useEffect(() => void start(), []);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
@@ -696,13 +725,76 @@ export async function dropAgentPreview(): Promise<void> {
   updateSession({ agentPreview: null });
 }
 
-/** Press "Send to agent": the current change set becomes the hand-off. */
-export function sendToAgent(): boolean {
+/* ---------------- Make changes ---------------- */
+
+/** Runs whose ending has been acted on, so a repeated frame or a later hello does not act twice. */
+const ended = new Set<string>();
+let runApplied: ((run: RunSnapshot) => void) | null = null;
+
+/**
+ * What the panel does when a run changed files: the source now says what the
+ * overrides were saying, so they come off and the page is shown as source
+ * paints it. Registered by the app, which owns the overrides.
+ */
+export function onRunApplied(fn: ((run: RunSnapshot) => void) | null): void {
+  runApplied = fn;
+}
+
+/**
+ * A snapshot of a run, from a `run` frame or a hello ack.
+ *
+ * A hello brings the bridge's latest run whatever it was; only one that is
+ * still going, or the one this panel is already showing, is taken from it —
+ * a run that finished yesterday is not news, and must not clear today's edits.
+ */
+export function adoptRun(run: RunSnapshot, fromHello: boolean): void {
+  const shown = getSession().run;
+  if (fromHello && run.status !== 'running' && shown?.runId !== run.runId) return;
+  updateSession({ run });
+  if (run.status === 'running' || ended.has(run.runId)) return;
+  ended.add(run.runId);
+  if (run.status === 'done') {
+    const files = run.files.length;
+    // A tool that cannot say what it touched is not taken to have touched
+    // everything: the edits stay until the person has looked at the diff.
+    if (run.filesKnown === false) logAgent(`${run.agentName} finished; it does not say which files it changed`);
+    else logAgent(files ? `${run.agentName} changed ${files} ${files === 1 ? 'file' : 'files'}: ${run.files.join(', ')}` : `${run.agentName} finished without changing a file`);
+    if (files) runApplied?.(run);
+  } else if (run.status === 'failed') {
+    logAgent(`${run.agentName} stopped: ${run.error ?? 'no reason given'}`);
+  } else {
+    logAgent(`${run.agentName} was cancelled`);
+  }
+}
+
+/**
+ * Press Make changes: the bridge runs the chosen agent on the brief in the
+ * project folder, and progress comes back as `run` frames. Throws the
+ * bridge's reason when it refuses.
+ *
+ * It does not set the hand-off. An agent in a chat that is watching would
+ * wake on one and apply the same change a second time, beside the run.
+ */
+export async function makeChanges(agent: string): Promise<void> {
   const s = latest;
-  if (!s?.changes || !s.prompt) return false;
-  updateSession((prev) => ({
-    handoff: { changes: s.changes!, prompt: s.prompt!, at: new Date().toISOString() },
-    revision: prev.revision + 1,
-  }));
-  return true;
+  if (!s?.changes || !s.prompt) throw new Error('there are no changes to make');
+  const session = getSession();
+  await ask<{ runId: string }>({
+    method: 'run_agent',
+    agent,
+    brief: s.prompt,
+    locks: session.locks,
+    mayRun: session.agentsMayRun.includes(agent),
+  });
+}
+
+/** Ask the bridge for its agents afresh, after one may have been signed in. */
+export async function refreshAgents(): Promise<void> {
+  const next = await ask<AgentInfo[]>({ method: 'list_agents' });
+  if (Array.isArray(next)) setAgents(next);
+}
+
+/** Stop the run that is going. */
+export async function cancelRun(): Promise<void> {
+  await ask({ method: 'cancel_run' });
 }

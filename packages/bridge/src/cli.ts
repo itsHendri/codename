@@ -9,24 +9,11 @@ import { resolve } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import pkg from '../package.json';
 import { DEFAULT_PORT } from '../../../shared/protocol';
-import type { AppliedDefinition, PanelRequest, SessionState } from '../../../shared/protocol';
-import { applyDefinition, findDefinitions } from './definitions';
+import { startBridge, type Host } from './host';
 import { createMcpServer } from './mcp';
-import { readProject } from './project';
-import {
-  bridgeFilePath,
-  generateToken,
-  readBridgeFile,
-  readPairingCode,
-  removeBridgeFile,
-  TOKEN_RE,
-  writeBridgeFile,
-} from './pairing';
-import { forget, pushDefinitions } from './push';
-import { Sessions } from './sessions';
+import { bridgeFilePath, readBridgeFile, readPairingCode, readRunningBridge, writeBridgeFile } from './pairing';
 import { runOpen } from './open';
 import { runSetup, type SetupClient } from './setup';
-import { startServer } from './ws';
 
 const log = (line: string) => process.stderr.write(`${line}\n`);
 
@@ -44,12 +31,13 @@ Usage: codename-bridge [--port N] [--keep-token]
   setup           Install the codename skill into your agent's skills folder
                   (~/.claude/skills/codename) and register the bridge with
                   Claude Code, or print what to paste for Cursor. Safe to rerun.
-  open            Start this project's dev server and open it in your browser,
-                  ready for the panel. Your agent runs the bridge itself, in
-                  its own terminal; this one just gets you to the page.
+  open            Start the bridge for this folder (unless your agent already
+                  did), start the dev server, and open it in your browser,
+                  ready for the panel. Make changes in the panel then runs
+                  Claude Code, Cursor or Codex here — no chat needed.
   code            Print the pairing code of the bridge that is running, and exit.
-                  Your agent starts the bridge and swallows what it prints, so
-                  this is how you read the code — or ask the agent for it.
+                  An agent that starts the bridge swallows what it prints, so
+                  this is how you read the code.
   unpin           Forget which copy of the extension this bridge paired with.
                   The bridge only answers the first one it pairs with; run this
                   after switching between a development build and the store
@@ -59,6 +47,10 @@ Usage: codename-bridge [--port N] [--keep-token]
   --keep-token    Reuse the pairing code from ~/.codename/bridge.json
   --version       Print the version
   --help          This text
+
+Make changes runs whichever of these you pick in the panel: $CODENAME_AGENT_CMD
+(a command with {prompt} where the brief goes), Claude Code, Cursor
+(cursor-agent), Codex.
 `;
 
 /**
@@ -116,8 +108,14 @@ function setupCli(argv: string[]): never {
   process.exit(r.registration === 'failed' ? 1 : 0);
 }
 
-/** `codename-bridge open`: a person at a terminal, so it talks on stdout. */
-function openCli(argv: string[]): void {
+/**
+ * `codename-bridge open`: a person at a terminal, so it talks on stdout.
+ *
+ * Starts the bridge here when this folder has none, keeping the last pairing
+ * code so a panel that paired before connects by itself, then starts the dev
+ * server and opens it. With this, Make changes needs no chat open anywhere.
+ */
+async function openCli(argv: string[]): Promise<void> {
   let dir = '.';
   let cmd: string | undefined;
   let url: string | undefined;
@@ -137,21 +135,66 @@ function openCli(argv: string[]): void {
       process.exit(2);
     }
   }
+  const say = (line: string) => process.stdout.write(`${line}\n`);
   const resolved = resolve(dir);
+
+  const running = readRunningBridge();
+  let host: Host | null = null;
+  if (running && !running.cwd) {
+    // Every bridge since Make changes writes its folder; one that did not is
+    // older, and a panel paired with it would find nothing to run.
+    say(`A codename bridge from an older version is running (pid ${running.pid}), usually started by an agent chat.`);
+    say('Make changes needs this version. Close the agent session that started it, or stop that process, then run this again.');
+    process.exit(1);
+  }
+  if (running?.cwd && running.cwd !== resolved) {
+    // Only one bridge can hold the port, and a panel paired with that one
+    // would hand this page's changes to another project.
+    say(`A codename bridge is already running for ${running.cwd} (pid ${running.pid}).`);
+    say('Stop it first — close the agent or terminal that started it — then run this again, so the panel works on this project.');
+    process.exit(1);
+  }
+  if (!running) {
+    try {
+      host = await startBridge({
+        cwd: resolved,
+        port: Number(process.env.CODENAME_PORT) || DEFAULT_PORT,
+        keepToken: true,
+        version: pkg.version,
+        // The bridge's own lines are for a person here, but quieter than the dev server's.
+        log: (line) => process.stderr.write(`[codename] ${line}\n`),
+      });
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      say(code === 'EADDRINUSE' ? 'Something else is using the bridge\'s port. Set CODENAME_PORT to another one.' : `Could not start the bridge: ${(err as Error).message}`);
+      process.exit(1);
+    }
+  }
+
   const { child } = runOpen({
     dir: resolved,
     cmd,
     url,
     browser,
-    running: () => readPairingCode(),
-    log: (line) => process.stdout.write(`${line}\n`),
+    running: () => (host ? { token: host.token, port: host.port } : readPairingCode()),
+    log: say,
   });
-  if (!child) return;
-  // Ctrl-C belongs to the dev server; this process is only holding its hand.
-  const stop = () => child.kill('SIGINT');
-  process.on('SIGINT', stop);
-  process.on('SIGTERM', stop);
-  child.on('exit', (code) => process.exit(code ?? 0));
+
+  let stopping = false;
+  const stop = async (code: number) => {
+    if (stopping) return;
+    stopping = true;
+    await host?.close();
+    process.exit(code);
+  };
+  // Ctrl-C belongs to the dev server; the bridge goes when it does.
+  const onSignal = () => {
+    if (child) child.kill('SIGINT');
+    else void stop(0);
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+  child?.on('exit', (code) => void stop(code ?? 0));
 }
 
 interface Args {
@@ -194,52 +237,11 @@ async function main() {
   if (process.argv[2] === 'setup') setupCli(process.argv.slice(3));
   if (process.argv[2] === 'open') return openCli(process.argv.slice(3));
   const args = parseArgs(process.argv.slice(2));
-  const filePath = bridgeFilePath();
-  const previous = readBridgeFile(filePath);
-  const token = args.keepToken && previous && TOKEN_RE.test(previous.token) ? previous.token : generateToken();
-
   const cwd = process.cwd();
-  const sessions = new Sessions();
-  sessions.project = readProject(cwd);
 
-  /** The one write the bridge makes, and only for a panel that says it may. */
-  const answerPanel = async (sessionId: string, request: PanelRequest): Promise<unknown> => {
-    if (request.method === 'find_definitions') return findDefinitions(cwd, request.names);
-    const state: SessionState | null = sessions.get(sessionId).state;
-    if (!state?.bridgeMayWrite) throw new Error('this project has not been allowed to take edits from the panel');
-    // The consent is kept per project, so it is still on when the same tab
-    // has moved to a deployed site; a value read there is not this folder's.
-    if (!state.tab?.local) throw new Error('the page is not served from this machine, so nothing read from it is written to this project');
-    const applied: AppliedDefinition = applyDefinition(cwd, request);
-    log(`applied ${applied.name}: ${applied.from} → ${applied.to} in ${applied.file}:${applied.line}`);
-    return applied;
-  };
-
-  let server;
+  let host: Host;
   try {
-    server = await startServer({
-      port: args.port,
-      token,
-      sessions,
-      bridgeVersion: pkg.version,
-      pinnedExtensionId: process.env.CODENAME_EXTENSION_ID || previous?.extensionId,
-      // Read from the file for each hello, so `unpin` reaches this process.
-      readPin: () => process.env.CODENAME_EXTENSION_ID || readBridgeFile(filePath)?.extensionId,
-      onPin: (extensionId) => {
-        const file = readBridgeFile(filePath);
-        if (file && file.pid === process.pid) writeBridgeFile(filePath, { ...file, extensionId });
-      },
-      project: () => readProject(cwd),
-      onAsk: answerPanel,
-      onState: (sessionId, state, link) => {
-        pushDefinitions(cwd, sessionId, state, link);
-      },
-      onGone: forget,
-      allowNoOrigin: process.env.CODENAME_ALLOW_NO_ORIGIN === '1',
-      // Comma-separated page origins, e.g. the panel harness at http://localhost:5320.
-      devOrigins: (process.env.CODENAME_DEV_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean),
-      log,
-    });
+    host = await startBridge({ cwd, port: args.port, keepToken: args.keepToken, version: pkg.version, log });
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'EADDRINUSE') log(`another codename-bridge is already running on port ${args.port}`);
@@ -247,17 +249,7 @@ async function main() {
     process.exit(1);
   }
 
-  writeBridgeFile(filePath, {
-    token,
-    port: server.port,
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-    ...(previous?.extensionId ? { extensionId: previous.extensionId } : {}),
-  });
-  log(`codename-bridge listening on ws://127.0.0.1:${server.port} — pairing code: ${token}`);
-  if (sessions.project) log(`running in ${sessions.project.name}${sessions.project.branch ? ` on ${sessions.project.branch}` : ''}`);
-
-  const { server: mcp } = createMcpServer(sessions, pkg.version, { pairingCode: token, cwd });
+  const { server: mcp } = createMcpServer(host.sessions, pkg.version, { pairingCode: host.token, cwd });
   const transport = new StdioServerTransport();
 
   let closing = false;
@@ -265,8 +257,7 @@ async function main() {
     if (closing) return;
     closing = true;
     log(`codename-bridge stopping (${why})`);
-    await Promise.allSettled([server.close(), mcp.close()]);
-    removeBridgeFile(filePath, process.pid);
+    await Promise.allSettled([host.close(), mcp.close()]);
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));

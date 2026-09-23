@@ -26,7 +26,7 @@ import {
   updateSession,
   useSession,
 } from './lib/session';
-import { dropAgentPreview, useBridge, useBridgeSync } from './lib/bridge';
+import { dropAgentPreview, onRunApplied, useBridge, useBridgeSync } from './lib/bridge';
 import { useInspect } from './lib/inspect';
 import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
@@ -175,6 +175,25 @@ export default function App() {
       // The viewport is the bar's to put back; the panel only asks.
       void sendInspector(tabIdRef.current, { cmd: 'reset-viewport' });
     }
+  }, []);
+
+  /**
+   * A Make changes run changed files: source now says what the overrides were
+   * saying. They come off, and the page is reloaded so it shows exactly what
+   * source paints — a reorder the panel applied by moving elements would
+   * otherwise fight the dev server's own hot update. Comments stay; they are
+   * notes, not overrides. Mode and viewport stay; they are how you look.
+   */
+  useEffect(() => {
+    onRunApplied(() => {
+      setConfig(null);
+      ctlRef.current.revertAll();
+      ctlRef.current.clear();
+      if (getSession().agentPreview) void dropAgentPreview();
+      const tab = tabIdRef.current;
+      if (tab != null) void chrome.tabs.reload(tab).catch(() => {});
+    });
+    return () => onRunApplied(null);
   }, []);
 
   /**
