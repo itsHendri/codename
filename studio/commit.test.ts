@@ -617,3 +617,37 @@ describe('what counts as asking for movement', () => {
     expect(toPrompt(buildChangeSet(scan, [], {}, [edit('transition', 'opacity 200ms ease')]))).toContain('prefers-reduced-motion');
   });
 });
+
+describe('a new stack in the brief', () => {
+  it('says to make the stack and gives its styles as the new element’s', async () => {
+    const { commit: add, emptyLog, active: live, stackSelector } = await import('./changes');
+    const sel = stackSelector('k1');
+    const on = (property: string, from: string, to: string, token?: string) => ({ selector: sel, matches: 1, stable: true, property, from, to, ...(token ? { token } : {}) });
+    let log = emptyLog();
+    log = add(log, { ...on('wrap', '.a, .b', 'a new stack'), wrap: { id: 'k1', members: ['.a', 'p:nth-of-type(2)'] } }, 1000);
+    log = add(log, on('display', 'block', 'flex'), 1001);
+    log = add(log, on('flex-direction', 'row', 'column'), 1002);
+    log = add(log, on('gap', 'normal', 'var(--space-4)', '--space-4'), 1003);
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, live(log)));
+    expect(prompt).toContain('A new stack: put `.a`, `p:nth-of-type(2)` inside one new element');
+    expect(prompt).toContain('find them by their content');
+    expect(prompt).toContain('`gap`: `normal` → `var(--space-4)` (the token `--space-4`)');
+    // The stack's made-up selector is never handed over as if it were in source.
+    expect(prompt).not.toContain('`div#codename-stack-k1`');
+    expect(prompt).not.toContain('- `wrap`');
+  });
+
+  it('says nothing about a stack whose wrap was undone', async () => {
+    const { commit: add, emptyLog, active: live, stackSelector, revert } = await import('./changes');
+    const sel = stackSelector('k2');
+    let log = add(emptyLog(), { selector: sel, matches: 1, stable: true, property: 'wrap', from: '.a', to: 'a new stack', wrap: { id: 'k2', members: ['.a'] } }, 1000);
+    log = add(log, { selector: sel, matches: 1, stable: true, property: 'display', from: 'block', to: 'flex' }, 1001);
+    log = add(log, { selector: '.x', matches: 1, stable: true, property: 'color', from: '#000', to: '#fff' }, 2000);
+    // Only the wrap taken back: its stack's own style edit is still in the log.
+    log = revert(log, log.entries[0]!.id);
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, live(log)));
+    expect(prompt).not.toContain('codename-stack');
+    expect(prompt).not.toContain('`display`');
+    expect(prompt).toContain('`.x`');
+  });
+});

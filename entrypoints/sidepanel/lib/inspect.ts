@@ -20,8 +20,10 @@ import {
   redo as redoLog,
   revert as revertLog,
   revertAll as revertAllLog,
+  stackSelector,
   toMoves,
   toRules,
+  toWraps,
   toTextEdits,
   undo as undoLog,
   type ChangeLog,
@@ -93,6 +95,11 @@ export interface InspectController {
   also: ElementProps[];
   /** Every colour painted inside the selection, with where, read from the page. */
   readColours(): Promise<SelectionColour[]>;
+  /**
+   * Wrap elements in a new stack, as Framer's "Add Stack" does: a flex box
+   * in the direction they already run, with the gap they already have.
+   */
+  wrap(members: EditTarget[], direction: 'row' | 'column', gap: { to: string; token?: string }): void;
   undo(): void;
   redo(): void;
   revert(id: string): void;
@@ -312,6 +319,12 @@ export function useInspect(
     void sendInspector(tabId!, { cmd: 'moves', moves });
   });
 
+  // Stacks are markup too: put in afresh from the log, after the moves.
+  const wraps = useMemo(() => (holding ? [] : toWraps(log)), [log, holding]);
+  usePush(tabId, generation, JSON.stringify(wraps), wraps.length === 0, () => {
+    void sendInspector(tabId!, { cmd: 'wraps', wraps });
+  });
+
   const change = useCallback(
     (property: string, to: string, token?: string) => {
       if (!element) return;
@@ -515,6 +528,31 @@ export function useInspect(
     setText,
     changeMany,
     also,
+    wrap: (members, direction, gap) => {
+      if (!members.length) return;
+      const id = Date.now().toString(36);
+      const selector = stackSelector(id);
+      const on = (property: string, from: string, to: string, token?: string) => ({
+        selector,
+        matches: 1,
+        stable: true,
+        property,
+        from,
+        to,
+        ...(token ? { token } : {}),
+      });
+      setLog((l) =>
+        [
+          {
+            ...on('wrap', members.map((m) => m.selector).join(', '), 'a new stack'),
+            wrap: { id, members: members.map((m) => m.selector) },
+          },
+          on('display', 'block', 'flex'),
+          on('flex-direction', 'row', direction),
+          on('gap', 'normal', gap.to, gap.token),
+        ].reduce((acc, c) => commit(acc, c), l),
+      );
+    },
     readColours: async () => {
       if (tabId == null) return [];
       const list = await sendInspector<SelectionColour[]>(tabId, { cmd: 'colours' }).catch(() => null);

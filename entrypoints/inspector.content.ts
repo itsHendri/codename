@@ -22,6 +22,7 @@ import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
 import { shortcutSheet } from '@/studio/inspect/commands';
+import { dragged, handlesFor, snap, stepsOf, written, type HandleKind } from '@/studio/inspect/handles';
 import { selectionColours, toHex, type ColourSample } from '@/studio/inspect/colour';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
@@ -85,6 +86,12 @@ function activate() {
       .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
       .box.sel.moving { background: ${c.accentWash}; }
       .drop { position: fixed; pointer-events: none; z-index: 1; background: ${c.accent}; border-radius: 2px; }
+      .handle { position: fixed; pointer-events: auto; border-radius: 2px; background: ${c.accent}; box-shadow: 0 0 0 1px ${c.cardBg}; touch-action: none; }
+      .handle.margin { background: #f5a524; }
+      .handle.size-handle { background: ${c.cardBg}; box-shadow: 0 0 0 1.5px ${c.accent}; }
+      .handle.x { cursor: ew-resize; } .handle.y { cursor: ns-resize; } .handle.xy { cursor: nwse-resize; }
+      .handle:hover, .handle.active { transform: scale(1.25); }
+      .hlabel { position: fixed; pointer-events: none; transform: translate(12px, 12px); background: ${c.cardBg}; color: ${c.cardInk}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; border: 1px solid ${c.cardLine}; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
@@ -248,6 +255,8 @@ function activate() {
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="size hidden"></div>
+    <div class="handles"></div>
+    <div class="hlabel hidden"></div>
     <div class="measure"></div>
     <div class="pins"></div>
     <div class="marquee hidden"></div>
@@ -259,6 +268,8 @@ function activate() {
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
   const hovBox = shadow.querySelector<HTMLElement>('.box.hov')!;
   const sizeLabel = shadow.querySelector<HTMLElement>('.size')!;
+  const handleLayer = shadow.querySelector<HTMLElement>('.handles')!;
+  const handleLabel = shadow.querySelector<HTMLElement>('.hlabel')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
@@ -553,6 +564,7 @@ function activate() {
       drawPins();
       drawPicks();
       drawAlso();
+      drawHandles();
     });
   };
 
@@ -564,7 +576,8 @@ function activate() {
   };
 
   const onMove = (e: MouseEvent) => {
-    if (moving) return;
+    if (moving || handling) return;
+    updateNear(e.clientX, e.clientY);
     const el = document.elementFromPoint(e.clientX, e.clientY);
     // Over our own bar or pins: drop the highlight so a click there is a click there.
     if (el && isOurs(el)) {
@@ -599,6 +612,187 @@ function activate() {
     if (e.shiftKey) return toggleAlso(hovered);
     // The selection clicked again lets go of it, as a toggle reads.
     select(hovered === selected ? null : hovered);
+  };
+
+  /* ----- handles on the selection ----- */
+
+  /**
+   * Framer's and Webflow's handles, on the live page: bars inside the edges
+   * for padding, outside for margin (Alt pulls every side at once), one
+   * between the first two children for the gap, and the right edge, bottom
+   * edge and corner for the size. They show while the pointer is near the
+   * selection, so a page is not covered in them. A drag paints as it goes
+   * and lands as an edit on release, on the page's spacing scale when it
+   * passes close to a step (`studio/inspect/handles.ts`).
+   */
+  let spaceTokens: Record<string, string> = {};
+  let usedScale: number[] = [];
+  let nearSelection = false;
+  let handling: {
+    kind: HandleKind;
+    el: HTMLElement | SVGElement;
+    x: number;
+    y: number;
+    /** Each property the drag writes, where it started, and the inline value it found. */
+    props: { name: string; start: number; was: string; wasPriority: string }[];
+    gapAxis: 'x' | 'y';
+    last: { name: string; to: string; token?: string }[];
+  } | null = null;
+  let letGoTimer = 0;
+
+  const px = (v: string) => parseFloat(v) || 0;
+  /** The gap between the first two children laid out, when the box has one to hold. */
+  const gapOf = (el: Element): { between: Rect; axis: 'x' | 'y' } | null => {
+    const cs = getComputedStyle(el);
+    if (!/flex|grid/.test(cs.display)) return null;
+    const kids = Array.from(el.children).filter((k) => shown(k));
+    if (kids.length < 2) return null;
+    const a = kids[0]!.getBoundingClientRect();
+    const b = kids[1]!.getBoundingClientRect();
+    const axis = across(el) ? 'x' : 'y';
+    return axis === 'x'
+      ? { axis, between: { x: a.right, y: Math.min(a.top, b.top), width: Math.max(0, b.left - a.right), height: Math.max(a.bottom, b.bottom) - Math.min(a.top, b.top) } }
+      : { axis, between: { x: Math.min(a.left, b.left), y: a.bottom, width: Math.max(a.right, b.right) - Math.min(a.left, b.left), height: Math.max(0, b.top - a.bottom) } };
+  };
+
+  const drawHandles = () => {
+    if (handling) return;
+    handleLayer.replaceChildren();
+    if (!selected?.isConnected || !hoverOn || moving || !nearSelection || noteOn) return;
+    if (!(selected instanceof HTMLElement || selected instanceof SVGElement)) return;
+    const cs = getComputedStyle(selected);
+    const edges = (prefix: 'padding' | 'margin') => ({
+      top: px(cs.getPropertyValue(`${prefix}-top`)),
+      right: px(cs.getPropertyValue(`${prefix}-right`)),
+      bottom: px(cs.getPropertyValue(`${prefix}-bottom`)),
+      left: px(cs.getPropertyValue(`${prefix}-left`)),
+    });
+    for (const h of handlesFor(rectOf(selected), edges('padding'), edges('margin'), gapOf(selected))) {
+      const dot = document.createElement('div');
+      dot.className = `handle ${h.axis} ${h.kind.startsWith('margin') ? 'margin' : ''} ${h.kind === 'width' || h.kind === 'height' || h.kind === 'size' ? 'size-handle' : ''}`;
+      dot.title = h.kind === 'size' ? 'Size' : h.kind.replace('-', ' ');
+      Object.assign(dot.style, { left: `${h.box.x}px`, top: `${h.box.y}px`, width: `${h.box.width}px`, height: `${h.box.height}px` });
+      dot.addEventListener('pointerdown', (e) => startHandle(h.kind, e, dot));
+      handleLayer.appendChild(dot);
+    }
+  };
+
+  /** Near the selection: over it, or within a little of its edges, where the margin bars are. */
+  const updateNear = (x: number, y: number) => {
+    let near = false;
+    if (selected?.isConnected && !moving) {
+      const r = selected.getBoundingClientRect();
+      near = x >= r.left - 18 && x <= r.right + 18 && y >= r.top - 18 && y <= r.bottom + 18;
+    }
+    if (near !== nearSelection) {
+      nearSelection = near;
+      drawHandles();
+    }
+  };
+
+  const propsFor = (kind: HandleKind, all: boolean): string[] => {
+    if (kind === 'size') return ['width', 'height'];
+    if (kind === 'gap') return ['gap'];
+    if (kind === 'width' || kind === 'height') return [kind];
+    const [box] = kind.split('-') as ['padding' | 'margin'];
+    return all ? [`${box}-top`, `${box}-right`, `${box}-bottom`, `${box}-left`] : [kind];
+  };
+
+  const startHandle = (kind: HandleKind, e: PointerEvent, dot: HTMLElement) => {
+    if (e.button !== 0 || !selected) return;
+    if (!(selected instanceof HTMLElement || selected instanceof SVGElement)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.clearTimeout(letGoTimer);
+    try {
+      dot.setPointerCapture(e.pointerId);
+    } catch {
+      /* not a live pointer */
+    }
+    dot.classList.add('active');
+    const el = selected;
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const startOf = (name: string) =>
+      name === 'width' ? r.width : name === 'height' ? r.height : name === 'gap' ? px(across(el) ? cs.columnGap : cs.rowGap) : px(cs.getPropertyValue(name));
+    // Alt on a padding or margin bar pulls all four sides, as Framer's does.
+    const names = propsFor(kind, e.altKey && (kind.startsWith('padding') || kind.startsWith('margin')));
+    handling = {
+      kind,
+      el,
+      x: e.clientX,
+      y: e.clientY,
+      props: names.map((name) => ({ name, start: startOf(name), was: el.style.getPropertyValue(name), wasPriority: el.style.getPropertyPriority(name) })),
+      gapAxis: gapOf(el)?.axis ?? 'x',
+      last: [],
+    };
+    const move = (ev: PointerEvent) => dragHandle(ev);
+    const up = () => {
+      dot.removeEventListener('pointermove', move);
+      dot.removeEventListener('pointerup', up);
+      dot.removeEventListener('pointercancel', cancel);
+      endHandle(true);
+    };
+    const cancel = () => {
+      dot.removeEventListener('pointermove', move);
+      dot.removeEventListener('pointerup', up);
+      dot.removeEventListener('pointercancel', cancel);
+      endHandle(false);
+    };
+    dot.addEventListener('pointermove', move);
+    dot.addEventListener('pointerup', up);
+    dot.addEventListener('pointercancel', cancel);
+  };
+
+  const dragHandle = (e: PointerEvent) => {
+    const h = handling;
+    if (!h) return;
+    const dx = e.clientX - h.x;
+    const dy = e.clientY - h.y;
+    const spacing = h.kind.startsWith('padding') || h.kind.startsWith('margin') || h.kind === 'gap';
+    const steps = stepsOf(spaceTokens, usedScale);
+    h.last = h.props.map((p) => {
+      // The corner moves width with x and height with y; a side bar moves its own.
+      const kind: HandleKind = h.kind === 'size' ? (p.name === 'width' ? 'width' : 'height') : h.kind === 'gap' ? 'gap' : h.kind;
+      const raw = dragged(p.name.startsWith('padding') || p.name.startsWith('margin') ? h.kind : kind, p.start, dx, dy, h.gapAxis);
+      // Size lands on whole pixels, or on eights with Shift, as Figma's nudge does.
+      const step = spacing ? snap(raw, steps) : { px: e.shiftKey ? Math.round(raw / 8) * 8 : Math.round(raw) };
+      h.el.style.setProperty(p.name, `${step.px}px`, 'important');
+      return { name: p.name, ...written(step) };
+    });
+    const first = h.last[0];
+    if (first) {
+      handleLabel.textContent =
+        h.kind === 'size' ? `${h.last.map((l) => l.to).join(' × ')}` : `${h.kind === 'gap' ? 'gap' : first.name.replace(/-(top|right|bottom|left)$/, h.props.length > 1 ? '' : ' $1')} ${first.token ?? first.to}`;
+      Object.assign(handleLabel.style, { left: `${e.clientX}px`, top: `${e.clientY}px` });
+      handleLabel.classList.remove('hidden');
+    }
+    layout();
+  };
+
+  /** Put back the inline styles the drag set, exactly as they were found. */
+  const restoreHandle = (h: NonNullable<typeof handling>) => {
+    for (const p of h.props) {
+      if (p.was) h.el.style.setProperty(p.name, p.was, p.wasPriority);
+      else h.el.style.removeProperty(p.name);
+    }
+    layout();
+  };
+
+  const endHandle = (commit: boolean) => {
+    const h = handling;
+    handling = null;
+    handleLabel.classList.add('hidden');
+    if (!h) return;
+    if (commit && h.last.length) {
+      // Each property an edit, as though typed in the panel: same log, same undo, same brief.
+      for (const l of h.last) send({ type: 'element-edit', property: l.name, to: l.to, ...(l.token ? { token: l.token } : {}) });
+      swallowClick = true;
+      setTimeout(() => (swallowClick = false), 0);
+      // The panel's rule takes over in a moment; the preview stays until then.
+      letGoTimer = window.setTimeout(() => restoreHandle(h), 700);
+    } else restoreHandle(h);
+    drawHandles();
   };
 
   /* ----- dragging the selection, anywhere on the page ----- */
@@ -906,6 +1100,63 @@ function activate() {
     }
   };
 
+  /* ----- stacks: new boxes around a selection ----- */
+
+  /**
+   * Framer's "Add Stack", on the page: Shift+A puts the selection — and the
+   * rest of a shift-click one, where they share a parent — inside a new box,
+   * standing where the first of them stood. The box is a flex stack running
+   * the way they already run, with the gap they already have, snapped to the
+   * page's scale. Like a move it is declarative: the page takes every stack
+   * out and puts the log's back in, so undo needs nothing special.
+   */
+  const STACK = 'codename-stack-';
+  /** Once the stack for this element is in, pick the stack: the next edit is its gap or direction. */
+  let selectStackOf: Element | null = null;
+  const applyWraps = (wraps: { id: string; members: string[] }[]) => {
+    for (const box of Array.from(document.querySelectorAll(`div[id^="${STACK}"]`))) {
+      const parent = box.parentNode;
+      if (!parent) continue;
+      while (box.firstChild) parent.insertBefore(box.firstChild, box);
+      box.remove();
+    }
+    for (const w of wraps) {
+      const members = w.members.map((m) => find(m)).filter((el): el is Element => !!el);
+      const parent = members[0]?.parentElement;
+      if (!parent || members.some((m) => m.parentElement !== parent)) continue;
+      members.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      const box = document.createElement('div');
+      box.id = `${STACK}${w.id}`;
+      parent.insertBefore(box, members[0]!);
+      for (const m of members) box.appendChild(m);
+    }
+    if (selectStackOf) {
+      const box = selectStackOf.parentElement;
+      selectStackOf = null;
+      if (box?.id.startsWith(STACK)) select(box);
+    }
+  };
+
+  const wrapSelection = () => {
+    if (!selected?.isConnected || !selected.parentElement || selected === document.body) return;
+    const parent = selected.parentElement;
+    const members = [selected, ...also.filter((el) => el.isConnected && el.parentElement === parent)].sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
+    // The way they run, and the room between them, read off the page.
+    let direction: 'row' | 'column' = across(parent) ? 'row' : 'column';
+    let room = 0;
+    if (members.length > 1) {
+      const a = members[0]!.getBoundingClientRect();
+      const b = members[1]!.getBoundingClientRect();
+      direction = b.left >= a.right - 1 && Math.abs(b.top - a.top) < a.height / 2 ? 'row' : 'column';
+      room = Math.max(0, direction === 'row' ? b.left - a.right : b.top - a.bottom);
+    }
+    const gap = written(room ? snap(room, stepsOf(spaceTokens, usedScale)) : { px: 0 });
+    selectStackOf = members[0]!;
+    send({ type: 'wrap', members: members.map(readProps), direction, gap });
+  };
+
   /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
 
   /** Where the card was dragged to, if it was; otherwise it follows the element. */
@@ -974,6 +1225,7 @@ function activate() {
     });
     item('Copy selector', () => void navigator.clipboard.writeText(many ? props.intent.selector : props.selector).catch(() => {}));
     rule();
+    item('Wrap in a stack', wrapSelection, 'Shift+A');
     item('Copy style', copyStyle, isMac ? '⌘⌥C' : 'Ctrl+Alt+C');
     item('Paste style', pasteStyle, isMac ? '⌘⌥V' : 'Ctrl+Alt+V');
     rule();
@@ -1618,6 +1870,7 @@ function activate() {
    */
   const escape = (): boolean => {
     if (sheetOpen()) closeSheet();
+    else if (handling) endHandle(false);
     else if (moving) endMove();
     else if (!menu.classList.contains('hidden')) closeMenu();
     else if (composing) closeComposer();
@@ -1766,6 +2019,12 @@ function activate() {
       return;
     }
     if (!selected) return;
+    // Shift+A, Figma's "add auto layout": wrap the selection in a stack.
+    if (hoverOn && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.code === 'KeyA') {
+      e.preventDefault();
+      wrapSelection();
+      return;
+    }
     // Figma's: Enter into the children, Shift+Enter out to the parent, Tab
     // along the siblings. Only while selecting, where the page's own Tab
     // order is not what anyone is using.
@@ -1810,8 +2069,10 @@ function activate() {
         else toggleMode('preview');
         break;
       case 'tokens':
-        // The page's names for its values were for the edit card, which is
-        // gone; the panel shows them now. Accepted and ignored.
+        // What the handles snap to: the spacing variables, and the spacing
+        // the page uses often. The colour names were for the edit card, gone.
+        spaceTokens = msg.lengths?.space ?? {};
+        usedScale = msg.scale ?? [];
         break;
       case 'select':
         select(find(msg.selector));
@@ -1938,6 +2199,10 @@ function activate() {
         layout();
         break;
       }
+      case 'wraps':
+        applyWraps(msg.wraps ?? []);
+        layout();
+        break;
       case 'moves':
         applyMoves(msg.moves ?? []);
         // The element in hand is in its new place now; set it down there.

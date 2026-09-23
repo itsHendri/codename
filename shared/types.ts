@@ -260,7 +260,13 @@ export type InspectorCommand =
    * say them: colours by upper-case hex; lengths by px, and only for variables
    * whose names say what they are, since a bare `8px` could be a gap or a radius.
    */
-  | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
+  | {
+      cmd: 'tokens';
+      colors: Record<string, string>;
+      lengths?: TokenLengths;
+      /** The spacing the page actually uses, in px, for the handles to snap to where no variable holds it. */
+      scale?: number[];
+    }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
   /** Escape from the rail: let go of one thing, as Escape on the page does. */
@@ -274,11 +280,6 @@ export type InspectorCommand =
   | { cmd: 'read-also' }
   /** Every colour painted inside the selection, with the elements that paint it. */
   | { cmd: 'colours' }
-  /**
-   * The page's spacing scale, for the handles on the selection to snap to:
-   * each step in px, with the variable that holds it when one does.
-   */
-  | { cmd: 'scale'; steps: { px: number; token?: string }[] }
   /** Every wrap in force, oldest first; the page takes its wrappers out and puts these in afresh. */
   | { cmd: 'wraps'; wraps: WrapSpec[] }
   /** The page as a flat list of layers. */

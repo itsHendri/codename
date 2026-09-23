@@ -337,6 +337,11 @@ export default function App() {
             targets.filter(isElementProps).flatMap((t) => pasteEdits(copied.values as StyleValues, styleValues(t)).map((e) => ({ target: t, ...e }))),
           );
         }
+      } else if (msg?.type === 'wrap') {
+        // Shift+A on the page: the selection wrapped in a new stack.
+        const w = msg as unknown as { members?: unknown; direction?: string; gap?: { to: string; token?: string } };
+        const members = Array.isArray(w.members) ? w.members.filter(isElementProps) : [];
+        if (members.length && w.gap) ctlRef.current.wrap(members, w.direction === 'row' ? 'row' : 'column', w.gap);
       } else if (msg?.type === 'element-edit') {
         // The edit card on the page: same log, same rules, same undo and brief.
         const edit = msg as unknown as { property: string; to: string; token?: string };
@@ -456,7 +461,13 @@ export default function App() {
       const px = lengthPx(p.value, scan.rootFontSize);
       if (kind && px !== null && !lengths[kind][String(px)]) lengths[kind][String(px)] = p.name;
     }
-    void sendInspector(tabId, { cmd: 'tokens', colors, lengths });
+    // The spacing the page uses often enough to be a scale: what the handles
+    // on the selection snap to, besides the variables above.
+    const scale = scan.shape.spacing
+      .filter((v) => v.count >= 3)
+      .map((v) => lengthPx(v.value, scan.rootFontSize))
+      .filter((px): px is number => px !== null && px > 0 && px <= 256);
+    void sendInspector(tabId, { cmd: 'tokens', colors, lengths, scale });
   }, [tabId, scan, restricted]);
 
   // Undo and redo from the panel itself, unless the user is typing.

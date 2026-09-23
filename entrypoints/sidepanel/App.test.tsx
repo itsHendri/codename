@@ -1128,3 +1128,24 @@ describe('selection colours', () => {
     expect(text()).not.toContain('Selection colours');
   });
 });
+
+describe('wrapping in a stack', () => {
+  it('files the stack and its layout, and tells the page to put it in', async () => {
+    await act(async () =>
+      stub.emit({
+        type: 'wrap',
+        members: [element(), element({ selector: 'p.lede' })],
+        direction: 'column',
+        gap: { to: 'var(--space-4)', token: '--space-4' },
+      }),
+    );
+    await tick(120);
+    const entries = getSession().log.entries;
+    expect(entries.map((e) => e.property)).toEqual(['wrap', 'display', 'flex-direction', 'gap']);
+    expect(entries[0]!.wrap?.members).toEqual(['h1#title', 'p.lede']);
+    expect(entries.every((e) => e.selector === entries[0]!.selector && e.selector.startsWith('div#codename-stack-'))).toBe(true);
+    const wraps = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'wraps').at(-1);
+    expect(wraps?.wraps).toEqual([{ id: entries[0]!.wrap!.id, members: ['h1#title', 'p.lede'] }]);
+    expect(badge()).toBe('4');
+  });
+});
