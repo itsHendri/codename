@@ -260,7 +260,13 @@ export type InspectorCommand =
    * say them: colours by upper-case hex; lengths by px, and only for variables
    * whose names say what they are, since a bare `8px` could be a gap or a radius.
    */
-  | { cmd: 'tokens'; colors: Record<string, string>; lengths?: TokenLengths }
+  | {
+      cmd: 'tokens';
+      colors: Record<string, string>;
+      lengths?: TokenLengths;
+      /** The spacing the page actually uses, in px, for the handles to snap to where no variable holds it. */
+      scale?: number[];
+    }
   | { cmd: 'select'; selector: string }
   | { cmd: 'deselect' }
   /** Escape from the rail: let go of one thing, as Escape on the page does. */
@@ -270,6 +276,12 @@ export type InspectorCommand =
   | { cmd: 'walk'; dir: 'parent' | 'child' | 'next' | 'prev' }
   | { cmd: 'ancestor'; depth: number }
   | { cmd: 'read' }
+  /** The elements shift-clicked beside the selection, read again. */
+  | { cmd: 'read-also' }
+  /** Every colour painted inside the selection, with the elements that paint it. */
+  | { cmd: 'colours' }
+  /** Every wrap in force, oldest first; the page takes its wrappers out and puts these in afresh. */
+  | { cmd: 'wraps'; wraps: WrapSpec[] }
   /** The page as a flat list of layers. */
   | { cmd: 'layers' }
   /** Light an element up from the panel, without selecting it. */
@@ -314,6 +326,29 @@ export type InspectorCommand =
   /** Take the frame off, so the page is at the window's own size again. */
   | { cmd: 'reset-viewport' }
   | { cmd: 'off' };
+
+/**
+ * A stack Codename put around some elements: a new box with an id of its own,
+ * standing where the first of them stood, holding them in their order.
+ */
+export interface WrapSpec {
+  id: string;
+  /** The elements it holds, by selector, in document order. */
+  members: string[];
+}
+
+/** One colour inside a selection: where it is painted, and on which property. */
+export interface SelectionColour {
+  hex: string;
+  uses: {
+    selector: string;
+    matches: number;
+    stable: boolean;
+    property: 'color' | 'background-color' | 'border-color' | 'fill' | 'stroke';
+    /** What the property reads now, as the element paints it. */
+    value: string;
+  }[];
+}
 
 /** The agent's preview sheet, counted: how many rules it holds and how many elements they reach. */
 export interface AgentPresence {

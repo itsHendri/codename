@@ -35,6 +35,8 @@ export interface ElementChange {
   condition?: MaybeCondition;
   /** For 'move': the position, in selectors; `from`/`to` carry it in words for the brief. */
   move?: MoveSpec;
+  /** For 'wrap': the new stack's id and what it holds. */
+  wrap?: { id: string; members: string[] };
   from: string;
   /** `var(--x)` when a token was chosen; see `token`. */
   to: string;
@@ -64,6 +66,7 @@ export interface Rule {
 export const STATELESS = new Set([
   'text',
   'move',
+  'wrap',
   'transition',
   'transition-property',
   'transition-duration',
@@ -86,25 +89,24 @@ export function commit(
 ): ChangeLog {
   // Committing after an undo discards the undone branch, as every editor does.
   const live = log.entries.slice(0, log.cursor);
-  const last = live[live.length - 1];
-  if (
-    last &&
-    last.selector === change.selector &&
-    last.property === change.property &&
-    // A scrub in one state is one edit; the same property in another state is
-    // a different decision and gets its own entry.
-    conditionKey(last.condition) === conditionKey(change.condition) &&
-    last.status === 'applied' &&
-    now - Date.parse(last.at) <= COALESCE_MS
-  ) {
+  // A scrub is one edit. The entry to fold it into is usually the last one,
+  // but a multi-selection, or a colour swapped through a selection, scrubs
+  // several elements and properties at once, so their entries interleave:
+  // look back through everything still warm for this element's entry for
+  // this property in this state.
+  for (let i = live.length - 1; i >= 0; i--) {
+    const e = live[i]!;
+    if (e.status !== 'applied' || now - Date.parse(e.at) > COALESCE_MS) break;
+    if (
+      e.selector !== change.selector ||
+      e.property !== change.property ||
+      // The same property in another state is a different decision.
+      conditionKey(e.condition) !== conditionKey(change.condition)
+    )
+      continue;
     // Keep the original `from`: undoing a scrub returns to where it started.
-    const merged: ElementChange = {
-      ...last,
-      to: change.to,
-      token: change.token,
-      at: new Date(now).toISOString(),
-    };
-    return { entries: [...live.slice(0, -1), merged], cursor: live.length };
+    const merged: ElementChange = { ...e, to: change.to, token: change.token, at: new Date(now).toISOString() };
+    return { entries: [...live.slice(0, i), merged, ...live.slice(i + 1)], cursor: live.length };
   }
   const entry: ElementChange = {
     ...change,
@@ -161,13 +163,33 @@ export function toMoves(log: ChangeLog): (MoveSpec & { selector: string })[] {
 }
 
 /**
+ * A stack Codename puts around elements (Framer's "Add Stack", Figma's auto
+ * layout on a selection) is a new element with an id of its own, so every
+ * later edit to it has a selector that says which one it is.
+ */
+export const STACK_PREFIX = 'codename-stack-';
+export const stackSelector = (id: string) => `div#${STACK_PREFIX}${id}`;
+/** The stack an edit's selector is about, or null. */
+export const stackIdOf = (selector: string): string | null => {
+  const m = new RegExp(`^div#${STACK_PREFIX}([\\w-]+)$`).exec(selector);
+  return m ? m[1]! : null;
+};
+
+/** Every wrap in force, oldest first, for the page to put in afresh. */
+export function toWraps(log: ChangeLog): { id: string; members: string[] }[] {
+  return active(log)
+    .filter((e) => e.property === 'wrap' && e.wrap)
+    .map((e) => ({ id: e.wrap!.id, members: e.wrap!.members }));
+}
+
+/**
  * What the page should be told: last write wins per selector, property and
  * state. A colour set on hover does not replace the one set by default.
  */
 export function toRules(log: ChangeLog): Rule[] {
   const byKey = new Map<string, Rule>();
   for (const e of active(log)) {
-    if (e.property === 'text' || e.property === 'move') continue;
+    if (e.property === 'text' || e.property === 'move' || e.property === 'wrap') continue;
     byKey.set(`${e.selector} ${e.property} ${conditionKey(e.condition)}`, {
       selector: e.selector,
       property: e.property,

@@ -21,6 +21,9 @@ import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
+import { search, shortcutSheet } from '@/studio/inspect/commands';
+import { dragged, handlesFor, snap, stepsOf, written, type HandleKind } from '@/studio/inspect/handles';
+import { selectionColours, toHex, type ColourSample } from '@/studio/inspect/colour';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -68,6 +71,7 @@ function activate() {
   };
   const c = d;
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
+  const mono = 'ui-monospace, Menlo, monospace';
   // A select's chevron, in ink-muted, which is the same grey in both themes.
   const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E")`;
   const host = document.createElement(HOST_TAG.toLowerCase());
@@ -82,6 +86,12 @@ function activate() {
       .box.hov { outline-width: 1px; outline-offset: 0; background: transparent; }
       .box.sel.moving { background: ${c.accentWash}; }
       .drop { position: fixed; pointer-events: none; z-index: 1; background: ${c.accent}; border-radius: 2px; }
+      .handle { position: fixed; pointer-events: auto; border-radius: 2px; background: ${c.accent}; box-shadow: 0 0 0 1px ${c.cardBg}; touch-action: none; }
+      .handle.margin { background: #f5a524; }
+      .handle.size-handle { background: ${c.cardBg}; box-shadow: 0 0 0 1.5px ${c.accent}; }
+      .handle.x { cursor: ew-resize; } .handle.y { cursor: ns-resize; } .handle.xy { cursor: nwse-resize; }
+      .handle:hover, .handle.active { transform: scale(1.25); }
+      .hlabel { position: fixed; pointer-events: none; transform: translate(12px, 12px); background: ${c.cardBg}; color: ${c.cardInk}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; border: 1px solid ${c.cardLine}; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .size { position: fixed; pointer-events: none; transform: translateX(-50%); background: ${c.accent}; color: ${c.cardBg}; font: 500 11px/1.6 ${font}; padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .seg { position: fixed; pointer-events: none; background: ${c.accent}; }
       .seg.x { height: 1px; }
@@ -176,6 +186,22 @@ function activate() {
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
       /* The right-click menu: what can be done to the selection, and nothing
          about how it looks — that is the panel's, on the right. */
+      .cmdk { position: fixed; z-index: 5; left: 50%; top: 88px; transform: translateX(-50%); width: min(520px, calc(100vw - 32px)); pointer-events: auto; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); font: 400 12px/1.4 ${font}; overflow: hidden; }
+      .cmdk input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 14px; border: 0; border-bottom: 1px solid ${d.cardLine}; background: transparent; color: ${d.cardInk}; font: 400 13px/1 ${font}; outline: none; }
+      .cmdk ul { list-style: none; margin: 0; padding: 4px; max-height: 320px; overflow: auto; }
+      .cmdk li { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer; }
+      .cmdk li[aria-selected="true"] { background: ${d.field}; }
+      .cmdk li .kind { color: ${d.cardMuted}; font-size: 11px; }
+      .cmdk li kbd { margin-left: auto; color: ${d.cardMuted}; font: 500 11px/1 ${mono}; }
+      .cmdk li.none { cursor: default; color: ${d.cardMuted}; }
+      .sheet { position: fixed; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 96px); overflow: auto; pointer-events: auto; padding: 16px 18px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); font: 400 12px/1.4 ${font}; }
+      .sheet h2 { margin: 0 0 12px; font: 600 13px/1 ${font}; }
+      .sheet .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+      .sheet h3 { margin: 0 0 6px; font: 500 11px/1 ${font}; color: ${d.cardMuted}; text-transform: uppercase; letter-spacing: 0.04em; }
+      .sheet dl { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+      .sheet dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+      .sheet dt { margin: 0; color: ${d.cardInk}; }
+      .sheet dd { margin: 0; font: 500 11px/1.3 ${mono}; color: ${d.cardMuted}; white-space: nowrap; }
       .menu { position: fixed; z-index: 3; pointer-events: auto; min-width: 208px; max-width: 260px; padding: 4px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); font: 400 11px/1 ${font}; }
       .menu .head { display: block; height: 24px; line-height: 24px; padding: 0 8px; color: ${d.cardMuted}; font: 500 10px/1 ui-monospace, Menlo, monospace; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       .menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; text-align: left; cursor: pointer; }
@@ -233,24 +259,32 @@ function activate() {
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
     <div class="menu hidden" role="menu" aria-label="Selection"></div>
+    <div class="sheet hidden" role="dialog" aria-label="Keyboard shortcuts"></div>
+    <div class="cmdk hidden" role="dialog" aria-label="Command menu"><input role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-label="Search commands and layers" placeholder="Search commands and layers…" spellcheck="false" autocomplete="off" /><ul id="cmdk-list" role="listbox"></ul></div>
     <div class="drop hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
     <div class="size hidden"></div>
+    <div class="handles"></div>
+    <div class="hlabel hidden"></div>
     <div class="measure"></div>
     <div class="pins"></div>
     <div class="marquee hidden"></div>
     <div class="picks"></div>
+    <div class="alsos"></div>
 `;
   document.documentElement.appendChild(host);
 
   const selBox = shadow.querySelector<HTMLElement>('.box.sel')!;
   const hovBox = shadow.querySelector<HTMLElement>('.box.hov')!;
   const sizeLabel = shadow.querySelector<HTMLElement>('.size')!;
+  const handleLayer = shadow.querySelector<HTMLElement>('.handles')!;
+  const handleLabel = shadow.querySelector<HTMLElement>('.hlabel')!;
   const measureLayer = shadow.querySelector<HTMLElement>('.measure')!;
   const pinLayer = shadow.querySelector<HTMLElement>('.pins')!;
   const marquee = shadow.querySelector<HTMLElement>('.marquee')!;
   const pickLayer = shadow.querySelector<HTMLElement>('.picks')!;
+  const alsoLayer = shadow.querySelector<HTMLElement>('.alsos')!;
 
   const bar = shadow.querySelector<HTMLElement>('.bar')!;
   const barHost = bar.querySelector<HTMLElement>('.host')!;
@@ -270,12 +304,18 @@ function activate() {
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const menu = shadow.querySelector<HTMLElement>('.menu')!;
+  const sheet = shadow.querySelector<HTMLElement>('.sheet')!;
+  const cmdk = shadow.querySelector<HTMLElement>('.cmdk')!;
+  const cmdkInput = cmdk.querySelector<HTMLInputElement>('input')!;
+  const cmdkList = cmdk.querySelector<HTMLUListElement>('ul')!;
   const dropLine = shadow.querySelector<HTMLElement>('.drop')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
   let hoverOn = false;
   let measuring = false;
+  /** Alt held: measure for as long as it is down, as Figma does, without the switch. */
+  let altHeld = false;
   let pins: Pin[] = [];
   let barOn = false;
   // Whether the rail is showing. The panel is the truth; the bar echoes it,
@@ -379,11 +419,51 @@ function activate() {
     document.dispatchEvent(new CustomEvent(SELECTED_EVENT, { detail: props?.selector ?? null }));
   };
 
-  const select = (el: Element | null) => {
+  /**
+   * Shift-clicked beside the selection, as Figma adds to one: each outlined
+   * like the selection, and an edit made in the panel reaches all of them.
+   * The first one picked stays the one the panel shows.
+   */
+  let also: Element[] = [];
+  const announceAlso = () => send({ type: 'selection-also', data: also.filter((el) => el.isConnected).map(readProps) });
+  const setAlso = (next: Element[]) => {
+    also = next;
+    announceAlso();
+    layout();
+  };
+  const toggleAlso = (el: Element) => {
+    if (!selected) return select(el);
+    if (el === selected) {
+      // Shift-clicking the first one hands the lead to the next, or lets go.
+      const [lead, ...rest] = also;
+      also = rest;
+      select(lead ?? null, true);
+      announceAlso();
+      return;
+    }
+    setAlso(also.includes(el) ? also.filter((a) => a !== el) : [...also, el]);
+  };
+  const drawAlso = () => {
+    alsoLayer.replaceChildren();
+    for (const el of also) {
+      if (!el.isConnected) continue;
+      const box = document.createElement('div');
+      box.className = 'box sel';
+      place(box, rectOf(el));
+      alsoLayer.appendChild(box);
+    }
+  };
+
+  const select = (el: Element | null, keepAlso = false) => {
     if (el && (isOurs(el) || el === document.documentElement)) return;
     // The state class belongs to the element it was put on, not to the next.
     holdState(null);
     selected = el;
+    // A plain click starts a new selection.
+    if (!keepAlso && also.length) {
+      also = [];
+      announceAlso();
+    }
     closeMenu();
     layout();
     announce();
@@ -417,7 +497,7 @@ function activate() {
 
   const drawMeasure = () => {
     measureLayer.replaceChildren();
-    if (!measuring || !selected || !hovered || hovered === selected) return;
+    if (!(measuring || altHeld) || !selected || !hovered || hovered === selected) return;
     for (const s of measure(rectOf(selected), rectOf(hovered))) {
       const line = document.createElement('div');
       line.className = `seg ${s.axis}`;
@@ -496,6 +576,8 @@ function activate() {
       drawMeasure();
       drawPins();
       drawPicks();
+      drawAlso();
+      drawHandles();
     });
   };
 
@@ -507,7 +589,8 @@ function activate() {
   };
 
   const onMove = (e: MouseEvent) => {
-    if (moving) return;
+    if (moving || handling) return;
+    updateNear(e.clientX, e.clientY);
     const el = document.elementFromPoint(e.clientX, e.clientY);
     // Over our own bar or pins: drop the highlight so a click there is a click there.
     if (el && isOurs(el)) {
@@ -521,7 +604,10 @@ function activate() {
     // picked, and a readout here said the same things a third time.
     hovBox.classList.remove('hidden');
     place(hovBox, rectOf(el));
-    if (measuring && selected) drawMeasure();
+    // Alt read off the pointer as well as the key: a key pressed while
+    // another window had focus is never heard.
+    altHeld = e.altKey && hoverOn;
+    if ((measuring || altHeld) && selected) drawMeasure();
   };
 
   const onClick = (e: MouseEvent) => {
@@ -536,8 +622,200 @@ function activate() {
     if (!hovered) return;
     e.preventDefault();
     e.stopPropagation();
+    if (e.shiftKey) return toggleAlso(hovered);
     // The selection clicked again lets go of it, as a toggle reads.
     select(hovered === selected ? null : hovered);
+  };
+
+  /* ----- handles on the selection ----- */
+
+  /**
+   * Framer's and Webflow's handles, on the live page: bars inside the edges
+   * for padding, outside for margin (Alt pulls every side at once), one
+   * between the first two children for the gap, and the right edge, bottom
+   * edge and corner for the size. They show while the pointer is near the
+   * selection, so a page is not covered in them. A drag paints as it goes
+   * and lands as an edit on release, on the page's spacing scale when it
+   * passes close to a step (`studio/inspect/handles.ts`).
+   */
+  let spaceTokens: Record<string, string> = {};
+  let usedScale: number[] = [];
+  let nearSelection = false;
+  let handling: {
+    kind: HandleKind;
+    el: HTMLElement | SVGElement;
+    x: number;
+    y: number;
+    /** Each property the drag writes, where it started, and the inline value it found. */
+    props: { name: string; start: number; was: string; wasPriority: string }[];
+    gapAxis: 'x' | 'y';
+    last: { name: string; to: string; token?: string }[];
+  } | null = null;
+  let letGoTimer = 0;
+  /** The last drag's preview, still on the element until the panel's rule arrives. */
+  let pendingRestore: (() => void) | null = null;
+  /** Take a waiting preview off now: a new drag must not find it, nor record it as "how it was". */
+  const flushRestore = () => {
+    window.clearTimeout(letGoTimer);
+    const run = pendingRestore;
+    pendingRestore = null;
+    run?.();
+  };
+
+  const px = (v: string) => parseFloat(v) || 0;
+  /** The gap between the first two children laid out, when the box has one to hold. */
+  const gapOf = (el: Element): { between: Rect; axis: 'x' | 'y' } | null => {
+    const cs = getComputedStyle(el);
+    if (!/flex|grid/.test(cs.display)) return null;
+    const kids = Array.from(el.children).filter((k) => shown(k));
+    if (kids.length < 2) return null;
+    const a = kids[0]!.getBoundingClientRect();
+    const b = kids[1]!.getBoundingClientRect();
+    const axis = across(el) ? 'x' : 'y';
+    return axis === 'x'
+      ? { axis, between: { x: a.right, y: Math.min(a.top, b.top), width: Math.max(0, b.left - a.right), height: Math.max(a.bottom, b.bottom) - Math.min(a.top, b.top) } }
+      : { axis, between: { x: Math.min(a.left, b.left), y: a.bottom, width: Math.max(a.right, b.right) - Math.min(a.left, b.left), height: Math.max(0, b.top - a.bottom) } };
+  };
+
+  const drawHandles = () => {
+    if (handling) return;
+    handleLayer.replaceChildren();
+    if (!selected?.isConnected || !hoverOn || moving || !nearSelection || noteOn) return;
+    if (!(selected instanceof HTMLElement || selected instanceof SVGElement)) return;
+    const cs = getComputedStyle(selected);
+    const edges = (prefix: 'padding' | 'margin') => ({
+      top: px(cs.getPropertyValue(`${prefix}-top`)),
+      right: px(cs.getPropertyValue(`${prefix}-right`)),
+      bottom: px(cs.getPropertyValue(`${prefix}-bottom`)),
+      left: px(cs.getPropertyValue(`${prefix}-left`)),
+    });
+    for (const h of handlesFor(rectOf(selected), edges('padding'), edges('margin'), gapOf(selected))) {
+      const dot = document.createElement('div');
+      dot.className = `handle ${h.axis} ${h.kind.startsWith('margin') ? 'margin' : ''} ${h.kind === 'width' || h.kind === 'height' || h.kind === 'size' ? 'size-handle' : ''}`;
+      dot.title = h.kind === 'size' ? 'Size' : h.kind.replace('-', ' ');
+      Object.assign(dot.style, { left: `${h.box.x}px`, top: `${h.box.y}px`, width: `${h.box.width}px`, height: `${h.box.height}px` });
+      dot.addEventListener('pointerdown', (e) => startHandle(h.kind, e, dot));
+      handleLayer.appendChild(dot);
+    }
+  };
+
+  /** Near the selection: over it, or within a little of its edges, where the margin bars are. */
+  const updateNear = (x: number, y: number) => {
+    let near = false;
+    if (selected?.isConnected && !moving) {
+      const r = selected.getBoundingClientRect();
+      near = x >= r.left - 18 && x <= r.right + 18 && y >= r.top - 18 && y <= r.bottom + 18;
+    }
+    if (near !== nearSelection) {
+      nearSelection = near;
+      drawHandles();
+    }
+  };
+
+  const propsFor = (kind: HandleKind, all: boolean): string[] => {
+    if (kind === 'size') return ['width', 'height'];
+    if (kind === 'gap') return ['gap'];
+    if (kind === 'width' || kind === 'height') return [kind];
+    const [box] = kind.split('-') as ['padding' | 'margin'];
+    return all ? [`${box}-top`, `${box}-right`, `${box}-bottom`, `${box}-left`] : [kind];
+  };
+
+  const startHandle = (kind: HandleKind, e: PointerEvent, dot: HTMLElement) => {
+    if (e.button !== 0 || !selected) return;
+    if (!(selected instanceof HTMLElement || selected instanceof SVGElement)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    flushRestore();
+    try {
+      dot.setPointerCapture(e.pointerId);
+    } catch {
+      /* not a live pointer */
+    }
+    dot.classList.add('active');
+    const el = selected;
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const startOf = (name: string) =>
+      name === 'width' ? r.width : name === 'height' ? r.height : name === 'gap' ? px(across(el) ? cs.columnGap : cs.rowGap) : px(cs.getPropertyValue(name));
+    // Alt on a padding or margin bar pulls all four sides, as Framer's does.
+    const names = propsFor(kind, e.altKey && (kind.startsWith('padding') || kind.startsWith('margin')));
+    handling = {
+      kind,
+      el,
+      x: e.clientX,
+      y: e.clientY,
+      props: names.map((name) => ({ name, start: startOf(name), was: el.style.getPropertyValue(name), wasPriority: el.style.getPropertyPriority(name) })),
+      gapAxis: gapOf(el)?.axis ?? 'x',
+      last: [],
+    };
+    const move = (ev: PointerEvent) => dragHandle(ev);
+    const up = () => {
+      dot.removeEventListener('pointermove', move);
+      dot.removeEventListener('pointerup', up);
+      dot.removeEventListener('pointercancel', cancel);
+      endHandle(true);
+    };
+    const cancel = () => {
+      dot.removeEventListener('pointermove', move);
+      dot.removeEventListener('pointerup', up);
+      dot.removeEventListener('pointercancel', cancel);
+      endHandle(false);
+    };
+    dot.addEventListener('pointermove', move);
+    dot.addEventListener('pointerup', up);
+    dot.addEventListener('pointercancel', cancel);
+  };
+
+  const dragHandle = (e: PointerEvent) => {
+    const h = handling;
+    if (!h) return;
+    const dx = e.clientX - h.x;
+    const dy = e.clientY - h.y;
+    const spacing = h.kind.startsWith('padding') || h.kind.startsWith('margin') || h.kind === 'gap';
+    const steps = stepsOf(spaceTokens, usedScale);
+    h.last = h.props.map((p) => {
+      // The corner moves width with x and height with y; a side bar moves its own.
+      const kind: HandleKind = h.kind === 'size' ? (p.name === 'width' ? 'width' : 'height') : h.kind === 'gap' ? 'gap' : h.kind;
+      const raw = dragged(p.name.startsWith('padding') || p.name.startsWith('margin') ? h.kind : kind, p.start, dx, dy, h.gapAxis);
+      // Size lands on whole pixels, or on eights with Shift, as Figma's nudge does.
+      const step = spacing ? snap(raw, steps) : { px: e.shiftKey ? Math.round(raw / 8) * 8 : Math.round(raw) };
+      h.el.style.setProperty(p.name, `${step.px}px`, 'important');
+      return { name: p.name, ...written(step) };
+    });
+    const first = h.last[0];
+    if (first) {
+      handleLabel.textContent =
+        h.kind === 'size' ? `${h.last.map((l) => l.to).join(' × ')}` : `${h.kind === 'gap' ? 'gap' : first.name.replace(/-(top|right|bottom|left)$/, h.props.length > 1 ? '' : ' $1')} ${first.token ?? first.to}`;
+      Object.assign(handleLabel.style, { left: `${e.clientX}px`, top: `${e.clientY}px` });
+      handleLabel.classList.remove('hidden');
+    }
+    layout();
+  };
+
+  /** Put back the inline styles the drag set, exactly as they were found. */
+  const restoreHandle = (h: NonNullable<typeof handling>) => {
+    for (const p of h.props) {
+      if (p.was) h.el.style.setProperty(p.name, p.was, p.wasPriority);
+      else h.el.style.removeProperty(p.name);
+    }
+    layout();
+  };
+
+  const endHandle = (commit: boolean) => {
+    const h = handling;
+    handling = null;
+    handleLabel.classList.add('hidden');
+    if (!h) return;
+    if (commit && h.last.length) {
+      // Each property an edit, as though typed in the panel: same log, same undo, same brief.
+      for (const l of h.last) send({ type: 'element-edit', property: l.name, to: l.to, ...(l.token ? { token: l.token } : {}) });
+      swallowClick = true;
+      setTimeout(() => (swallowClick = false), 0);
+      // The panel's rule takes over in a moment; the preview stays until then.
+      pendingRestore = () => restoreHandle(h);
+      letGoTimer = window.setTimeout(flushRestore, 700);
+    } else restoreHandle(h);
+    drawHandles();
   };
 
   /* ----- dragging the selection, anywhere on the page ----- */
@@ -845,6 +1123,63 @@ function activate() {
     }
   };
 
+  /* ----- stacks: new boxes around a selection ----- */
+
+  /**
+   * Framer's "Add Stack", on the page: Shift+A puts the selection — and the
+   * rest of a shift-click one, where they share a parent — inside a new box,
+   * standing where the first of them stood. The box is a flex stack running
+   * the way they already run, with the gap they already have, snapped to the
+   * page's scale. Like a move it is declarative: the page takes every stack
+   * out and puts the log's back in, so undo needs nothing special.
+   */
+  const STACK = 'codename-stack-';
+  /** Once the stack for this element is in, pick the stack: the next edit is its gap or direction. */
+  let selectStackOf: Element | null = null;
+  const applyWraps = (wraps: { id: string; members: string[] }[]) => {
+    for (const box of Array.from(document.querySelectorAll(`div[id^="${STACK}"]`))) {
+      const parent = box.parentNode;
+      if (!parent) continue;
+      while (box.firstChild) parent.insertBefore(box.firstChild, box);
+      box.remove();
+    }
+    for (const w of wraps) {
+      const members = w.members.map((m) => find(m)).filter((el): el is Element => !!el);
+      const parent = members[0]?.parentElement;
+      if (!parent || members.some((m) => m.parentElement !== parent)) continue;
+      members.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      const box = document.createElement('div');
+      box.id = `${STACK}${w.id}`;
+      parent.insertBefore(box, members[0]!);
+      for (const m of members) box.appendChild(m);
+    }
+    if (selectStackOf) {
+      const box = selectStackOf.parentElement;
+      selectStackOf = null;
+      if (box?.id.startsWith(STACK)) select(box);
+    }
+  };
+
+  const wrapSelection = () => {
+    if (!selected?.isConnected || !selected.parentElement || selected === document.body) return;
+    const parent = selected.parentElement;
+    const members = [selected, ...also.filter((el) => el.isConnected && el.parentElement === parent)].sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
+    // The way they run, and the room between them, read off the page.
+    let direction: 'row' | 'column' = across(parent) ? 'row' : 'column';
+    let room = 0;
+    if (members.length > 1) {
+      const a = members[0]!.getBoundingClientRect();
+      const b = members[1]!.getBoundingClientRect();
+      direction = b.left >= a.right - 1 && Math.abs(b.top - a.top) < a.height / 2 ? 'row' : 'column';
+      room = Math.max(0, direction === 'row' ? b.left - a.right : b.top - a.bottom);
+    }
+    const gap = written(room ? snap(room, stepsOf(spaceTokens, usedScale)) : { px: 0 });
+    selectStackOf = members[0]!;
+    send({ type: 'wrap', members: members.map(readProps), direction, gap });
+  };
+
   /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
 
   /** Where the card was dragged to, if it was; otherwise it follows the element. */
@@ -912,6 +1247,10 @@ function activate() {
       emitTarget({ kind: 'element', selector: sel.selector, matches: sel.matches }, rectOf(el));
     });
     item('Copy selector', () => void navigator.clipboard.writeText(many ? props.intent.selector : props.selector).catch(() => {}));
+    rule();
+    item('Wrap in a stack', wrapSelection, 'Shift+A');
+    item('Copy style', copyStyle, isMac ? '⌘⌥C' : 'Ctrl+Alt+C');
+    item('Paste style', pasteStyle, isMac ? '⌘⌥V' : 'Ctrl+Alt+V');
     rule();
     item('Show in panel', () => send({ type: 'panel-focus' }));
     item('Deselect', () => select(null), 'Esc');
@@ -1553,22 +1892,270 @@ function activate() {
    * Comment back to Select, then the selection. False when there was nothing to let go of.
    */
   const escape = (): boolean => {
-    if (moving) endMove();
+    if (cmdkOpen()) closeCmdk();
+    else if (sheetOpen()) closeSheet();
+    else if (handling) endHandle(false);
+    else if (moving) endMove();
     else if (!menu.classList.contains('hidden')) closeMenu();
     else if (composing) closeComposer();
     else if (picked.length) {
       picked = [];
       drawPicks();
-    } else if (modeNow() !== 'select') setMode('select');
+    } else if (also.length) setAlso([]);
+    else if (modeNow() !== 'select') setMode('select');
     else if (selected) select(null);
     else return false;
     return true;
+  };
+
+  /* ----- selection colours ----- */
+
+  /**
+   * Every colour painted inside the selection (and the rest of a shift-click
+   * one): text where there is text, fills that show, borders that are drawn,
+   * an icon's fill and stroke. A few hundred elements is plenty for a
+   * component; a selection the size of the page stops there.
+   */
+  const coloursInSelection = () => {
+    const samples: ColourSample[] = [];
+    const seen = new Set<Element>();
+    let budget = 600;
+    const visit = (el: Element) => {
+      if (budget-- <= 0 || seen.has(el) || isOurs(el)) return;
+      seen.add(el);
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none') return;
+      const add = (property: ColourSample['use']['property'], value: string) => {
+        const hex = toHex(value);
+        if (!hex) return;
+        const { selector, matches } = buildSelector(el);
+        samples.push({ hex, use: { selector, matches, stable: !selector.includes('nth-of-type'), property, value: hex } });
+      };
+      if (Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())) add('color', cs.color);
+      add('background-color', cs.backgroundColor);
+      const drawn = ['Top', 'Right', 'Bottom', 'Left'].some(
+        (side) => parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 && cs.getPropertyValue(`border-${side.toLowerCase()}-style`) !== 'none',
+      );
+      if (drawn) add('border-color', cs.borderTopColor);
+      if (el instanceof SVGElement) {
+        if (cs.fill && cs.fill !== 'none') add('fill', cs.fill);
+        if (cs.stroke && cs.stroke !== 'none') add('stroke', cs.stroke);
+      }
+      for (const child of Array.from(el.children)) visit(child);
+    };
+    for (const root of [selected, ...also]) if (root?.isConnected) visit(root);
+    return selectionColours(samples);
+  };
+
+  /* ----- copy style, paste style ----- */
+
+  /** ⌘⌥C: the panel keeps what the selection looks like. */
+  const copyStyle = () => {
+    if (!selected) return;
+    send({ type: 'style-copy', data: readProps(selected) });
+    showHint(`<b>Style copied</b> from ${escapeHtml(buildSelector(selected).selector)}. ${isMac ? '⌘⌥V' : 'Ctrl+Alt+V'} pastes it onto a selection.`);
+  };
+  /** ⌘⌥V: every selected element made to look like the copied one. */
+  const pasteStyle = () => {
+    if (!selected) return;
+    send({ type: 'style-paste', targets: [selected, ...also].filter((el) => el.isConnected).map(readProps) });
+  };
+
+  /* ----- the command menu ----- */
+
+  /**
+   * ⌘K, as Framer's and Figma's quick actions: one box that finds anything
+   * the bar can do and any layer on the page by name. Each command is the
+   * same thing its button or key does — clicking the bar's own button where
+   * there is one — so the menu cannot drift from the bar.
+   */
+  type Runnable = { id: string; label: string; also?: string; keys?: string; kind: string; run: () => void };
+  const cmdkOpen = () => !cmdk.classList.contains('hidden');
+  let cmdkItems: Runnable[] = [];
+  let cmdkAt = 0;
+  const commandsNow = (): Runnable[] => {
+    const m = isMac ? '⌘' : 'Ctrl+';
+    const a = isMac ? '⌥' : 'Alt+';
+    const click = (b: Element | undefined) => () => (b as HTMLButtonElement | undefined)?.click();
+    const all: (Runnable & { needs?: boolean })[] = [
+      { id: 'preview', label: 'Preview', also: 'visitor play use', keys: 'P', kind: 'Mode', run: () => toggleMode('preview') },
+      { id: 'comment', label: 'Comment', also: 'note mark annotate', keys: 'C', kind: 'Mode', run: () => toggleMode('comment') },
+      { id: 'panel', label: 'Left panel', also: 'rail layers pages components assets', keys: `${a}L`, kind: 'View', run: toggleRail },
+      { id: 'parent', label: 'Select parent', keys: 'Shift+Enter', kind: 'Selection', run: () => walk('parent'), needs: true },
+      { id: 'child', label: 'Select first child', keys: 'Enter', kind: 'Selection', run: () => walk('child'), needs: true },
+      { id: 'next', label: 'Select next sibling', keys: 'Tab', kind: 'Selection', run: () => walk('next'), needs: true },
+      { id: 'prev', label: 'Select previous sibling', keys: 'Shift+Tab', kind: 'Selection', run: () => walk('prev'), needs: true },
+      { id: 'wrap', label: 'Wrap in a stack', also: 'auto layout flex group', keys: 'Shift+A', kind: 'Edit', run: wrapSelection, needs: true },
+      { id: 'copy-style', label: 'Copy style', keys: `${m}${a}C`, kind: 'Edit', run: copyStyle, needs: true },
+      { id: 'paste-style', label: 'Paste style', keys: `${m}${a}V`, kind: 'Edit', run: pasteStyle, needs: true },
+      { id: 'hide', label: 'Hide', also: 'display none', kind: 'Edit', run: () => selected && send({ type: 'rail-hide', node: (() => { const p = readProps(selected!); return { selector: p.selector, stable: p.stable, display: p.box.display }; })() }), needs: true },
+      { id: 'show-panel', label: 'Show in panel', also: 'style inspect', kind: 'View', run: () => send({ type: 'panel-focus' }), needs: true },
+      { id: 'deselect', label: 'Deselect', keys: 'Esc', kind: 'Selection', run: () => select(null), needs: true },
+      ...barKinds.map((b) => ({ id: `frame-${b.dataset.kind}`, label: `${b.getAttribute('aria-label')} frame`, also: 'device viewport breakpoint', kind: 'Frame', run: click(b) })),
+      { id: 'window', label: 'Window size', also: 'frame off reset viewport', kind: 'Frame', run: () => void resetViewport() },
+      { id: 'light', label: 'Light', also: 'scheme theme', kind: 'Page', run: click(barLight) },
+      { id: 'dark', label: 'Dark', also: 'scheme theme', kind: 'Page', run: click(barDark) },
+      { id: 'system', label: 'As the system prefers', also: 'scheme theme auto', kind: 'Page', run: click(barSystem) },
+      { id: 'reset', label: 'Reset every change', also: 'revert undo all', kind: 'Page', run: click(barReset) },
+      { id: 'shortcuts', label: 'Keyboard shortcuts', also: 'keys help', keys: 'Shift+?', kind: 'Help', run: toggleSheet },
+    ];
+    return all.filter((c) => !c.needs || selected);
+  };
+  const renderCmdk = () => {
+    const q = cmdkInput.value;
+    const commands = search(commandsNow(), q, 12);
+    // Layers by name, once there is something to look for.
+    const layers = q.trim()
+      ? search(
+          buildLayers(document.body, isOurs).map((n) => ({ id: `layer-${n.id}`, label: n.label, also: n.text ?? '', kind: 'Layer', run: () => select(find(n.selector)) })),
+          q,
+          8,
+        )
+      : [];
+    cmdkItems = [...commands, ...layers];
+    cmdkAt = Math.min(cmdkAt, Math.max(0, cmdkItems.length - 1));
+    cmdkList.replaceChildren();
+    if (!cmdkItems.length) {
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = 'Nothing matches.';
+      cmdkList.append(li);
+      return;
+    }
+    cmdkItems.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(i === cmdkAt));
+      const kind = document.createElement('span');
+      kind.className = 'kind';
+      kind.textContent = item.kind;
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      li.append(label, kind);
+      if (item.keys) {
+        const k = document.createElement('kbd');
+        k.textContent = item.keys;
+        li.append(k);
+      }
+      li.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        runCmdk(i);
+      });
+      cmdkList.append(li);
+    });
+    cmdkList.children[cmdkAt]?.scrollIntoView({ block: 'nearest' });
+  };
+  const closeCmdk = () => {
+    cmdk.classList.add('hidden');
+    cmdkInput.value = '';
+  };
+  const openCmdk = () => {
+    closeMenu();
+    closeSheet();
+    cmdk.classList.remove('hidden');
+    cmdkAt = 0;
+    renderCmdk();
+    setTimeout(() => cmdkInput.focus({ preventScroll: true }), 0);
+  };
+  const runCmdk = (i: number) => {
+    const item = cmdkItems[i];
+    closeCmdk();
+    item?.run();
+  };
+  cmdkInput.addEventListener('input', () => {
+    cmdkAt = 0;
+    renderCmdk();
+  });
+  cmdkInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdkAt = (cmdkAt + (e.key === 'ArrowDown' ? 1 : -1) + cmdkItems.length) % Math.max(1, cmdkItems.length);
+      renderCmdk();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      runCmdk(cmdkAt);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeCmdk();
+    }
+  });
+  cmdkInput.addEventListener('blur', () => setTimeout(() => cmdkOpen() && shadow.activeElement !== cmdkInput && closeCmdk(), 120));
+
+  /* ----- the shortcut sheet ----- */
+
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const sheetOpen = () => !sheet.classList.contains('hidden');
+  const closeSheet = () => sheet.classList.add('hidden');
+  /** Shift+?: every key the bar answers to, drawn from the same list the command menu searches. */
+  const toggleSheet = () => {
+    if (sheetOpen()) return closeSheet();
+    sheet.replaceChildren();
+    const h = document.createElement('h2');
+    h.textContent = 'Keyboard shortcuts';
+    const cols = document.createElement('div');
+    cols.className = 'cols';
+    for (const group of shortcutSheet(isMac)) {
+      const col = document.createElement('section');
+      const t = document.createElement('h3');
+      t.textContent = group.title;
+      const dl = document.createElement('dl');
+      // As Figma's sheet reads: what it does on the left, the keys on the right.
+      for (const item of group.items) {
+        const row = document.createElement('div');
+        const dt = document.createElement('dt');
+        dt.textContent = item.what;
+        const dd = document.createElement('dd');
+        dd.textContent = item.keys;
+        row.append(dt, dd);
+        dl.append(row);
+      }
+      col.append(t, dl);
+      cols.append(col);
+    }
+    sheet.append(h, cols);
+    sheet.classList.remove('hidden');
+  };
+
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key === 'Alt' && altHeld) {
+      altHeld = false;
+      drawMeasure();
+    }
+  };
+  const onBlurWindow = () => {
+    if (!altHeld) return;
+    altHeld = false;
+    drawMeasure();
   };
 
   const onKey = (e: KeyboardEvent) => {
     if (typing(e)) return;
     if (e.key === 'Escape') {
       if (escape()) e.preventDefault();
+      return;
+    }
+    if (e.key === 'Alt' && hoverOn && selected && !altHeld) {
+      altHeld = true;
+      drawMeasure();
+      return;
+    }
+    if (barOn && (e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyK') {
+      e.preventDefault();
+      if (cmdkOpen()) closeCmdk();
+      else openCmdk();
+      return;
+    }
+    if (barOn && e.key === '?' && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      toggleSheet();
+      return;
+    }
+    // ⌘⌥C and ⌘⌥V, read by code: with ⌥ held, a Mac's `key` is "ç" and "√".
+    if ((e.metaKey || e.ctrlKey) && e.altKey && selected && (e.code === 'KeyC' || e.code === 'KeyV')) {
+      e.preventDefault();
+      if (e.code === 'KeyC') copyStyle();
+      else pasteStyle();
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && selected) {
@@ -1586,6 +2173,20 @@ function activate() {
       return;
     }
     if (!selected) return;
+    // Shift+A, Figma's "add auto layout": wrap the selection in a stack.
+    if (hoverOn && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.code === 'KeyA') {
+      e.preventDefault();
+      wrapSelection();
+      return;
+    }
+    // Figma's: Enter into the children, Shift+Enter out to the parent, Tab
+    // along the siblings. Only while selecting, where the page's own Tab
+    // order is not what anyone is using.
+    if (hoverOn && bare && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      walk(e.key === 'Enter' ? (e.shiftKey ? 'parent' : 'child') : e.shiftKey ? 'prev' : 'next');
+      return;
+    }
     const dir =
       e.key === 'ArrowUp'
         ? 'parent'
@@ -1622,8 +2223,10 @@ function activate() {
         else toggleMode('preview');
         break;
       case 'tokens':
-        // The page's names for its values were for the edit card, which is
-        // gone; the panel shows them now. Accepted and ignored.
+        // What the handles snap to: the spacing variables, and the spacing
+        // the page uses often. The colour names were for the edit card, gone.
+        spaceTokens = msg.lengths?.space ?? {};
+        usedScale = msg.scale ?? [];
         break;
       case 'select':
         select(find(msg.selector));
@@ -1654,6 +2257,12 @@ function activate() {
         sendResponse(props);
         return true;
       }
+      case 'read-also':
+        sendResponse(also.filter((el) => el.isConnected).map(readProps));
+        return true;
+      case 'colours':
+        sendResponse(coloursInSelection());
+        return true;
       case 'layers':
         sendResponse(buildLayers(document.body, isOurs));
         return true;
@@ -1744,6 +2353,10 @@ function activate() {
         layout();
         break;
       }
+      case 'wraps':
+        applyWraps(msg.wraps ?? []);
+        layout();
+        break;
       case 'moves':
         applyMoves(msg.moves ?? []);
         // The element in hand is in its new place now; set it down there.
@@ -1805,7 +2418,11 @@ function activate() {
     removeEventListener('resize', fitRoom);
     room = null;
     pageFrame.clear();
+    // Nothing Codename painted inline outlives it.
+    flushRestore();
     removeEventListener('keydown', onKey, true);
+    removeEventListener('keyup', onKeyUp, true);
+    removeEventListener('blur', onBlurWindow);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);
     observer.disconnect();
@@ -1816,6 +2433,8 @@ function activate() {
   }
 
   addEventListener('keydown', onKey, true);
+  addEventListener('keyup', onKeyUp, true);
+  addEventListener('blur', onBlurWindow);
   addEventListener('scroll', layout, true);
   addEventListener('resize', layout);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });

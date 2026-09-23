@@ -24,7 +24,7 @@ import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
-import type { ElementChange } from './changes';
+import { stackIdOf, type ElementChange } from './changes';
 import { cascadeOrder, conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
 import type { SystemChange } from './systemDiff';
 
@@ -87,6 +87,8 @@ export interface ElementEdit {
   /** `var(--x)` when a token was chosen. */
   to: string;
   token?: string;
+  /** For 'wrap': the new stack and the elements it holds. */
+  wrap?: { id: string; members: string[] };
   /**
    * The component the page's own dev build says rendered this. Not a guess
    * from the markup: React, Vue and Angular dev builds each name it, and a
@@ -152,6 +154,7 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
         to: e.to,
         token: e.token,
         ...(e.component ? { component: e.component } : {}),
+        ...(e.wrap ? { wrap: e.wrap } : {}),
       });
     }
   }
@@ -260,7 +263,7 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
   const index = buildValueIndex({ customProps: scan.customProps, rootFontSize: scan.rootFontSize });
   const rootFontSize = scan.rootFontSize ?? 16;
   return edits.map((e) => {
-    if (e.token || e.property === 'text' || e.property === 'move') return e;
+    if (e.token || e.property === 'text' || e.property === 'move' || e.property === 'wrap') return e;
     // The index holds each variable's base value. Under the page's dark mode
     // or inside a width query the same name may hold something else, and
     // naming it would be a wrong fact rather than a helpful one — so nothing
@@ -464,7 +467,19 @@ export function toPrompt(set: ChangeSet): string {
       const first = edits[0]!;
       const scope = first.matches > 1 ? ` (${first.matches} elements)` : '';
       const positional = first.stable ? '' : ' — positional selector, find the element by its content';
-      lines.push(`- \`${selector}\`${scope}${positional}`);
+      // A stack Codename made is not in the source yet: say what to make,
+      // and give the styles as the new element's, not as edits to `#codename-stack-…`.
+      const wrapped = edits.find((e) => e.property === 'wrap' && e.wrap)?.wrap;
+      if (wrapped) {
+        const members = wrapped.members.map((m) => `\`${m}\``).join(', ');
+        const loose = wrapped.members.some((m) => m.includes(':nth-of-type')) ? ' Some of these are positional selectors; find them by their content.' : '';
+        lines.push(
+          `- A new stack: put ${members} inside one new element, where they stand now and in this order. This is a change to the markup. Give the new element these styles, however this project writes layout:${loose}`,
+        );
+      } else if (stackIdOf(selector)) {
+        // Edits to a stack whose wrap was undone: nothing to make.
+        continue;
+      } else lines.push(`- \`${selector}\`${scope}${positional}`);
       // Where a dev build named the component, that is the file to open.
       if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
       // Grouped by state, default first, so the ordinary case reads exactly
@@ -486,6 +501,7 @@ export function toPrompt(set: ChangeSet): string {
         const indent = condition ? '    ' : '  ';
         if (condition) lines.push(`  - ${describeCondition(condition)} — ${describeLong(condition)}`);
         for (const e of group) {
+          if (e.property === 'wrap') continue;
           lines.push(
             e.property === 'text'
               ? `${indent}- text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`

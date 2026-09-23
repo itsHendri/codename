@@ -1052,3 +1052,100 @@ describe('Make changes', () => {
     expect(text()).toContain('No coding agent found on this machine');
   });
 });
+
+describe('editing several at once', () => {
+  it('reaches every shift-clicked element, each from its own value', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await act(async () =>
+      stub.emit({ type: 'selection-also', data: [element({ selector: 'p.lede', color: { text: '#6C6A61', background: '#E7E4DB', border: '#CBC7BC' } })] }),
+    );
+    await tick();
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick();
+    const entries = getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to]);
+    expect(entries).toEqual([
+      ['h1#title', 'color', '#15171B', '#ff0000'],
+      ['p.lede', 'color', '#6C6A61', '#ff0000'],
+    ]);
+    // A plain click on the page starts over: the list comes back empty.
+    await act(async () => stub.emit({ type: 'selection-also', data: [] }));
+    expect(getSession().also).toEqual([]);
+  });
+
+  it('pastes a copied style as one edit per property that differs', async () => {
+    const source = element({ color: { text: '#FFFFFF', background: '#BE3A22', border: '#BE3A22' } });
+    const target = element({ selector: 'button.btn', color: { text: '#FFFFFF', background: '#E7E4DB', border: '#CBC7BC' } });
+    await act(async () => stub.emit({ type: 'style-copy', data: source }));
+    expect(getSession().copiedStyle?.selector).toBe('h1#title');
+    await act(async () => stub.emit({ type: 'style-paste', targets: [target] }));
+    await tick();
+    const entries = getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to]);
+    // Only the background differs: the text is white on both, and the
+    // border colour is read from the border, which is the same on both.
+    expect(entries).toEqual([['button.btn', 'background-color', '#E7E4DB', '#BE3A22']]);
+  });
+
+  it('pastes nothing when nothing was copied', async () => {
+    await act(async () => updateSession({ copiedStyle: null }));
+    await act(async () => stub.emit({ type: 'style-paste', targets: [element()] }));
+    await tick();
+    expect(getSession().log.entries).toHaveLength(0);
+  });
+});
+
+describe('selection colours', () => {
+  const use = (selector: string, property: string, value: string) => ({ selector, matches: 1, stable: true, property, value });
+
+  it('lists the colours inside the selection and swaps one everywhere it is painted', async () => {
+    stub.colours = [
+      { hex: '#BE3A22', uses: [use('button.btn', 'background-color', '#BE3A22'), use('p.lede', 'color', '#BE3A22')] },
+      { hex: '#15171B', uses: [use('h1#title', 'color', '#15171B')] },
+    ];
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ selector: 'div.card' }) }));
+    await tick(120);
+    expect(text()).toContain('Selection colours');
+    expect(text()).toContain('2 places');
+
+    const row = Array.from(host.querySelectorAll('[aria-label="Selection colours"] button')).find((b) => b.textContent?.includes('#BE3A22'))!;
+    await click(row);
+    const field = host.querySelector('input[aria-label="Replace #BE3A22"]') as HTMLInputElement;
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      set.call(field, '#1C7F5C');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await tick();
+    expect(getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to])).toEqual([
+      ['button.btn', 'background-color', '#BE3A22', '#1C7F5C'],
+      ['p.lede', 'color', '#BE3A22', '#1C7F5C'],
+    ]);
+  });
+
+  it('says nothing when there is only one colour inside', async () => {
+    stub.colours = [{ hex: '#15171B', uses: [use('h1#title', 'color', '#15171B')] }];
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick(120);
+    expect(text()).not.toContain('Selection colours');
+  });
+});
+
+describe('wrapping in a stack', () => {
+  it('files the stack and its layout, and tells the page to put it in', async () => {
+    await act(async () =>
+      stub.emit({
+        type: 'wrap',
+        members: [element(), element({ selector: 'p.lede' })],
+        direction: 'column',
+        gap: { to: 'var(--space-4)', token: '--space-4' },
+      }),
+    );
+    await tick(120);
+    const entries = getSession().log.entries;
+    expect(entries.map((e) => e.property)).toEqual(['wrap', 'display', 'flex-direction', 'gap']);
+    expect(entries[0]!.wrap?.members).toEqual(['h1#title', 'p.lede']);
+    expect(entries.every((e) => e.selector === entries[0]!.selector && e.selector.startsWith('div#codename-stack-'))).toBe(true);
+    const wraps = stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'wraps').at(-1);
+    expect(wraps?.wraps).toEqual([{ id: entries[0]!.wrap!.id, members: ['h1#title', 'p.lede'] }]);
+    expect(badge()).toBe('4');
+  });
+});

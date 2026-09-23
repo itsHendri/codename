@@ -10,6 +10,7 @@ import { CheckIcon, CloseIcon, CopyIcon, PlusIcon, RulerIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
+import { SelectionColours } from './inspect/SelectionColours';
 import { CommentComposer } from './inspect/Comments';
 import { PageStyles } from './inspect/PageStyles';
 import { LayerIcon } from './inspect/LayerIcon';
@@ -120,6 +121,7 @@ export function StyleTab({
         playable={ctl.condition?.kind === 'state'}
         written={written}
       />
+      <SelectionColours ctl={ctl} scan={scan ?? NO_SCAN} resolved={resolved} mode={mode} />
       <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />
     </div>
   );
@@ -262,6 +264,12 @@ function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectContro
         // Webflow says it as a banner on the canvas: an edit here is not to one thing.
         <p className="text-2xs text-ink-muted">
           Edits reach all {el.intent.matches} elements matching <code className="font-mono">{el.intent.selector}</code>.
+        </p>
+      )}
+      {ctl.also.length > 0 && (
+        // Shift-clicked on the page: the values shown are the first one's.
+        <p className="text-2xs text-ink-muted">
+          {ctl.also.length + 1} selected. Edits reach all of them; the values shown are this one's. Esc on the page lets go of the others.
         </p>
       )}
     </>

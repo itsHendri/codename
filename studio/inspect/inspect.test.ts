@@ -211,3 +211,20 @@ describe('dropping on the page', () => {
     for (const tag of ['p', 'h2', 'a', 'button', 'img', 'svg', 'input', 'SPAN']) expect(takesChildren(tag)).toBe(false);
   });
 });
+
+describe('selection colours', () => {
+  const use = (selector: string, property: 'color' | 'background-color' = 'color') => ({ selector, matches: 1, stable: true, property, value: '' });
+  it('groups by colour, most used first, one use per element and property', async () => {
+    const { selectionColours } = await import('./colour');
+    const out = selectionColours([
+      { hex: '#be3a22', use: use('.a') },
+      { hex: '#15171B', use: use('.b') },
+      { hex: '#BE3A22', use: use('.c', 'background-color') },
+      { hex: '#BE3A22', use: use('.a') },
+    ]);
+    expect(out.map((c) => [c.hex, c.uses.map((u) => `${u.selector} ${u.property}`)])).toEqual([
+      ['#BE3A22', ['.a color', '.c background-color']],
+      ['#15171B', ['.b color']],
+    ]);
+  });
+});

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElementProps } from '@/shared/types';
+import type { ElementProps, SelectionColour } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
@@ -20,8 +20,10 @@ import {
   redo as redoLog,
   revert as revertLog,
   revertAll as revertAllLog,
+  stackSelector,
   toMoves,
   toRules,
+  toWraps,
   toTextEdits,
   undo as undoLog,
   type ChangeLog,
@@ -42,6 +44,23 @@ import { firstSelector, pinsOf } from './comments';
 import { paddingShorthand } from '@/studio/boxModel';
 
 export type Scope = 'element' | 'all';
+
+/** An element an edit is filed against, and what the property reads there now. */
+export interface EditTarget {
+  selector: string;
+  matches: number;
+  stable: boolean;
+  component?: ElementProps['component'];
+}
+
+/** One edit on one element, for the paths that edit several at once. */
+export interface ManyEdit {
+  target: EditTarget;
+  property: string;
+  from: string;
+  to: string;
+  token?: string;
+}
 
 export interface InspectController {
   element: ElementProps | null;
@@ -66,6 +85,21 @@ export interface InspectController {
   change(property: string, to: string, token?: string): void;
   /** Replace the element's text content. */
   setText(text: string): void;
+  /**
+   * Edits on elements other than the one picked: a pasted style, a colour
+   * swapped through a selection. One step in the log per edit, as though
+   * each were made by hand.
+   */
+  changeMany(edits: ManyEdit[]): void;
+  /** The elements shift-clicked beside the picked one; an edit reaches them too. */
+  also: ElementProps[];
+  /** Every colour painted inside the selection, with where, read from the page. */
+  readColours(): Promise<SelectionColour[]>;
+  /**
+   * Wrap elements in a new stack, as Framer's "Add Stack" does: a flex box
+   * in the direction they already run, with the gap they already have.
+   */
+  wrap(members: EditTarget[], direction: 'row' | 'column', gap: { to: string; token?: string }): void;
   undo(): void;
   redo(): void;
   revert(id: string): void;
@@ -199,10 +233,11 @@ function usePush(tabId: number | null, generation: number, key: string, empty: b
 export function useInspect(
   tabId: number | null,
   tabUrl: string,
-  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits' | 'scan'>,
+  session: Pick<TabSession, 'pinned' | 'log' | 'generation' | 'comments' | 'mode' | 'varOverrides' | 'colorEdits' | 'scan' | 'also'>,
   focusedComment: string | null,
 ): InspectController {
   const { pinned: element, log, generation, comments } = session;
+  const also = session.also;
   const [scope, setScope] = useState<Scope>('element');
   const [condition, setConditionState] = useState<MaybeCondition>(undefined);
   const [cascade, setCascade] = useState<HoistedRule[]>([]);
@@ -226,7 +261,13 @@ export function useInspect(
   const darkPreview = session.mode === 'dark';
   usePush(tabId, generation, JSON.stringify([rules, darkPreview]), rules.length === 0, () => {
     void applyElementRules(tabId!, rules, darkPreview).then(() => {
-      // Computed values moved; show the element as it is now.
+      // Computed values moved; show the element as it is now — and the
+      // others in the selection, whose `from` the next edit will need.
+      if (getSession().also.length) {
+        void sendInspector<ElementProps[] | null>(tabId!, { cmd: 'read-also' }).then((list) => {
+          if (Array.isArray(list)) updateSession({ also: list.filter(isElementProps) });
+        });
+      }
       void sendInspector<ElementProps | null>(tabId!, { cmd: 'read' }).then((props) => {
         if (isElementProps(props)) updateSession({ pinned: props });
       });
@@ -278,12 +319,18 @@ export function useInspect(
     void sendInspector(tabId!, { cmd: 'moves', moves });
   });
 
+  // Stacks are markup too: put in afresh from the log, after the moves.
+  const wraps = useMemo(() => (holding ? [] : toWraps(log)), [log, holding]);
+  usePush(tabId, generation, JSON.stringify(wraps), wraps.length === 0, () => {
+    void sendInspector(tabId!, { cmd: 'wraps', wraps });
+  });
+
   const change = useCallback(
     (property: string, to: string, token?: string) => {
       if (!element) return;
       const wide = scope === 'all' && element.intent.matches > 1;
-      setLog((l) =>
-        commit(l, {
+      setLog((l) => {
+        let next = commit(l, {
           selector: wide ? element.intent.selector : element.selector,
           matches: wide ? element.intent.matches : element.matches,
           stable: wide ? true : element.stable,
@@ -297,10 +344,51 @@ export function useInspect(
           // An edit widened to every match belongs to no one component, so
           // the name of the one that was clicked would be a wrong fact.
           ...(!wide && element.component ? { component: element.component } : {}),
-        }),
+        });
+        // The rest of a shift-click selection takes the same value, each
+        // with its own `from`, as Figma edits a multi-selection.
+        for (const other of also) {
+          if (other.selector === element.selector) continue;
+          next = commit(next, {
+            selector: other.selector,
+            matches: other.matches,
+            stable: other.stable,
+            property,
+            ...(condition ? { condition } : {}),
+            from: readValue(other, property),
+            to,
+            token,
+            ...(other.component ? { component: other.component } : {}),
+          });
+        }
+        return next;
+      });
+    },
+    [element, also, scope, setLog, condition],
+  );
+
+  const changeMany = useCallback(
+    (edits: ManyEdit[]) => {
+      if (!edits.length) return;
+      setLog((l) =>
+        edits.reduce(
+          (acc, e) =>
+            commit(acc, {
+              selector: e.target.selector,
+              matches: e.target.matches,
+              stable: e.target.stable,
+              property: e.property,
+              ...(condition ? { condition } : {}),
+              from: e.from,
+              to: e.to,
+              token: e.token,
+              ...(e.target.component ? { component: e.target.component } : {}),
+            }),
+          l,
+        ),
       );
     },
-    [element, scope, setLog, condition],
+    [setLog, condition],
   );
 
   /**
@@ -438,6 +526,38 @@ export function useInspect(
     },
     change,
     setText,
+    changeMany,
+    also,
+    wrap: (members, direction, gap) => {
+      if (!members.length) return;
+      const id = Date.now().toString(36);
+      const selector = stackSelector(id);
+      const on = (property: string, from: string, to: string, token?: string) => ({
+        selector,
+        matches: 1,
+        stable: true,
+        property,
+        from,
+        to,
+        ...(token ? { token } : {}),
+      });
+      setLog((l) =>
+        [
+          {
+            ...on('wrap', members.map((m) => m.selector).join(', '), 'a new stack'),
+            wrap: { id, members: members.map((m) => m.selector) },
+          },
+          on('display', 'block', 'flex'),
+          on('flex-direction', 'row', direction),
+          on('gap', 'normal', gap.to, gap.token),
+        ].reduce((acc, c) => commit(acc, c), l),
+      );
+    },
+    readColours: async () => {
+      if (tabId == null) return [];
+      const list = await sendInspector<SelectionColour[]>(tabId, { cmd: 'colours' }).catch(() => null);
+      return Array.isArray(list) ? list : [];
+    },
     undo: () => setLog((l) => (canUndo(l) ? undoLog(l) : l)),
     redo: () => setLog((l) => (canRedo(l) ? redoLog(l) : l)),
     revert: (id) => setLog((l) => revertLog(l, id)),

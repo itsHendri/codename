@@ -79,3 +79,28 @@ export function opaqueBackground(el: Element, style: (el: Element) => CSSStyleDe
   }
   return compositeOverWhite(layers);
 }
+
+/** One place a colour was read inside a selection. */
+export interface ColourSample {
+  hex: string;
+  use: { selector: string; matches: number; stable: boolean; property: 'color' | 'background-color' | 'border-color' | 'fill' | 'stroke'; value: string };
+}
+
+/**
+ * Figma's "selection colours": every colour painted inside a selection,
+ * the most used first, each with the places it is painted, so changing one
+ * swatch changes it everywhere it appears in there. An element painting the
+ * same colour twice on one property is one use, not two.
+ */
+export function selectionColours(samples: ColourSample[], perColour = 80) {
+  const groups = new Map<string, ColourSample['use'][]>();
+  for (const { hex, use } of samples) {
+    const key = hex.toUpperCase();
+    const list = groups.get(key) ?? [];
+    if (!list.some((u) => u.selector === use.selector && u.property === use.property)) list.push(use);
+    groups.set(key, list);
+  }
+  return [...groups.entries()]
+    .map(([hex, uses]) => ({ hex, uses: uses.slice(0, perColour) }))
+    .sort((a, b) => b.uses.length - a.uses.length || a.hex.localeCompare(b.hex));
+}

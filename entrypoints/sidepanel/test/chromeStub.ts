@@ -72,6 +72,8 @@ export interface StubChrome {
   emit(msg: unknown): void;
   /** Tabs the panel reloaded, oldest first. */
   reloaded: number[];
+  /** What the page answers `colours` with. */
+  colours: unknown[];
 }
 
 export function installChrome(): StubChrome {
@@ -80,7 +82,7 @@ export function installChrome(): StubChrome {
   const local: Record<string, unknown> = {};
   const sync: Record<string, unknown> = {};
   const sent: StubChrome['sent'] = [];
-  const stub: StubChrome = { sent, current: null, emit: () => {}, reloaded: [] };
+  const stub: StubChrome = { sent, current: null, emit: () => {}, reloaded: [], colours: [] };
 
   const area = (store: Record<string, unknown>) => ({
     get: async (k: string | string[] | undefined) => {
@@ -110,6 +112,7 @@ export function installChrome(): StubChrome {
       sendMessage: async (_id: number, msg: StubChrome['sent'][number]) => {
         sent.push(msg);
         if (msg?.type === 'inspector' && msg.cmd === 'read') return stub.current;
+        if (msg?.type === 'inspector' && msg.cmd === 'colours') return stub.colours;
         if (msg?.type === 'inspector' && msg.cmd === 'deselect') stub.current = null;
         if (msg?.type === 'inspector') return { ok: true, hover: false, selected: stub.current !== null };
         if (msg?.type === 'reskin-apply') {
