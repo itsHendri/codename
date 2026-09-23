@@ -93,3 +93,33 @@ export function dropIndex(boxes: Box[], x: number, y: number, across: boolean): 
   const next = pool[pool.length - 1]!.i + 1;
   return next < boxes.length ? next : null;
 }
+
+/** Elements that hold no boxes of their own, so nothing is dropped into them on the page. */
+const HOLDS_NOTHING = new Set([
+  'img', 'input', 'textarea', 'select', 'option', 'hr', 'br', 'svg', 'video', 'audio', 'canvas', 'iframe', 'picture', 'source', 'object', 'embed',
+  // Runs of text: a card dropped into a heading or a link is a mistake, not a layout.
+  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button', 'label', 'strong', 'em', 'b', 'i', 'small', 'code', 'sup', 'sub',
+]);
+
+/** Whether an element on the page can take a dragged element in. */
+export const takesChildren = (tag: string): boolean => !HOLDS_NOTHING.has(tag.toLowerCase());
+
+/**
+ * Which part of the box under the pointer a drop means, as a design tool
+ * reads a frame on the canvas: its leading and trailing edges are beside it
+ * — before or after, among its siblings — and its middle is into it. A box
+ * that takes nothing in is all edges, split at its midpoint. `across` is how
+ * the box sits among its siblings: side by side reads the x, stacked the y.
+ * The edge bands are a fifth of the box, never thinner than 6px or thicker
+ * than 18, so a small box can still be entered and a big one left.
+ */
+export function dropZone(box: Box, x: number, y: number, across: boolean, takes: boolean): 'before' | 'after' | 'into' {
+  const start = across ? box.left : box.top;
+  const size = across ? box.width : box.height;
+  const at = (across ? x : y) - start;
+  if (!takes) return at < size / 2 ? 'before' : 'after';
+  const band = Math.min(18, Math.max(6, size / 5));
+  if (at < band) return 'before';
+  if (at > size - band) return 'after';
+  return 'into';
+}

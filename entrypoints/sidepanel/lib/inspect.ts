@@ -98,7 +98,7 @@ export interface InspectController {
   /** Light a layer up on the page without selecting it. */
   /** Hide a layer, or take the hiding back. */
   toggleHidden(node: LayerNode): void;
-  /** Put a layer somewhere else among its siblings: before `before`, or last. */
+  /** Put a layer somewhere else, in `parent` before `before` or last — beside where it was, or in another box. */
   move(node: LayerNode, parent: LayerNode, before: LayerNode | null, wasIn: LayerNode, wasBefore: LayerNode | null): void;
 }
 
