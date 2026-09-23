@@ -46,7 +46,7 @@ const mimeOf = (file: string) => (file.endsWith('.md') ? 'text/markdown' : file.
 
 const INSTRUCTIONS = `${STANDING_RULES}
 
-How to work: call \`watch\` in a loop; when it reports a hand-off, call \`get_changes\`, apply the brief to source, then \`clear\` the hand-off. \`find_definition\` searches the project this bridge runs in for where a custom property is defined, which beats grepping for it yourself. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
+How to work: the panel's Make changes usually applies an edit itself, by running a coding agent in this folder; when the person asks you in a chat instead, call \`get_changes\` and apply the brief to source. Call \`watch\` in a loop to wake on comments, selections, or an explicit hand-off (apply it, then \`clear\` it). \`find_definition\` searches the project this bridge runs in for where a custom property is defined, which beats grepping for it yourself. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
 
 export interface McpOptions {
   /** The code the panel must be given to pair with this bridge. */
@@ -142,7 +142,7 @@ export function createMcpServer(
     'get_changes',
     {
       description:
-        'The design change the user made in the panel, as a ChangeSet (token renames with old and new values, colour literal swaps) plus a prompt describing it. Prefers a hand-off the user explicitly sent ("Send to agent"); falls back to the live, unsent edit. Apply the change to source by editing the token definitions it names; never paste rendered CSS.',
+        'The design change the user made in the panel, as a ChangeSet (token renames with old and new values, colour literal swaps) plus a prompt describing it. Prefers an explicit hand-off when there is one; otherwise the live edit on the page. Apply the change to source by editing the token definitions it names; never paste rendered CSS.',
       inputSchema: { session },
     },
     guard(({ session }) => {

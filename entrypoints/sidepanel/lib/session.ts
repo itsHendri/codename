@@ -17,6 +17,7 @@ import type {
   CommentStatus,
   DefinitionsPayload,
   ProjectInfo,
+  RunSnapshot,
   SessionState,
 } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
@@ -61,7 +62,7 @@ export interface TabSession {
    * The bridge's `watch` tool resolves when it does.
    */
   revision: number;
-  /** What was pressed "Send to agent" on, until the agent or the user clears it. */
+  /** An explicit hand-off to an agent in a chat; Make changes runs the agent itself and leaves this alone. */
   handoff: SessionState['handoff'];
   /** Whether the agent may paint on this page. Asked for once per project. */
   agentMayWrite: boolean;
@@ -70,6 +71,18 @@ export interface TabSession {
    * running in. Off until the person says so; the only write it ever makes.
    */
   bridgeMayWrite: boolean;
+  /**
+   * The agents Make changes may run in the project the bridge is in. Asked
+   * once per project and per agent, because what each can do differs.
+   */
+  agentsMayRun: string[];
+  /** The agent Make changes runs in this project, as the person last picked it. */
+  agentChoice: string | null;
+  /**
+   * The Make changes run this panel started, as the bridge last reported it.
+   * Kept across a reload, because a run that changed files reloads the page.
+   */
+  run: RunSnapshot | null;
   /** Where the bridge found the tokens in play, pushed whenever the set changes. */
   definitions: DefinitionsPayload | null;
   /**
@@ -115,6 +128,9 @@ const EMPTY: TabSession = {
   handoff: null,
   agentMayWrite: false,
   bridgeMayWrite: false,
+  agentsMayRun: [],
+  agentChoice: null,
+  run: null,
   definitions: null,
   applied: [],
   agentPreview: null,
@@ -260,6 +276,10 @@ const CONSENT_KEYS: Record<keyof Consent, string> = {
   agentMayWrite: 'consent:paint:',
   bridgeMayWrite: 'consent:write:',
 };
+/** Which agent Make changes runs, per project. */
+const AGENT_CHOICE_KEY = 'agent:';
+/** The agents allowed to run, per project. */
+const RUN_CONSENT_KEY = 'consent:run:';
 /** Where both answers used to live, together; still read so nothing given is lost. */
 const LEGACY_CONSENT_KEY = 'consent:';
 
@@ -277,7 +297,7 @@ interface Consent {
  * writing is about the folder the bridge is in — so each is read from its own
  * scope.
  */
-async function loadConsent(pageScope: string, writeScope: string | null): Promise<Consent> {
+async function loadConsent(pageScope: string, writeScope: string | null): Promise<Consent & { agentChoice: string | null; agentsMayRun: string[] }> {
   const read = async (what: keyof Consent, scope: string): Promise<boolean> => {
     try {
       const own = `${CONSENT_KEYS[what]}${scope}`;
@@ -289,11 +309,25 @@ async function loadConsent(pageScope: string, writeScope: string | null): Promis
       return false;
     }
   };
-  const [agentMayWrite, bridgeMayWrite] = await Promise.all([
+  const readRaw = async (k: string): Promise<unknown> => {
+    try {
+      return (await chrome.storage.local.get(k))[k];
+    } catch {
+      return undefined;
+    }
+  };
+  const [agentMayWrite, bridgeMayWrite, choice, mayRun] = await Promise.all([
     read('agentMayWrite', pageScope),
     writeScope ? read('bridgeMayWrite', writeScope) : Promise.resolve(false),
+    writeScope ? readRaw(`${AGENT_CHOICE_KEY}${writeScope}`) : Promise.resolve(undefined),
+    writeScope ? readRaw(`${RUN_CONSENT_KEY}${writeScope}`) : Promise.resolve(undefined),
   ]);
-  return { agentMayWrite, bridgeMayWrite };
+  return {
+    agentMayWrite,
+    bridgeMayWrite,
+    agentChoice: typeof choice === 'string' ? choice : null,
+    agentsMayRun: Array.isArray(mayRun) ? mayRun.filter((a): a is string => typeof a === 'string') : [],
+  };
 }
 
 /**
@@ -326,6 +360,26 @@ export function allow(what: keyof Consent, value: boolean): void {
   updateSession({ [what]: value } as Partial<TabSession>);
   if (!key) return;
   void chrome.storage.local.set({ [`${CONSENT_KEYS[what]}${key}`]: value }).catch(() => {});
+}
+
+/**
+ * Let Make changes run this agent in the bridge's project, remembered for
+ * the project. False when no project is known: there is nothing to allow.
+ */
+export function allowRun(agent: string): boolean {
+  const key = writeKeyFor();
+  if (!key) return false;
+  const next = Array.from(new Set([...state.agentsMayRun, agent]));
+  updateSession({ agentsMayRun: next });
+  void chrome.storage.local.set({ [`${RUN_CONSENT_KEY}${key}`]: next }).catch(() => {});
+  return true;
+}
+
+/** Remember which agent Make changes runs in this project. */
+export function chooseAgent(id: string): void {
+  updateSession({ agentChoice: id });
+  const key = writeKeyFor();
+  if (key) void chrome.storage.local.set({ [`${AGENT_CHOICE_KEY}${key}`]: id }).catch(() => {});
 }
 
 /** Something the agent should wake up for. */

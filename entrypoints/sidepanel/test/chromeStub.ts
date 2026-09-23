@@ -70,6 +70,8 @@ export interface StubChrome {
   current: unknown;
   /** Deliver a message as if a content script in tab 1 sent it. */
   emit(msg: unknown): void;
+  /** Tabs the panel reloaded, oldest first. */
+  reloaded: number[];
 }
 
 export function installChrome(): StubChrome {
@@ -78,7 +80,7 @@ export function installChrome(): StubChrome {
   const local: Record<string, unknown> = {};
   const sync: Record<string, unknown> = {};
   const sent: StubChrome['sent'] = [];
-  const stub: StubChrome = { sent, current: null, emit: () => {} };
+  const stub: StubChrome = { sent, current: null, emit: () => {}, reloaded: [] };
 
   const area = (store: Record<string, unknown>) => ({
     get: async (k: string | string[] | undefined) => {
@@ -135,6 +137,9 @@ export function installChrome(): StubChrome {
         return { ok: true, vars: 0, rules: 0 };
       },
       connect: () => ({ onDisconnect: { addListener() {} }, disconnect() {} }),
+      reload: async (id: number) => {
+        stub.reloaded.push(id);
+      },
       captureVisibleTab: async () => 'data:image/png;base64,',
     },
     runtime: {

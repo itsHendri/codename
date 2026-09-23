@@ -146,6 +146,6 @@ describe('runOpen', () => {
       running: () => null,
       onOpen: () => {},
     });
-    expect(lines.join(' ')).toMatch(/No agent is running in this folder/);
+    expect(lines.join(' ')).toMatch(/No codename bridge is running/);
   });
 });

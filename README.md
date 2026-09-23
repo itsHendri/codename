@@ -1,8 +1,9 @@
 # Codename
 
 A designer's toolkit drawn on the page itself: read the design system a page
-is actually running, edit it, watch the real page repaint, and hand the change
-to your agent — which can be connected, so you never paste.
+is actually running, edit it, watch the real page repaint, and press **Make
+changes** to have your own coding agent write it into source — no chat to open,
+nothing to paste.
 
 Click the toolbar button and Codename frames the tab the way a design tool
 frames its canvas: a **bar** across the top, a **rail** on the left, the
@@ -189,7 +190,7 @@ the tab you clicked the icon on, or a site you allowed before. A site it
 cannot reach asks for one click; **Always allow localhost** in the menu
 makes every dev server open without asking.
 
-## Hand to agent
+## Make changes
 
 Anything you change — a seed, the type scale, the grid, an element, a note —
 collects into one brief.
@@ -209,7 +210,22 @@ length in it is a step, and `calc()`, `var()`, percentages and `em` are left
 alone. Either way the change travels as a **scale change** in the brief,
 which is an instruction the agent can act on in source.
 
-**Copy** it, download it as JSON, or **send** it, all from the Changes tab.
+Press **Make changes** on the Changes tab and the bridge runs your coding
+agent — Claude Code, Cursor or Codex, whichever is installed, signed in with
+your own account — in the project folder on that brief. Its steps show on the
+tab as it works: what it is reading, what it is editing. When it has changed
+files, the panel lets go of its own overrides and reloads the page, so what
+you see is what source now says; review the diff as usual. If it stops, your
+edits stay put and it says why.
+
+The first run of each agent in a project asks first, and says what that agent
+can do: Claude Code is held to reading and editing files, with no shell and no
+web; Cursor and Codex can also run commands (Codex inside a sandbox with no
+network). With more than one installed, pick which beside the button.
+`CODENAME_AGENT_CMD` runs any other tool — a command with `{prompt}` where the
+brief goes.
+
+You can still **Copy** the brief or download it as JSON.
 
 ### Applying one yourself
 
@@ -219,64 +235,48 @@ a stylesheet — no media query, no scoped selector, no token file — carries a
 project. It writes that one value, keeping everything else on the line, and
 the token leaves the brief with a note that it is already in source.
 
-This is the only thing written to source without your agent, and it is narrow
+This is the only thing written to source without an agent, and it is narrow
 on purpose. A change like `--mark: #BE3A22 → #1C7F5C` has nothing left to
 decide, and sending it through a language model buys a round trip and a chance
 to get it wrong. Everything with a judgement in it — several definitions,
 usages, components, a value that has moved since it was read — is refused with
-the reason and stays in the brief, which is where your agent picks it up.
+the reason and stays in the brief, for Make changes.
 
-### Connect your agent
+### Connect your project
 
-Three steps, which the Changes tab walks you through until you are paired
-(**Connect agent** in the footer takes you there):
-
-1. Register the bridge with your agent, once. The short way installs the
-   `codename` skill into `~/.claude/skills` and registers the bridge with
-   Claude Code in one go (`--client cursor` prints what to paste instead):
-
-   ```sh
-   npx codename-bridge setup
-   ```
-
-   The long way, by hand:
-
-   ```sh
-   claude mcp add codename -- npx codename-bridge
-   ```
-
-   or, for Cursor, in `mcp.json`:
-
-   ```json
-   { "mcpServers": { "codename": { "command": "npx", "args": ["codename-bridge"] } } }
-   ```
-
-2. Start your agent, in the folder you are working in. It launches the bridge,
-   which prints a six-character pairing code — to the agent, not to you. Ask
-   the agent for it (it has a `pairing_code` tool), or read it yourself:
-
-   ```sh
-   npx codename-bridge code
-   ```
-
-3. Enter the code in the panel.
-
-To get from a folder to a page with the panel on it in one command, in a
-second terminal:
+One command, in the folder you are working in:
 
 ```sh
 npx codename-bridge open .
 ```
 
-It prints the pairing code where you can actually read it, starts the
-project's dev server (its `dev`, `start` or `serve` script, with the package
-manager your lockfile names), watches its output for the URL it came up on,
-and opens that in your browser. `--cmd "…"` says how to start it where the
-scripts do not, `--url` opens one that is already running. Your agent runs the
-bridge in its own terminal; this one only gets you to the page.
+It starts the bridge for that folder, starts the project's dev server (its
+`dev`, `start` or `serve` script, with the package manager your lockfile
+names), watches its output for the URL it came up on, opens that in your
+browser, and prints a six-character pairing code. Enter the code on the
+Changes tab the first time; the same code is kept for the next run, so the
+panel pairs by itself after that. `--cmd "…"` says how to start a project the
+scripts do not, `--url` opens one that is already running.
 
-The bridge runs on your machine only: an MCP server on standard input and
-output for your agent, a WebSocket on `127.0.0.1` for the panel. It takes that
+### From a chat, too
+
+The bridge is an MCP server as well, so an agent you are chatting with can
+see the page — screenshots, the selection, your notes, the critique. Register
+it once:
+
+```sh
+npx codename-bridge setup
+```
+
+That installs the `codename` skill into `~/.claude/skills` and runs
+`claude mcp add codename -- npx codename-bridge` (`--client cursor` prints the
+`mcp.json` entry instead). An agent started in the project then runs the
+bridge itself, and `codename-bridge open` uses that one rather than starting
+another. Its code goes to the agent, not to you: ask the agent (it has a
+`pairing_code` tool), or run `npx codename-bridge code`.
+
+The bridge runs on your machine only: a WebSocket on `127.0.0.1` for the panel,
+and an MCP server on standard input and output when an agent started it. It takes that
 socket from the one extension it first paired with and tells every other copy
 so — the panel says "paired with another copy of Codename" rather than
 retrying in silence. Switching between a development build and the store one
@@ -309,7 +309,7 @@ the one place a file position is honest — the extension only sees a rendered
 page, so it would be guessing; the bridge read the file. Your agent asks the
 same question with `find_definition`.
 
-The agent then has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
+An agent in a chat has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
 spacing, near-duplicate colours, type strays — as facts with numbers),
 `get_design_system` (the extracted system as files — `brand.md`,

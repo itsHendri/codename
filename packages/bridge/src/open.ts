@@ -7,8 +7,9 @@
  * — one command between a folder and a page with the panel on it — without
  * shipping a browser to get it.
  *
- * It does not run the MCP server: the agent starts that. Two terminals, and
- * the README says so.
+ * The CLI starts a bridge for the folder first when none is running, so the
+ * panel can pair and Make changes can run the agent without a chat open.
+ * An agent that already started one here is used as it is.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -98,8 +99,8 @@ export function runOpen(opts: OpenOptions): OpenResult {
   const bridge = opts.running?.() ?? null;
   // The bridge prints its code to an stderr the agent swallows, so this is
   // where a person actually gets to read it.
-  if (bridge) log(`Pairing code: ${bridge.token}  (enter it in the panel, on the Changes tab)`);
-  else log('No agent is running in this folder yet. Start Claude Code or Cursor here; it launches the bridge.');
+  if (bridge) log(`Pairing code: ${bridge.token}  (the panel asks for it the first time, on the Changes tab)`);
+  else log('No codename bridge is running, so the panel has nothing to pair with.');
 
   const command: Command | null = opts.cmd
     ? { cmd: process.platform === 'win32' ? 'cmd' : 'sh', args: process.platform === 'win32' ? ['/c', opts.cmd] : ['-c', opts.cmd] }
@@ -131,7 +132,7 @@ export function runOpen(opts: OpenOptions): OpenResult {
       opts.onOpen?.(open);
       if (!opts.onOpen) spawnProcess(open.cmd, open.args, { stdio: 'ignore', detached: true }).unref?.();
       log(`Opened ${url}. Click the Codename icon to put the panel on it.`);
-      log(bridge ? '  Then enter the pairing code above.' : '  Start your agent in this folder, then pair the panel with its code.');
+      log(bridge ? '  Then enter the pairing code above if it asks, make your edits, and press Make changes.' : '  Run npx codename-bridge open here to start one.');
       resolve(url);
     };
 

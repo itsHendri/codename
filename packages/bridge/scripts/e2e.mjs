@@ -78,7 +78,7 @@ await call('get_screenshot', { viewport: 'reset' });
 await call('point', { selector: 'h1', note: 'Starting with the heading' });
 await call('apply_css', { css: 'body { outline: 4px solid #59a6ff !important }' });
 await call('clear', { what: 'preview' });
-console.log('\nwatching for a hand-off (press "Send to agent" in the panel)…');
+console.log('\nwatching for a hand-off from an agent chat…');
 const w = await call('watch', { timeoutMs: 25000 });
 if (!JSON.parse(w.text).timedOut) await call('get_changes');
 await client.close();

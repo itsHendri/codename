@@ -15,7 +15,7 @@ import type { IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { z } from 'zod';
 import { PROTOCOL_VERSION } from '../../../shared/protocol';
-import type { Envelope, HelloAck, PanelRequest, ProjectInfo, SessionState } from '../../../shared/protocol';
+import type { AgentInfo, Envelope, HelloAck, PanelRequest, ProjectInfo, RunSnapshot, SessionState } from '../../../shared/protocol';
 import { Limiter, TOO_MANY } from './limiter';
 import type { Link, Sessions } from './sessions';
 
@@ -58,6 +58,10 @@ export interface ServerOptions {
   onPin?: (extensionId: string) => void;
   /** The folder the bridge is running in, read fresh for each hello. */
   project?: () => ProjectInfo | undefined;
+  /** The agents Make changes can run, for the hello ack. */
+  agents?: () => AgentInfo[];
+  /** The latest Make changes run, so a panel that comes back mid-run sees it. */
+  run?: () => RunSnapshot | null;
   /** Answers what the panel asks; absent means "nothing to ask". */
   onAsk?: (sessionId: string, request: PanelRequest) => Promise<unknown>;
   /** Called with each state snapshot, after it is stored. */
@@ -219,6 +223,8 @@ export function startServer(opts: ServerOptions): Promise<BridgeServer> {
           const ack: HelloAck = {
             bridgeVersion,
             ...(opts.project ? { project: opts.project() } : {}),
+            ...(opts.agents ? { agents: opts.agents() } : {}),
+            ...(opts.run ? { run: opts.run() } : {}),
           };
           link.send({
             v: PROTOCOL_VERSION,

@@ -16,13 +16,13 @@ description: Work with the Codename panel — a Chrome side panel that reads the
 
 # Codename
 
-The person edits a live page in the Codename panel. You apply what they decided to source. Nothing you do through the bridge writes to source; the repository is yours to edit.
+The person edits a live page in the Codename panel. Most of the time the panel's **Make changes** puts that edit into source itself: the bridge runs a coding agent headless in the project on the brief and shows its progress in the panel. Nothing you do through the bridge's tools writes to source; the repository is yours to edit.
 
-## The loop
+## In a chat
 
 1. If the panel is not paired, call \`pairing_code\` and read the code out to the user; they type it into the panel.
-2. Call \`watch\` in a loop. It returns when there is a hand-off, a new comment, or a new selection.
-3. On a hand-off, call \`get_changes\` and apply the brief. Then \`clear\` with \`what: "handoff"\`.
+2. When the person asks you to apply what they did on the page, call \`get_changes\` and apply the brief. If the panel is already running Make changes on it, do not apply it a second time.
+3. Call \`watch\` in a loop to work hands-free. It returns when there is a new comment, a new selection, or an explicit hand-off; on a hand-off, apply it and \`clear\` it with \`what: "handoff"\`.
 4. On comments, call \`get_comments\` with \`status: "pending"\`; \`set_status\` to acknowledged when you start, resolved when the change is in source, dismissed if you will not act; \`reply\` briefly.
 5. Before larger work, read \`codename://design-system/brand.md\` (or call \`get_design_system\`) and write the files into the repository as design context.
 
