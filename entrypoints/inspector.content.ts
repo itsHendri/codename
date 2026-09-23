@@ -21,6 +21,7 @@ import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
+import { shortcutSheet } from '@/studio/inspect/commands';
 import { describeTarget, targetKindLabel, type CommentTarget, type Pin } from '@/studio/annotations';
 import { WIDTH_RANGE } from '@/studio/conditions';
 import { DEVICE_PRESETS } from '@/shared/types';
@@ -68,6 +69,7 @@ function activate() {
   };
   const c = d;
   const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
+  const mono = 'ui-monospace, Menlo, monospace';
   // A select's chevron, in ink-muted, which is the same grey in both themes.
   const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E")`;
   const host = document.createElement(HOST_TAG.toLowerCase());
@@ -176,6 +178,13 @@ function activate() {
       .composer .cancel { background: transparent; color: ${d.cardMuted}; }
       /* The right-click menu: what can be done to the selection, and nothing
          about how it looks — that is the panel's, on the right. */
+      .sheet { position: fixed; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 96px); overflow: auto; pointer-events: auto; padding: 16px 18px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); font: 400 12px/1.4 ${font}; }
+      .sheet h2 { margin: 0 0 12px; font: 600 13px/1 ${font}; }
+      .sheet .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+      .sheet h3 { margin: 0 0 6px; font: 500 11px/1 ${font}; color: ${d.cardMuted}; text-transform: uppercase; letter-spacing: 0.04em; }
+      .sheet dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: baseline; }
+      .sheet dt { margin: 0; font: 500 11px/1.3 ${mono}; color: ${d.cardInk}; white-space: nowrap; }
+      .sheet dd { margin: 0; color: ${d.cardMuted}; }
       .menu { position: fixed; z-index: 3; pointer-events: auto; min-width: 208px; max-width: 260px; padding: 4px; background: ${d.cardBg}; color: ${d.cardInk}; border: 1px solid ${d.cardLine}; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); font: 400 11px/1 ${font}; }
       .menu .head { display: block; height: 24px; line-height: 24px; padding: 0 8px; color: ${d.cardMuted}; font: 500 10px/1 ui-monospace, Menlo, monospace; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       .menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: ${d.cardInk}; font: inherit; text-align: left; cursor: pointer; }
@@ -233,6 +242,7 @@ function activate() {
     <div class="hint hidden"></div>
     <div class="composer hidden"></div>
     <div class="menu hidden" role="menu" aria-label="Selection"></div>
+    <div class="sheet hidden" role="dialog" aria-label="Keyboard shortcuts"></div>
     <div class="drop hidden"></div>
     <div class="box sel hidden"></div>
     <div class="box hov hidden"></div>
@@ -270,12 +280,15 @@ function activate() {
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const menu = shadow.querySelector<HTMLElement>('.menu')!;
+  const sheet = shadow.querySelector<HTMLElement>('.sheet')!;
   const dropLine = shadow.querySelector<HTMLElement>('.drop')!;
 
   let selected: Element | null = null;
   let hovered: Element | null = null;
   let hoverOn = false;
   let measuring = false;
+  /** Alt held: measure for as long as it is down, as Figma does, without the switch. */
+  let altHeld = false;
   let pins: Pin[] = [];
   let barOn = false;
   // Whether the rail is showing. The panel is the truth; the bar echoes it,
@@ -417,7 +430,7 @@ function activate() {
 
   const drawMeasure = () => {
     measureLayer.replaceChildren();
-    if (!measuring || !selected || !hovered || hovered === selected) return;
+    if (!(measuring || altHeld) || !selected || !hovered || hovered === selected) return;
     for (const s of measure(rectOf(selected), rectOf(hovered))) {
       const line = document.createElement('div');
       line.className = `seg ${s.axis}`;
@@ -521,7 +534,10 @@ function activate() {
     // picked, and a readout here said the same things a third time.
     hovBox.classList.remove('hidden');
     place(hovBox, rectOf(el));
-    if (measuring && selected) drawMeasure();
+    // Alt read off the pointer as well as the key: a key pressed while
+    // another window had focus is never heard.
+    altHeld = e.altKey && hoverOn;
+    if ((measuring || altHeld) && selected) drawMeasure();
   };
 
   const onClick = (e: MouseEvent) => {
@@ -1553,7 +1569,8 @@ function activate() {
    * Comment back to Select, then the selection. False when there was nothing to let go of.
    */
   const escape = (): boolean => {
-    if (moving) endMove();
+    if (sheetOpen()) closeSheet();
+    else if (moving) endMove();
     else if (!menu.classList.contains('hidden')) closeMenu();
     else if (composing) closeComposer();
     else if (picked.length) {
@@ -1565,10 +1582,64 @@ function activate() {
     return true;
   };
 
+  /* ----- the shortcut sheet ----- */
+
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const sheetOpen = () => !sheet.classList.contains('hidden');
+  const closeSheet = () => sheet.classList.add('hidden');
+  /** Shift+?: every key the bar answers to, drawn from the same list the command menu searches. */
+  const toggleSheet = () => {
+    if (sheetOpen()) return closeSheet();
+    sheet.replaceChildren();
+    const h = document.createElement('h2');
+    h.textContent = 'Keyboard shortcuts';
+    const cols = document.createElement('div');
+    cols.className = 'cols';
+    for (const group of shortcutSheet(isMac)) {
+      const col = document.createElement('section');
+      const t = document.createElement('h3');
+      t.textContent = group.title;
+      const dl = document.createElement('dl');
+      for (const item of group.items) {
+        const dt = document.createElement('dt');
+        dt.textContent = item.keys;
+        const dd = document.createElement('dd');
+        dd.textContent = item.what;
+        dl.append(dt, dd);
+      }
+      col.append(t, dl);
+      cols.append(col);
+    }
+    sheet.append(h, cols);
+    sheet.classList.remove('hidden');
+  };
+
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key === 'Alt' && altHeld) {
+      altHeld = false;
+      drawMeasure();
+    }
+  };
+  const onBlurWindow = () => {
+    if (!altHeld) return;
+    altHeld = false;
+    drawMeasure();
+  };
+
   const onKey = (e: KeyboardEvent) => {
     if (typing(e)) return;
     if (e.key === 'Escape') {
       if (escape()) e.preventDefault();
+      return;
+    }
+    if (e.key === 'Alt' && hoverOn && selected && !altHeld) {
+      altHeld = true;
+      drawMeasure();
+      return;
+    }
+    if (barOn && e.key === '?' && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      toggleSheet();
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && selected) {
@@ -1586,6 +1657,14 @@ function activate() {
       return;
     }
     if (!selected) return;
+    // Figma's: Enter into the children, Shift+Enter out to the parent, Tab
+    // along the siblings. Only while selecting, where the page's own Tab
+    // order is not what anyone is using.
+    if (hoverOn && bare && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      walk(e.key === 'Enter' ? (e.shiftKey ? 'parent' : 'child') : e.shiftKey ? 'prev' : 'next');
+      return;
+    }
     const dir =
       e.key === 'ArrowUp'
         ? 'parent'
@@ -1806,6 +1885,8 @@ function activate() {
     room = null;
     pageFrame.clear();
     removeEventListener('keydown', onKey, true);
+    removeEventListener('keyup', onKeyUp, true);
+    removeEventListener('blur', onBlurWindow);
     removeEventListener('scroll', layout, true);
     removeEventListener('resize', layout);
     observer.disconnect();
@@ -1816,6 +1897,8 @@ function activate() {
   }
 
   addEventListener('keydown', onKey, true);
+  addEventListener('keyup', onKeyUp, true);
+  addEventListener('blur', onBlurWindow);
   addEventListener('scroll', layout, true);
   addEventListener('resize', layout);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
