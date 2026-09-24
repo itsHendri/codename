@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { zipSync, strToU8 } from 'fflate';
 import type { SvgAsset } from '@/shared/types';
-import { download } from '../lib/exporters';
+import { download } from '@/studio/download';
 import { CheckIcon, CopyIcon, DownloadIcon } from './icons';
 
 function svgDataUri(markup: string): string {

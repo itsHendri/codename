@@ -11,7 +11,7 @@ frames its canvas: a **bar** across the top, a **rail** on the left, the
 again to put the page back. On pages Chrome keeps extensions out of, the
 button opens Chrome's side panel instead, to say so.
 
-## The rail, and the four tabs
+## The rail, and the three tabs
 
 Layers and Assets stand in the page, in a **rail** on its left, where a
 design tool keeps its tree; the panel on the right is Style · Variables ·
@@ -75,45 +75,53 @@ has been allowed.
   styles in whatever form the project writes them — and picking another is
   one edit that the page previews whole. Select mode lives on the bar
   across the page.
-- **Variables** — what this page runs on, editable, and live on the page as
-  you type.
-  - **Page variables** — the custom properties the page's own stylesheets
-    define, under the names it gave them (`--ink`, `--paper`, `--mark`),
-    grouped by what they hold, with how many declarations use each. A
-    variable the page defines again under a width media query wears a chip
-    (`≤700`) with that value; the edit leaves it alone and the brief says so,
-    so the agent decides whether the breakpoint should follow. Type a
-    value and the page repaints; the brief gets one line: the name, what it
-    was, what it should be. **Lock** a variable and nothing moves it — no
-    seed, no scale, no hand value — the brief ends with "Keep as is" naming
-    it, and an agent preview that redefines it is called out rather than
-    blocked.
-  - **Colours on the page** — every colour it paints with, named or not, with
-    where it is used and how often. On a page with no variables this is the
-    handle: setting one rewrites the rules that hold the literal.
-  - **Type** — the families the page really renders and the size/weight/
-    line-height ladder it renders them at. Drag any number and the rules that
-    set that size follow — `font-size: 15px` says what it is, where a variable
-    holding `15px` cannot — and a weight or line-height moves inside rules
-    whose size names the role.
+- **System** — what this page runs on, editable, and live on the page as
+  you type. Only what the page really defines appears, under the names it
+  gave things; nothing here is a vocabulary invented for it.
+  - **Type** — the families the page renders, and its **type styles** as one
+    table, in whatever form the project writes them: a Tailwind v4
+    `--text-*` token with its siblings, a class like `.h1`, one variable per
+    field, or a bare `h1 {}` rule. One row each — its name in its own face,
+    its tag, its size, line, tracking and weight. A field that reads a
+    variable edits that variable, so the page repaints and the bridge can
+    write it; a field that holds a literal edits the rule itself, as one
+    element edit on the style's selector that the brief carries. Above the
+    table, the **scale**: the base size and the ratio the page's sizes
+    already come closest to (a major third, a perfect fourth…); move either
+    and every unlocked style moves by its own step from the body size, in
+    the unit it was written in. **Lock** a style and a scale change leaves
+    it alone.
   - **Space & shape** — the spacing grid, corner radius and elevation, taken
     from the page, with off-grid strays named rather than rounded in. Moving
     the grid rescales the steps the page uses rather than inventing a ladder,
     and rewrites the paddings, margins and gaps that sit on those steps.
+  - **Tokens** — the custom properties the page's own stylesheets define
+    (`--ink`, `--paper`, `--mark`), grouped by what they hold, with how many
+    declarations use each, and filtered by the side of the page they are
+    defined on: root, dark, a width, a component scope. A variable the page
+    defines again under a width media query wears a chip (`≤700`) with that
+    value; the edit leaves it alone and the brief says so. Type a value and
+    the page repaints; the token queues for the bridge to write, or the
+    brief gets one line. **Lock** a variable and nothing moves it. Below the
+    variables, **Literals**: colours the page paints that no variable holds.
+    On a page with no variables this is the handle: setting one rewrites the
+    rules that hold the literal.
   - **Critique** — what a designer would flag on the page, from what the
     scan measured: contrast under AA with element counts, off-grid spacing,
     near-duplicate colours, type strays; and what a screen reader or a
-    keyboard would meet: images with no alt attribute, heading levels that
-    skip, controls under 24×24px (inline text links exempt), rules that
-    remove the focus outline. Counts with their totals, never a fix. The
-    same list the agent gets.
+    keyboard would meet. Counts with their totals, never a fix. The same
+    list the agent gets.
   - **Token file** — hold the page up against a design token file: W3C DTCG
     JSON as Penpot, Figma and Tokens Studio export it, or a plain map of
     custom properties. Three kinds of fact come back — variables whose value
     has drifted from the token of the same name, colours the page paints that
-    no token holds, and tokens nothing on this page reaches. The file is not
-    automatically right, so nothing here offers to make the page match it.
-    Your agent asks for the same comparison with `check_tokens`.
+    no token holds, and tokens nothing on this page reaches. Your agent asks
+    for the same comparison with `check_tokens`.
+  - **Export**, a button at the top: the system as files — `tokens.css`
+    (custom properties, light and dark, with a Tailwind v4 `@theme` block;
+    the same file the bridge writes into a project) and `tokens.json` in
+    W3C DTCG format, each to download or copy, or both as a ZIP. Your agent
+    reads the same two with `get_design_system`.
   The **Light / Dark** switch on the bar shows the page's own dark mode where
   it has one — its `prefers-color-scheme: dark` rules are re-emitted without
   the media query and the theme hook its stylesheet uses (`html.dark`,
@@ -138,11 +146,6 @@ has been allowed.
 - **Assets** (in the rail) — every SVG on the page (inline, `<img>`, CSS
   backgrounds, sprite `<use>`, favicons), previewed with copy, per-file
   download and ZIP export.
-- **Export** — `brand.md` for agent context, `tokens.json` in W3C DTCG format,
-  and for the edited system `tokens.css`, a `SKILL.md` with its
-  `DESIGN_SYSTEM.md` reference, a standalone style-guide page, or all of it as
-  a ZIP.
-
 While the panel is open on a site, a bar sits across the top of the page,
 the same height as the panel's tab strip and wearing the panel's palette, so
 the two read as one tool. It pushes the page down rather than floating over

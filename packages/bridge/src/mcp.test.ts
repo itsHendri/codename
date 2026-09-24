@@ -103,7 +103,7 @@ describe('MCP tools', () => {
             type: 'response',
             replyTo: envelope.id,
             ok: true,
-            payload: { url: 'http://localhost:3000/', scannedAt: 0, files: [{ path: 'brand.md', content: '# brand', note: 'n' }] },
+            payload: { url: 'http://localhost:3000/', scannedAt: 0, files: [{ path: 'tokens.css', content: ':root { --mark: #be3a22; }', note: 'n' }] },
           }),
         );
       },
@@ -120,9 +120,9 @@ describe('MCP tools', () => {
     expect(JSON.parse(textOf(await client.callTool({ name: 'list_sessions', arguments: {} })))[0]).toMatchObject({ locks: ['--ink'] });
 
     const listed = await client.listResources();
-    expect(listed.resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['codename://rules', 'codename://design-system/brand.md']));
-    const brand = await client.readResource({ uri: 'codename://design-system/brand.md' });
-    expect((brand.contents[0] as { text: string }).text).toBe('# brand');
+    expect(listed.resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['codename://rules', 'codename://design-system/tokens.css']));
+    const brand = await client.readResource({ uri: 'codename://design-system/tokens.css' });
+    expect((brand.contents[0] as { text: string }).text).toBe(':root { --mark: #be3a22; }');
     await close();
   });
 
@@ -203,12 +203,12 @@ describe('MCP tools', () => {
     sessions.connect('s1', link);
     const { client, close } = await connectedClient(sessions);
 
-    const result = await client.callTool({ name: 'get_design_system', arguments: { files: ['brand.md', 'SKILL.md'] } });
+    const result = await client.callTool({ name: 'get_design_system', arguments: { files: ['tokens.css', 'tokens.json'] } });
     const blocks = (result.content as Array<{ type: string; text: string }>).map((c) => c.text);
     expect(blocks[0]).toContain('2026-09-10');
-    expect(blocks[0]).toContain('brand.md, SKILL.md');
-    expect(blocks[1]).toMatch(/^=== brand\.md — n ===\n# brand\.md$/);
-    expect(blocks[2]).toMatch(/^=== SKILL\.md/);
+    expect(blocks[0]).toContain('tokens.css, tokens.json');
+    expect(blocks[1]).toMatch(/^=== tokens\.css — n ===\n# tokens\.css$/);
+    expect(blocks[2]).toMatch(/^=== tokens\.json/);
 
     await close();
   });

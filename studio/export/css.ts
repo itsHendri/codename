@@ -55,26 +55,6 @@ export function fontFaceCss(resolved: ResolvedTokens, assetBase: string): string
 }
 
 /**
- * The preview scopes tokens to its own root instead of `:root`, so the brand
- * never leaks into the app's own chrome. Same declarations, different selector.
- */
-export function previewCss(
-    resolved: ResolvedTokens,
-    rootSelector = "#preview-root",
-    assetBase?: string,
-): string {
-    return [
-        // @font-face cannot be scoped to a selector, so it is emitted globally —
-        // harmless, since the family name only takes effect where the token points.
-        assetBase ? fontFaceCss(resolved, assetBase) : "",
-        declarationBlock(resolved.declarations.light, rootSelector),
-        declarationBlock(resolved.declarations.dark, `${rootSelector}[data-theme="dark"]`),
-    ]
-        .filter(Boolean)
-        .join("\n\n")
-}
-
-/**
  * Tailwind v4 exposes tokens as CSS variables under known namespaces, so an
  * `@theme inline` block that forwards our semantics turns them into utilities
  * (`bg-background`, `text-muted-foreground`, `rounded-md`) with no config file.

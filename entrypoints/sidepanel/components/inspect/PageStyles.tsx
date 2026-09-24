@@ -14,13 +14,13 @@ function Head({ children, onOpen }: { children: string; onOpen: () => void }) {
     <div className="flex items-baseline justify-between">
       <span className="subhead">{children}</span>
       <button onClick={onOpen} className="text-2xs text-ink-muted hover:text-accent">
-        Edit in Variables
+        Edit in System
       </button>
     </div>
   );
 }
 
-export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpenVariables: () => void }) {
+export function PageStyles({ scan, onOpenSystem }: { scan: ScanResult; onOpenSystem: () => void }) {
   const colours = scan.colors.slice(0, 12);
   const fonts = scan.fontUsage.slice(0, 4);
   const radii = scan.shape.radii.slice(0, 6);
@@ -29,12 +29,12 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
     <div className="-mx-3 flex flex-col gap-3 border-t border-line-subtle px-3 pt-3">
       {colours.length > 0 && (
         <section className="flex flex-col gap-1.5">
-          <Head onOpen={onOpenVariables}>Colours</Head>
+          <Head onOpen={onOpenSystem}>Colours</Head>
           <div className="flex flex-wrap gap-1.5">
             {colours.map((c) => (
               <button
                 key={c.hex}
-                onClick={onOpenVariables}
+                onClick={onOpenSystem}
                 title={`${c.hex}${c.varNames[0] ? ` · ${c.varNames[0]}` : ''} · ${c.count} uses`}
                 className="flex h-control-sm items-center gap-1.5 rounded-control bg-surface-field pr-2 pl-1 font-mono text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
               >
@@ -47,11 +47,11 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
       )}
       {fonts.length > 0 && (
         <section className="flex flex-col gap-1.5">
-          <Head onOpen={onOpenVariables}>Type</Head>
+          <Head onOpen={onOpenSystem}>Type</Head>
           {fonts.map((f) => (
             <button
               key={f.family}
-              onClick={onOpenVariables}
+              onClick={onOpenSystem}
               className="flex h-control items-center gap-2 rounded-control bg-surface-field px-2 text-left hover:bg-surface-field-hover"
             >
               <span className="min-w-0 flex-1 truncate text-xs text-ink" style={{ fontFamily: f.family }}>
@@ -69,7 +69,7 @@ export function PageStyles({ scan, onOpenVariables }: { scan: ScanResult; onOpen
       )}
       {(radii.length > 0 || spacing.length > 0) && (
         <section className="flex flex-col gap-1.5">
-          <Head onOpen={onOpenVariables}>Shape</Head>
+          <Head onOpen={onOpenSystem}>Shape</Head>
           <div className="flex flex-wrap items-center gap-1.5 font-mono text-2xs text-ink-secondary">
             {radii.length > 0 && <span className="text-ink-muted">radius</span>}
             {radii.map((r) => (

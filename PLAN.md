@@ -328,6 +328,35 @@ is that companion growing up.
   the round: tokens per use in Selection colours (a rule walk per element
   is too much for a hover), and a deterministic class swap for Tailwind
   utilities (the brief carries it; a `className` writer is a later phase).
+- **W43a, 24 September 2026 — System replaces Variables and Export.** The
+  tab strip is Style · System · Changes; a session stored on either old tab
+  opens on System. Only what the page holds appears. **Type**: the families
+  read off the page and the page's **type styles** as one table (AirOps'
+  "Edit Type Scale", from Mobbin), one row per detected style in its own
+  face — name, tag, size, line, tracking, weight — where a field that reads
+  a variable edits that variable (`setVarOverride`, so the page repaints and
+  the bridge can write it) and a field that holds a literal edits the rule
+  itself, as one element edit on the style's selector through
+  `ctl.changeMany`, which the brief already carries as "`h1` · font-size:
+  28px → 32px". Above the table the **scale** (`studio/typeScale.ts`): the
+  base is the body size, the ratio the one the page's sizes come closest to
+  (`nearestRatio`, named where it is a classic one); moving either moves
+  every unlocked style by its own step from the body (`stepsOf`,
+  `scaleSize`), in the unit it was written in. Per-style locks
+  (`styleLocks`, persisted with the edits). **Space & shape** as before.
+  **Tokens**: the variables rows moved whole (locks, dark and width chips,
+  editors, search, fold), with scope chips — all · root · dark · width ·
+  scoped — over W41's definitions, and **Literals** (the observed colours no
+  variable holds) beneath. Critique and the token-file comparison stay,
+  folded. **Export is a button** on the status row that opens a sheet:
+  `tokens.css` and `tokens.json`, download, copy, ZIP. Removed: brand.md and
+  its section checkboxes, the extractor-built tokens.json, SKILL.md and the
+  28k-token DESIGN_SYSTEM.md with its sections and acceptance-run tests,
+  preview.html, brand.json, the presets row, the doc budget alarm, and the
+  engine's type ladder in the panel (the roles still drive Export and the
+  rule rewrite). `get_design_system` and `codename://design-system/*` serve
+  the two files. Next, W43b: colour ramps and the semantic table with
+  explicit links from page variables to engine roles.
 
 ## Live re-skin
 

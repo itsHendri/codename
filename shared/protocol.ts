@@ -170,8 +170,12 @@ export interface SessionState {
 
 /* ---------------- bridge → extension ---------------- */
 
-/** The files the panel can hand an agent as design context; the same ones Export produces. */
-export const DESIGN_FILES = ['brand.md', 'tokens.css', 'tokens.json', 'SKILL.md', 'DESIGN_SYSTEM.md'] as const;
+/**
+ * The files the panel can hand an agent as design context; the same ones
+ * System's Export produces. `tokens.css` is what the bridge writes into a
+ * project; `tokens.json` is the W3C DTCG twin for design tools.
+ */
+export const DESIGN_FILES = ['tokens.css', 'tokens.json'] as const;
 export type DesignFile = (typeof DESIGN_FILES)[number];
 
 export interface DesignSystemResult {

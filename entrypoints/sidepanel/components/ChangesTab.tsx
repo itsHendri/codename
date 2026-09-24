@@ -81,7 +81,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
           </div>
         )}
         <Empty icon={<ChangesIcon className="h-6 w-6" />} title="No changes yet">
-          Change a variable in Variables, edit a layer, or turn on Comment on the bar and mark
+          Change a token in System, edit a layer, or turn on Comment on the bar and mark
           something on the page. Whatever you do collects here, and Make changes writes it into
           your project.
         </Empty>

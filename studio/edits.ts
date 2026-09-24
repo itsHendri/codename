@@ -40,6 +40,8 @@ export interface BrandEdits {
    * says "keep as is", and an agent preview that redefines one is named.
    */
   locks?: string[];
+  /** Type styles the person locked, by `form:selector`: a scale change leaves them alone. */
+  styleLocks?: string[];
 }
 
 /**
@@ -77,7 +79,8 @@ export const isNoEdits = (e: BrandEdits): boolean =>
   Object.keys(e.type ?? {}).length === 0 &&
   e.spacingBasePx === undefined &&
   e.radiusBasePx === undefined &&
-  (e.locks ?? []).length === 0;
+  (e.locks ?? []).length === 0 &&
+  (e.styleLocks ?? []).length === 0;
 
 /**
  * Moving the grid rescales the steps the page uses, keeping their shape: a
