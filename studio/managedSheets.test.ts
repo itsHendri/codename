@@ -15,9 +15,10 @@ describe('the sheets this extension owns', () => {
     // The scanner refuses to read these and the re-skin script refuses to
     // re-read them; the two agreeing is what stops an edit coming round again
     // as something the page does.
-    // The frame's sheet is written by the inspector, through studio/pageFrame.ts.
+    // The frame's sheet is written by the inspector, through studio/pageFrame.ts;
+    // the specimen's by its own script.
     const fs = await import('node:fs');
-    const source = ['../entrypoints/reskin.content.ts', './pageFrame.ts']
+    const source = ['../entrypoints/reskin.content.ts', '../entrypoints/specimen.content.ts', './pageFrame.ts']
       .map((f) => fs.readFileSync(new URL(f, import.meta.url), 'utf8'))
       .join('\n');
     for (const id of MANAGED_SHEET_IDS) expect(source).toContain(`'${id}'`);

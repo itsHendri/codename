@@ -89,6 +89,27 @@ describe('the panel', () => {
     expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: true });
   });
 
+  it('shows the specimen over the page when the bar says Styles, and the page again when it says so twice', async () => {
+    const specimens = () => stub.sent.filter((m) => m.type === 'specimen');
+    // Nothing up until asked: the page is its own.
+    expect(specimens().filter((m) => m.on === true)).toEqual([]);
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ specimen: false });
+
+    await act(async () => stub.emit({ type: 'specimen-toggled', on: true }));
+    await tick(120);
+    expect(getSession().specimen).toBe(true);
+    const up = specimens().at(-1) as { on: boolean; spec: { type: unknown[]; colours: { name: string }[] }; theme: string };
+    expect(up).toMatchObject({ cmd: 'specimen', on: true, theme: 'dark' });
+    // Built from the page's own reading: its variables, its type styles.
+    expect(up.spec.colours.map((c) => c.name)).toContain('--ink');
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ specimen: true });
+
+    await act(async () => stub.emit({ type: 'specimen-toggled', on: false }));
+    await tick(120);
+    expect(getSession().specimen).toBe(false);
+    expect(specimens().at(-1)).toMatchObject({ cmd: 'specimen', on: false });
+  });
+
   it('files a drag in the rail as a move, and the eye as a display edit', async () => {
     const row = (id: number, selector: string, depth: number) => ({
       id, depth, label: selector, selector, tag: selector.split(/[.#]/)[0], stable: true, matches: 1, descendants: 0, hidden: false, display: 'block',

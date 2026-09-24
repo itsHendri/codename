@@ -386,6 +386,30 @@ is that companion growing up.
   spellings of the dark side. The **link chip** on a colour row reads
   "primary 700", "link…" or "no ramp"; open it to pick a role and a step,
   unlink on purpose, or forget the decision.
+- **W44, 24 September 2026 — the specimen.** Every design tool has a
+  styles page, and every one that draws it from canned components drifts
+  from the product (the deleted W4 Studio did). Codename's is the page's
+  own: **Styles** on the bar hides the page under one managed sheet and
+  draws, at the end of `body` as light DOM, what `studio/specimen/spec.ts`
+  decides from the scan — each type style on a real element in its own
+  form, colour variables painted through `var()`, the observed pairs with
+  their ratios, the literals, space, radius and shadows from the variables
+  and the observed values, and one clone per component pattern from the
+  rail's Components with ids stripped. So the page's own rules style it,
+  the re-skin and a scale drag repaint it for free, and a sample carries
+  `data-codename-for`: the inspector reads a specimen `h1` as `h1` and a
+  button in the cloned card as `div.card button.btn` ×2, so an edit files
+  against the rule the page uses and the brief reads as it would from the
+  page. Labels are `<codename-specimen-label>` elements with closed shadow
+  roots in the page's own ink, so no page rule touches them and no scan
+  reads them; `isOurs` treats everything in the specimen but a sample as
+  chrome. Styles off removes the host and the sheet and nothing else. The
+  spec is built in the panel (`buildSpecimenSpec(scan, links)`) and re-sent
+  on every change and after a reload, like the rail; `specimen` is a
+  session flag. Export gains **specimen.html** while Styles is showing:
+  the same page with the readable stylesheets inlined, every `url()`
+  absolute, and inline labels. The script is plain DOM, 16 KB. Nothing is
+  invented: a section the page has nothing for is not drawn.
 
 ## Live re-skin
 

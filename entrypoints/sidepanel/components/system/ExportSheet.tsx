@@ -9,9 +9,29 @@ import { download, downloadBundle } from '@/studio/download';
  * DTCG token file a design tool reads, and both as a ZIP. DESIGN.md, the
  * agent-readable twin, and the specimen page join them in later rounds.
  */
-export function ExportSheet({ resolved, slug, onClose }: { resolved: ResolvedTokens; slug: string; onClose: () => void }) {
+export function ExportSheet({
+  resolved,
+  slug,
+  specimen,
+  onClose,
+}: {
+  resolved: ResolvedTokens;
+  slug: string;
+  /** The specimen as a page, when it is up on the page to be read. */
+  specimen?: () => Promise<string | null>;
+  onClose: () => void;
+}) {
   const files = useMemo(() => buildExport(resolved), [resolved]);
   const [copied, setCopied] = useState<string | null>(null);
+  const [specimenNote, setSpecimenNote] = useState<string | null>(null);
+  const saveSpecimen = async () => {
+    const html = await specimen?.();
+    if (!html) {
+      setSpecimenNote('Turn Styles on the bar on first: the specimen is read off the page while it is showing.');
+      return;
+    }
+    download(`${slug}-specimen.html`, html, 'text/html');
+  };
   const flash = (what: string) => {
     setCopied(what);
     setTimeout(() => setCopied(null), 1500);
@@ -42,6 +62,20 @@ export function ExportSheet({ resolved, slug, onClose }: { resolved: ResolvedTok
           </button>
         </div>
       ))}
+      {specimen && (
+        <div className="flex items-center gap-2 rounded-control bg-surface-field px-2 py-1.5">
+          <div className="min-w-0 flex-1">
+            <code className="text-xs text-ink">specimen.html</code>
+            <p className="truncate text-2xs text-ink-muted" title="The styles page as it stands over the page, with the page's own stylesheets inlined.">
+              The styles page, standalone, with the page's stylesheets inlined.
+            </p>
+            {specimenNote && <p className="text-2xs text-warn-ink">{specimenNote}</p>}
+          </div>
+          <button onClick={() => void saveSpecimen()} className="btn btn-sm btn-secondary">
+            Save
+          </button>
+        </div>
+      )}
       <button onClick={() => downloadBundle(files, slug)} className="btn btn-secondary">
         Download all as a ZIP ({files.length} files)
       </button>

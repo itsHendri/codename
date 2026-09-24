@@ -14,8 +14,8 @@ button opens Chrome's side panel instead, to say so.
 ## The rail, and the three tabs
 
 Layers and Assets stand in the page, in a **rail** on its left, where a
-design tool keeps its tree; the panel on the right is Style · Variables ·
-Export · Changes. Both are drawn in the page under the bar, each pushing the
+design tool keeps its tree; the panel on the right is Style · System ·
+Changes. Both are drawn in the page under the bar, each pushing the
 page in by its own width (drag the rail's edge, 180 to 420px; the panel's,
 320 to 520px). **Layers** on the bar, or **Alt+L**, folds the rail. The
 panel is the extension's own page in a frame, so it has everything the side
@@ -130,8 +130,24 @@ has been allowed.
   - **Export**, a button at the top: the system as files — `tokens.css`
     (custom properties, light and dark, with a Tailwind v4 `@theme` block;
     the same file the bridge writes into a project) and `tokens.json` in
-    W3C DTCG format, each to download or copy, or both as a ZIP. Your agent
-    reads the same two with `get_design_system`.
+    W3C DTCG format, each to download or copy, or both as a ZIP, and
+    `specimen.html` while Styles is showing (below). Your agent reads the
+    first two with `get_design_system`.
+- **Styles**, on the bar — the page's own styles page, drawn over the page in
+  its own document: every type style the scan found on a real element in its
+  own form (an `<h1>` for `h1 {}`, a `.lede` for `.lede {}`, a `.text-xl` for
+  a Tailwind size), each colour variable painted through the variable itself,
+  the text-on-surface pairs the page really paints with their ratios, the
+  literals no variable holds, the spacing, radius and shadow values in use,
+  and one clone of each component pattern (`.card` ×12), ids stripped. Because
+  it is light DOM in the page, the page's rules style it, the re-skin repaints
+  it, a ratio drag in System moves its headings, and selecting a sample edits
+  the rule the page uses: the specimen `h1` reads as `h1`, a button inside the
+  cloned card as `div.card button.btn` ×2. Only the labels are Codename's, in
+  closed shadow roots no page rule reaches and no scan reads. The page is
+  hidden under it by one stylesheet and comes back untouched when Styles is
+  clicked again. Nothing here is invented: a page with no shadows has no
+  Elevation row, and a page with no type styles has no Type section.
   The **Light / Dark** switch on the bar shows the page's own dark mode where
   it has one — its `prefers-color-scheme: dark` rules are re-emitted without
   the media query and the theme hook its stylesheet uses (`html.dark`,
@@ -508,11 +524,15 @@ npm run harness:scripts
   the inspector through `window.__codenameInspector.handle` and the panel
   only for what belongs in the change log (`shared/inpage.ts`).
 - `entrypoints/scanner.content.ts`, `inspector.content.ts`,
-  `reskin.content.ts` — runtime registered, injected via `chrome.scripting` on
-  demand. The scanner does one element walk. The inspector is a persistent
+  `reskin.content.ts`, `specimen.content.ts` — runtime registered, injected
+  via `chrome.scripting` on demand. The scanner does one element walk. The inspector is a persistent
   overlay in a closed shadow root: selection, hover, measurements, pins. The
   re-skin script owns three managed sheets: token overrides, element edits,
-  and the agent's preview.
+  and the agent's preview. The specimen script is plain DOM (16 KB): a host
+  at the end of `body`, one managed sheet that hides the page, and what
+  `studio/specimen/` renders — `spec.ts` decides from the scan, `render.ts`
+  draws it, `serialize.ts` writes it as a standalone page with the readable
+  stylesheets inlined and every `url()` made absolute.
 - `studio/engine/` — pure functions, no DOM, no React: OKLCH scale generation,
   the semantic layer solved by measuring APCA against real fills, and
   `resolveTokens()`. `studio/export/` turns that one serialization into
@@ -530,7 +550,7 @@ npm run harness:scripts
 
 ## Status
 
-Working: extraction, the four-tab panel on its own dark design system, live
+Working: extraction, the three-tab panel on its own dark design system, live
 re-skin, element selection and editing with a changes list, notes, the
 hand-off brief, the local bridge with its MCP tools, and the exports. See
 `PLAN.md` for what is next and what was deliberately left out.

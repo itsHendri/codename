@@ -1,4 +1,4 @@
-import type { AgentPresence, ElementProps, InspectorCommand, RailCommand } from '@/shared/types';
+import type { AgentPresence, ElementProps, InspectorCommand, RailCommand, SpecimenCommand } from '@/shared/types';
 import { probeSource, refineProbe, type ComponentOrigin, type RawProbe } from '@/studio/framework';
 import type { OverlayTheme } from '@/shared/theme';
 import type { Mode } from '@/studio/engine/types';
@@ -81,6 +81,17 @@ export function sendRail<T = unknown>(tabId: number, command: RailCommand): Prom
   return sendOrInject<T>(tabId, 'content-scripts/rail.js', { type: 'rail', ...command });
 }
 
+/** Talk to the specimen script: the styles page over the page, or the page again. */
+export function sendSpecimen<T = unknown>(tabId: number, command: SpecimenCommand): Promise<T | null> {
+  return sendOrInject<T>(tabId, 'content-scripts/specimen.js', { type: 'specimen', ...command });
+}
+
+/** The specimen as a standalone page, for saving; null when the page has none up. */
+export async function specimenHtml(tabId: number): Promise<string | null> {
+  const r = await sendSpecimen<{ ok: boolean; html: string }>(tabId, { cmd: 'html' });
+  return r?.ok && r.html ? r.html : null;
+}
+
 let barPort: chrome.runtime.Port | null = null;
 let barTab: number | null = null;
 
@@ -97,6 +108,8 @@ export interface BarLook {
   agent?: AgentPresence | null;
   /** Whether the rail is showing, for the bar's Layers toggle. */
   rail?: boolean;
+  /** Whether the specimen is showing, for the bar's Styles switch. */
+  specimen?: boolean;
   /** Which side of the page's theme is forced, for the Light/Dark switch. */
   scheme?: 'light' | 'dark' | 'system';
 }
@@ -136,6 +149,7 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     darkVia: look.darkVia ?? null,
     agent: look.agent ?? null,
     rail: look.rail ?? true,
+    specimen: look.specimen ?? false,
     scheme: look.scheme ?? 'system',
   });
 }

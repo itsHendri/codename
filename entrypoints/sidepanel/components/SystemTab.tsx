@@ -46,6 +46,7 @@ export function SystemTab({
   varOverrides,
   colorEdits,
   hostname,
+  specimenHtml,
   onConfigChange,
   onResetAll,
   onVar,
@@ -65,6 +66,8 @@ export function SystemTab({
   varOverrides: Record<string, string>;
   colorEdits: Record<string, string>;
   hostname: string;
+  /** The specimen as a page, read off the page while it is showing; for Export. */
+  specimenHtml?: () => Promise<string | null>;
   onConfigChange: (config: BrandConfig | null) => void;
   /** Every override, including element edits, back to what the page reads. */
   onResetAll: () => void;
@@ -177,7 +180,9 @@ export function SystemTab({
         </button>
       </div>
 
-      {exporting && <ExportSheet resolved={resolved} slug={resolved.config.meta.slug || hostname} onClose={() => setExporting(false)} />}
+      {exporting && (
+        <ExportSheet resolved={resolved} slug={resolved.config.meta.slug || hostname} specimen={specimenHtml} onClose={() => setExporting(false)} />
+      )}
 
       <Section
         title="Colour"
