@@ -15,7 +15,14 @@ export interface FontFaceInfo {
 export interface FontUsage {
   family: string;
   /** Distinct size/weight/lineHeight combos with element counts */
-  variants: { size: string; weight: string; lineHeight: string; count: number }[];
+  variants: {
+    size: string;
+    weight: string;
+    lineHeight: string;
+    count: number;
+    /** Which tags wear this variant, and how many of each: `{ h1: 3, p: 40 }`. Absent in an older scan. */
+    tags?: Record<string, number>;
+  }[];
   elementCount: number;
   roles: string[]; // e.g. ['headings', 'body', 'code']
 }
@@ -80,6 +87,86 @@ export interface CustomPropInfo {
    * no base value for it. The chip and the brief say so instead of hiding it.
    */
   onlyAt?: string;
+  /**
+   * Every place the page defines it, read from the object model, each with
+   * the scope it sits in. The token graph: what a write has to know, and
+   * what the panel shows by scope. Absent in a scan from before this was read.
+   */
+  definitions?: PropDefinition[];
+  /**
+   * For a value that is a `var()` of another variable: the chain to a
+   * literal, nearest first — `['--mark']` for `--button-bg: var(--mark)`.
+   */
+  alias?: string[];
+  /** The literal at the end of the chain in light, when it resolves. */
+  resolved?: string;
+}
+
+/** Where a variable is defined, as the page's object model says. */
+export interface PropDefinition {
+  value: string;
+  /** The selector, nesting folded: `:root`, `.dark`, `.card`. */
+  selector: string;
+  /** The conditions open around it, as the page wrote them. */
+  media: string[];
+  /** The cascade layer, when it is in a named one. */
+  layer?: string;
+  /** The stylesheet URL, when the browser could say. */
+  source?: string;
+  /**
+   * Which side of the page reads it: the root of the cascade, its dark side
+   * (a dark media query or a hook like `.dark`), a width query, or a
+   * component scope. Classified once, so nothing re-derives it.
+   */
+  scope: 'root' | 'dark' | 'width' | 'scoped';
+}
+
+/**
+ * How a project writes a type style, detected and never invented: a Tailwind
+ * v4 `--text-*` token with its sub-variables, a class, one variable per
+ * field, or a bare tag rule.
+ */
+export type TypeStyleForm = 'tailwind-theme' | 'class' | 'vars' | 'tag';
+
+/** One field of a type style: the variable it reads, or the literal it holds. */
+export interface TypeField {
+  token?: string;
+  literal?: string;
+}
+
+export interface TypeStyle {
+  /** The page's own word for it: `display`, `h1`, `xl`. */
+  name: string;
+  form: TypeStyleForm;
+  /** `h1`, `.text-display`, `.h1`, or the utility `text-xl`. */
+  selectorOrUtility: string;
+  /** When the form is a tag. */
+  tag?: string;
+  fields: { size: TypeField; lineHeight?: TypeField; tracking?: TypeField; weight?: TypeField; family?: TypeField };
+  source?: string;
+}
+
+/**
+ * The declaration that paints one property of an element, as the author
+ * wrote it — not the computed value, which cannot say where it came from.
+ */
+export interface AuthoredDecl {
+  /** The declaration text as written: `var(--ink)`, `#15171b`, `1.25rem`. */
+  value: string;
+  /** The variable named at the top of the value, when it is a `var()`. */
+  token?: string;
+  /** The rule that won: its selector, sheet and the conditions around it. `inline` for a style attribute. */
+  rule: { selector: string; source?: string; groups: string[] };
+  important: boolean;
+  /** Set when nothing on the element itself sets this and the nearest ancestor's declaration is what it takes. */
+  inherited?: boolean;
+  /**
+   * False when the answer could be wrong: a stylesheet could not be read,
+   * the element is in a shadow root, two rules in different cascade layers
+   * competed, or the read ran out of time. The panel then says "matches",
+   * never "is".
+   */
+  certain: boolean;
 }
 
 /** A CSS value observed on the page, with how often it was seen. */
@@ -148,6 +235,8 @@ export interface ScanResult {
   stats: { elementsSampled: number; styleSheets: number };
   /** Absent in a scan from before these were counted. */
   a11y?: A11yUsage;
+  /** The type styles the page's stylesheets define, in whatever form they take. Absent in an older scan. */
+  typeStyles?: TypeStyle[];
 }
 
 /** One element, read from the page: enough to show, edit and describe it. */
@@ -245,6 +334,12 @@ export interface ElementProps {
    * so. Absent on a production build, and never inferred from class names.
    */
   component?: ComponentOrigin;
+  /**
+   * The declarations that paint it, by property, as their authors wrote
+   * them — what lets the panel say "is `--ink`" rather than "matches".
+   * Absent when the inspector did not read them.
+   */
+  authored?: Record<string, AuthoredDecl>;
 }
 
 /** Kept for the pinned card until it is rebuilt on ElementProps. */

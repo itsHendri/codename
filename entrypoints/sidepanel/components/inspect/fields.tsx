@@ -83,20 +83,20 @@ export function LengthField({
   label: string;
   aria: string;
   compact?: boolean;
-  suggest: (v: string) => TokenSuggestion[];
+  suggest: (v: string, prop: string) => TokenSuggestion[];
   onChange: Change;
 }) {
-  const match = suggest(value).find((s) => s.source === 'page' && s.exact);
+  const match = suggest(value, prop).find((s) => s.source === 'page' && s.exact);
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <NumberField value={value} label={label || undefined} ariaLabel={aria} onChange={(v) => onChange(prop, v)} />
       {match && (
         <button
           onClick={() => onChange(prop, `var(${match.name})`, match.name)}
-          title={`matches ${match.name}: ${match.value}`}
+          title={`${match.authored ? 'is' : 'matches'} ${match.name}: ${match.value}`}
           className="h-5 max-w-full truncate self-start rounded-control bg-surface-field px-1.5 font-mono text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
         >
-          {!compact && <span className="font-sans text-ink-muted">matches </span>}
+          {!compact && <span className="font-sans text-ink-muted">{match.authored ? 'is ' : 'matches '}</span>}
           {match.name}
         </button>
       )}

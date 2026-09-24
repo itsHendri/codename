@@ -1150,6 +1150,31 @@ describe('Make changes', () => {
   });
 });
 
+describe('what the inspector read as authored', () => {
+  const authored = {
+    color: { value: 'var(--ink)', token: '--ink', rule: { selector: 'h1', groups: [] }, important: false, certain: true },
+    'font-size': { value: '28px', rule: { selector: 'h1', groups: [] }, important: false, certain: true },
+  };
+
+  it('says "is --ink" for a colour whose declaration names the variable, and "matches" otherwise', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ authored }) }));
+    await tick();
+    const chips = Array.from(host.querySelectorAll('button')).map((b) => b.textContent ?? '');
+    expect(chips.some((c) => c.replace(/\s+/g, ' ') === 'is --ink')).toBe(true);
+    // The fill is #E7E4DB, which --paper holds, but nothing was read about it.
+    expect(chips.some((c) => c.replace(/\s+/g, ' ') === 'matches --paper')).toBe(true);
+  });
+
+  it('falls back to "matches" when the read was not certain', async () => {
+    const uncertain = { ...authored, color: { ...authored.color, certain: false } };
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ authored: uncertain }) }));
+    await tick();
+    const chips = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent ?? '').replace(/\s+/g, ' '));
+    expect(chips).not.toContain('is --ink');
+    expect(chips).toContain('matches --ink');
+  });
+});
+
 describe('editing several at once', () => {
   it('reaches every shift-clicked element, each from its own value', async () => {
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));

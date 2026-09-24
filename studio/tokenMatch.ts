@@ -10,7 +10,7 @@
  */
 
 import { differenceEuclidean } from 'culori';
-import type { CustomPropInfo, ScanResult } from '@/shared/types';
+import type { AuthoredDecl, CustomPropInfo, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from './engine/types';
 import { STEPS } from './engine/types';
 import { EXACT_DISTANCE, hexOf } from './reskin';
@@ -26,6 +26,8 @@ export interface TokenSuggestion {
   exact: boolean;
   /** Only `page` suggestions can be written as `var(--x)`. */
   source: 'page' | 'ramp';
+  /** The declaration that paints this really names it: "is", not "matches". */
+  authored?: boolean;
 }
 
 /** Colours further than this are not worth suggesting. */
@@ -95,6 +97,8 @@ export function suggestTokens(
   scan: Pick<ScanResult, 'customProps' | 'rootFontSize'>,
   resolved?: ResolvedTokens,
   mode: Mode = 'light',
+  /** What the inspector read as the declaration painting this property, when it did. */
+  authored?: AuthoredDecl,
 ): TokenSuggestion[] {
   const props = scan.customProps;
   const list =
@@ -103,14 +107,26 @@ export function suggestTokens(
       : kind === 'length'
         ? lengthMatches(value, props, scan.rootFontSize ?? 16)
         : stringMatches(value, props);
-  return list.sort(
+  // The declaration that paints it names a variable, and the read was
+  // certain: that one is not a match, it is the answer, and it leads.
+  if (authored?.token && authored.certain) {
+    const prop = props.find((p) => p.name === authored.token);
+    if (prop) {
+      const rest = list.filter((s) => s.name !== prop.name);
+      return [{ name: prop.name, value: prop.value, distance: 0, exact: true, source: 'page', authored: true }, ...sorted(rest)];
+    }
+  }
+  return sorted(list);
+}
+
+const sorted = (list: TokenSuggestion[]) =>
+  list.sort(
     (a, b) =>
       Number(b.exact) - Number(a.exact) ||
       (a.source === 'page' ? -1 : 1) - (b.source === 'page' ? -1 : 1) ||
       a.distance - b.distance ||
       a.name.localeCompare(b.name),
   );
-}
 
 /**
  * Which kind of token a CSS property takes, or null where the page holds

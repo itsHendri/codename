@@ -13,6 +13,8 @@ import type {
 } from '@/shared/types';
 import { isManagedSheet } from '@/shared/types';
 import { attachDarkValues, attachWidthValues, extractCustomProps } from '@/studio/scan/customProps';
+import { attachDefinitions } from '@/studio/scan/definitions';
+import { detectTypeStyles } from '@/studio/scan/typeStyles';
 import { countFocusOutlineRemoved } from '@/studio/a11y';
 import { withSourceMedia } from '@/studio/pageFrame';
 
@@ -47,6 +49,10 @@ async function scanPage(): Promise<ScanResult> {
   const breakpoints = new Set<string>();
   attachWidthValues(customProps, lists, breakpoints);
   attachVarNames(sampled.colors, customProps);
+  // The token graph: every definition by scope, alias chains, and the type
+  // styles the sheets define in whatever form the project writes them.
+  attachDefinitions(customProps, lists);
+  const typeStyles = detectTypeStyles(customProps, lists);
 
   return {
     url: location.href,
@@ -67,6 +73,7 @@ async function scanPage(): Promise<ScanResult> {
     unreadableSheets: css.unreadable,
     stats: { elementsSampled: sampled.count, styleSheets: pageSheets().length },
     a11y: { ...sampled.a11y, focusOutlineRemoved: countFocusOutlineRemoved(css.text) },
+    typeStyles,
   };
 }
 
@@ -272,7 +279,7 @@ function resolvedBg(el: Element | null, cache: Map<Element, { r: number; g: numb
 }
 
 function sampleComputedStyles() {
-  const fontMap = new Map<string, { variants: Map<string, number>; count: number; roles: Set<string> }>();
+  const fontMap = new Map<string, { variants: Map<string, { count: number; tags: Map<string, number> }>; count: number; roles: Set<string> }>();
   const colorMap = new Map<string, { usage: Set<'text' | 'background' | 'border'>; count: number }>();
   const gradientMap = new Map<string, number>();
   const pairMap = new Map<string, { fg: string; bg: string; ratio: number; count: number }>();
@@ -323,9 +330,13 @@ function sampleComputedStyles() {
       const entry =
         fontMap.get(family) ?? { variants: new Map(), count: 0, roles: new Set<string>() };
       const key = `${cs.fontSize}|${cs.fontWeight}|${cs.lineHeight}`;
-      entry.variants.set(key, (entry.variants.get(key) ?? 0) + 1);
-      entry.count++;
       const tag = el.tagName.toLowerCase();
+      const variant = entry.variants.get(key) ?? { count: 0, tags: new Map<string, number>() };
+      variant.count++;
+      // Which tags wear this size, so a style can be tied to an H1 later.
+      variant.tags.set(tag, (variant.tags.get(tag) ?? 0) + 1);
+      entry.variants.set(key, variant);
+      entry.count++;
       if (/^h[1-3]$/.test(tag)) entry.roles.add('headings');
       else if (tag === 'code' || tag === 'pre' || tag === 'kbd') entry.roles.add('code');
       else entry.roles.add('body');
@@ -418,9 +429,9 @@ function sampleComputedStyles() {
     family,
     elementCount: e.count,
     roles: Array.from(e.roles),
-    variants: Array.from(e.variants, ([key, n]) => {
+    variants: Array.from(e.variants, ([key, v]) => {
       const [size = '', weight = '', lineHeight = ''] = key.split('|');
-      return { size, weight, lineHeight, count: n };
+      return { size, weight, lineHeight, count: v.count, tags: Object.fromEntries(v.tags) };
     }).sort((a, b) => b.count - a.count),
   })).sort((a, b) => b.elementCount - a.elementCount);
 

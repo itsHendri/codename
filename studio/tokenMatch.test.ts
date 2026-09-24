@@ -108,3 +108,21 @@ describe('tokenHolding', () => {
     expect(tokenHolding(index, 'display', 'flex')).toBeNull();
   });
 });
+
+describe('an authored declaration', () => {
+  const scan = { customProps: [{ name: '--ink', value: '#15171b' }, { name: '--ink-2', value: '#15171b' }], rootFontSize: 16 };
+  const authored = { value: 'var(--ink-2)', token: '--ink-2', rule: { selector: 'h1', groups: [] }, important: false, certain: true };
+
+  it('leads the list as "is" when it names a page variable and the read was certain', () => {
+    const out = suggestTokens('color', '#15171b', scan, undefined, 'light', authored);
+    expect(out.map((s) => [s.name, s.authored ?? false])).toEqual([
+      ['--ink-2', true],
+      ['--ink', false],
+    ]);
+  });
+
+  it('is only a match when the read was uncertain', () => {
+    const out = suggestTokens('color', '#15171b', scan, undefined, 'light', { ...authored, certain: false });
+    expect(out.every((s) => !s.authored)).toBe(true);
+  });
+});
