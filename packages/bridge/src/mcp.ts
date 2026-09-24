@@ -48,7 +48,7 @@ const mimeOf = (file: string) => (file.endsWith('.md') ? 'text/markdown' : file.
 
 const INSTRUCTIONS = `${STANDING_RULES}
 
-How to work: the panel's Make changes usually applies an edit itself, by running a coding agent in this folder; when the person asks you in a chat instead, call \`get_changes\` and apply the brief to source. Call \`watch\` in a loop to wake on comments, selections, or an explicit hand-off (apply it, then \`clear\` it). \`find_definition\` searches the project this bridge runs in for where a custom property is defined, which beats grepping for it yourself. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/brand.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
+How to work: the panel's Make changes usually applies an edit itself, by running a coding agent in this folder; when the person asks you in a chat instead, call \`get_changes\` and apply the brief to source. Call \`watch\` in a loop to wake on comments, selections, or an explicit hand-off (apply it, then \`clear\` it). \`find_definition\` searches the project this bridge runs in for where a custom property is defined, which beats grepping for it yourself. Pending comments come from \`get_comments\`; acknowledge, act, resolve. Read \`codename://rules\` for the rules with the current page's locked tokens, and \`codename://design-system/DESIGN.md\` (or \`get_design_system\`) for the page's design context before larger work.`;
 
 export interface McpOptions {
   /** The code the panel must be given to pair with this bridge. */
@@ -366,7 +366,7 @@ export function createMcpServer(
     'get_design_system',
     {
       description:
-        'The design system the panel shows for the page, as files: tokens.css (custom properties, light and dark, with a Tailwind v4 @theme block) and tokens.json (W3C DTCG, for Figma, Penpot, Tokens Studio and Style Dictionary). Write them into the repo as design context and call again after the user rescans; `scannedAt` says when the page was read. Pass `files` to fetch only some.',
+        "The design system the panel shows for the page, as files: DESIGN.md (Google's open DESIGN.md format — the tokens as YAML frontmatter, then how the page uses them; read this first), tokens.css (custom properties, light and dark, with a Tailwind v4 @theme block) and tokens.json (W3C DTCG, for Figma, Penpot, Tokens Studio and Style Dictionary). Write them into the repo as design context and call again after the user rescans; `scannedAt` says when the page was read. Pass `files` to fetch only some.",
       inputSchema: {
         session,
         files: z.array(z.enum(DESIGN_FILES)).optional().describe('Which files to return. Defaults to all of them.'),

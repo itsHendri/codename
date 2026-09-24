@@ -436,6 +436,22 @@ is that companion growing up.
   (exact or near), shown on the card, as **Adopt tokens** on Changes, and
   as a section of the brief naming the file and line. Reset and Discard
   take the proposal, the config and the sheet away together.
+- **W46, 24 September 2026 — DESIGN.md.** The one agent-facing file, in
+  the open format Google Labs published (`google-labs-code/design.md`):
+  YAML frontmatter with `name`, `description`, `colors` (every semantic in
+  light, then each ramp step), `typography` (the roles as fontFamily /
+  fontSize / fontWeight / lineHeight / letterSpacing), `rounded`,
+  `spacing` (`base` and the blessed steps as multiples, `4x`), and
+  `components` as `{colors.primary}` references — each kept only where it
+  resolves; then the eight sections in the spec's order, written from the
+  page: where the values came from, the ramps and which page variables sit
+  on them, the type-style forms the project writes, the grid, the shadow
+  levels, the radius rule, the atoms, the polish rules the config keeps,
+  and what the critique measured today. `studio/export/{yaml,designMd}.ts`,
+  no dependency. It leads the bundle (`DESIGN_FILES`), the Export sheet,
+  `get_design_system` and `codename://design-system/DESIGN.md`; the panel
+  passes the page context (site, type styles, links, critique) so the file
+  is about this page, not the engine.
 
 ## Live re-skin
 

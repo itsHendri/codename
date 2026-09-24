@@ -180,7 +180,7 @@ export interface SessionState {
  * System's Export produces. `tokens.css` is what the bridge writes into a
  * project; `tokens.json` is the W3C DTCG twin for design tools.
  */
-export const DESIGN_FILES = ['tokens.css', 'tokens.json'] as const;
+export const DESIGN_FILES = ['DESIGN.md', 'tokens.css', 'tokens.json'] as const;
 export type DesignFile = (typeof DESIGN_FILES)[number];
 
 export interface DesignSystemResult {

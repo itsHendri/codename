@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest"
 import { resolveTokens } from "../engine/resolve"
 import { hendriPreset } from "../presets/hendri"
 import { buildExport, exportAsMap, referencedAssets } from "./bundle"
+import { DESIGN_MD_SECTIONS, toDesignMd } from "./designMd"
 
 const resolved = resolveTokens(hendriPreset)
 const files = buildExport(resolved)
 const fileAt = (suffix: string) => files.find((f) => f.path.endsWith(suffix))!.content
 
 describe("the export bundle", () => {
-    it("is the stylesheet and the token file, nothing else", () => {
-        expect(files.map((f) => f.path)).toEqual(["tokens.css", "tokens.json"])
-        expect(Object.keys(exportAsMap(files))).toEqual(["tokens.css", "tokens.json"])
+    it("is the agent file, the stylesheet and the token file, nothing else", () => {
+        expect(files.map((f) => f.path)).toEqual(["DESIGN.md", "tokens.css", "tokens.json"])
+        expect(Object.keys(exportAsMap(files))).toEqual(["DESIGN.md", "tokens.css", "tokens.json"])
     })
 
     it("names the assets the config references", () => {
@@ -91,5 +92,51 @@ describe("tokens.json (DTCG)", () => {
                 expect(node, value).toBeDefined()
             }
         }
+    })
+})
+
+describe("DESIGN.md", () => {
+    const md = toDesignMd(resolved, {
+        site: "http://localhost:5173/",
+        scannedAt: Date.UTC(2026, 8, 24),
+        typeStyles: [{ name: "h1", form: "tag", selectorOrUtility: "h1", tag: "h1", fields: { size: { literal: "28px" } } }],
+        links: { "--mark": { role: "primary", step: 600 } },
+        critique: { findings: [{ kind: "contrast", level: "fail", message: "3 text pairs under AA", detail: {} }], summary: "1 fail" },
+    })
+    const front = md.slice(4, md.indexOf("\n---\n", 4))
+
+    it("opens with frontmatter naming the system and carrying the tokens", () => {
+        expect(md.startsWith("---\nname: ")).toBe(true)
+        expect(front).toMatch(/^colors:\n  background: "#[0-9A-Fa-f]{6}"/m)
+        expect(front).toMatch(/^  primary-600: "#/m)
+        expect(front).toMatch(/^typography:\n  display:\n    fontFamily: /m)
+        expect(front).toMatch(/^    fontSize: "[\d.]+rem"/m)
+        expect(front).toMatch(/^rounded:\n  sm: "\d+px"/m)
+        expect(front).toMatch(/^spacing:\n  base: "\d+px"/m)
+        expect(front).toContain('backgroundColor: "{colors.primary}"')
+    })
+
+    it("references only tokens the frontmatter defines", () => {
+        const defined = new Set<string>()
+        let group = ""
+        for (const line of front.split("\n")) {
+            const top = /^([a-z]+):/.exec(line)
+            if (top) group = top[1]!
+            const leaf = /^  ("?)([^":]+)\1:/.exec(line)
+            if (leaf) defined.add(`${group}.${leaf[2]}`)
+        }
+        const refs = Array.from(md.matchAll(/\{([a-z]+\.[^}]+)\}/g), (m) => m[1]!)
+        expect(refs.length).toBeGreaterThan(3)
+        for (const ref of refs) expect(defined.has(ref), ref).toBe(true)
+    })
+
+    it("has the eight sections in the spec's order, written from the page", () => {
+        const heads = Array.from(md.matchAll(/^## (.+)$/gm), (m) => m[1])
+        expect(heads).toEqual([...DESIGN_MD_SECTIONS])
+        expect(md).toContain("read it off the running page on 2026-09-24")
+        expect(md).toContain("`--mark` is primary 600")
+        expect(md).toContain("- **h1** — the `h1 {}` rule, `28px`")
+        expect(md).toContain("- 3 text pairs under AA")
+        expect(md).toContain("**Focus is always visible.**")
     })
 })

@@ -126,6 +126,7 @@ let modelForRequests: DesignModel | null = null;
 
 /** The bundle's paths, by the short name an agent asks for. */
 const BUNDLE_PATHS: Partial<Record<DesignFile, string>> = {
+  'DESIGN.md': 'DESIGN.md',
   'tokens.css': 'tokens.css',
   'tokens.json': 'tokens.json',
 };
@@ -444,7 +445,15 @@ async function handle(req: BridgeRequest): Promise<unknown> {
       const wanted = new Set<DesignFile>(req.files?.length ? req.files : DESIGN_FILES);
       const files: DesignSystemResult['files'] = [];
       // The same files System's Export produces, from the system as the panel shows it.
-      const bundle = modelForRequests ? buildExport(modelForRequests.resolved) : [];
+      const bundle = modelForRequests
+        ? buildExport(modelForRequests.resolved, {
+            site: session.scan.url,
+            scannedAt: session.scan.scannedAt,
+            typeStyles: session.scan.typeStyles ?? [],
+            links: modelForRequests.links,
+            critique: critique(session.scan, modelForRequests.seeded),
+          })
+        : [];
       for (const name of DESIGN_FILES) {
         const path = BUNDLE_PATHS[name];
         if (!path || !wanted.has(name)) continue;
