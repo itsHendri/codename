@@ -32,6 +32,7 @@ import {
   type WriteResult,
   type CreatedFile,
   type EntryStylesheet,
+  type TerminalCommand,
 } from '@/shared/protocol';
 import { isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
 import type { ChangeSet } from '@/studio/commit';
@@ -872,6 +873,15 @@ export async function makeChanges(agent: string): Promise<void> {
     locks: session.locks,
     mayRun: session.agentsMayRun.includes(agent),
   });
+}
+
+/** The brief as a file and the command that starts the agent on it in the person's own terminal. */
+export async function terminalCommand(agent: string): Promise<TerminalCommand> {
+  const s = latest;
+  if (!s?.changes || !s.prompt) throw new Error('there are no changes to make');
+  const result = await ask<TerminalCommand>({ method: 'terminal_command', agent, brief: s.prompt, locks: getSession().locks });
+  logAgent(`brief written for a terminal: ${result.file}`);
+  return result;
 }
 
 /** Ask the bridge for its agents afresh, after one may have been signed in. */

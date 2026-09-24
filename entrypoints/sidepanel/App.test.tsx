@@ -957,6 +957,29 @@ describe('Make changes', () => {
     expect(text()).toContain('Claude Code edits the files in ffs');
   });
 
+  it('offers the same brief for a terminal, and shows the command the bridge answers with', async () => {
+    await connect([{ ...claude, terminal: true }]);
+    await editAndOpenChanges();
+    const offer = button('Or run it in a terminal');
+    expect(offer).not.toBeNull();
+    await click(offer);
+    await tick(60);
+    const asked = ws.asks('terminal_command');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.payload).toMatchObject({ agent: 'claude', locks: [] });
+    expect(String(asked[0]?.payload?.brief)).toContain('h1#title');
+    await act(async () =>
+      ws.receive({ type: 'response', replyTo: asked[0]!.id, ok: true, payload: { command: `cd '/Users/x/ffs' && 'claude' "$(cat '/Users/x/.codename/briefs/b.md')"`, file: '/Users/x/.codename/briefs/b.md' } }),
+    );
+    await tick(60);
+    const card = host.querySelector('[data-testid=terminal-command]');
+    expect(card?.textContent).toContain('in your own session');
+    expect(card?.querySelector('code')?.textContent).toContain(`cd '/Users/x/ffs' && 'claude'`);
+    // Nothing ran: no run frame, no run_agent ask.
+    expect(ws.asks('run_agent')).toHaveLength(0);
+    expect(getSession().run).toBeNull();
+  });
+
   it('asks once per agent, then runs it on the brief and shows it working', async () => {
     await connect([claude, codex]);
     await editAndOpenChanges();

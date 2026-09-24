@@ -154,7 +154,8 @@ export function startRun(opts: RunOptions): Run {
         }
         publish();
       } else if (parsed.kind === 'done') {
-        if (parsed.summary) summary = parsed.summary;
+        // A tool that streams its last message in chunks: the chunks join.
+        if (parsed.summary) summary = agent.id === 'gemini' && summary && !parsed.summary.startsWith(summary) ? summary + parsed.summary : parsed.summary;
       } else {
         failedWith = parsed.error;
       }

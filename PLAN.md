@@ -452,6 +452,23 @@ is that companion growing up.
   `get_design_system` and `codename://design-system/DESIGN.md`; the panel
   passes the page context (site, type styles, links, critique) so the file
   is about this page, not the engine.
+- **W47, 24 September 2026 — Gemini CLI, and a terminal.** Make changes can
+  run Gemini CLI headless: the brief on stdin (a piped stdin is what makes it
+  headless), `--output-format stream-json`, `--approval-mode auto_edit` so
+  edits go through and a command it wants to run is refused rather than
+  waited on; its events are read under every spelling the tool has used
+  (`tool_name`/`name`, `parameters`/`args`, `file_path`/`absolute_path`/
+  `path`), its last assistant message is the summary, and a `result` that is
+  not `success` is the failure. And the zero-risk path if a vendor meters
+  headless runs differently from a terminal: **Or run it in a terminal**
+  under the button asks the bridge for `terminal_command`, which writes the
+  same prompt to `~/.codename/briefs/<stamp>.md` and answers with one
+  shell-quoted line — `cd` into the project, the tool started interactively
+  on `"$(cat brief)"` (`-i` for Gemini) — for the person to paste; nothing
+  runs, no consent is asked, the panel does not watch it, and the copy says
+  Reset lets go of the edits once the change is in. `Agent.terminal` is
+  absent for a custom command, and `AgentInfo.terminal` tells the panel.
+  The current headless path is unchanged.
 
 ## Live re-skin
 

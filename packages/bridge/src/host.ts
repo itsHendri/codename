@@ -10,7 +10,9 @@
 import { randomUUID } from 'node:crypto';
 import type { spawn } from 'node:child_process';
 import { PROTOCOL_VERSION } from '../../../shared/protocol';
-import type { AgentInfo, AppliedDefinition, CreatedFile, PanelRequest, RunSnapshot, SessionState, WriteResult } from '../../../shared/protocol';
+import type { AgentInfo, AppliedDefinition, CreatedFile, PanelRequest, RunSnapshot, SessionState, TerminalCommand, WriteResult } from '../../../shared/protocol';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { createTokensFile, entryStylesheet } from './create';
 import { findAgents, realSyncExec, type Found, type SyncExec } from './agents';
 import { applyDefinition, findDefinitions } from './definitions';
@@ -43,6 +45,7 @@ export interface Host {
 }
 
 type RunRequest = Extract<PanelRequest, { method: 'run_agent' }>;
+type TerminalRequest = Extract<PanelRequest, { method: 'terminal_command' }>;
 
 /**
  * Answers the panel's `run_agent` and `cancel_run`, one run at a time, and
@@ -65,6 +68,8 @@ export class Runs {
       spawnProcess?: typeof spawn;
       exec?: SyncExec;
       now?: () => number;
+      /** Where briefs for a terminal are written; beside the bridge file by default. */
+      briefsDir?: string;
     },
   ) {}
 
@@ -88,7 +93,7 @@ export class Runs {
   info(): AgentInfo[] {
     return this.opts.agents.map((found) => {
       const { agent, bin } = found;
-      const info: AgentInfo = { id: agent.id, name: agent.name, can: agent.can };
+      const info: AgentInfo = { id: agent.id, name: agent.name, can: agent.can, ...(agent.terminal ? { terminal: true } : {}) };
       if (this.isSignedIn(found) === false) info.signIn = agent.signIn(bin);
       return info;
     });
@@ -138,6 +143,26 @@ export class Runs {
     return { runId };
   }
 
+  /**
+   * The brief as a file and the command that starts the agent on it in a
+   * terminal. No consent and no run: the person starts it, in a session that
+   * is theirs, with whatever it may do there. The file is the bridge's own,
+   * not the project's.
+   */
+  terminal(request: TerminalRequest): TerminalCommand {
+    if (typeof request.brief !== 'string' || !request.brief.trim()) throw new Error('there are no changes to make');
+    const found = this.opts.agents.find((a) => a.agent.id === request.agent);
+    if (!found) throw new Error(`${request.agent || 'that agent'} was not found on this machine`);
+    if (!found.agent.terminal) throw new Error(`${found.agent.name} has no interactive mode to start on a brief`);
+    const locks = Array.isArray(request.locks) ? request.locks.filter((l): l is string => typeof l === 'string') : [];
+    const dir = this.opts.briefsDir ?? join(dirname(bridgeFilePath()), 'briefs');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}-${randomUUID().slice(0, 8)}.md`);
+    writeFileSync(file, buildRunPrompt(request.brief, locks), 'utf8');
+    this.opts.log(`brief for a terminal: ${found.agent.name}, ${file}`);
+    return { command: found.agent.terminal(found.bin, file, this.opts.cwd), file };
+  }
+
   /** On the way out: an agent in its own process group would otherwise outlive the bridge. */
   stop(): void {
     this.current?.cancel();
@@ -183,6 +208,7 @@ export async function startBridge(opts: HostOptions): Promise<Host> {
     if (request.method === 'run_agent') return runs.start(sessionId, request);
     if (request.method === 'cancel_run') return runs.cancel();
     if (request.method === 'list_agents') return runs.refresh();
+    if (request.method === 'terminal_command') return runs.terminal(request);
     if (request.method === 'entry_stylesheet') return entryStylesheet(cwd);
     const state: SessionState | null = sessions.get(sessionId).state;
     if (request.method === 'create_tokens_file') {
@@ -246,7 +272,7 @@ export async function startBridge(opts: HostOptions): Promise<Host> {
   log(`codename-bridge listening on ws://127.0.0.1:${server.port} — pairing code: ${token}`);
   if (sessions.project) log(`running in ${sessions.project.name}${sessions.project.branch ? ` on ${sessions.project.branch}` : ''}`);
   const names = runs.info().map((a) => a.name);
-  log(names.length ? `Make changes can run: ${names.join(', ')}` : 'no coding agent found on this machine; Make changes needs Claude Code, Cursor or Codex');
+  log(names.length ? `Make changes can run: ${names.join(', ')}` : 'no coding agent found on this machine; Make changes needs Claude Code, Gemini CLI, Cursor or Codex');
 
   return {
     token,

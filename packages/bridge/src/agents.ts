@@ -15,7 +15,7 @@ import { accessSync, constants, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
-export type AgentId = 'claude' | 'cursor' | 'codex' | 'custom';
+export type AgentId = 'claude' | 'gemini' | 'cursor' | 'codex' | 'custom';
 
 /** What a line of the agent's output meant, when it meant anything. */
 export type AgentLine =
@@ -61,7 +61,20 @@ export interface Agent {
   invocation(bin: string, prompt: string): Invocation;
   /** One line of output, already split. Null for lines that say nothing worth showing. */
   parse(line: string): AgentLine | null;
+  /**
+   * The same brief in the person's own terminal session: a command to paste
+   * that starts the tool interactively on the brief, on whatever plan and
+   * permissions that session has. Absent for a tool with no interactive mode.
+   */
+  terminal?(bin: string, briefFile: string, cwd: string): string;
 }
+
+/** A path inside single quotes, for a command a person pastes into a POSIX shell. */
+export const shellQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
+
+/** `cd` into the project, then the tool with the brief read from its file. */
+const inTerminal = (bin: string, briefFile: string, cwd: string, args: string[] = []): string =>
+  `cd ${shellQuote(cwd)} && ${shellQuote(bin)}${args.length ? ` ${args.join(' ')}` : ''} "$(cat ${shellQuote(briefFile)})"`;
 
 /** Where a path lands relative to the project, for a line a person reads. */
 export function relativeTo(cwd: string, path: string): string {
@@ -140,6 +153,7 @@ const claude: Agent = {
     // brief is long.
     stdin: prompt,
   }),
+  terminal: (bin, briefFile, cwd) => inTerminal(bin, briefFile, cwd),
   parse(line) {
     const m = json(line);
     if (!m) return null;
@@ -167,6 +181,57 @@ const claude: Agent = {
 };
 
 /**
+ * Gemini CLI, headless.
+ *
+ * The brief goes on stdin, which is what makes it headless (a piped stdin is
+ * not a TTY), and `stream-json` gives one event a line. `auto_edit` approves
+ * edits and nothing else: a command it wants to run is refused rather than
+ * asked about, since nobody is there to answer. Its events name the tool
+ * (`write_file`, `replace`, `read_file`, …) and its parameters; the field
+ * names have moved between releases, so each is read under every spelling.
+ */
+const GEMINI_EDIT = new Set(['write_file', 'replace', 'edit', 'edit_file', 'create_file']);
+const GEMINI_READ = new Set(['read_file', 'read_many_files', 'list_directory', 'glob', 'grep_search', 'search_file_content', 'ls']);
+const gemini: Agent = {
+  id: 'gemini',
+  name: 'Gemini CLI',
+  reportsFiles: true,
+  can: 'It can read and edit files in this folder. A command it wants to run is refused.',
+  // Gemini CLI signs in through its own interactive flow (Google account or a key), so the fix is to open it once.
+  signIn: (bin) => ({ text: 'Gemini CLI is not signed in. Open it once in a terminal and sign in, then try again:', command: shellPath(bin) }),
+  invocation: (bin, prompt) => ({ cmd: bin, args: ['--output-format', 'stream-json', '--approval-mode', 'auto_edit'], stdin: prompt }),
+  terminal: (bin, briefFile, cwd) => inTerminal(bin, briefFile, cwd, ['-i']),
+  parse(line) {
+    const m = json(line);
+    if (!m) return null;
+    if (m.type === 'tool_use') {
+      const name = str(m.tool_name) ?? str(m.name) ?? '';
+      const params = ((m.parameters ?? m.args ?? m.input ?? {}) as Record<string, unknown>) ?? {};
+      const path = str(params.file_path) ?? str(params.absolute_path) ?? str(params.path) ?? str(params.dir_path);
+      if (GEMINI_EDIT.has(name) && path) return { kind: 'step', text: `Editing ${path}`, file: path };
+      if (GEMINI_READ.has(name)) return { kind: 'step', text: path ? `Reading ${path}` : `Searching for ${str(params.pattern) ?? str(params.query) ?? 'files'}` };
+      if (name === 'run_shell_command') return { kind: 'step', text: `Asked to run ${str(params.command) ?? 'a command'}` };
+      return null;
+    }
+    if (m.type === 'message' && m.role === 'assistant') {
+      // The last thing it says is its summary; chunks are joined by the run.
+      const text = str(m.content) ?? str((m.message as { content?: unknown } | undefined)?.content);
+      return text ? { kind: 'done', summary: text } : null;
+    }
+    if (m.type === 'result') {
+      const status = str(m.status);
+      const err = (m.error ?? {}) as { message?: string };
+      if (status && status !== 'success') return { kind: 'failed', error: str(err.message) ?? str(m.message) ?? `Gemini CLI stopped: ${status}` };
+      return { kind: 'done', summary: str(m.response) };
+    }
+    if (m.type === 'error' && (m.severity === undefined || m.severity === 'error' || m.severity === 'fatal')) {
+      return { kind: 'failed', error: str(m.message) ?? 'Gemini CLI stopped with an error' };
+    }
+    return null;
+  },
+};
+
+/**
  * Cursor's agent CLI, in print mode.
  *
  * `--force` is how its print mode applies edits rather than proposing them,
@@ -181,6 +246,7 @@ const cursor: Agent = {
   can: 'It can read and edit files in this folder, and it can run commands here.',
   signIn: (bin) => ({ text: 'Cursor is not signed in. Run this in a terminal, then try again:', command: `${shellPath(bin)} login` }),
   invocation: (bin, prompt) => ({ cmd: bin, args: ['-p', '--output-format', 'stream-json', '--force', prompt] }),
+  terminal: (bin, briefFile, cwd) => inTerminal(bin, briefFile, cwd),
   parse(line) {
     const m = json(line);
     if (!m) return null;
@@ -221,6 +287,7 @@ const codex: Agent = {
     args: ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-'],
     stdin: prompt,
   }),
+  terminal: (bin, briefFile, cwd) => inTerminal(bin, briefFile, cwd),
   parse(line) {
     const m = json(line);
     if (!m) return null;
@@ -270,7 +337,7 @@ export function customAgent(template: string, name = template.trim().split(/\s+/
   };
 }
 
-export const AGENTS: Record<Exclude<AgentId, 'custom'>, Agent> = { claude, cursor, codex };
+export const AGENTS: Record<Exclude<AgentId, 'custom'>, Agent> = { claude, gemini, cursor, codex };
 
 /* ---------------- finding the tools ---------------- */
 
@@ -322,7 +389,7 @@ function byVersionDesc(a: string, b: string): number {
  * usual install folders are looked in by name as well.
  */
 export function candidates(id: Exclude<AgentId, 'custom'>, env: LocateEnv): string[] {
-  const names = { claude: ['claude'], cursor: ['cursor-agent'], codex: ['codex'] }[id];
+  const names = { claude: ['claude'], gemini: ['gemini'], cursor: ['cursor-agent'], codex: ['codex'] }[id];
   const dirs = [
     ...env.path.split(delimiter).filter(Boolean),
     join(env.home, '.local', 'bin'),

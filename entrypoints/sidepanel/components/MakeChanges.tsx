@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { AgentInfo, ProjectInfo, RunSnapshot } from '@/shared/protocol';
-import { cancelRun, makeChanges, refreshAgents, useBridge } from '../lib/bridge';
+import type { AgentInfo, ProjectInfo, RunSnapshot, TerminalCommand } from '@/shared/protocol';
+import { cancelRun, makeChanges, refreshAgents, terminalCommand, useBridge } from '../lib/bridge';
 import { allowRun, chooseAgent, updateSession, useSession } from '../lib/session';
 import { CheckIcon, CopyIcon } from './icons';
 
@@ -22,6 +22,8 @@ export function MakeChanges({ empty, local }: { empty: boolean; local: boolean }
   const [consent, setConsent] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The same brief for the person's own terminal session, when they would rather.
+  const [terminal, setTerminal] = useState<TerminalCommand | null>(null);
 
   const connected = status === 'connected';
   const agent = agents.find((a) => a.id === agentChoice) ?? agents[0] ?? null;
@@ -67,7 +69,7 @@ export function MakeChanges({ empty, local }: { empty: boolean; local: boolean }
       : outdated
         ? 'The bridge running for this project is older than Make changes. Stop it — close the agent session that started it — and run npx codename-bridge open . in the project.'
         : !agent
-        ? 'No coding agent found on this machine. Make changes runs Claude Code, Cursor (cursor-agent) or Codex; install one and sign in.'
+        ? 'No coding agent found on this machine. Make changes runs Claude Code, Gemini CLI, Cursor (cursor-agent) or Codex; install one and sign in.'
         : agent.signIn
           ? agent.signIn.text
           : `${agent.name} edits the files in ${project?.name ?? 'your project'}. Review the diff as usual.`;
@@ -75,6 +77,17 @@ export function MakeChanges({ empty, local }: { empty: boolean; local: boolean }
   const fix = connected && local && agent?.signIn?.command ? agent.signIn.command : null;
 
   const disabled = running ? false : empty || !connected || !local || !agent || Boolean(agent?.signIn) || starting;
+  // A terminal session is the person's, signed in or not as they find it; only the brief has to exist.
+  const canTerminal = connected && local && !empty && !running && !!agent?.terminal;
+  const inTerminal = async () => {
+    if (!agent) return;
+    setError(null);
+    try {
+      setTerminal(await terminalCommand(agent.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   // Signing in happens in a terminal, so coming back to this window is the
   // moment to ask whether it worked.
@@ -131,6 +144,24 @@ export function MakeChanges({ empty, local }: { empty: boolean; local: boolean }
           </select>
         )}
       </div>
+
+      {canTerminal && !terminal && (
+        <button onClick={() => void inTerminal()} className="btn btn-sm btn-ghost self-start" title={`Start ${agent?.name} on this brief in your own terminal instead — your session, your plan, your permissions`}>
+          Or run it in a terminal
+        </button>
+      )}
+      {terminal && (
+        <div className="flex flex-col gap-1.5" data-testid="terminal-command">
+          <p className="text-2xs text-ink-muted">
+            Paste this in a terminal: it opens {agent?.name} on the brief in {project?.name ?? 'the project'}, in your own session. The panel does not see it work, so
+            once the change is in, Reset on the bar lets go of these edits.
+          </p>
+          <Command text={terminal.command} />
+          <button onClick={() => setTerminal(null)} className="btn btn-sm btn-ghost self-start">
+            Done
+          </button>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="text-2xs text-warn">

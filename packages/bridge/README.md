@@ -28,7 +28,7 @@ pairing code. Click the Codename icon on the page and enter the code the first
 time; the code is kept, so the panel pairs by itself after that.
 
 Edit the page, then press **Make changes** on the Changes tab. The bridge runs
-your coding agent in the folder on the brief — Claude Code, Cursor
+your coding agent in the folder on the brief — Claude Code, Gemini CLI, Cursor
 (`cursor-agent`) or Codex, whichever is installed, signed in with your own
 account — and the panel shows its steps as it works. The first run of each
 agent in a project asks first. Claude Code is held to reading and editing
