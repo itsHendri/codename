@@ -695,3 +695,27 @@ describe('the brief for what an element is on', () => {
     expect(toPrompt(buildChangeSet(scan, [], {}, [tag]))).toContain('`none` → `h2` — give it the declarations of the `h2 {}` rule (font-size: var(--font-size-h2)) — the element keeps its own tag');
   });
 });
+
+describe('the dark side of the brief', () => {
+  const scan = { url: 'http://localhost:5173/', cssText: '', customProps: [{ name: '--mark', value: '#be3a22', dark: '#e0603f', uses: 34 }, { name: '--paper', value: '#e7e4db' }], unreadableSheets: [] };
+
+  it('lists dark-side values under their own heading, aimed at the dark definitions', () => {
+    const set = buildChangeSet(scan, [], {}, [], [], [], [], {
+      darkOverrides: [{ name: '--mark', from: '#e0603f', to: '#ff7a5c', reason: 'manual' }],
+    });
+    expect(set.darkTokens?.[0]).toMatchObject({ name: '--mark', mode: 'dark', from: '#e0603f', to: '#ff7a5c', uses: 34 });
+    expect(isEmpty(set)).toBe(false);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('## Token changes on the dark side — 1 definition');
+    expect(prompt).toContain("Edit each token's dark definition");
+    expect(prompt).toContain('- `--mark`: `#e0603f` → `#ff7a5c`  (34 usages)');
+  });
+
+  it('says when a token has no dark definition yet', () => {
+    const set = buildChangeSet(scan, [], {}, [], [], [], [], {
+      darkOverrides: [{ name: '--paper', from: '#e7e4db', to: '#131410', reason: 'manual' }],
+    });
+    expect(set.darkTokens?.[0]?.newDefinition).toBe(true);
+    expect(toPrompt(set)).toContain('no dark definition yet; add one');
+  });
+});

@@ -19,7 +19,8 @@
  */
 
 import type { ProjectInfo } from '@/shared/protocol';
-import type { BrandConfig, ScaleRole, SemanticOverride, TypeRole, TypeRoleName } from './engine/types';
+import type { BrandConfig, ScaleRole, SemanticOverride, Step, TypeRole, TypeRoleName } from './engine/types';
+import type { ColourLinks } from './systemMap';
 
 export type TypeEdit = Partial<Pick<TypeRole, 'sizeRem' | 'weight' | 'lineHeight'>>;
 
@@ -42,6 +43,12 @@ export interface BrandEdits {
   locks?: string[];
   /** Type styles the person locked, by `form:selector`: a scale change leaves them alone. */
   styleLocks?: string[];
+  /** Page variables linked to a ramp step by hand, or unlinked on purpose (null). */
+  links?: ColourLinks;
+  /** Ramp steps pinned to an exact colour, light side, by role. */
+  pins?: Partial<Record<ScaleRole, Partial<Record<Step, string>>>>;
+  /** Dark-side values of page variables set by hand: name → value. */
+  darkVars?: Record<string, string>;
 }
 
 /**
@@ -80,7 +87,10 @@ export const isNoEdits = (e: BrandEdits): boolean =>
   e.spacingBasePx === undefined &&
   e.radiusBasePx === undefined &&
   (e.locks ?? []).length === 0 &&
-  (e.styleLocks ?? []).length === 0;
+  (e.styleLocks ?? []).length === 0 &&
+  Object.keys(e.links ?? {}).length === 0 &&
+  Object.keys(e.pins ?? {}).length === 0 &&
+  Object.keys(e.darkVars ?? {}).length === 0;
 
 /**
  * Moving the grid rescales the steps the page uses, keeping their shape: a
@@ -118,6 +128,11 @@ export function diffEdits(seeded: BrandConfig, edited: BrandConfig): BrandEdits 
   }
   if (seeded.spacing.basePx !== edited.spacing.basePx) edits.spacingBasePx = edited.spacing.basePx;
   if (seeded.radius.basePx !== edited.radius.basePx) edits.radiusBasePx = edited.radius.basePx;
+  // A pinned step is a decision about one swatch; the seed's own ramp is not.
+  for (const scale of edited.color.scales) {
+    const pinned = scale.overrides?.light;
+    if (pinned && Object.keys(pinned).length) (edits.pins ??= {})[scale.role] = { ...pinned };
+  }
   return edits;
 }
 
@@ -131,7 +146,12 @@ export function applyEdits(seeded: BrandConfig, stored: BrandEdits): BrandConfig
   const known = new Set(seeded.color.scales.map((s) => s.role));
   const scales = seeded.color.scales.map((s) => {
     const seed = edits.seeds[s.role];
-    return seed ? { ...s, seed } : s;
+    const pins = edits.pins?.[s.role];
+    return {
+      ...s,
+      ...(seed ? { seed } : {}),
+      ...(pins && Object.keys(pins).length ? { overrides: { ...s.overrides, light: { ...s.overrides?.light, ...pins } } } : {}),
+    };
   });
   // Stored by an older panel; nothing can show them now, so they are let go.
   const semanticOverrides: BrandConfig['color']['semanticOverrides'] = [];

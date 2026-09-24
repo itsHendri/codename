@@ -1155,6 +1155,39 @@ describe('Make changes', () => {
   });
 });
 
+describe('the dark side and the ramps', () => {
+  it('queues a dark value set by hand on its own side of the brief, and paints it only in dark', async () => {
+    await click(host.querySelector('#tab-system'));
+    const input = Array.from(host.querySelectorAll<HTMLInputElement>('input[aria-label="--mark dark value"]')).find((i) => i.type !== 'color')!;
+    expect(input.value).toBe('#e0603f');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, '#ff7a5c');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await tick(120);
+    expect(getSession().darkVarOverrides).toEqual({ '--mark': '#ff7a5c' });
+    expect(badge()).toBe('1');
+    // Light stays as it was: nothing painted for the light side.
+    const light = stub.sent.filter((m) => m.type === 'reskin-apply').at(-1)?.overrides as { name: string }[] | undefined;
+    expect(light?.some((o) => o.name === '--mark')).toBeFalsy();
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('Dark side');
+    expect(text()).toContain('#e0603f → #ff7a5c');
+  });
+
+  it('shows which ramp step a variable is on, and lets it be changed', async () => {
+    await click(host.querySelector('#tab-system'));
+    const chip = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.startsWith('Link of this variable') && b.closest('[title^="--mark"]') !== null || b.getAttribute('aria-label') === 'Link of this variable: primary 700') ?? null;
+    expect(chip?.getAttribute('aria-label')).toBe('Link of this variable: primary 700');
+    await click(chip);
+    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Unlink') ?? null);
+    await tick(60);
+    expect(getSession().links).toEqual({ '--mark': null });
+    expect(text()).toContain('no ramp');
+  });
+});
+
 describe('what the inspector read as authored', () => {
   const authored = {
     color: { value: 'var(--ink)', token: '--ink', rule: { selector: 'h1', groups: [] }, important: false, certain: true },

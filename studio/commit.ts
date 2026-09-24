@@ -58,6 +58,10 @@ export interface TokenChange {
   uses?: number;
   /** Whether the value sat on a ramp or was carried along by hue. */
   reason: Override['reason'];
+  /** Set for a change to the page's dark side: its dark definition is the one to edit. */
+  mode?: 'dark';
+  /** The page has no definition on that side yet; the agent adds one. */
+  newDefinition?: boolean;
   /**
    * Where the page defines this token again under a width media query, and
    * to what. The edit leaves these alone; the agent needs to know they exist
@@ -131,6 +135,8 @@ export interface ChangeSet {
   /** Whether this looks like a project running on your own machine. */
   local: boolean;
   tokens: TokenChange[];
+  /** Token changes on the page's dark side: values set by hand there. */
+  darkTokens?: TokenChange[];
   colors: ColorChange[];
   /** Scale decisions with no variable behind them; source is the only handle. */
   system: SystemChange[];
@@ -215,12 +221,14 @@ export function buildChangeSet(
     /** The search behind `definitions` stopped early; what it found is not everything. */
     definitionsTruncated?: boolean;
     applied?: { name: string; file: string; line: number; value: string; verified?: NonNullable<TokenChange['applied']>['verified']; seen?: string }[];
+    /** Values set by hand on the page's dark side. */
+    darkOverrides?: Override[];
   } = {},
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
   const appliedByName = new Map((repo.applied ?? []).map((a) => [a.name, a]));
-  const tokens: TokenChange[] = overrides.map((o) => {
+  const tokenFor = (o: Override, mode?: 'dark'): TokenChange => {
     const prop = propByName.get(o.name);
     const alsoAt = Object.entries(prop?.atWidth ?? {}).map(([query, value]) => ({ query, value }));
     const definedAt = repo.definitions?.[o.name];
@@ -235,6 +243,7 @@ export function buildChangeSet(
       source: prop?.source,
       uses: prop?.uses,
       reason: o.reason,
+      ...(mode ? { mode, ...(prop && !prop.dark ? { newDefinition: true } : {}) } : {}),
       ...(definedAt?.length ? { definedAt, ...(repo.definitionsTruncated ? { definedAtPartial: true } : {}) } : {}),
       ...(applied
         ? {
@@ -249,7 +258,9 @@ export function buildChangeSet(
       ...(alsoAt.length ? { alsoAt } : {}),
       ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
     };
-  });
+  };
+  const tokens: TokenChange[] = overrides.map((o) => tokenFor(o));
+  const darkTokens: TokenChange[] = (repo.darkOverrides ?? []).map((o) => tokenFor(o, 'dark'));
 
   // A colour that a token already covers is not reported twice: the token is
   // the better handle, and listing both invites the agent to do the job twice.
@@ -265,6 +276,7 @@ export function buildChangeSet(
     editedAt: new Date().toISOString(),
     local: isLocal(scan.url),
     tokens,
+    ...(darkTokens.length ? { darkTokens } : {}),
     colors,
     system,
     elements: withTokenHints(summariseElements(elements), scan),
@@ -301,6 +313,7 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
 export function isEmpty(set: ChangeSet): boolean {
   return (
     set.tokens.length === 0 &&
+    (set.darkTokens?.length ?? 0) === 0 &&
     set.colors.length === 0 &&
     set.system.length === 0 &&
     set.elements.length === 0 &&
@@ -432,7 +445,8 @@ export function toPrompt(set: ChangeSet): string {
       const detail = [
         t.uses ? `${t.uses} ${t.uses === 1 ? 'usage' : 'usages'}` : null,
         t.source ? `loaded from ${t.source}` : null,
-        t.reason === 'family' ? 'followed the brand hue'
+        t.reason === 'link' ? 'linked to a ramp step'
+          : t.reason === 'family' ? 'followed the brand hue'
           : t.reason === 'grid' ? 'a step on the spacing or radius scale'
             : t.reason === 'scale' ? 'a size on the type scale'
               : t.reason === 'manual' ? 'set by hand'
@@ -447,6 +461,23 @@ export function toPrompt(set: ChangeSet): string {
       for (const a of t.alsoAt ?? []) {
         lines.push(`  - also defined at ${a.query} as \`${a.value}\`; left alone — decide whether it should follow`);
       }
+    }
+    lines.push('');
+  }
+
+  if (set.darkTokens?.length) {
+    const n = set.darkTokens.length;
+    lines.push(`## Token changes on the dark side — ${n} ${n === 1 ? 'definition' : 'definitions'}`);
+    lines.push('');
+    lines.push(
+      "Edit each token's dark definition — the one under `@media (prefers-color-scheme: dark)` or the page's dark hook (`.dark`, `[data-theme=\"dark\"]`) — and leave its light value alone. Where the page spells its dark side both ways, change both. A token with no dark definition yet gets one, beside the others.",
+    );
+    lines.push('');
+    for (const t of set.darkTokens) {
+      const fresh = t.newDefinition ? ' — no dark definition yet; add one' : '';
+      lines.push(`- \`${t.name}\`: \`${t.from}\` → \`${t.to}\`${t.uses ? `  (${t.uses} ${t.uses === 1 ? 'usage' : 'usages'})` : ''}${fresh}`);
+      const position = describeDefinitions(t);
+      if (position) lines.push(`  - ${position}`);
     }
     lines.push('');
   }

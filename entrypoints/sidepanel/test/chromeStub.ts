@@ -49,7 +49,7 @@ export const forfontsake: ScanResult = {
     { name: '--plate', value: '#efece4', source: 'http://localhost:5173/src/index.css', uses: 14 },
     { name: '--rule', value: '#cbc7bc', source: 'http://localhost:5173/src/index.css', uses: 19 },
     { name: '--muted', value: '#6c6a61', source: 'http://localhost:5173/src/index.css', uses: 12 },
-    { name: '--mark', value: '#be3a22', source: 'http://localhost:5173/src/index.css', uses: 34 },
+    { name: '--mark', value: '#be3a22', dark: '#e0603f', source: 'http://localhost:5173/src/index.css', uses: 34 },
     { name: '--track', value: '#d5d1c6', source: 'http://localhost:5173/src/index.css', uses: 6 },
   ],
   shape: {

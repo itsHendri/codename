@@ -20,6 +20,8 @@ import {
   loadSession,
   setColorEdit,
   setConfig,
+  setDarkVarOverride,
+  setLink,
   setLock,
   setMode,
   setPinned,
@@ -86,14 +88,14 @@ export default function App() {
 
   // The session outlives whichever tab is showing: an edit made in System is
   // still there, and still painted on the page, after a detour through Layers.
-  const { scan, config, mode, live, varOverrides, colorEdits, darkVia, locks } = session;
+  const { scan, config, mode, live, varOverrides, colorEdits, darkVia, locks, darkVarOverrides, links } = session;
   // The engine mirrors its ramps only when the page has no dark mode of its
   // own; where it has one, that is what Dark shows, and the system stays light.
   const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
   const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail, scheme: 'system' });
-  const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks);
+  const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks, darkVarOverrides, links);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
@@ -129,6 +131,7 @@ export default function App() {
           ...(session.definitions?.found ? { definitions: session.definitions.found } : {}),
           ...(session.definitions?.truncated ? { definitionsTruncated: true } : {}),
           ...(session.applied.length ? { applied: session.applied } : {}),
+          ...(model?.handoffDark.length ? { darkOverrides: model.handoffDark } : {}),
         },
       ),
     [scanLike, model, session.log, session.comments, locks, bridge.project, session.definitions, session.applied],
@@ -138,6 +141,7 @@ export default function App() {
   useBridgeSync(tabId, tabUrl, session, model, changeSet);
   const pendingCount =
     changeSet.tokens.length +
+    (changeSet.darkTokens?.length ?? 0) +
     changeSet.colors.length +
     changeSet.system.length +
     changeSet.elements.length +
@@ -151,7 +155,7 @@ export default function App() {
   // seed moved with nothing on the page to follow it, or a preview alone,
   // still counts as one, so the button still appears.
   const overrideCount =
-    changeSet.tokens.length + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
+    changeSet.tokens.length + (changeSet.darkTokens?.length ?? 0) + changeSet.colors.length + changeSet.system.length + changeSet.elements.length;
   const resettable =
     model?.dirty || activeChanges(session.log).length > 0 || mode === 'dark' || session.lightForced || session.agentPreview
       ? Math.max(1, overrideCount)
@@ -561,7 +565,9 @@ export default function App() {
             onConfigChange={setConfig}
             onResetAll={resetAll}
             onVar={setVarOverride}
+            onDark={setDarkVarOverride}
             onColor={setColorEdit}
+            onLink={setLink}
             locks={locks}
             onLock={setLock}
           />

@@ -7,7 +7,7 @@ import { hexOf } from '@/studio/reskin';
 import { download } from '@/studio/download';
 import type { InspectController } from '../lib/inspect';
 import type { Definition } from '@/shared/protocol';
-import { targetsFor } from '@/studio/writeScope';
+import { targetsFor, type EditMode } from '@/studio/writeScope';
 import { dropAgentPreview, refreshDefinitions, revertTokens, useBridge, writeAndVerify } from '../lib/bridge';
 import { allow, clearAgentLog, forgetWritten, type WrittenEntry } from '../lib/session';
 import { useSession } from '../lib/session';
@@ -67,8 +67,10 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
   // What the bridge can write itself, and what stays for the agent. A token
   // already written is shown with what the page said about it, not queued.
   const queued = set.tokens.filter((t) => !t.applied);
-  const writable = bridgeMayWrite && set.local ? queued.filter((t) => writeTargets(t) !== null) : [];
-  const handedCount = queued.length + set.colors.length + set.system.length + set.elements.length + set.comments.length;
+  const queuedDark = (set.darkTokens ?? []).filter((t) => !t.applied);
+  const writable = bridgeMayWrite && set.local ? queued.filter((t) => writeTargets(t, 'light') !== null) : [];
+  const writableDark = bridgeMayWrite && set.local ? queuedDark.filter((t) => writeTargets(t, 'dark') !== null) : [];
+  const handedCount = queued.length + queuedDark.length + set.colors.length + set.system.length + set.elements.length + set.comments.length;
 
   if (empty && log.entries.length === 0 && comments.length === 0 && applied.length === 0) {
     return (
@@ -114,7 +116,7 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
           <section className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <SectionHead title="Token definitions" count={queued.length} />
-              {writable.length > 1 && <WriteAll tokens={writable} names={tokenNames} />}
+              {writable.length > 1 && <WriteAll tokens={writable} mode="light" names={tokenNames} />}
             </div>
             <p className="text-2xs text-ink-muted">
               {writable.length
@@ -122,7 +124,20 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
                 : 'The agent edits these definitions — not the places that use them.'}
             </p>
             {queued.map((t) => (
-              <TokenRow key={t.name} token={t} mayWrite={bridgeMayWrite} local={set.local} names={tokenNames} />
+              <TokenRow key={t.name} token={t} mode="light" mayWrite={bridgeMayWrite} local={set.local} names={tokenNames} />
+            ))}
+          </section>
+        )}
+
+        {queuedDark.length > 0 && (
+          <section className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <SectionHead title="Dark side" count={queuedDark.length} />
+              {writableDark.length > 1 && <WriteAll tokens={writableDark} mode="dark" names={tokenNames} />}
+            </div>
+            <p className="text-2xs text-ink-muted">Values set on the page's dark side. They land in its dark definitions; the light values stay.</p>
+            {queuedDark.map((t) => (
+              <TokenRow key={`dark:${t.name}`} token={t} mode="dark" mayWrite={bridgeMayWrite} local={set.local} names={tokenNames} />
             ))}
           </section>
         )}
@@ -375,9 +390,9 @@ function ProjectRow({ project, mayWrite, local }: { project: ProjectInfo; mayWri
  * a definition in a token file, or definitions that disagree. The same rule
  * the bridge applies, asked here so Write is offered only where it lands.
  */
-function writeTargets(t: TokenChange): Definition[] | null {
+function writeTargets(t: TokenChange, mode: EditMode): Definition[] | null {
   if (t.applied || t.definedAtPartial) return null;
-  const { targets, reason } = targetsFor(t.name, t.definedAt ?? [], 'light');
+  const { targets, reason } = targetsFor(t.name, t.definedAt ?? [], mode);
   if (reason || !targets.length) return null;
   if (targets.some((d) => d.kind !== 'css' && d.kind !== 'theme')) return null;
   return targets;
@@ -397,11 +412,14 @@ const where = (d: Definition) => `${d.file}${d.line ? `:${d.line}` : ''}`;
  */
 function TokenRow({
   token: t,
+  mode,
   mayWrite,
   local,
   names,
 }: {
   token: TokenChange;
+  /** Which side of the page the value belongs to, and so which definitions it lands in. */
+  mode: EditMode;
   mayWrite: boolean;
   local: boolean;
   /** Every token in the queue, so a refresh replaces all their positions at once. */
@@ -410,8 +428,8 @@ function TokenRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const found = t.definedAt ?? [];
-  const { targets, left, reason } = targetsFor(t.name, found, 'light');
-  const writable = writeTargets(t);
+  const { targets, left, reason } = targetsFor(t.name, found, mode);
+  const writable = writeTargets(t, mode);
   // A page that is not served from this machine is not the project's own, so
   // what it paints is not evidence about what the project's source should say.
   const canWrite = Boolean(writable && mayWrite && local);
@@ -421,7 +439,7 @@ function TokenRow({
     setBusy(true);
     setError(null);
     try {
-      const result = await writeAndVerify([{ name: t.name, from: t.from, to: t.to, mode: 'light' }]);
+      const result = await writeAndVerify([{ name: t.name, from: t.from, to: t.to, mode }]);
       const refused = result.refused.find((r) => r.name === t.name);
       if (refused) setError(refused.reason);
     } catch (err) {
@@ -488,12 +506,12 @@ function TokenRow({
 }
 
 /** Every writable token in one press: one request, one answer per name. */
-function WriteAll({ tokens, names }: { tokens: TokenChange[]; names: string[] }) {
+function WriteAll({ tokens, mode, names }: { tokens: TokenChange[]; mode: EditMode; names: string[] }) {
   const [busy, setBusy] = useState(false);
   const all = async () => {
     setBusy(true);
     try {
-      await writeAndVerify(tokens.map((t) => ({ name: t.name, from: t.from, to: t.to, mode: 'light' as const })));
+      await writeAndVerify(tokens.map((t) => ({ name: t.name, from: t.from, to: t.to, mode })));
     } catch {
       // Each row reports its own refusal on the next press; nothing to say here.
     } finally {

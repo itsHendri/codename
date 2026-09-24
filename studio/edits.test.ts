@@ -123,3 +123,30 @@ describe('editsKey', () => {
     expect(editsKey('http://localhost:3000', null, true)).toBe('http://localhost:3000');
   });
 });
+
+describe('links, pins and dark values', () => {
+  it('round-trips a pinned step through the config', async () => {
+    const { seedBrandFromScan } = await import('./seedFromScan');
+    const { diffEdits, applyEdits } = await import('./edits');
+    const scan = {
+      url: 'http://localhost:5173/', title: 't', scannedAt: 0, viewport: { width: 1280, height: 800, dpr: 2 }, fontFaces: [],
+      fontUsage: [{ family: 'Inter', elementCount: 10, roles: ['body'], variants: [{ size: '15px', weight: '400', lineHeight: '24px', count: 10 }] }],
+      colors: [{ hex: '#BE3A22', usage: ['text'], count: 20, varNames: ['--mark'] }], gradients: [], contrastPairs: [], svgs: [],
+      customProps: [{ name: '--mark', value: '#be3a22' }], shape: { radii: [], shadows: [], spacing: [] }, cssText: '', unreadableSheets: [], stats: { elementsSampled: 10, styleSheets: 1 },
+    } as unknown as import('@/shared/types').ScanResult;
+    const seeded = seedBrandFromScan(scan);
+    const edited = { ...seeded, color: { ...seeded.color, scales: seeded.color.scales.map((s) => (s.role === 'primary' ? { ...s, overrides: { light: { 600: '#123456' } } } : s)) } };
+    const edits = diffEdits(seeded, edited);
+    expect(edits.pins).toEqual({ primary: { 600: '#123456' } });
+    const back = applyEdits(seeded, edits);
+    expect(back.color.scales.find((s) => s.role === 'primary')?.overrides?.light).toEqual({ 600: '#123456' });
+  });
+
+  it('counts links, pins and dark values as edits', async () => {
+    const { isNoEdits, noEdits } = await import('./edits');
+    expect(isNoEdits(noEdits())).toBe(true);
+    expect(isNoEdits({ ...noEdits(), links: { '--mark': null } })).toBe(false);
+    expect(isNoEdits({ ...noEdits(), darkVars: { '--mark': '#000' } })).toBe(false);
+    expect(isNoEdits({ ...noEdits(), pins: { primary: { 600: '#000' } } })).toBe(false);
+  });
+});
