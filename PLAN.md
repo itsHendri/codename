@@ -279,6 +279,32 @@ is that companion growing up.
   missing dark definition (W43/W45 need it and will bring the dependency),
   dark-side edits from the panel (the handoff is light until W43's dark
   column), a CDP read of the winning rule.
+- **W41, 24 September 2026 — the token graph.** The scan now keeps every
+  definition of every variable from the object model, each classified once
+  by the side of the page that reads it (`PropDefinition.scope`: root,
+  dark, width, scoped), with nesting folded and the layer named; follows a
+  `var()` value to its literal (`alias`, `resolved`), so an edit to
+  `--button-bg: var(--mark)` can be redirected to `--mark`; records which
+  tags wear each observed size; and detects the page's **type styles** in
+  the four forms a project writes them — a Tailwind v4 `--text-*` token with
+  its `--line-height`/`--letter-spacing`/`--font-weight` siblings, a class,
+  one variable per field, a bare tag rule — and nothing else, so a page
+  with none says so (`studio/scan/{definitions,alias,typeStyles,
+  specificity}.ts`). The inspector reads the **authored declaration** that
+  paints each property of the selection (`studio/inspect/authored.ts`): the
+  page's rules the element matches, with their media conditions answered by
+  the frame and state pseudos counted only for a held state, ordered as the
+  cascade orders them — importance, the style attribute, unlayered over
+  layered, specificity, source order — and an inheriting property followed
+  up to the ancestor that set it. Marked uncertain whenever it could be
+  wrong: an unreadable sheet, a shadow root, two layers competing, a read
+  over its 20 ms budget. Only a certain read lets a chip say **is `--ink`**
+  where it said "matches" before; everything else still says matches.
+  Verified on the harness page through the built scripts: the lede's colour
+  reads `is --mark` once the deliberately unreadable sheet is removed, and
+  `matches` while it is there. Not yet used by the panel beyond the chips:
+  the selection strip (W42) and the System tab (W43) are what the graph is
+  for.
 
 ## Live re-skin
 

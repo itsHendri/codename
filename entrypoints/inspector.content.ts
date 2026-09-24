@@ -19,6 +19,9 @@ import { lengthPx } from '@/studio/reskin';
 import { buildSelector } from '@/studio/selector';
 import { measure, type Rect } from '@/studio/measure';
 import { readProps } from '@/studio/inspect/readProps';
+import { authoredFor } from '@/studio/inspect/authored';
+import { isManagedSheet } from '@/shared/types';
+import { mediaMatches } from '@/studio/pageFrame';
 import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
 import { search, shortcutSheet } from '@/studio/inspect/commands';
@@ -412,8 +415,35 @@ function activate() {
 
   /* ----- selection ----- */
 
+  /**
+   * The page's own rules, for reading which declaration paints what. Built
+   * on each read rather than cached: the lists are references, and the walk
+   * is the cost, which a read pays either way. A sheet that cannot be read
+   * is counted, so the answer is marked uncertain rather than wrong.
+   */
+  const pageRules = (): { lists: CSSRuleList[]; unreadable: number } => {
+    const lists: CSSRuleList[] = [];
+    let unreadable = 0;
+    for (const sheet of Array.from(document.styleSheets)) {
+      if (isManagedSheet(sheet)) continue;
+      try {
+        lists.push(sheet.cssRules);
+      } catch {
+        unreadable++;
+      }
+    }
+    return { lists, unreadable };
+  };
+
+  /** An element with the declarations that paint it, as their authors wrote them. */
+  const readSelected = (el: Element): ElementProps => {
+    const { lists, unreadable } = pageRules();
+    const held = heldState ? `:${heldState.replace('codename-state-', '')}` : null;
+    return readProps(el, authoredFor(el, lists, { mediaMatches, unreadable, heldState: held }));
+  };
+
   const announce = () => {
-    const props = selected ? readProps(selected) : null;
+    const props = selected ? readSelected(selected) : null;
     send({ type: 'element-selected', data: props });
     // The rail listens here, in the same page, rather than through the panel.
     document.dispatchEvent(new CustomEvent(SELECTED_EVENT, { detail: props?.selector ?? null }));
@@ -425,7 +455,7 @@ function activate() {
    * The first one picked stays the one the panel shows.
    */
   let also: Element[] = [];
-  const announceAlso = () => send({ type: 'selection-also', data: also.filter((el) => el.isConnected).map(readProps) });
+  const announceAlso = () => send({ type: 'selection-also', data: also.filter((el) => el.isConnected).map((el) => readProps(el)) });
   const setAlso = (next: Element[]) => {
     also = next;
     announceAlso();
@@ -1177,7 +1207,7 @@ function activate() {
     }
     const gap = written(room ? snap(room, stepsOf(spaceTokens, usedScale)) : { px: 0 });
     selectStackOf = members[0]!;
-    send({ type: 'wrap', members: members.map(readProps), direction, gap });
+    send({ type: 'wrap', members: members.map((el) => readProps(el)), direction, gap });
   };
 
   /* ----- the edit card: the selection's most-reached-for values, on the page ----- */
@@ -1958,7 +1988,7 @@ function activate() {
   /** ⌘⌥V: every selected element made to look like the copied one. */
   const pasteStyle = () => {
     if (!selected) return;
-    send({ type: 'style-paste', targets: [selected, ...also].filter((el) => el.isConnected).map(readProps) });
+    send({ type: 'style-paste', targets: [selected, ...also].filter((el) => el.isConnected).map((el) => readProps(el)) });
   };
 
   /* ----- the command menu ----- */
@@ -2253,12 +2283,12 @@ function activate() {
         break;
       }
       case 'read': {
-        const props = selected ? readProps(selected) : null;
+        const props = selected ? readSelected(selected) : null;
         sendResponse(props);
         return true;
       }
       case 'read-also':
-        sendResponse(also.filter((el) => el.isConnected).map(readProps));
+        sendResponse(also.filter((el) => el.isConnected).map(readSelected));
         return true;
       case 'colours':
         sendResponse(coloursInSelection());

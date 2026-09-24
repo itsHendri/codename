@@ -108,8 +108,8 @@ export function PropertyPanel({
     () => namedEasings(scan.customProps ?? [], resolved?.config.motion.easings ?? {}),
     [scan.customProps, resolved],
   );
-  const colour = (v: string) => suggestTokens('color', v, scan, resolved ?? undefined, mode);
-  const length = (v: string) => suggestTokens('length', v, scan, resolved ?? undefined, mode);
+  const colour = (v: string, prop: string) => suggestTokens('color', v, scan, resolved ?? undefined, mode, element.authored?.[prop]);
+  const length = (v: string, prop: string) => suggestTokens('length', v, scan, resolved ?? undefined, mode, element.authored?.[prop]);
   const { box, type, color, border, layout, position, child } = element;
   const flexOrGrid = /flex|grid/.test(box.display);
   const flex = /flex/.test(box.display);
@@ -398,7 +398,7 @@ export function PropertyPanel({
           <Labelled label="text">
             <ColorField
               value={color.text}
-              suggestions={colour(color.text)}
+              suggestions={colour(color.text, 'color')}
               ariaLabel="Text colour"
               onChange={(v, t) => onChange('color', v, t)}
             />
@@ -406,7 +406,7 @@ export function PropertyPanel({
           <Labelled label="fill">
             <ColorField
               value={color.background}
-              suggestions={colour(color.background)}
+              suggestions={colour(color.background, 'background-color')}
               ariaLabel="Background colour"
               onChange={(v, t) => onChange('background-color', v, t)}
             />
@@ -414,7 +414,7 @@ export function PropertyPanel({
           <Labelled label="border">
             <ColorField
               value={color.border}
-              suggestions={colour(color.border)}
+              suggestions={colour(color.border, 'border-color')}
               ariaLabel="Border colour"
               onChange={(v, t) => onChange('border-color', v, t)}
             />
@@ -512,7 +512,7 @@ export function PropertyPanel({
             <SideLabel>colour</SideLabel>
             <ColorField
               value={border.color}
-              suggestions={colour(border.color)}
+              suggestions={colour(border.color, 'border-color')}
               ariaLabel="Border colour"
               onChange={(v, t) => onChange('border-color', v, t)}
             />

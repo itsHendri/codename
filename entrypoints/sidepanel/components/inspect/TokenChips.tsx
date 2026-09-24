@@ -2,8 +2,10 @@ import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { asReference } from '@/studio/tokenMatch';
 
 /**
- * "matches --mark", never "is --mark": a computed value cannot say where it
- * came from, so the chips offer the page's variables that would give it.
+ * "matches --mark" when only the value agrees: a computed value cannot say
+ * where it came from, so the chips offer the page's variables that would
+ * give it. "is --mark" only when the inspector read the declaration that
+ * paints it and it names the variable — a fact, not a match.
  */
 export function TokenChips({
   suggestions = [],
@@ -33,7 +35,7 @@ export function TokenChips({
                 : 'bg-surface-field text-ink-secondary hover:bg-surface-field-hover hover:text-ink'
             }`}
           >
-            <span className="font-sans text-ink-muted">{s.exact ? 'matches' : 'near'} </span>
+            <span className="font-sans text-ink-muted">{s.authored ? 'is' : s.exact ? 'matches' : 'near'} </span>
             {s.name}
           </button>
         );

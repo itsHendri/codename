@@ -64,7 +64,9 @@ has been allowed.
   selection stays put: walk the tree with the arrow keys, measure it against
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
-  instead of a literal. Select mode lives on the bar across the page.
+  instead of a literal — and where the inspector could read the declaration
+  that paints it, and it names the variable, the chip says **is `--x`**
+  rather than matches. Select mode lives on the bar across the page.
 - **Variables** — what this page runs on, editable, and live on the page as
   you type.
   - **Page variables** — the custom properties the page's own stylesheets

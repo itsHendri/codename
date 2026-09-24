@@ -1,10 +1,12 @@
 /**
  * One element, read from the page: everything the panel shows, edits and
- * describes about it, from its computed style. All values are computed,
- * never authored; lengths are rounded the way a design tool shows them.
+ * describes about it, from its computed style. The values are computed;
+ * lengths are rounded the way a design tool shows them. The declarations
+ * that authored them, where the inspector read them, travel beside as
+ * `authored`, so the panel can say "is `--ink`" where it knows.
  */
 
-import type { ElementProps } from '@/shared/types';
+import type { AuthoredDecl, ElementProps } from '@/shared/types';
 import { roundPx } from '@/studio/boxModel';
 import { componentOf } from '@/studio/framework';
 import { buildSelector } from '@/studio/selector';
@@ -25,7 +27,7 @@ export function roundedStyle(el: Element): CSSStyleDeclaration {
   });
 }
 
-export function readProps(el: Element): ElementProps {
+export function readProps(el: Element, authored?: Record<string, AuthoredDecl>): ElementProps {
   const cs = roundedStyle(el);
   const sel = buildSelector(el);
   const fg = toHex(cs.color);
@@ -42,6 +44,7 @@ export function readProps(el: Element): ElementProps {
   const inner = (px: string) => parseFloat(px) || 0;
   return {
     ...(component ? { component } : {}),
+    ...(authored ? { authored } : {}),
     selector: sel.selector,
     matches: sel.matches,
     stable: sel.stable,
