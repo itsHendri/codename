@@ -290,7 +290,7 @@ alone. Either way the change travels as a **scale change** in the brief,
 which is an instruction the agent can act on in source.
 
 Press **Make changes** on the Changes tab and the bridge runs your coding
-agent — Claude Code, Cursor or Codex, whichever is installed, signed in with
+agent — Claude Code, Gemini CLI, Cursor or Codex, whichever is installed, signed in with
 your own account — in the project folder on that brief. Its steps show on the
 tab as it works: what it is reading, what it is editing. When it has changed
 files, the panel lets go of its own overrides and reloads the page, so what
@@ -299,10 +299,17 @@ edits stay put and it says why.
 
 The first run of each agent in a project asks first, and says what that agent
 can do: Claude Code is held to reading and editing files, with no shell and no
-web; Cursor and Codex can also run commands (Codex inside a sandbox with no
-network). With more than one installed, pick which beside the button.
-`CODENAME_AGENT_CMD` runs any other tool — a command with `{prompt}` where the
-brief goes.
+web; Gemini CLI to editing, with a command it wants to run refused; Cursor and
+Codex can also run commands (Codex inside a sandbox with no network). With
+more than one installed, pick which beside the button. `CODENAME_AGENT_CMD`
+runs any other tool — a command with `{prompt}` where the brief goes.
+
+**Or run it in a terminal**, under the button: the bridge writes the same
+brief to a file under `~/.codename/briefs/` and shows the one command that
+opens the agent on it in the project folder, in your own session — your
+plan, your permissions, whatever the tool is signed in as there. The panel
+does not see that session work, so once the change is in, Reset on the bar
+lets go of the edits.
 
 You can still **Copy** the brief or download it as JSON.
 

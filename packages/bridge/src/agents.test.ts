@@ -76,6 +76,48 @@ describe('signing in', () => {
   });
 });
 
+describe('Gemini CLI', () => {
+  const gemini = AGENTS.gemini;
+
+  it('runs headless on the brief from stdin, approving edits and nothing else', () => {
+    const inv = gemini.invocation('/opt/homebrew/bin/gemini', 'THE BRIEF');
+    expect(inv.args).toEqual(['--output-format', 'stream-json', '--approval-mode', 'auto_edit']);
+    expect(inv.stdin).toBe('THE BRIEF');
+    expect(gemini.can).toMatch(/refused/);
+    expect(gemini.signIn('/opt/homebrew/bin/gemini')).toEqual({ text: expect.stringMatching(/not signed in/), command: '/opt/homebrew/bin/gemini' });
+  });
+
+  it('reads its tool events under either spelling, its last message, and a failed result', () => {
+    expect(gemini.parse(line({ type: 'tool_use', tool_name: 'write_file', tool_id: 't1', parameters: { file_path: '/p/src/a.css', content: '' } }))).toEqual({
+      kind: 'step',
+      text: 'Editing /p/src/a.css',
+      file: '/p/src/a.css',
+    });
+    expect(gemini.parse(line({ type: 'tool_use', name: 'replace', args: { file_path: '/p/b.css' } }))).toEqual({ kind: 'step', text: 'Editing /p/b.css', file: '/p/b.css' });
+    expect(gemini.parse(line({ type: 'tool_use', tool_name: 'read_file', parameters: { absolute_path: '/p/c.css' } }))).toEqual({ kind: 'step', text: 'Reading /p/c.css' });
+    expect(gemini.parse(line({ type: 'tool_use', tool_name: 'grep_search', parameters: { pattern: '--mark' } }))).toEqual({ kind: 'step', text: 'Searching for --mark' });
+    expect(gemini.parse(line({ type: 'tool_use', tool_name: 'run_shell_command', parameters: { command: 'npm test' } }))).toEqual({ kind: 'step', text: 'Asked to run npm test' });
+    expect(gemini.parse(line({ type: 'message', role: 'assistant', content: 'Moved it.' }))).toEqual({ kind: 'done', summary: 'Moved it.' });
+    expect(gemini.parse(line({ type: 'result', status: 'success', stats: {} }))).toEqual({ kind: 'done', summary: undefined });
+    expect(gemini.parse(line({ type: 'result', status: 'error', error: { message: 'Please run /auth' } }))).toEqual({ kind: 'failed', error: 'Please run /auth' });
+    expect(gemini.parse(line({ type: 'error', severity: 'warning', message: 'slow' }))).toBe(null);
+    expect(gemini.parse(line({ type: 'tool_result', tool_id: 't1', status: 'success' }))).toBe(null);
+    expect(gemini.parse(line({ type: 'message', role: 'user', content: 'x' }))).toBe(null);
+  });
+});
+
+describe('in a terminal', () => {
+  it('starts each tool interactively on the brief file, in the project, quoted for a shell', () => {
+    expect(AGENTS.claude.terminal!('/Users/h/Library/Application Support/Claude/claude', '/Users/h/.codename/briefs/b.md', "/Users/h/it's")).toBe(
+      `cd '/Users/h/it'\\''s' && '/Users/h/Library/Application Support/Claude/claude' "$(cat '/Users/h/.codename/briefs/b.md')"`,
+    );
+    expect(AGENTS.gemini.terminal!('/opt/homebrew/bin/gemini', '/b.md', '/p')).toBe(`cd '/p' && '/opt/homebrew/bin/gemini' -i "$(cat '/b.md')"`);
+    expect(AGENTS.codex.terminal!('codex', '/b.md', '/p')).toBe(`cd '/p' && 'codex' "$(cat '/b.md')"`);
+    expect(AGENTS.cursor.terminal!('cursor-agent', '/b.md', '/p')).toBe(`cd '/p' && 'cursor-agent' "$(cat '/b.md')"`);
+    expect(customAgent('node x.mjs {prompt}').terminal).toBeUndefined();
+  });
+});
+
 describe('Cursor', () => {
   it('applies edits in print mode and says it can run commands', () => {
     const inv = AGENTS.cursor.invocation('cursor-agent', 'B');
@@ -130,6 +172,10 @@ describe('a custom command', () => {
 });
 
 describe('finding the tools', () => {
+  it('finds Gemini CLI by its name', () => {
+    expect(candidates('gemini', env())[0]).toBe('/usr/bin/gemini');
+  });
+
   it('looks on PATH first', () => {
     expect(locate('claude', env({ present: ['/usr/bin/claude', '/Users/h/.local/bin/claude'] }))).toBe('/usr/bin/claude');
   });

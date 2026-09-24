@@ -64,6 +64,8 @@ export interface AgentInfo {
   name: string;
   /** What it can be held to, in a sentence, for the consent row. */
   can: string;
+  /** Whether it can be started on the brief in a terminal instead. */
+  terminal?: boolean;
   /** Set when the bridge knows this copy is not signed in: what to say, and the command that fixes it. */
   signIn?: { text: string; command: string };
 }
@@ -292,7 +294,19 @@ export type PanelRequest =
   | { method: 'run_agent'; agent: string; brief: string; locks: string[]; mayRun: boolean }
   | { method: 'cancel_run' }
   /** The agents again, asked afresh: after the person signed one in, say. */
-  | { method: 'list_agents' };
+  | { method: 'list_agents' }
+  /**
+   * The same brief for the person's own terminal: the bridge writes it to a
+   * file and answers with the command that starts the agent on it there.
+   * Nothing runs; the person does, on their own plan and permissions.
+   */
+  | { method: 'terminal_command'; agent: string; brief: string; locks: string[] };
+
+/** A command to paste into a terminal, and the brief file it reads. */
+export interface TerminalCommand {
+  command: string;
+  file: string;
+}
 
 /** The stylesheet the app loads first, and how the bridge found it. */
 export interface EntryStylesheet {

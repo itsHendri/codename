@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { spawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
@@ -185,7 +188,7 @@ describe('Runs', () => {
   const ask = { method: 'run_agent' as const, agent: 'claude', brief: 'Apply this.', locks: [], mayRun: true };
 
   it('names the agents it can run', () => {
-    expect(setup().runs.info()).toEqual([{ id: 'claude', name: 'Claude Code', can: AGENTS.claude.can }]);
+    expect(setup().runs.info()).toEqual([{ id: 'claude', name: 'Claude Code', can: AGENTS.claude.can, terminal: true }]);
   });
 
   it('says before the first press when Claude Code is not signed in, with the command for the copy it found', () => {
@@ -224,6 +227,22 @@ describe('Runs', () => {
     const { runs, s } = setup(state);
     expect(() => runs.start('s', { ...ask, ...patch })).toThrow(error);
     expect(s.calls).toHaveLength(0);
+  });
+
+  it('writes the brief to a file for a terminal and answers with the command, running nothing', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codename-briefs-'));
+    const sessions = new Sessions();
+    const s = fakeSpawn();
+    const runs = new Runs({ cwd: '/p', sessions, agents: [claude], log: () => {}, spawnProcess: s.fn, briefsDir: dir });
+    const { command, file } = runs.terminal({ method: 'terminal_command', agent: 'claude', brief: 'Apply this.', locks: ['--mark'] });
+    expect(file.startsWith(dir)).toBe(true);
+    expect(readFileSync(file, 'utf8')).toBe(buildRunPrompt('Apply this.', ['--mark']));
+    expect(command).toBe(`cd '/p' && '/bin/claude' "$(cat '${file}')"`);
+    expect(runs.info()[0]?.terminal).toBe(true);
+    expect(s.calls).toHaveLength(0);
+    expect(() => runs.terminal({ method: 'terminal_command', agent: 'codex', brief: 'x', locks: [] })).toThrow(/not found/);
+    expect(() => runs.terminal({ method: 'terminal_command', agent: 'claude', brief: ' ', locks: [] })).toThrow(/no changes/);
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it('runs one at a time, sends each snapshot to the panel, and keeps the last', async () => {
