@@ -78,6 +78,8 @@ export interface TabSession {
   colorEdits: Record<string, string>;
   /** Page variables to keep as they are, whatever else moves. Per site, like the edits. */
   locks: string[];
+  /** Type styles a scale change leaves alone, by `form:selector`. Per site, like the locks. */
+  styleLocks: string[];
   /** A design token file to hold the page up against: its name and what was read out of it. */
   tokenFile: { name: string; tokens: FileToken[] } | null;
   pinned: PinnedElement | null;
@@ -151,6 +153,7 @@ const EMPTY: TabSession = {
   varOverrides: {},
   colorEdits: {},
   locks: [],
+  styleLocks: [],
   tokenFile: null,
   pinned: null,
   also: [],
@@ -174,7 +177,9 @@ const EMPTY: TabSession = {
 
 /** Tabs the panel no longer has, mapped to where their work went. */
 function migrateTab(tab: string | undefined): string {
-  return !tab || tab === 'layers' || tab === 'assets' ? 'style' : tab;
+  if (!tab || tab === 'layers' || tab === 'assets') return 'style';
+  if (tab === 'variables' || tab === 'export') return 'system';
+  return tab;
 }
 
 /**
@@ -295,6 +300,7 @@ export async function loadSession(id: number, url: string): Promise<void> {
         agentPreview: typeof stored.agentPreview === 'object' ? stored.agentPreview : null,
         agentLog: stored.agentLog ?? [],
         locks: stored.locks ?? [],
+        styleLocks: stored.styleLocks ?? [],
         // The tree and the assets moved into the rail; a session left on
         // either of those tabs opens on the selection now.
         activeTab: migrateTab(stored.activeTab),
@@ -582,6 +588,7 @@ async function reloadScope(url: string): Promise<void> {
     varOverrides: edits?.vars ?? {},
     colorEdits: edits?.colors ?? {},
     locks: edits?.locks ?? [],
+    styleLocks: edits?.styleLocks ?? [],
     ...allowed,
   });
 }
@@ -594,17 +601,17 @@ async function reloadScope(url: string): Promise<void> {
 export async function setScan(scan: ScanResult) {
   const edits = await loadEdits(keyFor(scan.url), originOf(scan.url)).catch(() => null);
   const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
-  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {}, locks: edits?.locks ?? [] });
+  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {}, locks: edits?.locks ?? [], styleLocks: edits?.styleLocks ?? [] });
 }
 
 /** Everything decided against this site, as the store keeps it. */
 function currentEdits(): { key: string; edits: BrandEdits } | null {
-  const { scan, config, varOverrides, colorEdits, locks } = state;
+  const { scan, config, varOverrides, colorEdits, locks, styleLocks } = state;
   if (!scan) return null;
   const seeded = seedBrandFromScan(scan);
   return {
     key: keyFor(scan.url),
-    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits, locks },
+    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits, locks, styleLocks },
   };
 }
 
@@ -653,6 +660,12 @@ export function clearAgentLog() {
 }
 
 /** Lock a page variable so nothing moves it, or let it go again. A locked variable's hand-set value is dropped. */
+/** Keep a type style out of a scale change, or let it back in. */
+export function setStyleLock(key: string, locked: boolean): void {
+  updateSession((s) => ({ styleLocks: locked ? Array.from(new Set([...s.styleLocks, key])) : s.styleLocks.filter((k) => k !== key) }));
+  scheduleSaveEdits();
+}
+
 export function setLock(name: string, locked: boolean) {
   updateSession((s) => {
     const locks = locked ? Array.from(new Set([...s.locks, name])) : s.locks.filter((n) => n !== name);

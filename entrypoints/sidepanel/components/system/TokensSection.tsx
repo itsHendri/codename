@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { CustomPropInfo, ScanResult } from '@/shared/types';
+import type { ColorInfo, CustomPropInfo, PropDefinition, ScanResult } from '@/shared/types';
 import type { Mode } from '@/studio/engine/types';
 import type { Override } from '@/studio/reskin';
 import { widthLabel } from '@/studio/siteMode';
@@ -8,6 +8,15 @@ import { SearchIcon, UndoIcon } from '../icons';
 import { ColorField } from '../inspect/ColorField';
 import { NumberField } from '../inspect/NumberField';
 import { TextInput } from '../inspect/TextInput';
+import { ObservedColoursSection } from './ObservedColoursSection';
+
+type Scope = PropDefinition['scope'];
+const SCOPES: { key: Scope; label: string; title: string }[] = [
+  { key: 'root', label: 'root', title: 'Defined at the root of the cascade: :root, html' },
+  { key: 'dark', label: 'dark', title: "Defined on the page's dark side: a dark media query or a hook like .dark" },
+  { key: 'width', label: 'width', title: 'Defined under a width media query' },
+  { key: 'scoped', label: 'scoped', title: 'Defined on a component selector' },
+];
 
 /** Rows past this fold behind "show all", per kind: a Tailwind page has hundreds. */
 const FOLD = 12;
@@ -21,60 +30,97 @@ const KIND_LABEL: Record<VarKind, string> = {
 };
 
 /**
- * The page's own variables, editable, and live.
+ * The page's own tokens, editable, and live: its variables under the names
+ * it gave them — `--ink`, `--paper`, `--mark` — read off its stylesheets,
+ * not a vocabulary invented for it, and below them the literals it paints
+ * with that no variable holds.
  *
- * These are the site's real names — `--ink`, `--paper`, `--mark` — read off
- * its stylesheets, not a vocabulary invented for it. Typing a value sets that
- * variable on the page's root and hands the agent one line: the name, what it
- * was, what it should be. Where a seed or a scale already moved a variable,
- * the row says so, and a value typed here wins over it.
+ * Typing a value sets that variable on the page's root and queues one line
+ * for the bridge or the agent: the name, what it was, what it should be.
+ * Where a seed or a scale already moved a variable, the row says so, and a
+ * value typed here wins over it. The scope chips narrow the list to the
+ * side of the page a variable is defined on; a variable defined on several
+ * sides shows under each.
  */
-export function PageVariablesSection({
+export function TokensSection({
   scan,
   engine,
+  colorMap,
   mode,
   varOverrides,
+  colorEdits,
   locks = [],
   onVar,
+  onColor,
   onLock,
 }: {
-  scan: Pick<ScanResult, 'customProps'>;
+  scan: Pick<ScanResult, 'customProps' | 'colors'>;
   /** What the engine would set each variable to, by name. */
   engine: Override[];
+  /** old hex → new hex, as the engine would paint the literals. */
+  colorMap: Record<string, string>;
   /** In dark, the engine's colour moves are the preview, and the chip says so. */
   mode: Mode;
   varOverrides: Record<string, string>;
+  colorEdits: Record<string, string>;
   /** Variables to keep as they are: nothing moves them, and the brief says so. */
   locks?: string[];
   onVar: (name: string, value: string | null) => void;
+  onColor: (hex: string, value: string | null) => void;
   onLock?: (name: string, locked: boolean) => void;
 }) {
   const [showAll, setShowAll] = useState<Set<VarKind>>(new Set());
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<Scope | null>(null);
   const needle = query.trim().toLowerCase();
+  const scoped = scan.customProps.some((p) => p.definitions?.length);
   // Hundreds of rows on a Tailwind page; classify them once per scan or query, not per keystroke.
   const groups = useMemo(
     () =>
       groupCustomProps(
-        needle
-          ? scan.customProps.filter((p) => p.name.toLowerCase().includes(needle) || p.value.toLowerCase().includes(needle))
-          : scan.customProps,
+        scan.customProps.filter(
+          (p) =>
+            (!needle || p.name.toLowerCase().includes(needle) || p.value.toLowerCase().includes(needle)) &&
+            (!scope || p.definitions?.some((d) => d.scope === scope)),
+        ),
       ),
-    [scan.customProps, needle],
+    [scan.customProps, needle, scope],
   );
   const byEngine = useMemo(() => new Map(engine.filter((o) => o.reason !== 'manual').map((o) => [o.name, o])), [engine]);
+  const literals = scan.colors.filter((c) => !c.varNames.length);
 
   if (!scan.customProps.length) {
     return (
-      <p className="text-xs text-ink-muted">
-        This page defines no CSS variables. Its colours are below; a scale change reaches it
-        through the rules that hold the literal.
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-ink-muted">
+          This page defines no CSS variables. Its colours are below; setting one rewrites the rules that hold the literal,
+          and Generate can give it a system to run on.
+        </p>
+        {scan.colors.length > 0 && (
+          <ObservedColoursSection colors={scan.colors} engine={colorMap} mode={mode} colorEdits={colorEdits} onColor={onColor} />
+        )}
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
+      {scoped && (
+        <div role="radiogroup" aria-label="Scope" className="flex flex-wrap gap-1">
+          {[{ key: null as Scope | null, label: 'all', title: 'Every variable the page defines' }, ...SCOPES].map((s) => (
+            <button
+              key={s.label}
+              role="radio"
+              aria-checked={scope === s.key}
+              onClick={() => setScope(s.key)}
+              title={s.title}
+              className={`h-5 rounded-control px-2 font-mono text-2xs ${scope === s.key ? 'bg-surface-thumb text-ink' : 'bg-surface-field text-ink-secondary hover:bg-surface-field-hover hover:text-ink'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
       {/* A Tailwind page defines hundreds; the one you want is a name away. */}
       {scan.customProps.length > FOLD && (
         <label className="field flex w-full items-center gap-1.5 px-2 text-ink-muted">
@@ -89,7 +135,7 @@ export function PageVariablesSection({
           />
         </label>
       )}
-      {needle && !groups.length && <p className="text-xs text-ink-muted">Nothing named or valued like that.</p>}
+      {(needle || scope) && !groups.length && <p className="text-xs text-ink-muted">Nothing named or valued like that{scope ? ` on the ${scope} side` : ''}.</p>}
       {groups.map(({ kind, props }) => {
         const open = showAll.has(kind) || !!needle;
         const shown = open ? props : props.slice(0, FOLD);
@@ -132,6 +178,18 @@ export function PageVariablesSection({
           </div>
         );
       })}
+      {/* Colours the page paints that no variable holds: the only handle on
+          them is the rules that hold the literal, and Generate's adoption plan. */}
+      {literals.length > 0 && !needle && !scope && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-baseline gap-2 text-2xs text-ink-muted">
+            <span className="font-medium">Literals</span>
+            <span className="truncate">colours no variable holds</span>
+            <span className="ml-auto font-mono">{literals.length}</span>
+          </div>
+          <ObservedColoursSection colors={literals} engine={colorMap} mode={mode} colorEdits={colorEdits} onColor={onColor} />
+        </div>
+      )}
     </div>
   );
 }

@@ -58,8 +58,8 @@ afterEach(async () => {
 });
 
 describe('the panel', () => {
-  it('opens on Style with the four tabs in order and the page read', () => {
-    expect(tabs()).toEqual(['style', 'variables', 'export', 'changes']);
+  it('opens on Style with the three tabs in order and the page read', () => {
+    expect(tabs()).toEqual(['style', 'system', 'changes']);
     expect(activeTab()).toBe('style');
     expect(host.querySelector('footer')?.textContent).toContain('6 colors');
     // Nothing picked yet: the tree is in the rail, not here.
@@ -120,11 +120,16 @@ describe('the panel', () => {
     await tick();
     expect(getSession().activeTab).toBe('style');
     expect(activeTab()).toBe('style');
+    // Variables and Export became System.
+    await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), activeTab: 'export' } }));
+    await act(async () => loadSession(1, 'http://localhost:5173/'));
+    await tick();
+    expect(getSession().activeTab).toBe('system');
   });
 
   it('shows a selection on Style, and an edit from the page reaches the badge', async () => {
-    await click(host.querySelector('#tab-export'));
-    expect(activeTab()).toBe('export');
+    await click(host.querySelector('#tab-system'));
+    expect(activeTab()).toBe('system');
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));
     await tick();
     expect(activeTab()).toBe('style');
@@ -140,7 +145,7 @@ describe('the panel', () => {
   });
 
   it('previews dark without putting it in the brief, and Reset takes it back', async () => {
-    await click(host.querySelector('#tab-variables'));
+    await click(host.querySelector('#tab-system'));
     expect(text()).toContain('read from this page');
     await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
     await tick(120);
@@ -198,7 +203,7 @@ describe('the panel', () => {
   });
 
   it('locks a page variable so nothing moves it', async () => {
-    await click(host.querySelector('#tab-variables'));
+    await click(host.querySelector('#tab-system'));
     expect(host.querySelector('input[aria-label="--mark value"]')).not.toBeNull();
     await click(host.querySelector('button[aria-label="Lock --mark"]'));
     await tick(60);
@@ -222,7 +227,7 @@ describe('the panel', () => {
   });
 
   it('lets a page variable be set by hand and lists it as a change', async () => {
-    await click(host.querySelector('#tab-variables'));
+    await click(host.querySelector('#tab-system'));
     const input = Array.from(host.querySelectorAll<HTMLInputElement>('input[aria-label="--mark value"]')).find((i) => i.type !== 'color')!;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
     await act(async () => {
@@ -729,14 +734,14 @@ describe('the Style column', () => {
 });
 
 describe('the Style tab with nothing picked', () => {
-  it('shows what the page is made of, and opens Variables from it', async () => {
+  it('shows what the page is made of, and opens System from it', async () => {
     expect(text()).toContain('Colours');
     expect(text()).toContain('--ink');
     expect(text()).toContain('Inter');
     expect(text()).toContain('radius');
     await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '--mark') ?? null);
     await tick();
-    expect(activeTab()).toBe('variables');
+    expect(activeTab()).toBe('system');
   });
 });
 

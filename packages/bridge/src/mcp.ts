@@ -97,7 +97,7 @@ export function createMcpServer(
           : [],
       }),
     }),
-    { title: 'Design system files', description: 'brand.md, tokens.css, tokens.json, SKILL.md and DESIGN_SYSTEM.md for the current page.' },
+    { title: 'Design system files', description: 'tokens.css and tokens.json (W3C DTCG) for the system the panel shows on the current page.' },
     async (uri, { file }) => {
       const name = String(file) as (typeof DESIGN_FILES)[number];
       if (!DESIGN_FILES.includes(name)) throw new McpError(ErrorCode.InvalidParams, `no such file: ${name}; one of ${DESIGN_FILES.join(', ')}`);
@@ -335,7 +335,7 @@ export function createMcpServer(
     'get_design_system',
     {
       description:
-        'The design system the panel read off the page, as files: brand.md (fonts, colours by usage, spacing, the page\'s own variables, and what a designer would flag), tokens.css, tokens.json (W3C DTCG), SKILL.md and DESIGN_SYSTEM.md. Write them into the repo as design context — for example `.claude/skills/<host>/SKILL.md` with DESIGN_SYSTEM.md beside it — and call again after the user rescans; `scannedAt` says when the page was read. Pass `files` to fetch only some.',
+        'The design system the panel shows for the page, as files: tokens.css (custom properties, light and dark, with a Tailwind v4 @theme block) and tokens.json (W3C DTCG, for Figma, Penpot, Tokens Studio and Style Dictionary). Write them into the repo as design context and call again after the user rescans; `scannedAt` says when the page was read. Pass `files` to fetch only some.',
       inputSchema: {
         session,
         files: z.array(z.enum(DESIGN_FILES)).optional().describe('Which files to return. Defaults to all of them.'),

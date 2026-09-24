@@ -38,7 +38,6 @@ import { buildExport } from '@/studio/export/bundle';
 import { driftReport, driftToText, parseTokenFile } from '@/studio/tokenFile';
 import { pendingNotes } from './comments';
 import type { DesignModel } from './designModel';
-import { ALL_SECTIONS, buildBrandMd } from './exporters';
 import { applyAgentPreview, captureVisible, clearAgentPreview, cropCapture, isElementProps, sendInspector, verifyVars } from './messaging';
 import { verifyWrites } from './verify';
 import {
@@ -125,8 +124,6 @@ let modelForRequests: DesignModel | null = null;
 
 /** The bundle's paths, by the short name an agent asks for. */
 const BUNDLE_PATHS: Partial<Record<DesignFile, string>> = {
-  'SKILL.md': 'skill/SKILL.md',
-  'DESIGN_SYSTEM.md': 'skill/references/DESIGN_SYSTEM.md',
   'tokens.css': 'tokens.css',
   'tokens.json': 'tokens.json',
 };
@@ -444,14 +441,7 @@ async function handle(req: BridgeRequest): Promise<unknown> {
       if (!session.scan) throw new Error('the page has not been read yet; ask the user to press Scan');
       const wanted = new Set<DesignFile>(req.files?.length ? req.files : DESIGN_FILES);
       const files: DesignSystemResult['files'] = [];
-      if (wanted.has('brand.md')) {
-        files.push({
-          path: 'brand.md',
-          content: buildBrandMd(session.scan, ALL_SECTIONS),
-          note: 'The page as read: fonts, colours by usage, spacing, variables, and what a designer would flag.',
-        });
-      }
-      // The same files the Export tab produces, from the system as the panel shows it.
+      // The same files System's Export produces, from the system as the panel shows it.
       const bundle = modelForRequests ? buildExport(modelForRequests.resolved) : [];
       for (const name of DESIGN_FILES) {
         const path = BUNDLE_PATHS[name];

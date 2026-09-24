@@ -38,7 +38,7 @@ export function StyleTab({
   mode,
   rail,
   onShowRail,
-  onOpenVariables,
+  onOpenSystem,
 }: {
   error: string | null;
   ctl: InspectController;
@@ -49,7 +49,7 @@ export function StyleTab({
   rail: boolean;
   onShowRail: () => void;
   /** The page's own styles, shown when nothing is picked, are edited there. */
-  onOpenVariables: () => void;
+  onOpenSystem: () => void;
 }) {
   const el = ctl.element;
   // A variable the person chose to edit from a pill: its own field, above
@@ -103,7 +103,7 @@ export function StyleTab({
           </button>
         )}
         {error && <p className="text-xs text-warn-ink">{error}</p>}
-        {scan && <PageStyles scan={scan} onOpenVariables={onOpenVariables} />}
+        {scan && <PageStyles scan={scan} onOpenSystem={onOpenSystem} />}
       </div>
     );
   }

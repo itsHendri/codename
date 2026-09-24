@@ -40,30 +40,28 @@ import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import { ChangesIcon, DesignIcon, ExportIcon, InspectIcon } from './components/icons';
+import { ChangesIcon, DesignIcon, InspectIcon } from './components/icons';
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
 import { StyleTab } from './components/StyleTab';
 import { TabStrip } from './components/TabStrip';
 import { ChangesTab } from './components/ChangesTab';
-import { VariablesTab } from './components/VariablesTab';
-import { ExportTab } from './components/ExportTab';
+import { SystemTab } from './components/SystemTab';
 import type { LayerNode } from '@/studio/layers';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'style' | 'variables' | 'export' | 'changes';
+type TabKey = 'style' | 'system' | 'changes';
 
 /**
- * Four tabs, in the order you use them: the styles of what you picked, the
- * variables the page runs on, the exports — and last, what you have changed,
- * which is where the hand-off lives. The layers and the assets are not here:
- * they stand in the page, in the rail on its left, where a design tool keeps
- * its tree. Resize is not a view either; it sits on the bar across the page.
+ * Three tabs, in the order you use them: the styles of what you picked, the
+ * system the page runs on (with its exports inside), and last, what you have
+ * changed, which is where the hand-off lives. The layers and the assets are
+ * not here: they stand in the page, in the rail on its left, where a design
+ * tool keeps its tree. Resize is not a view either; it sits on the bar.
  */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'style', label: 'Style', Icon: InspectIcon },
-  { key: 'variables', label: 'Variables', Icon: DesignIcon },
-  { key: 'export', label: 'Export', Icon: ExportIcon },
+  { key: 'system', label: 'System', Icon: DesignIcon },
   { key: 'changes', label: 'Changes', Icon: ChangesIcon },
 ];
 
@@ -86,7 +84,7 @@ export default function App() {
   const tabIdRef = useRef<number | null>(null);
   const { resolved: theme } = useTheme();
 
-  // The session outlives whichever tab is showing: an edit made in Variables is
+  // The session outlives whichever tab is showing: an edit made in System is
   // still there, and still painted on the page, after a detour through Layers.
   const { scan, config, mode, live, varOverrides, colorEdits, darkVia, locks } = session;
   // The engine mirrors its ramps only when the page has no dark mode of its
@@ -518,7 +516,7 @@ export default function App() {
   })();
 
   // Selecting, editing and noting all work before a scan; the rest reads it.
-  const needsScan = active === 'variables' || active === 'export';
+  const needsScan = active === 'system';
   let content: React.ReactNode;
   if (restricted && needsScan) {
     content = <RestrictedState url={tabUrl} onOpenLayers={() => setActive('style')} />;
@@ -538,7 +536,7 @@ export default function App() {
             mode={mode}
             rail={railOn}
             onShowRail={() => updateSession({ rail: true })}
-            onOpenVariables={() => setActive('variables')}
+            onOpenSystem={() => setActive('system')}
           />
         );
         break;
@@ -547,17 +545,19 @@ export default function App() {
           <ChangesTab set={changeSet} ctl={ctl} />
         );
         break;
-      case 'variables':
+      case 'system':
         content = (
-          <VariablesTab
+          <SystemTab
             scan={scan!}
             model={model!}
+            ctl={ctl}
             mode={mode}
             live={live}
             reskin={reskin}
             darkVia={darkVia}
             varOverrides={varOverrides}
             colorEdits={colorEdits}
+            hostname={hostname}
             onConfigChange={setConfig}
             onResetAll={resetAll}
             onVar={setVarOverride}
@@ -566,9 +566,6 @@ export default function App() {
             onLock={setLock}
           />
         );
-        break;
-      case 'export':
-        content = <ExportTab scan={scan!} hostname={hostname} resolved={model?.resolved ?? null} />;
         break;
     }
   }
