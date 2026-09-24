@@ -11,9 +11,12 @@ import {
   runScan,
   sendInspector,
   sendRail,
+  sendSpecimen,
+  specimenHtml,
   setSiteMode,
   type BarLook,
 } from './lib/messaging';
+import { buildSpecimenSpec } from '@/studio/specimen/spec';
 import {
   flushSession,
   getSession,
@@ -167,6 +170,7 @@ export default function App() {
     darkVia,
     agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
     rail: session.rail,
+    specimen: session.specimen,
     scheme: mode === 'dark' ? 'dark' : session.lightForced ? 'light' : 'system',
   };
   lookRef.current = look;
@@ -354,6 +358,8 @@ export default function App() {
       } else if (msg?.type === 'rail-toggled') {
         // Layers on the bar, or Alt+L: the session is the truth, the bar echoes it.
         updateSession({ rail: Boolean((msg as { on?: boolean }).on) });
+      } else if (msg?.type === 'specimen-toggled') {
+        updateSession({ specimen: Boolean((msg as { on?: boolean }).on), pinned: null, also: [] });
       } else if (msg?.type === 'rail-move') {
         // A drag in the rail is an element edit, filed here with the rest.
         const m = msg as unknown as { node: LayerNode; parent: LayerNode; before: LayerNode | null; wasIn: LayerNode; wasBefore: LayerNode | null };
@@ -415,10 +421,19 @@ export default function App() {
   const agentRules = session.agentPreview?.rules ?? null;
   const agentMatched = session.agentPreview?.matched ?? null;
   const railOn = session.rail;
+  const specimenOn = session.specimen;
   const lightForced = session.lightForced;
   useEffect(() => {
     if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
-  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn, lightForced]);
+  }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn, specimenOn, lightForced]);
+
+  // The specimen, over the page: built from the scan and the links, sent
+  // whenever they change while it is up, and again after a reload.
+  const specimenSpec = useMemo(() => (scan && specimenOn ? buildSpecimenSpec(scan, model?.links ?? {}) : null), [scan, specimenOn, model?.links]);
+  useEffect(() => {
+    if (tabId == null || !scan || restricted) return;
+    void sendSpecimen(tabId, specimenSpec ? { cmd: 'specimen', on: true, spec: specimenSpec, theme } : { cmd: 'specimen', on: false });
+  }, [tabId, scan, restricted, specimenSpec, theme, session.generation]);
 
   // The rail, beside the page: shown wherever the bar is, folded when the
   // person folds it, told again after a reload like every other managed
@@ -562,6 +577,7 @@ export default function App() {
             varOverrides={varOverrides}
             colorEdits={colorEdits}
             hostname={hostname}
+            specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
             onConfigChange={setConfig}
             onResetAll={resetAll}
             onVar={setVarOverride}

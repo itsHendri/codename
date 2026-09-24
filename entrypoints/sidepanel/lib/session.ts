@@ -73,6 +73,8 @@ export interface TabSession {
   activeTab: string;
   /** Whether the layers rail is showing in the page. On until someone folds it. */
   rail: boolean;
+  /** Whether the specimen — the page's own styles page — is showing over the page. */
+  specimen: boolean;
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
   /** The page's own variables set by hand on its dark side: name → value. */
@@ -155,6 +157,7 @@ const EMPTY: TabSession = {
   live: true,
   activeTab: 'style',
   rail: true,
+  specimen: false,
   varOverrides: {},
   darkVarOverrides: {},
   links: {},

@@ -1,5 +1,6 @@
 import type { CommentTarget, Pin } from '@/studio/annotations';
 import type { ComponentOrigin } from '@/studio/framework';
+import type { SpecimenSpec } from '@/studio/specimen/spec';
 import type { OverlayTheme } from './theme';
 import type { Mode } from '@/studio/engine/types';
 import type { LayerNode } from '@/studio/layers';
@@ -401,6 +402,8 @@ export type InspectorCommand =
       agent?: AgentPresence | null;
       /** Whether the layers rail is showing, so the bar's toggle sits right. */
       rail?: boolean;
+      /** Whether the specimen is showing over the page, so the bar's Styles switch sits right. */
+      specimen?: boolean;
       /** Which side of the page's theme is forced, or neither: how the Light/Dark switch sits. */
       scheme?: 'light' | 'dark' | 'system';
     }
@@ -456,6 +459,14 @@ export interface AgentPresence {
  * the left; it talks to the inspector in the page directly, and to the panel
  * only for what belongs in the change log.
  */
+/** Panel → specimen script. */
+export type SpecimenCommand =
+  /** Show the styles page over the page (or take it away), built from this spec, in the panel's palette. */
+  | { cmd: 'specimen'; on: boolean; spec?: SpecimenSpec; theme?: OverlayTheme }
+  /** The specimen as a standalone page, for saving. */
+  | { cmd: 'html' }
+  | { cmd: 'off' };
+
 export type RailCommand =
   /** Show or hide the rail. `theme` is the panel's palette. */
   | { cmd: 'rail'; on: boolean; theme?: OverlayTheme }
@@ -488,6 +499,8 @@ export type RuntimeMessage =
   | { type: 'reset-all' }
   /** Layers on the bar, or Alt+L: show or hide the rail. */
   | { type: 'rail-toggled'; on: boolean }
+  /** Styles on the bar: show the specimen over the page, or the page again. */
+  | { type: 'specimen-toggled'; on: boolean }
   /** A row dragged in the rail: an element edit, so it lands in the log like any other. */
   | {
       type: 'rail-move';
@@ -525,6 +538,7 @@ export const MANAGED_SHEET_IDS = [
   'codename-agent-marks',
   'codename-state',
   'codename-frame',
+  'codename-specimen',
 ] as const;
 
 /** Whether a stylesheet is one of ours. */

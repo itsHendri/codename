@@ -30,6 +30,14 @@ export const SELECTED_EVENT = 'codename:selected';
 /** The rail's host element, which the inspector's window listeners must leave alone. */
 export const RAIL_TAG = 'codename-rail';
 
+/** The specimen's host: the styles page drawn in the page's own document. */
+export const SPECIMEN_TAG = 'codename-specimen';
+/** A label inside the specimen, in its own shadow root: chrome, not the page. */
+export const SPECIMEN_LABEL_TAG = 'codename-specimen-label';
+/** On specimen content: the selector or utility it stands for, so a selection files against the page's own rule. */
+export const SPECIMEN_FOR = 'data-codename-for';
+export const SPECIMEN_MATCHES = 'data-codename-matches';
+
 /** Ask the inspector, from another script in the same page. Null when it is not there. */
 export async function callInspector<T = unknown>(cmd: InspectorCommand): Promise<T | null> {
   const inspector = window.__codenameInspector;
