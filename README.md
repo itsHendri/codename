@@ -250,20 +250,36 @@ brief goes.
 
 You can still **Copy** the brief or download it as JSON.
 
-### Applying one yourself
+### Writing token values yourself
 
-A token change that has exactly one definition, at the root of the cascade, in
-a stylesheet — no media query, no scoped selector, no token file — carries an
-**Apply** button once you have ticked *Bridge may edit definitions* for the
-project. It writes that one value, keeping everything else on the line, and
-the token leaves the brief with a note that it is already in source.
+A token change carries a **Write** button once you have ticked *Bridge may
+edit definitions* for the project. The bridge writes the value into the
+definition the side of the page you edited reads: a light value into the root
+of the cascade (`:root`, `html`, a Tailwind `@theme` block), a dark value into
+the page's dark blocks, however many ways the page spells them
+(`@media (prefers-color-scheme: dark)` and `[data-theme='dark']` both, when
+they agree). It replaces the value text and nothing else — indentation,
+spacing and `!important` are the file's business. A width override or a
+component scope is never written by a token edit; the row names it, and it
+stays for you or the agent. **Write all** does every writable token in one
+request.
+
+Then the panel holds the page to it. Your override stays on while the page is
+asked, a few times over five seconds, what its own stylesheets now say; once
+the page paints the new value on its own, the override comes off and the row
+under **Written** says so. If the page still shows the old value — a dev
+server without hot reload — the row says to reload, or **Revert**. If the page
+then paints something else, another definition won the cascade once the file
+changed; the write is put back at once, and the row and the brief say what
+the page painted, so the agent looks for the definition that wins.
 
 This is the only thing written to source without an agent, and it is narrow
 on purpose. A change like `--mark: #BE3A22 → #1C7F5C` has nothing left to
 decide, and sending it through a language model buys a round trip and a chance
-to get it wrong. Everything with a judgement in it — several definitions,
-usages, components, a value that has moved since it was read — is refused with
-the reason and stays in the brief, for Make changes.
+to get it wrong. Everything with a judgement in it — definitions that
+disagree, usages, components, a value computed from others, a value that has
+moved since it was read — is refused with the reason and stays in the brief,
+for Make changes.
 
 ### Connect your project
 
@@ -342,9 +358,12 @@ its own design context into your repository and refresh it after a rescan),
 `check_tokens` (the page against a token file, named by a path in your project
 for the bridge to read, or passed as text),
 `find_definition` (where a custom property is defined in the project, with the
-file, line, value and whether it sits at the root of the cascade, under a
-media query or in a scoped selector) and `apply_definition` (the same single
-write the Apply button makes, under the same switch),
+file, line, value, selector, media conditions, and whether it sits at the
+root of the cascade, under a media query or in a scoped selector),
+`write_tokens` (the same scope-aware writes the Write button makes, under the
+same switch: light values into the root, dark values into the dark blocks,
+nothing inserted) and `apply_definition` (one value into one root
+definition),
 `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
 the page is framed at that width first — the window does not move — so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
@@ -356,7 +375,7 @@ preview · N rules · M elements** chip with its own ✕, every element its rule
 reach carries a dashed outline, and the Changes tab shows the same row above
 the queue — never in it, since a preview is not a decision. Nothing is
 written to source through the bridge; that stays the agent's job in your
-repository, under your review — apart from the one definition you apply
+repository, under your review — apart from the token values you write
 yourself, described above. See `PRIVACY.md`.
 
 When an element edit writes a literal and exactly one of the page's own

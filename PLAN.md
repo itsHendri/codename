@@ -254,6 +254,31 @@ is that companion growing up.
   grids, the row under the pointer then left to right; down otherwise), the
   drop sent as the rail's `rail-move` so the panel files and undoes it the
   same way. Esc cancels a drag. Moving into another container is deferred.
+- **W40, 24 September 2026 — token values written by the bridge, held to the
+  page.** The first workstream of the System environment (research and plan
+  in `docs/research/2026-09-24-*.md`). The one-definition Apply became
+  `write_tokens`: a batch, each edit written into every definition of the
+  scope it was edited under — light into `:root`/`html`/`@theme`, dark into
+  the page's dark blocks in however many spellings agree (forfontsake keeps
+  both a media block and a `[data-theme='dark']` hook) — and never into a
+  width query or a component scope, which are reported as left. Definitions
+  that disagree, a value computed from others (unless the edit says
+  `flatten`), a value that moved since it was read, a token file: refused
+  with the reason, per token. The scope rules are shared (`studio/
+  writeScope.ts`), so the panel offers Write exactly where the bridge would
+  not refuse. Replacement stays an offset splice from a fresh read; nothing
+  is inserted or reprinted. Then the panel verifies: the override stays on
+  while the reskin script reads the page's own value with the override lifted
+  (`reskin-verify`, re-hoisting a forced theme first), on a schedule to five
+  seconds; the new value takes the override off, the old value says reload
+  or Revert, another value means the cascade chose a different definition,
+  so the write is put back at once and the brief says what the page painted.
+  The Changes tab is Written (with the page's verdict and Revert) above
+  Handed to the agent, with Write all. `apply_definition` stays for one
+  value in one root definition. Declined for now: postcss insertion of a
+  missing dark definition (W43/W45 need it and will bring the dependency),
+  dark-side edits from the panel (the handoff is light until W43's dark
+  column), a CDP read of the winning rule.
 
 ## Live re-skin
 
@@ -720,7 +745,8 @@ step below worth building rather than just the lookup.
   candidates when several do, and nothing at all when there are none — and
   the closing note stops telling the agent to go and find what it has just
   been handed.
-- **It writes exactly one thing.** A token change with a single root-level
+- **It writes exactly one thing** (widened in W40 to every definition of the
+  scope the value was edited under; see W40 below). A token change with a single root-level
   definition, alone on its line, in a stylesheet rather than a token file,
   still holding the value it was read with, carries an **Apply** button once
   the person ticks *Bridge may edit definitions* for that project. It

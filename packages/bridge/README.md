@@ -70,9 +70,12 @@ that one.
 ## What the bridge may do
 
 It reads the files in the folder it runs in to find where a variable is
-defined. It writes exactly one kind of change itself: the value of a single,
-unambiguous root-level variable definition, and only after you turn that on for
-the project in the panel. It never touches git.
+defined. It writes exactly one kind of change itself: the value of a variable
+definition, in the scope the value was edited under — a light value into the
+root of the cascade or a Tailwind `@theme`, a dark value into the page's dark
+blocks — and only after you turn that on for the project in the panel. It
+replaces the value and nothing else: no insertion, no reformatting, never a
+width override or a component scope, never a token file. It never touches git.
 
 Make changes runs an agent in that folder, and only after you allowed that
 agent for the project in the panel. The agent edits source; the bridge starts

@@ -43,8 +43,13 @@ export interface TokenChange {
    * whole project, so what it found is not everything there is.
    */
   definedAtPartial?: boolean;
-  /** Set when the person applied this definition to source themselves. */
-  applied?: { file: string; line: number };
+  /**
+   * Set when the person wrote this definition to source from the panel, with
+   * what the page said about it: seen to paint it (`ok`, or absent), not yet
+   * seen (`pending`, `silent`, `unchecked`), or painting something else, so
+   * the write was put back (`contradicted`, with what it read).
+   */
+  applied?: { file: string; line: number; verified?: 'pending' | 'ok' | 'silent' | 'contradicted' | 'unchecked'; seen?: string };
   /** Where the browser loaded the defining stylesheet. A hint, not a fact. */
   source?: string;
   /** Declarations referencing this token. */
@@ -199,7 +204,7 @@ export function buildChangeSet(
     definitions?: Record<string, Definition[]>;
     /** The search behind `definitions` stopped early; what it found is not everything. */
     definitionsTruncated?: boolean;
-    applied?: { name: string; file: string; line: number; value: string }[];
+    applied?: { name: string; file: string; line: number; value: string; verified?: NonNullable<TokenChange['applied']>['verified']; seen?: string }[];
   } = {},
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
@@ -221,7 +226,16 @@ export function buildChangeSet(
       uses: prop?.uses,
       reason: o.reason,
       ...(definedAt?.length ? { definedAt, ...(repo.definitionsTruncated ? { definedAtPartial: true } : {}) } : {}),
-      ...(applied ? { applied: { file: applied.file, line: applied.line } } : {}),
+      ...(applied
+        ? {
+            applied: {
+              file: applied.file,
+              line: applied.line,
+              ...(applied.verified ? { verified: applied.verified } : {}),
+              ...(applied.seen ? { seen: applied.seen } : {}),
+            },
+          }
+        : {}),
       ...(alsoAt.length ? { alsoAt } : {}),
       ...(prop?.onlyAt ? { onlyAt: prop.onlyAt } : {}),
     };
@@ -331,7 +345,19 @@ const asksForMotion = (e: ElementEdit): boolean => {
  * whole file exists to avoid. None says nothing at all.
  */
 export function describeDefinitions(t: TokenChange): string | null {
-  if (t.applied) return `already applied in ${t.applied.file}:${t.applied.line} — do not write this one again`;
+  if (t.applied) {
+    const at = `${t.applied.file}:${t.applied.line}`;
+    switch (t.applied.verified) {
+      case 'contradicted':
+        return `written to ${at} and put back, because the page then painted \`${t.applied.seen ?? 'something else'}\`: another definition wins the cascade there — find it before editing`;
+      case 'pending':
+      case 'silent':
+      case 'unchecked':
+        return `already written to ${at}, though the page has not been seen to paint it yet — do not write it again; if it still shows the old value after a reload, say so`;
+      default:
+        return `already applied in ${at} — do not write this one again`;
+    }
+  }
   const found = t.definedAt ?? [];
   if (!found.length) return null;
   const at = (d: Definition) => `${d.file}${d.line ? `:${d.line}` : ''}`;

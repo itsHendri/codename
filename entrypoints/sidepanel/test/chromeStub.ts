@@ -74,6 +74,8 @@ export interface StubChrome {
   reloaded: number[];
   /** What the page answers `colours` with. */
   colours: unknown[];
+  /** What the page's own sheets say each variable is, for a verify read. */
+  pageVars: Record<string, string>;
 }
 
 export function installChrome(): StubChrome {
@@ -82,7 +84,7 @@ export function installChrome(): StubChrome {
   const local: Record<string, unknown> = {};
   const sync: Record<string, unknown> = {};
   const sent: StubChrome['sent'] = [];
-  const stub: StubChrome = { sent, current: null, emit: () => {}, reloaded: [], colours: [] };
+  const stub: StubChrome = { sent, current: null, emit: () => {}, reloaded: [], colours: [], pageVars: {} };
 
   const area = (store: Record<string, unknown>) => ({
     get: async (k: string | string[] | undefined) => {
@@ -120,6 +122,10 @@ export function installChrome(): StubChrome {
           return { ok: true, vars: overrides.length, rules: Object.keys((msg.colorMap as object) ?? {}).length };
         }
         if (msg?.type === 'site-mode') return { ok: true, vars: 0, rules: 0, hooks: [] };
+        if (msg?.type === 'reskin-verify') {
+          const names = (msg.names as string[]) ?? [];
+          return { ok: true, vars: 0, rules: 0, values: Object.fromEntries(names.map((n) => [n, stub.pageVars[n] ?? ''])) };
+        }
         if (msg?.type === 'state-set') {
           // A page that styles its heading on hover, so the panel has
           // something to show under the condition bar.

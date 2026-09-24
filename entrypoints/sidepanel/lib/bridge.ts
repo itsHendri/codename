@@ -18,7 +18,6 @@ import {
   DESIGN_FILES,
   PROTOCOL_VERSION,
   type AgentInfo,
-  type AppliedDefinition,
   type BridgeRequest,
   type DefinitionsPayload,
   type DesignFile,
@@ -29,6 +28,8 @@ import {
   type ProjectInfo,
   type RunSnapshot,
   type SessionState,
+  type TokenEdit,
+  type WriteResult,
 } from '@/shared/protocol';
 import { isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
 import type { ChangeSet } from '@/studio/commit';
@@ -38,11 +39,14 @@ import { driftReport, driftToText, parseTokenFile } from '@/studio/tokenFile';
 import { pendingNotes } from './comments';
 import type { DesignModel } from './designModel';
 import { ALL_SECTIONS, buildBrandMd } from './exporters';
-import { applyAgentPreview, captureVisible, clearAgentPreview, cropCapture, isElementProps, sendInspector } from './messaging';
+import { applyAgentPreview, captureVisible, clearAgentPreview, cropCapture, isElementProps, sendInspector, verifyVars } from './messaging';
+import { verifyWrites } from './verify';
 import {
   addReply,
   getSession,
   logAgent,
+  markVerified,
+  markWritten,
   setCommentStatus,
   setProjectScope,
   updateSession,
@@ -564,22 +568,84 @@ function ask<T>(payload: PanelRequest): Promise<T> {
 }
 
 /**
- * Writes one variable definition in source, through the bridge.
+ * Writes token values into their definitions in source, through the bridge.
  *
- * The only write that does not go through the agent, and the narrowest one
- * there is: the bridge refuses anything it cannot be certain of, and the
- * reason comes back as the error.
+ * The one kind of write that does not go through the agent. The bridge
+ * writes each value into every definition of the scope it was edited under
+ * and refuses, per token and with the reason, anything it cannot be certain
+ * of; nothing is inserted or reformatted.
  */
-export async function applyDefinition(edit: {
-  name: string;
-  from: string;
-  to: string;
-  file: string;
-  line: number;
-}): Promise<AppliedDefinition> {
-  const applied = await ask<AppliedDefinition>({ method: 'apply_definition', ...edit });
-  logAgent(`${applied.name} applied in ${applied.file}:${applied.line}`);
-  return applied;
+export async function writeTokens(edits: TokenEdit[]): Promise<WriteResult> {
+  const result = await ask<WriteResult>({ method: 'write_tokens', edits });
+  for (const w of result.written) logAgent(`${w.name} written in ${w.file}:${w.line}`);
+  return result;
+}
+
+/** The same write the other way round, logged as what it is. */
+export async function revertTokens(edits: TokenEdit[]): Promise<WriteResult> {
+  const result = await ask<WriteResult>({ method: 'write_tokens', edits });
+  for (const w of result.written) logAgent(`${w.name} put back to ${w.to} in ${w.file}:${w.line}`);
+  return result;
+}
+
+/** What the page's own sheets say these variables are, override lifted; null when no page can be asked. */
+export async function readPageVars(names: string[]): Promise<Record<string, string> | null> {
+  if (tabIdForRequests == null) return null;
+  const result = await verifyVars(tabIdForRequests, names).catch(() => null);
+  return result?.values ?? null;
+}
+
+/**
+ * Write, then hold the page to it.
+ *
+ * The bridge says what it wrote; the page says whether it paints it. Each
+ * written value is kept as an override until the page is seen to paint it
+ * on its own, then the override comes off. A value the page never picks up
+ * stays written and stays overridden, and the row says to reload. A value
+ * the page answers with something else for is put back at once: another
+ * definition won the cascade, and that is a fact to show, not a change to
+ * keep. A value edited under the side of the theme the page is not showing
+ * is written and marked unchecked; the page cannot vouch for it.
+ */
+export async function writeAndVerify(edits: TokenEdit[]): Promise<WriteResult> {
+  const result = await writeTokens(edits);
+  if (!result.written.length) return result;
+  const modeOf = new Map(edits.map((e) => [e.name, e.mode ?? 'light']));
+  const showing = getSession().mode === 'dark' ? 'dark' : 'light';
+  const checkable = result.written.filter((w) => modeOf.get(w.name) === showing);
+  markWritten(
+    result.written.map((w) => ({
+      name: w.name,
+      file: w.file,
+      line: w.line,
+      value: w.to,
+      from: w.from,
+      scope: w.scope,
+      verified: checkable.includes(w) ? ('pending' as const) : ('unchecked' as const),
+    })),
+  );
+  if (!checkable.length) return result;
+  const byName = new Map<string, { name: string; from: string; to: string }>();
+  for (const w of checkable) byName.set(w.name, { name: w.name, from: w.from, to: w.to });
+  const reports = await verifyWrites([...byName.values()], readPageVars);
+  for (const r of reports) {
+    if (r.outcome === 'ok') {
+      markVerified(r.name, 'ok');
+      continue;
+    }
+    if (r.outcome === 'contradicted') {
+      const back = checkable.filter((w) => w.name === r.name).map((w) => ({ name: w.name, from: w.to, to: w.from, mode: modeOf.get(w.name) }));
+      logAgent(`${r.name}: the page painted ${r.seen ?? 'something else'} after the write, so it goes back`);
+      await revertTokens(back).catch(() => null);
+      markVerified(r.name, 'contradicted', r.seen ?? undefined);
+      continue;
+    }
+    markVerified(r.name, 'silent', r.seen ?? undefined);
+  }
+  // Source now paints what the overrides were painting, so what the panel
+  // shows about the selection — and the `from` of the next edit — is stale.
+  if (reports.some((r) => r.outcome === 'ok')) void rereadSelection();
+  return result;
 }
 
 /**

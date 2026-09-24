@@ -65,6 +65,8 @@ interface ApplyMessage {
   state?: StateName | null;
   /** For `state-set`: the element being held, so only its rules are hoisted. */
   selector?: string;
+  /** For `reskin-verify`: the variables to read off the page as it stands. */
+  names?: string[];
 }
 
 declare global {
@@ -134,6 +136,8 @@ export default defineContentScript({
     let elements: HTMLStyleElement | null = null;
     let stateStyle: HTMLStyleElement | null = null;
     let siteDark: HTMLStyleElement | null = null;
+    /** The side of the page's own theme held right now, or none. */
+    let forced: Scheme | null = null;
     let appliedHooks: DarkHook[] = [];
     let savedColorScheme: string | null = null;
     /**
@@ -293,6 +297,7 @@ export default defineContentScript({
       const run = ++modeRun;
       if (mode === 'system') {
         clearSiteDark();
+        forced = null;
         return { rules: 0, hooks: [] };
       }
       const scheme: Scheme = mode;
@@ -334,6 +339,7 @@ export default defineContentScript({
       // Form controls and scrollbars follow too.
       savedColorScheme = root.style.colorScheme;
       root.style.colorScheme = scheme;
+      forced = scheme;
       return { rules: out.length, hooks: Array.from(hooks.keys()) };
     };
 
@@ -494,6 +500,8 @@ export default defineContentScript({
         preview?: PreviewInfo;
         /** For `state-set`: the page's own rules for that state, as facts. */
         cascade?: HoistedRule[];
+        /** For `reskin-verify`: what the page's own sheets say each variable is. */
+        values?: Record<string, string>;
         error?: string;
       }) => void,
     ) => {
@@ -515,6 +523,29 @@ export default defineContentScript({
       if (msg?.type === 'reskin-clear') {
         clear();
         sendResponse({ ok: true, vars: 0, rules: 0 });
+        return true;
+      }
+      if (msg?.type === 'reskin-verify') {
+        // What the page's own stylesheets say each variable is, with the
+        // panel's override lifted for the one read and put straight back —
+        // no paint happens in between. This is how a write to source is
+        // checked: the dev server reloads the sheet, and the page either
+        // reads the new value or it does not. A forced side of the theme is
+        // a copy taken when it was forced, so it is taken again first, or
+        // the copy would still say what the file used to.
+        const fresh = forced ? setSiteMode(forced) : Promise.resolve(null);
+        fresh
+          .then(() => {
+            const values: Record<string, string> = {};
+            for (const name of msg.names ?? []) {
+              const held = applied.get(name);
+              if (held !== undefined) root.style.removeProperty(name);
+              values[name] = getComputedStyle(root).getPropertyValue(name).trim();
+              if (held !== undefined) root.style.setProperty(name, held);
+            }
+            sendResponse({ ok: true, vars: applied.size, rules: 0, values });
+          })
+          .catch(failed);
         return true;
       }
       if (msg?.type === 'reskin-preview') {

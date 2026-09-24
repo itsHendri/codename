@@ -361,6 +361,20 @@ describe('what the bridge found in the repository', () => {
     expect(toPrompt(set)).toContain('defined at src/index.css:12');
   });
 
+  it('tells the agent a write the page has not yet been seen to paint is still a write', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C', verified: 'silent' }],
+    });
+    expect(toPrompt(set)).toContain('already written to src/index.css:12, though the page has not been seen to paint it yet');
+  });
+
+  it('tells the agent about a write that was put back, and what the page painted', () => {
+    const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
+      applied: [{ name: '--mark', file: 'src/index.css', line: 12, value: '#1C7F5C', verified: 'contradicted', seen: '#000000' }],
+    });
+    expect(toPrompt(set)).toContain('written to src/index.css:12 and put back, because the page then painted `#000000`');
+  });
+
   it('tells the agent not to write a definition the person already applied', () => {
     const set = buildChangeSet(scan, [override], {}, [], [], [], [], {
       definitions: { '--mark': [at('src/index.css', 12)] },

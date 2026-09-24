@@ -248,7 +248,9 @@ describe('the project the bridge is running in', () => {
   const ack = (project: { name: string; path: string; branch?: string; dirty?: boolean } | null) =>
     handleBridgeFrame({ v: 1, id: 'a', type: 'response', replyTo: 'h', ok: true, payload: { bridgeVersion: '0.1.0', ...(project ? { project } : {}) } });
 
-  const definitions = (found: Record<string, { file: string; line: number; kind: 'css'; context: 'root' | 'media'; value: string }[]>) =>
+  const definitions = (
+    found: Record<string, { file: string; line: number; kind: 'css'; context: 'root' | 'media'; selector?: string; media?: string[]; value: string }[]>,
+  ) =>
     handleBridgeFrame({ v: 1, id: 'd', type: 'definitions', payload: { found } });
 
   /** A token edit in the queue, so Changes has something to show. */
@@ -307,7 +309,7 @@ describe('the project the bridge is running in', () => {
     expect(getSession().varOverrides).toEqual({ '--ink': '#222222', '--mark': '#1C7F5C' });
   });
 
-  it('offers no Apply on a page that is not served locally, whatever was allowed', async () => {
+  it('offers no Write on a page that is not served locally, whatever was allowed', async () => {
     await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
     await editAToken();
     await act(async () => allow('bridgeMayWrite', true));
@@ -320,7 +322,7 @@ describe('the project the bridge is running in', () => {
     // The row is there, with its position — only the write is withheld.
     expect(text()).toContain('src/index.css:2');
     expect(getSession().bridgeMayWrite).toBe(true);
-    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Write')).toBe(false);
   });
 
   it('says nothing about a project while no bridge is paired', async () => {
@@ -330,7 +332,7 @@ describe('the project the bridge is running in', () => {
     expect(text()).not.toContain('Bridge may edit definitions');
   });
 
-  it('shows where a token is defined, and offers Apply only once the project allows it', async () => {
+  it('shows where a token is defined, and offers Write only once the project allows it', async () => {
     await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
     await editAToken();
     await act(async () =>
@@ -340,15 +342,15 @@ describe('the project the bridge is running in', () => {
     await tick(120);
     await click(host.querySelector('#tab-changes'));
     expect(text()).toContain('src/index.css:12');
-    const applyBefore = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Apply');
-    expect(applyBefore).toBeUndefined();
+    const writeBefore = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Write');
+    expect(writeBefore).toBeUndefined();
 
     await act(async () => allow('bridgeMayWrite', true));
     await tick();
-    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(true);
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Write')).toBe(true);
   });
 
-  it('does not offer Apply when more than one definition could be the one', async () => {
+  it('offers Write when the other definition is a width override, which is left as it is', async () => {
     await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
     await editAToken();
     await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
@@ -356,15 +358,36 @@ describe('the project the bridge is running in', () => {
     await act(async () =>
       void definitions({
         '--mark': [
-          { file: 'src/index.css', line: 12, kind: 'css', context: 'root', value: '#BE3A22' },
-          { file: 'src/dark.css', line: 4, kind: 'css', context: 'media', value: '#BE3A22' },
+          { file: 'src/index.css', line: 12, kind: 'css', context: 'root', selector: ':root', value: '#BE3A22' },
+          { file: 'src/index.css', line: 30, kind: 'css', context: 'media', selector: ':root', media: ['@media (max-width: 700px)'], value: '#A02A12' },
         ],
       }),
     );
     await tick(120);
     await click(host.querySelector('#tab-changes'));
-    expect(text()).toContain('2 definitions — the cascade decides');
-    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Apply')).toBe(false);
+    expect(text()).toContain('src/index.css:12');
+    const write = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Write');
+    expect(write?.title).toContain('src/index.css:12');
+    expect(write?.title).toContain('1 other definition left as it is: src/index.css:30 (media)');
+  });
+
+  it('does not offer Write when the root definitions disagree', async () => {
+    await act(async () => void ack({ name: 'ffs', path: '/Users/x/ffs' }));
+    await editAToken();
+    await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+    await act(async () => allow('bridgeMayWrite', true));
+    await act(async () =>
+      void definitions({
+        '--mark': [
+          { file: 'src/index.css', line: 12, kind: 'css', context: 'root', selector: ':root', value: '#BE3A22' },
+          { file: 'src/legacy.css', line: 4, kind: 'css', context: 'root', selector: 'html', value: '#C04030' },
+        ],
+      }),
+    );
+    await tick(120);
+    await click(host.querySelector('#tab-changes'));
+    expect(text()).toContain('2 light definitions that disagree');
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === 'Write')).toBe(false);
   });
 });
 
@@ -1050,6 +1073,80 @@ describe('Make changes', () => {
     await editAndOpenChanges();
     expect(button('Make changes')?.disabled).toBe(true);
     expect(text()).toContain('No coding agent found on this machine');
+  });
+
+  describe('writing a token', () => {
+    const rootAndWidth = {
+      '--mark': [
+        { file: 'src/index.css', line: 12, kind: 'css', context: 'root', selector: ':root', value: '#BE3A22' },
+        { file: 'src/index.css', line: 30, kind: 'css', context: 'media', selector: ':root', media: ['@media (max-width: 700px)'], value: '#A02A12' },
+      ],
+    };
+    const queueMark = async () => {
+      await connect([claude]);
+      await act(async () => updateSession({ varOverrides: { '--mark': '#1C7F5C' } }));
+      await act(async () => ws.receive({ type: 'definitions', payload: { found: rootAndWidth } }));
+      await act(async () => allow('bridgeMayWrite', true));
+      await tick(120);
+      await click(host.querySelector('#tab-changes'));
+    };
+    const answer = async (n: number, payload: Record<string, unknown>) => {
+      const asks = ws.asks('write_tokens');
+      await act(async () => ws.receive({ type: 'response', replyTo: asks[n]!.id, ok: true, payload }));
+      await tick(60);
+    };
+    const wrote = { name: '--mark', file: 'src/index.css', line: 12, from: '#be3a22', to: '#1C7F5C', scope: 'root' };
+
+    it('writes the light value, and takes the override off once the page paints it', async () => {
+      await queueMark();
+      stub.pageVars = { '--mark': '#1C7F5C' };
+      await click(button('Write'));
+      const [ask] = ws.asks('write_tokens');
+      expect(ask?.payload).toEqual({ method: 'write_tokens', edits: [{ name: '--mark', from: '#be3a22', to: '#1C7F5C', mode: 'light' }] });
+      await answer(0, { written: [wrote], left: [], refused: [] });
+      expect(text()).toContain('Written');
+      expect(text()).toContain('written to src/index.css:12 — the page paints it');
+      expect(getSession().varOverrides['--mark']).toBeUndefined();
+      expect(getSession().applied[0]).toMatchObject({ name: '--mark', verified: 'ok', from: '#be3a22', value: '#1C7F5C' });
+      // Verified, so the token is no longer in the queue for the agent.
+      expect(text()).not.toContain('Handed to the agent');
+    });
+
+    it('puts a write back when the page then paints something else, and says why', async () => {
+      await queueMark();
+      stub.pageVars = { '--mark': '#000000' };
+      await click(button('Write'));
+      await answer(0, { written: [wrote], left: [], refused: [] });
+      // The revert is a second write, the other way round.
+      const asks = ws.asks('write_tokens');
+      expect(asks).toHaveLength(2);
+      expect(asks[1]?.payload).toEqual({ method: 'write_tokens', edits: [{ name: '--mark', from: '#1C7F5C', to: '#be3a22', mode: 'light' }] });
+      await answer(1, { written: [{ ...wrote, from: '#1C7F5C', to: '#be3a22' }], left: [], refused: [] });
+      expect(text()).toContain('put back: the page then painted #000000');
+      // The override stays on: the page still shows the intent, and the brief still carries it.
+      expect(getSession().varOverrides['--mark']).toBe('#1C7F5C');
+      expect(getSession().applied[0]).toMatchObject({ verified: 'contradicted', seen: '#000000' });
+    });
+
+    it('shows the reason on the row when the bridge refuses', async () => {
+      await queueMark();
+      await click(button('Write'));
+      await answer(0, { written: [], left: [], refused: [{ name: '--mark', reason: '--mark is `#000` in source, not `#BE3A22`; it changed since it was read' }] });
+      expect(text()).toContain('it changed since it was read');
+      expect(getSession().applied).toEqual([]);
+    });
+
+    it('reverts a written value on request', async () => {
+      await queueMark();
+      stub.pageVars = { '--mark': '#1C7F5C' };
+      await click(button('Write'));
+      await answer(0, { written: [wrote], left: [], refused: [] });
+      await click(button('Revert'));
+      const asks = ws.asks('write_tokens');
+      expect(asks[1]?.payload).toEqual({ method: 'write_tokens', edits: [{ name: '--mark', from: '#1C7F5C', to: '#be3a22', mode: 'light' }] });
+      await answer(1, { written: [{ ...wrote, from: '#1C7F5C', to: '#be3a22' }], left: [], refused: [] });
+      expect(getSession().applied).toEqual([]);
+    });
   });
 });
 
