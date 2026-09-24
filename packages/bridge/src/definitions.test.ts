@@ -12,6 +12,7 @@ import {
   findDefinitions,
   isSearchable,
   listFiles,
+  scopeOf,
   stripComments,
 } from './definitions';
 
@@ -83,11 +84,31 @@ describe('contextOf', () => {
   });
 });
 
+describe('scopeOf', () => {
+  it('records the innermost selector, the conditions and the layer', () => {
+    expect(scopeOf(['@layer base', '@media (prefers-color-scheme: dark)', ":root:not([data-theme='light'])"])).toEqual({
+      selector: ":root:not([data-theme='light'])",
+      media: ['@media (prefers-color-scheme: dark)'],
+      layer: 'base',
+    });
+  });
+
+  it('has no selector at the top level or inside a bare at-rule', () => {
+    expect(scopeOf([])).toEqual({});
+    expect(scopeOf(['@theme'])).toEqual({});
+  });
+
+  it('reaches the search result', () => {
+    const found = definitionsInCss("@media (max-width: 700px) {\n  :root {\n    --mark: red;\n  }\n}", ['--mark'], 'a.css');
+    expect(found['--mark']?.[0]).toMatchObject({ context: 'media', selector: ':root', media: ['@media (max-width: 700px)'] });
+  });
+});
+
 describe('definitionsInCss', () => {
   it('finds a definition and names its line', () => {
     const css = ':root {\n  --paper: #fff;\n  --mark: #BE3A22;\n}\n';
     expect(definitionsInCss(css, ['--mark'], 'src/index.css')).toEqual({
-      '--mark': [{ file: 'src/index.css', line: 3, kind: 'css', context: 'root', value: '#BE3A22' }],
+      '--mark': [{ file: 'src/index.css', line: 3, kind: 'css', context: 'root', selector: ':root', value: '#BE3A22' }],
     });
   });
 

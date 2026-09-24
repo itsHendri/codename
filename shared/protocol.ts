@@ -226,6 +226,16 @@ export interface Definition {
    */
   context: 'root' | 'scoped' | 'media' | 'dark';
   value: string;
+  /**
+   * The innermost selector around it, as written: `:root`, `.dark`,
+   * `:root[data-theme='dark']`. Absent at the top level of a file or inside a
+   * bare at-rule such as `@theme`.
+   */
+  selector?: string;
+  /** The conditions open around it, outermost first: `@media (prefers-color-scheme: dark)`. */
+  media?: string[];
+  /** The cascade layer it sits in, when it is in a named one. */
+  layer?: string;
 }
 
 export interface DefinitionsPayload {
@@ -252,6 +262,12 @@ export type PanelRequest =
    */
   | { method: 'apply_definition'; name: string; from: string; to: string; file: string; line: number }
   /**
+   * Write token values into their definitions, in the scope each was edited
+   * under. Refused per token, with the reason, unless every definition that
+   * scope holds agrees and still says what it said when it was read.
+   */
+  | { method: 'write_tokens'; edits: TokenEdit[] }
+  /**
    * Make changes: run a coding agent in the bridge's folder on this brief.
    * The brief and the person's answer travel with the request rather than
    * being read from the last state frame, which may still be on its way.
@@ -267,6 +283,45 @@ export interface AppliedDefinition {
   line: number;
   from: string;
   to: string;
+}
+
+/* ---------------- writing tokens ---------------- */
+
+/** One token value to write, from the panel or from an agent. */
+export interface TokenEdit {
+  name: string;
+  /** The value it holds now in that scope. Refused if source disagrees. */
+  from: string;
+  to: string;
+  /** Which side of the page the value was edited under. Light by default. */
+  mode?: 'light' | 'dark';
+  /**
+   * Say so to replace a value computed from others (`var()`, `calc()`,
+   * `color-mix()`) with a literal. Refused otherwise: the right edit is
+   * usually to what it points at.
+   */
+  flatten?: boolean;
+}
+
+/** Where one edit landed. A dark edit can land twice when the page spells its dark side two ways. */
+export interface WrittenToken {
+  name: string;
+  file: string;
+  line: number;
+  from: string;
+  to: string;
+  scope: 'root' | 'theme' | 'dark';
+}
+
+export interface WriteResult {
+  written: WrittenToken[];
+  /**
+   * Definitions of the same names in scopes the edit did not ask for — a
+   * width override, a component scope — left as they were. The person and
+   * the agent decide about those.
+   */
+  left: { name: string; definition: Definition }[];
+  refused: { name: string; reason: string }[];
 }
 
 export type MessageType = 'hello' | 'state' | 'request' | 'response' | 'definitions' | 'ask' | 'run';

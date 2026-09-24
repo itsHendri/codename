@@ -176,6 +176,8 @@ export interface ReskinResult {
   preview?: { rules: number; matched: number; unreadable: number; declares: string[] };
   /** For a state hoist: the page's own rules for that state on that element. */
   cascade?: HoistedRule[];
+  /** For a verify read: what the page's own sheets say each variable is, override lifted. */
+  values?: Record<string, string>;
 }
 
 function sendReskin(
@@ -191,6 +193,7 @@ function sendReskin(
     darkPreview?: boolean;
     state?: StateName | null;
     selector?: string | null;
+    names?: string[];
   },
 ): Promise<ReskinResult | null> {
   return sendOrInject<ReskinResult>(tabId, 'content-scripts/reskin.js', message);
@@ -207,6 +210,15 @@ export function applyReskin(
 
 export function clearReskin(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-clear' });
+}
+
+/**
+ * What the page's own stylesheets say these variables are right now, with
+ * the panel's overrides lifted for the read. After a write to source, this
+ * is what says whether the page picked it up.
+ */
+export function verifyVars(tabId: number, names: string[]): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'reskin-verify', names });
 }
 
 /* ---------------- the site's own dark mode ---------------- */

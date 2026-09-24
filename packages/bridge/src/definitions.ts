@@ -191,6 +191,25 @@ export function declarationOn(text: string, name: string): { value: string; star
   return { value: text.slice(colon + 1, end).trim(), start: colon + 1, end };
 }
 
+/**
+ * What the block heads open around a definition say about where it is: the
+ * innermost real selector, the conditions in force, and the layer. The
+ * coarse `context` is kept for what reads it; this is what a scope-aware
+ * write needs.
+ */
+export function scopeOf(open: string[]): Pick<Definition, 'selector' | 'media' | 'layer'> {
+  const heads = open.map((h) => h.replace(/[{\s]+$/, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const media = heads.filter((h) => /^@(media|container|supports)\b/i.test(h));
+  const selector = [...heads].reverse().find((h) => !h.startsWith('@'));
+  const layerHead = [...heads].reverse().find((h) => /^@layer\b/i.test(h));
+  const layer = layerHead ? layerHead.replace(/^@layer\s*/i, '').trim() : '';
+  return {
+    ...(selector ? { selector } : {}),
+    ...(media.length ? { media } : {}),
+    ...(layer ? { layer } : {}),
+  };
+}
+
 /** A definition, plus which name it is and exactly where its value sits. */
 export interface Located extends Definition {
   name: string;
@@ -244,6 +263,7 @@ export function scanCss(text: string, names: string[], file: string): Located[] 
         line: atLine,
         kind: /@theme\b/i.test(open.join(' ')) ? 'theme' : 'css',
         context: contextOf(open),
+        ...scopeOf(open),
         value: decl.value,
         valueStart: from + decl.start + lead,
         valueEnd: from + decl.end - trail,
@@ -377,7 +397,7 @@ export interface ApplyEdit {
 }
 
 /** Whitespace and case are not a difference; anything else is. */
-const sameValue = (a: string, b: string): boolean =>
+export const sameValue = (a: string, b: string): boolean =>
   a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
 
 /**
@@ -476,8 +496,16 @@ export function applyDefinition(cwd: string, edit: ApplyEdit, opts: FindOptions 
   }
 
   const next = text.slice(0, span.valueStart) + edit.to + text.slice(span.valueEnd);
-  // A temp file and a rename, so a reader never sees half a file — wearing
-  // the permissions the original had, since the default would widen them.
+  writeFileAtomic(absolute, next, edit.file);
+
+  return { name: edit.name, file: edit.file, line: edit.line, from: span.value, to: edit.to };
+}
+
+/**
+ * A temp file and a rename, so a reader never sees half a file — wearing
+ * the permissions the original had, since the default would widen them.
+ */
+export function writeFileAtomic(absolute: string, next: string, shownAs = absolute): void {
   const mode = (() => {
     try {
       return statSync(absolute).mode & 0o777;
@@ -496,8 +524,6 @@ export function applyDefinition(cwd: string, edit: ApplyEdit, opts: FindOptions 
     } catch {
       /* it may never have been created */
     }
-    throw new ApplyRefused(`could not write ${edit.file}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new ApplyRefused(`could not write ${shownAs}: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  return { name: edit.name, file: edit.file, line: edit.line, from: span.value, to: edit.to };
 }

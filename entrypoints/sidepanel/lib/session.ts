@@ -30,6 +30,30 @@ import { applyEdits, diffEdits, editsKey, type BrandEdits } from '@/studio/edits
 import { loadEdits, saveEdits } from '@/studio/storage';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
 
+/**
+ * How a write to source stands with the page. `pending` while the page is
+ * being asked; `ok` once it paints the value; `silent` when it still paints
+ * the old one after five seconds (no hot reload, most likely); `contradicted`
+ * when it painted something else, so the write was put back; `unchecked`
+ * when the page was showing the other side of its theme and could not say.
+ */
+export type VerifyState = 'pending' | 'ok' | 'silent' | 'contradicted' | 'unchecked';
+
+export interface WrittenEntry {
+  name: string;
+  file: string;
+  line: number;
+  /** What was written. */
+  value: string;
+  /** What the definition said before, so it can be put back. */
+  from?: string;
+  scope?: 'root' | 'theme' | 'dark';
+  /** Absent on an entry from before the page was asked; read as `ok`. */
+  verified?: VerifyState;
+  /** For `contradicted`: what the page read instead. */
+  seen?: string;
+}
+
 export interface TabSession {
   scan: ScanResult | null;
   /** The edited system; null means "as scanned". */
@@ -90,11 +114,12 @@ export interface TabSession {
   /** Where the bridge found the tokens in play, pushed whenever the set changes. */
   definitions: DefinitionsPayload | null;
   /**
-   * Definitions the person applied to source from here. The value is kept
-   * with them: the brief only says "already applied" while the token still
-   * holds the value that was written, so changing it again is a real change.
+   * Token values written to source from here, and how each stands with the
+   * page. The value is kept with them: the brief only says "already written"
+   * while the token still holds the value that was written, so changing it
+   * again is a real change.
    */
-  applied: { name: string; file: string; line: number; value: string }[];
+  applied: WrittenEntry[];
   /**
    * The agent's preview stylesheet, while it is on the page: what it holds,
    * what it reaches, since when — and the sheet itself, so a reload can put
@@ -357,23 +382,56 @@ async function loadConsent(pageScope: string, writeScope: string | null): Promis
 }
 
 /**
- * A definition the person applied to source from here.
+ * A definition the person applied to source from here, and the page has
+ * been seen to paint.
  *
  * It leaves the brief — the agent must not write it again — and the variable
- * override goes with it, because source now holds the value and the page will
- * repaint from it on the next reload.
+ * override goes with it, because source now holds the value and the page
+ * paints it on its own.
  */
-export function markApplied(applied: { name: string; file: string; line: number; value: string }): void {
+export function markApplied(applied: WrittenEntry): void {
   updateSession((s) => {
     const vars = { ...s.varOverrides };
     delete vars[applied.name];
     return {
-      applied: [...s.applied.filter((a) => a.name !== applied.name), applied],
+      applied: [...s.applied.filter((a) => a.name !== applied.name), { ...applied, verified: 'ok' as const }],
       varOverrides: vars,
       revision: s.revision + 1,
     };
   });
   scheduleSaveEdits();
+}
+
+/**
+ * Values the bridge just wrote, before the page has been asked about them.
+ * The override stays on: the page paints the intent either way, and it comes
+ * off only once the page is seen to paint the value on its own.
+ */
+export function markWritten(entries: WrittenEntry[]): void {
+  const names = new Set(entries.map((e) => e.name));
+  updateSession((s) => ({
+    applied: [...s.applied.filter((a) => !names.has(a.name)), ...entries.map((e) => ({ ...e, verified: e.verified ?? ('pending' as const) }))],
+    revision: s.revision + 1,
+  }));
+}
+
+/** What the page said about a write. `ok` takes the override off; the rest leave it on and say why. */
+export function markVerified(name: string, verified: VerifyState, seen?: string): void {
+  const entry = state.applied.find((a) => a.name === name);
+  if (!entry) return;
+  if (verified === 'ok') {
+    markApplied(entry);
+    return;
+  }
+  updateSession((s) => ({
+    applied: s.applied.map((a) => (a.name === name ? { ...a, verified, ...(seen ? { seen } : {}) } : a)),
+    revision: s.revision + 1,
+  }));
+}
+
+/** A write put back, or a value the person changed again: it is no longer something source holds for them. */
+export function forgetWritten(name: string): void {
+  updateSession((s) => ({ applied: s.applied.filter((a) => a.name !== name), revision: s.revision + 1 }));
 }
 
 /** Remember an answer, so the same project does not ask again. */

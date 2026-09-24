@@ -13,6 +13,7 @@ import { DEVICE_PRESETS } from '../../../shared/types';
 
 const VIEWPORTS = ['reset', ...DEVICE_PRESETS.map((p) => p.name)] as ['reset', ...string[]];
 import { applyDefinition, findDefinitions } from './definitions';
+import { writeTokens } from './writer';
 import { readProjectFile } from './repo';
 import type { Sessions } from './sessions';
 
@@ -282,6 +283,51 @@ export function createMcpServer(
       }
       const applied = applyDefinition(cwd, { name, from, to, file: target.file, line: target.line });
       return text(`${applied.name}: ${applied.from} → ${applied.to} in ${applied.file}:${applied.line}`);
+    }),
+  );
+
+  register(
+    'write_tokens',
+    {
+      description:
+        "Write token values into their definitions in source, each in the scope it belongs to: a light value into the root of the cascade (`:root`, `html`, a Tailwind `@theme` block), a dark value into the page's dark blocks (`@media (prefers-color-scheme: dark)`, `.dark`, `[data-theme=\"dark\"]`), however many ways the page spells them. A width query or a component scope is never written and is reported as `left`; definitions that disagree are refused with the list; a value computed from others (`var()`, `calc()`) is refused unless `flatten` is set. The user must have turned on \"Bridge may edit definitions\" for this project in the panel. Replaces the value only — nothing is inserted, reformatted or reordered. Anything refused is yours to edit in the normal way.",
+      inputSchema: {
+        session,
+        edits: z
+          .array(
+            z.object({
+              name: z.string().describe('The custom property, including the leading dashes.'),
+              from: z.string().describe('The value it holds now in that scope. Refused if source disagrees.'),
+              to: z.string().describe('The value to write.'),
+              mode: z.enum(['light', 'dark']).optional().describe('Which side of the page the value belongs to. Light by default.'),
+              flatten: z.boolean().optional().describe('Replace a computed value (`var()`, `calc()`) with this literal on purpose.'),
+            }),
+          )
+          .min(1)
+          .max(200),
+      },
+    },
+    guard(({ session, edits }) => {
+      const state = sessions.getState(session);
+      if (!state.bridgeMayWrite) {
+        throw new Error(
+          'the user has not allowed this bridge to edit definitions in this project; ask them to turn on "Bridge may edit definitions" on the Changes tab, or edit the files yourself',
+        );
+      }
+      if (!state.tab?.local) {
+        throw new Error(
+          'the page open in the panel is not served from this machine, so this bridge will not write to the project on its account; edit the files yourself',
+        );
+      }
+      const result = writeTokens(cwd, edits);
+      const lines = [
+        ...result.written.map((w) => `wrote ${w.name}: ${w.from} → ${w.to} in ${w.file}:${w.line} (${w.scope})`),
+        ...result.left.map(
+          (l) => `left ${l.name} at ${l.definition.file}${l.definition.line ? `:${l.definition.line}` : ''} (${l.definition.context}${l.definition.media?.length ? `, ${l.definition.media.join(' ')}` : ''}) = ${l.definition.value}`,
+        ),
+        ...result.refused.map((r) => `refused ${r.name}: ${r.reason}`),
+      ];
+      return text(lines.join('\n') || 'nothing to write');
     }),
   );
 

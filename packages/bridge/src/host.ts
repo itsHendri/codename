@@ -10,9 +10,10 @@
 import { randomUUID } from 'node:crypto';
 import type { spawn } from 'node:child_process';
 import { PROTOCOL_VERSION } from '../../../shared/protocol';
-import type { AgentInfo, AppliedDefinition, PanelRequest, RunSnapshot, SessionState } from '../../../shared/protocol';
+import type { AgentInfo, AppliedDefinition, PanelRequest, RunSnapshot, SessionState, WriteResult } from '../../../shared/protocol';
 import { findAgents, realSyncExec, type Found, type SyncExec } from './agents';
 import { applyDefinition, findDefinitions } from './definitions';
+import { writeTokens } from './writer';
 import { bridgeFilePath, generateToken, readBridgeFile, removeBridgeFile, TOKEN_RE, writeBridgeFile } from './pairing';
 import { readProject } from './project';
 import { forget, pushDefinitions } from './push';
@@ -175,7 +176,7 @@ export async function startBridge(opts: HostOptions): Promise<Host> {
   sessions.project = readProject(cwd);
   const runs = new Runs({ cwd, sessions, agents: opts.agents ?? findAgents(), log, spawnProcess: opts.spawnProcess });
 
-  /** What the panel asks of the folder: where tokens live, the one write, and Make changes. */
+  /** What the panel asks of the folder: where tokens live, the token writes, and Make changes. */
   const answerPanel = async (sessionId: string, request: PanelRequest): Promise<unknown> => {
     if (request.method === 'find_definitions') return findDefinitions(cwd, request.names);
     if (request.method === 'run_agent') return runs.start(sessionId, request);
@@ -186,6 +187,12 @@ export async function startBridge(opts: HostOptions): Promise<Host> {
     // The consent is kept per project, so it is still on when the same tab
     // has moved to a deployed site; a value read there is not this folder's.
     if (!state.tab?.local) throw new Error('the page is not served from this machine, so nothing read from it is written to this project');
+    if (request.method === 'write_tokens') {
+      const result: WriteResult = writeTokens(cwd, request.edits);
+      for (const w of result.written) log(`wrote ${w.name}: ${w.from} → ${w.to} in ${w.file}:${w.line} (${w.scope})`);
+      for (const r of result.refused) log(`refused ${r.name}: ${r.reason}`);
+      return result;
+    }
     const applied: AppliedDefinition = applyDefinition(cwd, request);
     log(`applied ${applied.name}: ${applied.from} → ${applied.to} in ${applied.file}:${applied.line}`);
     return applied;

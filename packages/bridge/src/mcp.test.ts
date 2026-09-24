@@ -17,6 +17,7 @@ const EXPECTED_TOOLS = [
   'check_tokens',
   'find_definition',
   'apply_definition',
+  'write_tokens',
   'get_design_system',
   'get_screenshot',
   'apply_css',
@@ -327,6 +328,45 @@ describe('the project on disk', () => {
     const result = await client.callTool({ name: 'apply_definition', arguments: { name: '--mark', from: '#BE3A22', to: '#1C7F5C' } });
     expect(result.isError).toBe(true);
     expect(textOf(result)).toMatch(/not served from this machine/);
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+    await close();
+  });
+
+  it('writes a batch of tokens by scope and reports what it left and refused', async () => {
+    const dir = project({
+      'src/index.css':
+        ':root {\n  --mark: #BE3A22;\n}\n@media (prefers-color-scheme: dark) {\n  :root {\n    --mark: #E0603F;\n  }\n}\n@media (max-width: 700px) {\n  :root {\n    --mark: #A02A12;\n  }\n}\n',
+    });
+    const { client, close } = await connectedClient(sessionsWith(true), undefined, dir);
+    const result = textOf(
+      await client.callTool({
+        name: 'write_tokens',
+        arguments: {
+          edits: [
+            { name: '--mark', from: '#BE3A22', to: '#1C7F5C' },
+            { name: '--mark', from: '#E0603F', to: '#FF7A5C', mode: 'dark' },
+            { name: '--nope', from: 'x', to: 'y' },
+          ],
+        },
+      }),
+    );
+    expect(result).toContain('wrote --mark: #BE3A22 → #1C7F5C in src/index.css:2 (root)');
+    expect(result).toContain('wrote --mark: #E0603F → #FF7A5C in src/index.css:6 (dark)');
+    expect(result).toContain('left --mark at src/index.css:11 (media, @media (max-width: 700px)) = #A02A12');
+    expect(result).toContain('refused --nope: --nope is not defined anywhere');
+    const text = readFileSync(join(dir, 'src/index.css'), 'utf8');
+    expect(text).toContain('--mark: #1C7F5C;');
+    expect(text).toContain('--mark: #FF7A5C;');
+    expect(text).toContain('--mark: #A02A12;');
+    await close();
+  });
+
+  it('will not write tokens until the person has allowed it', async () => {
+    const dir = project({ 'src/index.css': ':root {\n  --mark: #BE3A22;\n}\n' });
+    const { client, close } = await connectedClient(sessionsWith(false), undefined, dir);
+    const result = await client.callTool({ name: 'write_tokens', arguments: { edits: [{ name: '--mark', from: '#BE3A22', to: '#1C7F5C' }] } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/has not allowed/);
     expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
     await close();
   });
