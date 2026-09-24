@@ -305,6 +305,29 @@ is that companion growing up.
   `matches` while it is there. Not yet used by the panel beyond the chips:
   the selection strip (W42) and the System tab (W43) are what the graph is
   for.
+- **W42, 24 September 2026 — what the selection is on.** The Style tab
+  says it, and lets it be changed inline. A **type-style row** at the top of
+  Type: "is H1 · h1 28/34" when the authored size is the style's own token
+  or rule, "matches" when only the numbers agree, over the page's own styles
+  in whatever form the project writes them (`studio/typeStyleMatch.ts`);
+  open it and every style is listed in its own size and weight; picking one
+  is one `type-style` entry in the log that paints every field the style
+  sets (`typeStyleDeclarations`, expanded in `toRules`) and reads in the
+  brief as "put it on the class `.lede` instead; keep the tag" — or, for a
+  style that is a tag rule, "give it the declarations of the `h2 {}` rule;
+  the element keeps its own tag". A **token pill** on a colour field
+  whose declaration the inspector read with certainty — "◆ is `--ink` ×41"
+  — opens the page's variables ranked semantic · other · primitives with a
+  search (`studio/tokenPicker.ts`; Canva's colour panel and Retool's Tokens
+  tab, from Mobbin): **Swap** puts this element on another variable, **Edit
+  globally** opens the variable's own field above the properties (the same
+  override Variables makes, so the page repaints and the token queues for a
+  write), **Detach** keeps the literal and the brief says it was taken off
+  the variable on purpose, with no hint back (`ElementChange.detached`).
+  Where the read was not certain the chips stay as they were. Declined for
+  the round: tokens per use in Selection colours (a rule walk per element
+  is too much for a hover), and a deterministic class swap for Tailwind
+  utilities (the brief carries it; a `className` writer is a later phase).
 
 ## Live re-skin
 

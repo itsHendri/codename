@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ElementProps, ScanResult } from '@/shared/types';
+import type { CustomPropInfo, ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { suggestTokens } from '@/studio/tokenMatch';
 import { modeOf, SIZE_MODES, writeMode, type Axis, type SizeEvidence, type SizeMode } from '@/studio/sizeMode';
@@ -12,11 +12,12 @@ import { namedEasings, parseTransition, transitionRoundTrips } from '@/studio/mo
 import { TextInput } from './TextInput';
 import { TransformFields } from './TransformFields';
 import { AnimationFields } from './AnimationFields';
+import { TypeStyleRow } from './TypeStyleRow';
 import { parseAnimation } from '@/studio/animation';
 import { AlignGrid, Chip, Group, Labelled, LengthField, Segmented, Select, SideLabel, type Change } from './fields';
 import { PlusIcon } from '../icons';
 
-type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'> & { fontUsage?: ScanResult['fontUsage'] };
+type Scan = Pick<ScanResult, 'customProps' | 'rootFontSize'> & { fontUsage?: ScanResult['fontUsage']; typeStyles?: ScanResult['typeStyles'] };
 
 const ALIGNS = ['left', 'center', 'right', 'justify'] as const;
 const BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted'] as const;
@@ -72,6 +73,7 @@ export function PropertyPanel({
   onPlay,
   playable = false,
   written = {},
+  onEditToken,
 }: {
   element: ElementProps;
   scan: Scan;
@@ -84,6 +86,8 @@ export function PropertyPanel({
   playable?: boolean;
   /** What this panel's own log has written for this element: property → value. */
   written?: Record<string, string>;
+  /** Edit a variable the selection is on, for every place that uses it. */
+  onEditToken?: (token: CustomPropInfo) => void;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set(GROUPS));
   const { corners } = element;
@@ -400,7 +404,11 @@ export function PropertyPanel({
               value={color.text}
               suggestions={colour(color.text, 'color')}
               ariaLabel="Text colour"
-              onChange={(v, t) => onChange('color', v, t)}
+              authored={element.authored?.['color']}
+              tokens={scan.customProps}
+              rootFontSize={scan.rootFontSize}
+              onEditGlobally={onEditToken}
+              onChange={(v, t, o) => onChange('color', v, t, o)}
             />
           </Labelled>
           <Labelled label="fill">
@@ -408,7 +416,11 @@ export function PropertyPanel({
               value={color.background}
               suggestions={colour(color.background, 'background-color')}
               ariaLabel="Background colour"
-              onChange={(v, t) => onChange('background-color', v, t)}
+              authored={element.authored?.['background-color']}
+              tokens={scan.customProps}
+              rootFontSize={scan.rootFontSize}
+              onEditGlobally={onEditToken}
+              onChange={(v, t, o) => onChange('background-color', v, t, o)}
             />
           </Labelled>
           <Labelled label="border">
@@ -416,7 +428,11 @@ export function PropertyPanel({
               value={color.border}
               suggestions={colour(color.border, 'border-color')}
               ariaLabel="Border colour"
-              onChange={(v, t) => onChange('border-color', v, t)}
+              authored={element.authored?.['border-color']}
+              tokens={scan.customProps}
+              rootFontSize={scan.rootFontSize}
+              onEditGlobally={onEditToken}
+              onChange={(v, t, o) => onChange('border-color', v, t, o)}
             />
           </Labelled>
         </>,
@@ -426,6 +442,11 @@ export function PropertyPanel({
         'Type',
         `${family} · ${px(type.fontSize)}/${px(type.lineHeight)} · ${type.fontWeight}`,
         <>
+          {scan.typeStyles?.length ? (
+            <Labelled label="style">
+              <TypeStyleRow element={element} styles={scan.typeStyles} props={scan.customProps} rootFontSize={scan.rootFontSize} onChange={onChange} />
+            </Labelled>
+          ) : null}
           <Labelled label="font">
             <TextInput
               value={type.fontFamily}

@@ -65,8 +65,16 @@ has been allowed.
   whatever the cursor is over, and pin a note to it for the agent. When a
   value matches one of the page's own variables the panel offers `var(--x)`
   instead of a literal — and where the inspector could read the declaration
-  that paints it, and it names the variable, the chip says **is `--x`**
-  rather than matches. Select mode lives on the bar across the page.
+  that paints it, and it names the variable, the field wears a pill, **is
+  `--x`**, rather than a matches chip. The pill opens the page's variables,
+  semantic ones first, to **swap** this element onto another; above them,
+  **Edit globally** changes the variable itself for every place that uses
+  it, and **Detach** keeps the value as the element's own literal, which
+  the brief says was on purpose. The Type group starts with the **type
+  style** the selection is on — "is H1 · h1 28/34", over the page's own
+  styles in whatever form the project writes them — and picking another is
+  one edit that the page previews whole. Select mode lives on the bar
+  across the page.
 - **Variables** — what this page runs on, editable, and live on the page as
   you type.
   - **Page variables** — the custom properties the page's own stylesheets

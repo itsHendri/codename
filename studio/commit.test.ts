@@ -665,3 +665,33 @@ describe('a new stack in the brief', () => {
     expect(prompt).toContain('`.x`');
   });
 });
+
+describe('the brief for what an element is on', () => {
+  const scan = { url: 'http://localhost:5173/', cssText: '', customProps: [{ name: '--ink', value: '#15171b' }], unreadableSheets: [] };
+  const entry = (over: Partial<ElementChange>): ElementChange => ({
+    id: 'x',
+    selector: 'h1#title',
+    matches: 1,
+    stable: true,
+    property: 'color',
+    from: '#15171b',
+    to: '#222222',
+    status: 'applied',
+    at: '2026-09-24T00:00:00.000Z',
+    ...over,
+  });
+
+  it('says a literal was taken off a variable on purpose, and offers no hint back', () => {
+    const set = buildChangeSet(scan, [], {}, [entry({ to: '#15171b', from: '#000000', detached: '--ink' })]);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('taken off `--ink` on purpose; write the literal, not the variable');
+    expect(prompt).not.toContain('this page defines `--ink`');
+  });
+
+  it('describes a type style by how the project writes it', () => {
+    const cls = entry({ property: 'type-style', from: 'display', to: 'lede', typeStyle: { name: 'lede', form: 'class', selectorOrUtility: '.lede', fields: { size: { literal: '17px' }, lineHeight: { literal: '26px' } } } });
+    expect(toPrompt(buildChangeSet(scan, [], {}, [cls]))).toContain('type style: `display` → `lede` — put it on the class `.lede` instead (font-size: 17px; line-height: 26px); keep the tag');
+    const tag = entry({ property: 'type-style', from: '', to: 'h2', typeStyle: { name: 'h2', form: 'tag', selectorOrUtility: 'h2', tag: 'h2', fields: { size: { token: '--font-size-h2' } } } });
+    expect(toPrompt(buildChangeSet(scan, [], {}, [tag]))).toContain('`none` → `h2` — give it the declarations of the `h2 {}` rule (font-size: var(--font-size-h2)) — the element keeps its own tag');
+  });
+});

@@ -38,6 +38,11 @@ export const forfontsake: ScanResult = {
   gradients: [],
   contrastPairs: [],
   svgs: [],
+  typeStyles: [
+    { name: 'h1', form: 'tag', selectorOrUtility: 'h1', tag: 'h1', fields: { size: { literal: '28px' }, lineHeight: { literal: '34px' }, weight: { literal: '600' } } },
+    { name: 'lede', form: 'class', selectorOrUtility: '.lede', fields: { size: { literal: '17px' }, lineHeight: { literal: '26px' } } },
+    { name: 'body', form: 'tag', selectorOrUtility: 'body', tag: 'body', fields: { size: { literal: '15px' }, lineHeight: { literal: '24px' } } },
+  ],
   customProps: [
     { name: '--ink', value: '#15171b', source: 'http://localhost:5173/src/index.css', uses: 41 },
     { name: '--paper', value: '#e7e4db', source: 'http://localhost:5173/src/index.css', uses: 22 },

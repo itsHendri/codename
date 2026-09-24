@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElementProps, SelectionColour } from '@/shared/types';
+import type { ElementProps, SelectionColour, TypeStyle } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
@@ -81,8 +81,13 @@ export interface InspectController {
    * judged by.
    */
   playCondition(): void;
-  /** Commit a CSS longhand. `from` is read from the element; `token` names a chosen variable. */
-  change(property: string, to: string, token?: string): void;
+  /**
+   * Commit a CSS longhand. `from` is read from the element; `token` names a
+   * chosen variable. `opts` carries what the value alone cannot say: a
+   * variable detached on purpose, a type style chosen whole, or a `from`
+   * for a property the element has no computed value for.
+   */
+  change(property: string, to: string, token?: string, opts?: { detached?: string; typeStyle?: TypeStyle; from?: string }): void;
   /** Replace the element's text content. */
   setText(text: string): void;
   /**
@@ -326,9 +331,13 @@ export function useInspect(
   });
 
   const change = useCallback(
-    (property: string, to: string, token?: string) => {
+    (property: string, to: string, token?: string, opts?: { detached?: string; typeStyle?: TypeStyle; from?: string }) => {
       if (!element) return;
       const wide = scope === 'all' && element.intent.matches > 1;
+      const extra = {
+        ...(opts?.detached ? { detached: opts.detached } : {}),
+        ...(opts?.typeStyle ? { typeStyle: opts.typeStyle } : {}),
+      };
       setLog((l) => {
         let next = commit(l, {
           selector: wide ? element.intent.selector : element.selector,
@@ -338,9 +347,10 @@ export function useInspect(
           // The page is being held in this state while it is chosen, so what
           // the element paints right now is the honest `from`.
           ...(condition ? { condition } : {}),
-          from: readValue(element, property),
+          from: opts?.from ?? readValue(element, property),
           to,
           token,
+          ...extra,
           // An edit widened to every match belongs to no one component, so
           // the name of the one that was clicked would be a wrong fact.
           ...(!wide && element.component ? { component: element.component } : {}),
@@ -355,9 +365,10 @@ export function useInspect(
             stable: other.stable,
             property,
             ...(condition ? { condition } : {}),
-            from: readValue(other, property),
+            from: opts?.from ?? readValue(other, property),
             to,
             token,
+            ...extra,
             ...(other.component ? { component: other.component } : {}),
           });
         }

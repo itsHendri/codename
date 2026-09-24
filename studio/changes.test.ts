@@ -225,3 +225,28 @@ describe('properties that are not about one state', () => {
     expect(log.entries[0]?.condition).toEqual(hover);
   });
 });
+
+describe('a type style in the log', () => {
+  const style = { name: 'lede', form: 'class' as const, selectorOrUtility: '.lede', fields: { size: { token: '--fs-lede' }, lineHeight: { literal: '26px' }, weight: { literal: '500' } } };
+  const base = { selector: 'h1#title', matches: 1, stable: true, from: 'display', to: 'lede', typeStyle: style };
+
+  it('is one entry that paints every field the style sets', () => {
+    const log = commit(emptyLog(), { ...base, property: 'type-style' });
+    expect(log.entries).toHaveLength(1);
+    expect(toRules(log).map((r) => [r.property, r.value])).toEqual([
+      ['font-size', 'var(--fs-lede)'],
+      ['line-height', '26px'],
+      ['font-weight', '500'],
+    ]);
+  });
+
+  it('keeps the style and a detached token through a coalesced commit', () => {
+    let log = commit(emptyLog(), { ...base, property: 'type-style' }, 1000);
+    log = commit(log, { ...base, property: 'type-style', to: 'h1', typeStyle: { ...style, name: 'h1' } }, 1100);
+    expect(log.entries).toHaveLength(1);
+    expect(log.entries[0]?.typeStyle?.name).toBe('h1');
+    let detached = commit(emptyLog(), { selector: 'p', matches: 1, stable: true, property: 'color', from: 'var(--ink)', to: '#111', detached: '--ink' }, 2000);
+    detached = commit(detached, { selector: 'p', matches: 1, stable: true, property: 'color', from: 'var(--ink)', to: '#222', detached: '--ink' }, 2100);
+    expect(detached.entries[0]).toMatchObject({ to: '#222', detached: '--ink' });
+  });
+});

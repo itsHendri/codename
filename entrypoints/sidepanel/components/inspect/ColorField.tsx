@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { AuthoredDecl, CustomPropInfo } from '@/shared/types';
 import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { asReference } from '@/studio/tokenMatch';
 import { TokenChips } from './TokenChips';
+import { TokenPill } from './TokenPill';
 
 const HEX6 = /^#[0-9a-f]{6}$/i;
 
@@ -10,11 +12,23 @@ export function ColorField({
   onChange,
   suggestions,
   ariaLabel,
+  authored,
+  tokens,
+  rootFontSize,
+  onEditGlobally,
 }: {
   value: string;
-  onChange: (next: string, token?: string) => void;
+  /** `token` names a chosen variable; `detached` names the one the element was taken off on purpose. */
+  onChange: (next: string, token?: string, opts?: { detached?: string }) => void;
   suggestions?: TokenSuggestion[];
   ariaLabel: string;
+  /** The declaration that paints this, when the inspector read it: with a certain token, the pill replaces the chips. */
+  authored?: AuthoredDecl;
+  /** The page's variables, for the picker behind the pill. */
+  tokens?: CustomPropInfo[];
+  rootFontSize?: number;
+  /** Edit the variable itself, for every place that uses it. */
+  onEditGlobally?: (token: CustomPropInfo) => void;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
@@ -53,7 +67,20 @@ export function ColorField({
           className="h-6 w-full min-w-0 bg-transparent pr-1.5 font-mono text-xs focus-visible:outline-none"
         />
       </div>
-      <TokenChips suggestions={suggestions} current={value} onPick={(s) => onChange(asReference(s), s.name)} />
+      {authored?.token && authored.certain && tokens?.some((p) => p.name === authored.token) ? (
+        <TokenPill
+          authored={authored as AuthoredDecl & { token: string }}
+          tokens={tokens}
+          kind="color"
+          literal={value}
+          rootFontSize={rootFontSize}
+          onSwap={(p) => onChange(`var(${p.name})`, p.name)}
+          onEditGlobally={onEditGlobally}
+          onDetach={(literal, from) => onChange(literal, undefined, { detached: from })}
+        />
+      ) : (
+        <TokenChips suggestions={suggestions} current={value} onPick={(s) => onChange(asReference(s), s.name)} />
+      )}
     </div>
   );
 }
