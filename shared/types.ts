@@ -539,6 +539,7 @@ export const MANAGED_SHEET_IDS = [
   'codename-state',
   'codename-frame',
   'codename-specimen',
+  'codename-proposal',
 ] as const;
 
 /** Whether a stylesheet is one of ours. */

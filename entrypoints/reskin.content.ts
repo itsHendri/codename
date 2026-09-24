@@ -99,6 +99,12 @@ const SITE_DARK_ID = 'codename-site-dark';
  * is. Comes and goes with the preview.
  */
 const MARKS_ID = 'codename-agent-marks';
+/**
+ * A system generated for a page that has none: the tokens stylesheet as it
+ * would be written, so `var(--primary-600)` resolves in the document while
+ * the proposal is previewed. Not the page's own until the file is in.
+ */
+const PROPOSAL_ID = 'codename-proposal';
 const MARK_COLOUR = '#6bb5ff';
 /**
  * The page's own `:hover`/`:focus`/`:active` rules, re-emitted against a
@@ -207,7 +213,7 @@ export default defineContentScript({
      * the outlines. The re-skin and the site's dark mode stay in, because
      * they are the page as it is being painted right now.
      */
-    const NOT_THE_PAGE = new Set([STATE_ID, ELEMENTS_ID, PREVIEW_ID, MARKS_ID]);
+    const NOT_THE_PAGE = new Set([STATE_ID, ELEMENTS_ID, PREVIEW_ID, MARKS_ID, PROPOSAL_ID]);
 
     /* -------- hardcoded colours -------- */
 
@@ -360,6 +366,8 @@ export default defineContentScript({
     };
 
     const clear = () => {
+      proposal?.remove();
+      proposal = null;
       for (const name of applied.keys()) root.style.removeProperty(name);
       applied.clear();
       sheet?.remove();
@@ -446,6 +454,21 @@ export default defineContentScript({
         else document.head.appendChild(stateStyle);
       }
       return hoisted;
+    };
+
+    let proposal: HTMLStyleElement | null = null;
+    const setProposal = (css: string) => {
+      proposal?.remove();
+      proposal = null;
+      if (!css.trim()) return;
+      proposal = document.createElement('style');
+      proposal.id = PROPOSAL_ID;
+      proposal.textContent = css;
+      // First among ours: it defines names, and everything of ours that
+      // uses them comes after.
+      const first = document.head.querySelector(`#${STYLE_ID}, #${ELEMENTS_ID}, #${PREVIEW_ID}`);
+      if (first) document.head.insertBefore(proposal, first);
+      else document.head.appendChild(proposal);
     };
 
     const setPreview = (css: string): PreviewInfo => {
@@ -551,6 +574,11 @@ export default defineContentScript({
       if (msg?.type === 'reskin-preview') {
         const agent = setPreview(msg.css ?? '');
         sendResponse({ ok: true, vars: applied.size, rules: agent.rules, preview: agent });
+        return true;
+      }
+      if (msg?.type === 'reskin-proposal') {
+        setProposal(msg.css ?? '');
+        sendResponse({ ok: true, vars: applied.size, rules: 0 });
         return true;
       }
       if (msg?.type === 'reskin-preview-clear') {

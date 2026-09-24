@@ -30,6 +30,8 @@ import {
   type SessionState,
   type TokenEdit,
   type WriteResult,
+  type CreatedFile,
+  type EntryStylesheet,
 } from '@/shared/protocol';
 import { isEmpty, isLocal, standingRules, toPrompt } from '@/studio/commit';
 import type { ChangeSet } from '@/studio/commit';
@@ -571,6 +573,18 @@ export async function writeTokens(edits: TokenEdit[]): Promise<WriteResult> {
   return result;
 }
 
+/** The stylesheet the project loads first, where a tokens import belongs; null when the bridge finds none. */
+export function entryStylesheet(): Promise<EntryStylesheet | null> {
+  return ask<EntryStylesheet | null>({ method: 'entry_stylesheet' });
+}
+
+/** Add a tokens stylesheet to the project and import it from the entry. */
+export async function createTokensFile(path: string, content: string, importInto?: string): Promise<CreatedFile> {
+  const created = await ask<CreatedFile>({ method: 'create_tokens_file', path, content, ...(importInto ? { importInto } : {}) });
+  logAgent(`${created.file} added${created.importedFrom ? `, imported from ${created.importedFrom}:${created.line}` : ''}`);
+  return created;
+}
+
 /** The same write the other way round, logged as what it is. */
 export async function revertTokens(edits: TokenEdit[]): Promise<WriteResult> {
   const result = await ask<WriteResult>({ method: 'write_tokens', edits });
@@ -751,6 +765,7 @@ export function useBridgeSync(
       comments: session.comments,
       agentMayWrite: session.agentMayWrite,
       bridgeMayWrite: session.bridgeMayWrite,
+      bridgeMayCreate: session.bridgeMayCreate,
       locks: session.locks,
       rules: standingRules(session.locks),
     };
@@ -766,6 +781,7 @@ export function useBridgeSync(
     session.comments,
     session.agentMayWrite,
     session.bridgeMayWrite,
+    session.bridgeMayCreate,
     session.locks,
     changes,
   ]);

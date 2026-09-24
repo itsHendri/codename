@@ -410,6 +410,32 @@ is that companion growing up.
   the same page with the readable stylesheets inlined, every `url()`
   absolute, and inline labels. The script is plain DOM, 16 KB. Nothing is
   invented: a section the page has nothing for is not drawn.
+- **W45, 24 September 2026 — Generate from scratch.** The rule that only
+  what the page holds enters the panel leaves a page with three literals
+  and no type styles with nothing to show, and that is where the engine's
+  own vocabulary is let in. **Generate** on System (open on its own for a
+  thin page, `isThin`) prefills seed, neutral, families, body size, ratio,
+  grid, radius and shadows from the page (`inputsFromScan`: the seeded
+  scales, the body role, `nearestRatio` over the sizes seen — never a
+  preset, the `seedFromScan` rule) and `generateConfig` decides them: seeds
+  into the ramps, roles on `base · ratio^step` with line-heights and
+  tracking from `typeScale`, the grid regridded, the engine's layered
+  shadows or the page's own. The proposal is `session.proposal` with the
+  result in `config`, so the ordinary re-skin previews it (literals
+  remapped onto the steps), plus a `codename-proposal` managed sheet in
+  the page holding `tokens.css` so the new names resolve there. Writing it
+  in is the bridge's `create_tokens_file` (`create.ts`): one new file
+  beside the entry stylesheet (`entryStylesheet`: a Vite `index.html`
+  link, the entry module's first CSS import, Next's `app/globals.css`,
+  Astro's `src/styles/global.css`, or the conventional names) and one
+  `@import` after the entry's own leading statements (`importPoint`), so
+  Tailwind's import comes first and a `@theme` in the file is read; the
+  file must be new and nothing else moves. It has its own consent,
+  `bridgeMayCreate`, asked on the card. Replacing the literals is the
+  agent's: `adoptionPlan` names the nearest primitive step for each
+  (exact or near), shown on the card, as **Adopt tokens** on Changes, and
+  as a section of the brief naming the file and line. Reset and Discard
+  take the proposal, the config and the sheet away together.
 
 ## Live re-skin
 

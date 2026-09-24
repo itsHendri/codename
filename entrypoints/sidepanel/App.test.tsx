@@ -110,6 +110,43 @@ describe('the panel', () => {
     expect(specimens().at(-1)).toMatchObject({ cmd: 'specimen', on: false });
   });
 
+  it('offers Generate on a page with no system, previews the proposal on the page, and hands the adoption to the brief', async () => {
+    const thin = { ...forfontsake, customProps: [], typeStyles: [], colors: forfontsake.colors.map((c) => ({ ...c, varNames: [] })) };
+    await act(async () => stub.emit({ type: 'scan-result', data: thin }));
+    await tick(60);
+    await click(host.querySelector('#tab-system'));
+    const card = () => host.querySelector('[data-testid=generate]');
+    expect(card()?.textContent).toContain('This page defines 0 variables and 0 type styles');
+    // Nothing on the page until asked.
+    expect(stub.sent.filter((m) => m.type === 'reskin-proposal')).toEqual([]);
+
+    const go = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Generate from this page') ?? null;
+    await click(go);
+    await tick(120);
+    expect(getSession().proposal).not.toBeNull();
+    expect(getSession().config).not.toBeNull();
+    const sheet = stub.sent.filter((m) => m.type === 'reskin-proposal').at(-1) as { css: string } | undefined;
+    expect(sheet?.css).toContain('--primary-600');
+    expect(card()?.textContent).toContain('Previewing on the page');
+    expect(card()?.textContent).toContain('literals to adopt');
+    // No bridge paired: the file is a download, not a write.
+    expect(card()?.textContent).toContain('Download tokens.css');
+    expect(card()?.textContent).toContain('Pair a bridge');
+
+    await click(host.querySelector('#tab-changes'));
+    await tick();
+    expect(text()).toContain('Adopt tokens');
+
+    // Discard takes the sheet out with the proposal.
+    await click(host.querySelector('#tab-system'));
+    const discard = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Discard') ?? null;
+    await click(discard);
+    await tick(120);
+    expect(getSession().proposal).toBeNull();
+    expect(getSession().config).toBeNull();
+    expect((stub.sent.filter((m) => m.type === 'reskin-proposal').at(-1) as { css: string }).css).toBe('');
+  });
+
   it('files a drag in the rail as a move, and the eye as a display edit', async () => {
     const row = (id: number, selector: string, depth: number) => ({
       id, depth, label: selector, selector, tag: selector.split(/[.#]/)[0], stable: true, matches: 1, descendants: 0, hidden: false, display: 'block',

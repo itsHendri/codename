@@ -70,7 +70,8 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
   const queuedDark = (set.darkTokens ?? []).filter((t) => !t.applied);
   const writable = bridgeMayWrite && set.local ? queued.filter((t) => writeTargets(t, 'light') !== null) : [];
   const writableDark = bridgeMayWrite && set.local ? queuedDark.filter((t) => writeTargets(t, 'dark') !== null) : [];
-  const handedCount = queued.length + queuedDark.length + set.colors.length + set.system.length + set.elements.length + set.comments.length;
+  const adoption = set.adoption?.rows ?? [];
+  const handedCount = queued.length + queuedDark.length + set.colors.length + adoption.length + set.system.length + set.elements.length + set.comments.length;
 
   if (empty && log.entries.length === 0 && comments.length === 0 && applied.length === 0) {
     return (
@@ -138,6 +139,27 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
             <p className="text-2xs text-ink-muted">Values set on the page's dark side. They land in its dark definitions; the light values stay.</p>
             {queuedDark.map((t) => (
               <TokenRow key={`dark:${t.name}`} token={t} mode="dark" mayWrite={bridgeMayWrite} local={set.local} names={tokenNames} />
+            ))}
+          </section>
+        )}
+
+        {adoption.length > 0 && (
+          <section className="flex flex-col gap-1.5">
+            <SectionHead title="Adopt tokens" count={adoption.length} />
+            <p className="text-2xs text-ink-muted">
+              {set.adoption?.file
+                ? `The generated system is in ${set.adoption.file.file}. The agent replaces each literal with the token that now holds it; a near match is its call.`
+                : 'A system was generated for this page. Write it into the project from System, or the agent adds the file first; then each literal becomes the token that holds it.'}
+            </p>
+            {adoption.map((a) => (
+              <div key={a.literal} className="flex items-center gap-1.5 rounded-control border border-line-subtle px-2 py-1.5">
+                <Swatch color={a.literal} />
+                <span className="text-2xs tabular-nums text-ink-muted">{a.literal}</span>
+                <span className="text-2xs text-ink-muted">→</span>
+                <span className="min-w-0 truncate font-mono text-2xs">{a.token.replace(/^var\(|\)$/g, '')}</span>
+                {!a.exact && <span className="text-2xs text-ink-muted">near</span>}
+                <span className="ml-auto text-2xs text-ink-muted">{a.uses}×</span>
+              </div>
             ))}
           </section>
         )}

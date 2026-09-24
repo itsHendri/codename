@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -18,6 +18,7 @@ const EXPECTED_TOOLS = [
   'find_definition',
   'apply_definition',
   'write_tokens',
+  'create_tokens_file',
   'get_design_system',
   'get_screenshot',
   'apply_css',
@@ -368,6 +369,31 @@ describe('the project on disk', () => {
     expect(result.isError).toBe(true);
     expect(textOf(result)).toMatch(/has not allowed/);
     expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toContain('#BE3A22');
+    await close();
+  });
+
+  it('adds a tokens stylesheet and imports it from the entry, once allowed', async () => {
+    const dir = project({ 'index.html': '<link rel="stylesheet" href="/src/index.css">', 'src/index.css': 'body { margin: 0 }\n' });
+    const sessions = new Sessions();
+    sessions.connect('s1', { send: () => {} });
+    sessions.update('s1', makeState('s1', 1, { bridgeMayCreate: true }));
+    const { client, close } = await connectedClient(sessions, undefined, dir);
+    const refused = await client.callTool({ name: 'create_tokens_file', arguments: { path: 'src/index.css', content: ':root{}' } });
+    expect(refused.isError).toBe(true);
+    expect(textOf(refused)).toMatch(/exists already/);
+    const result = await client.callTool({ name: 'create_tokens_file', arguments: { path: 'src/tokens.css', content: ':root { --primary-600: #be3a22; }' } });
+    expect(textOf(result)).toBe('created src/tokens.css, imported from src/index.css:1');
+    expect(readFileSync(join(dir, 'src/index.css'), 'utf8')).toBe("@import './tokens.css';\nbody { margin: 0 }\n");
+    await close();
+  });
+
+  it('will not add a file until the person has allowed that, apart from value writes', async () => {
+    const dir = project({ 'src/index.css': 'body { margin: 0 }\n' });
+    const { client, close } = await connectedClient(sessionsWith(true), undefined, dir);
+    const result = await client.callTool({ name: 'create_tokens_file', arguments: { path: 'src/tokens.css', content: ':root{}' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/has not allowed/);
+    expect(existsSync(join(dir, 'src/tokens.css'))).toBe(false);
     await close();
   });
 

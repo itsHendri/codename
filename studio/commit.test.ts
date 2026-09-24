@@ -85,6 +85,26 @@ describe('buildChangeSet', () => {
   });
 });
 
+describe('a generated system in the brief', () => {
+  it('lists which literal becomes which token, names the file, and drops those literals from the hardcoded list', () => {
+    const rows = [
+      { literal: '#BE3A22', token: 'var(--primary-600)', uses: 24, exact: true },
+      { literal: '#111111', token: 'var(--neutral-900)', uses: 3, exact: false },
+    ];
+    const scan = scanOf({ cssText: '.btn{color:#be3a22}.x{color:#222222}' });
+    const set = buildChangeSet(scan, [], { '#BE3A22': '#1C7F5C', '#222222': '#333333' }, [], [], [], [], {}, { rows, file: { file: 'src/tokens.css', importedFrom: 'src/index.css', line: 2 } });
+    expect(isEmpty(set)).toBe(false);
+    expect(set.colors.map((c) => c.from)).toEqual(['#222222']);
+    const prompt = toPrompt(set);
+    expect(prompt).toContain('## Adopt tokens — 2 literals');
+    expect(prompt).toContain('written to `src/tokens.css`, imported from `src/index.css` on line 2');
+    expect(prompt).toContain('- `#BE3A22` → `var(--primary-600)`  (24 occurrences)');
+    expect(prompt).toContain('- `#111111` → `var(--neutral-900)`  (near, 3 occurrences)');
+    // Without a file, the agent is told to add it.
+    expect(toPrompt(buildChangeSet(scanOf(), [], {}, [], [], [], [], {}, { rows }))).toContain('add it to the project and import it');
+  });
+});
+
 describe('toPrompt', () => {
   it('says when a token was set by hand', () => {
     const prompt = toPrompt(buildChangeSet(scanOf(), [{ ...markOverride, reason: 'manual' }], {}));
