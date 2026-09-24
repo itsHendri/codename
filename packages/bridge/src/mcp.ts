@@ -14,6 +14,7 @@ import { DEVICE_PRESETS } from '../../../shared/types';
 const VIEWPORTS = ['reset', ...DEVICE_PRESETS.map((p) => p.name)] as ['reset', ...string[]];
 import { applyDefinition, findDefinitions } from './definitions';
 import { writeTokens } from './writer';
+import { createTokensFile, entryStylesheet } from './create';
 import { readProjectFile } from './repo';
 import type { Sessions } from './sessions';
 
@@ -328,6 +329,36 @@ export function createMcpServer(
         ...result.refused.map((r) => `refused ${r.name}: ${r.reason}`),
       ];
       return text(lines.join('\n') || 'nothing to write');
+    }),
+  );
+
+  register(
+    'create_tokens_file',
+    {
+      description:
+        "Add a tokens stylesheet to the project and import it from the stylesheet the app loads first (found the way the panel finds it: a Vite index.html link or the entry module's first CSS import, Next's app/globals.css, Astro's src/styles/global.css). For a project that has no tokens yet; the file must be new, and only one import line is inserted, after the entry's own leading statements. The user must have turned on \"Bridge may add a tokens stylesheet\" for this project in the panel. Use `get_design_system` for the content the panel would write.",
+      inputSchema: {
+        session,
+        path: z.string().describe('Project-relative path of the new file, e.g. src/tokens.css.'),
+        content: z.string().min(1).describe('The stylesheet, in full.'),
+        importInto: z.string().optional().describe('The stylesheet to import it from. Defaults to the entry the bridge finds; pass an empty string for no import.'),
+      },
+    },
+    guard(({ session, path, content, importInto }) => {
+      const state = sessions.getState(session);
+      if (!state.bridgeMayCreate) {
+        throw new Error(
+          'the user has not allowed this bridge to add a tokens stylesheet to this project; ask them to turn on "Bridge may add a tokens stylesheet" under Generate in the panel, or write the file yourself',
+        );
+      }
+      if (!state.tab?.local) {
+        throw new Error(
+          'the page open in the panel is not served from this machine, so this bridge will not write to the project on its account; write the file yourself',
+        );
+      }
+      const entry = importInto === undefined ? entryStylesheet(cwd)?.file : importInto || undefined;
+      const created = createTokensFile(cwd, { path, content, ...(entry ? { importInto: entry } : {}) });
+      return text(`created ${created.file}${created.importedFrom ? `, imported from ${created.importedFrom}:${created.line}` : ' (no entry stylesheet found to import it from; add the import yourself)'}`);
     }),
   );
 

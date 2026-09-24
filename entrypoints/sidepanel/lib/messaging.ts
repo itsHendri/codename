@@ -257,6 +257,11 @@ export function clearAgentPreview(tabId: number): Promise<ReskinResult | null> {
   return sendReskin(tabId, { type: 'reskin-preview-clear' });
 }
 
+/** The generated system's stylesheet in the page while it is previewed; empty takes it out. */
+export function setProposal(tabId: number, css: string): Promise<ReskinResult | null> {
+  return sendReskin(tabId, { type: 'reskin-proposal', css });
+}
+
 /* ---------------- element edits ---------------- */
 
 export function applyElementRules(

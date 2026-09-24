@@ -12,7 +12,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { AgentPresence, PinnedElement, ScanResult } from '@/shared/types';
-import type {
+import type { CreatedFile,
   Comment,
   CommentStatus,
   DefinitionsPayload,
@@ -22,6 +22,7 @@ import type {
 } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { FileToken } from '@/studio/tokenFile';
+import type { GenerateInputs } from '@/studio/generate';
 import type { BrandConfig, Mode } from '@/studio/engine/types';
 import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
@@ -59,6 +60,10 @@ export interface TabSession {
   scan: ScanResult | null;
   /** The edited system; null means "as scanned". */
   config: BrandConfig | null;
+  /** A system generated for a page that has none: the inputs, while the proposal stands. `config` holds the result. */
+  proposal: GenerateInputs | null;
+  /** The tokens file the bridge added for the proposal, once it has. */
+  proposalFile: CreatedFile | null;
   mode: Mode;
   /** Light forced on a page that is dark because the system is. Off when `mode` is dark. */
   lightForced: boolean;
@@ -108,6 +113,8 @@ export interface TabSession {
    * running in. Off until the person says so; the only write it ever makes.
    */
   bridgeMayWrite: boolean;
+  /** Whether the bridge may add a tokens stylesheet to its project and import it. Asked on its own, per project. */
+  bridgeMayCreate: boolean;
   /**
    * The agents Make changes may run in the project the bridge is in. Asked
    * once per project and per agent, because what each can do differs.
@@ -151,6 +158,8 @@ type Persisted = Omit<TabSession, 'pinned' | 'generation' | 'also'>;
 const EMPTY: TabSession = {
   scan: null,
   config: null,
+  proposal: null,
+  proposalFile: null,
   mode: 'light',
   lightForced: false,
   darkVia: null,
@@ -172,6 +181,7 @@ const EMPTY: TabSession = {
   handoff: null,
   agentMayWrite: false,
   bridgeMayWrite: false,
+  bridgeMayCreate: false,
   agentsMayRun: [],
   agentChoice: null,
   run: null,
@@ -344,6 +354,7 @@ export async function loadSession(id: number, url: string): Promise<void> {
 const CONSENT_KEYS: Record<keyof Consent, string> = {
   agentMayWrite: 'consent:paint:',
   bridgeMayWrite: 'consent:write:',
+  bridgeMayCreate: 'consent:create:',
 };
 /** Which agent Make changes runs, per project. */
 const AGENT_CHOICE_KEY = 'agent:';
@@ -355,6 +366,7 @@ const LEGACY_CONSENT_KEY = 'consent:';
 interface Consent {
   agentMayWrite: boolean;
   bridgeMayWrite: boolean;
+  bridgeMayCreate: boolean;
 }
 
 /**
@@ -385,15 +397,17 @@ async function loadConsent(pageScope: string, writeScope: string | null): Promis
       return undefined;
     }
   };
-  const [agentMayWrite, bridgeMayWrite, choice, mayRun] = await Promise.all([
+  const [agentMayWrite, bridgeMayWrite, bridgeMayCreate, choice, mayRun] = await Promise.all([
     read('agentMayWrite', pageScope),
     writeScope ? read('bridgeMayWrite', writeScope) : Promise.resolve(false),
+    writeScope ? read('bridgeMayCreate', writeScope) : Promise.resolve(false),
     writeScope ? readRaw(`${AGENT_CHOICE_KEY}${writeScope}`) : Promise.resolve(undefined),
     writeScope ? readRaw(`${RUN_CONSENT_KEY}${writeScope}`) : Promise.resolve(undefined),
   ]);
   return {
     agentMayWrite,
     bridgeMayWrite,
+    bridgeMayCreate,
     agentChoice: typeof choice === 'string' ? choice : null,
     agentsMayRun: Array.isArray(mayRun) ? mayRun.filter((a): a is string => typeof a === 'string') : [],
   };
@@ -457,8 +471,9 @@ export function allow(what: keyof Consent, value: boolean): void {
   const url = state.scan?.url;
   // Painting is about the page; writing is about the folder, and there is
   // nothing to allow when no folder is known.
-  const key = what === 'bridgeMayWrite' ? writeKeyFor() : url ? keyFor(url) : null;
-  if (what === 'bridgeMayWrite' && !key) return;
+  const aboutFolder = what === 'bridgeMayWrite' || what === 'bridgeMayCreate';
+  const key = aboutFolder ? writeKeyFor() : url ? keyFor(url) : null;
+  if (aboutFolder && !key) return;
   updateSession({ [what]: value } as Partial<TabSession>);
   if (!key) return;
   void chrome.storage.local.set({ [`${CONSENT_KEYS[what]}${key}`]: value }).catch(() => {});
@@ -666,7 +681,15 @@ if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSave
  * go back to what the page reads.
  */
 export function setConfig(config: BrandConfig | null) {
-  updateSession(config === null ? { config, varOverrides: {}, colorEdits: {} } : { config });
+  // Revert takes the proposal with it: a generated system with no config
+  // behind it would be inputs for nothing.
+  updateSession(config === null ? { config, varOverrides: {}, colorEdits: {}, proposal: null, proposalFile: null } : { config });
+  scheduleSaveEdits();
+}
+
+/** Generate a system for a page that has none, or take it back with null. `config` carries the result. */
+export function setProposal(inputs: GenerateInputs | null, config: BrandConfig | null) {
+  updateSession(inputs === null ? { proposal: null, proposalFile: null, config: null, varOverrides: {}, colorEdits: {} } : { proposal: inputs, config });
   scheduleSaveEdits();
 }
 

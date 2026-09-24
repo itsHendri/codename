@@ -12,6 +12,7 @@ import {
   sendInspector,
   sendRail,
   sendSpecimen,
+  setProposal as sendProposal,
   specimenHtml,
   setSiteMode,
   type BarLook,
@@ -40,6 +41,7 @@ import { active as activeChanges } from '@/studio/changes';
 import { hexOf, lengthKind, lengthPx } from '@/studio/reskin';
 import type { TokenLengths } from '@/shared/types';
 import { buildChangeSet } from '@/studio/commit';
+import { adoptionPlan, proposalCss } from '@/studio/generate';
 import type { Mode } from '@/studio/engine/types';
 import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
@@ -136,8 +138,10 @@ export default function App() {
           ...(session.applied.length ? { applied: session.applied } : {}),
           ...(model?.handoffDark.length ? { darkOverrides: model.handoffDark } : {}),
         },
+        // A generated system: which literal becomes which token, for the agent.
+        session.proposal && scan && model ? { rows: adoptionPlan(scan, model.resolved), ...(session.proposalFile ? { file: session.proposalFile } : {}) } : undefined,
       ),
-    [scanLike, model, session.log, session.comments, locks, bridge.project, session.definitions, session.applied],
+    [scanLike, scan, model, session.log, session.comments, locks, bridge.project, session.definitions, session.applied, session.proposal, session.proposalFile],
   );
   // Built once and pushed, so the badge, the Changes tab and the agent can
   // never disagree about what is pending.
@@ -427,6 +431,17 @@ export default function App() {
     if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
   }, [tabId, scan, restricted, theme, mode, resettable, darkVia, agentRules, agentMatched, railOn, specimenOn, lightForced]);
 
+  // The generated system's names, defined in the page while the proposal is
+  // previewed, so `var(--primary-600)` resolves there; taken out with it.
+  const proposalSent = useRef(false);
+  const proposalOn = session.proposal !== null && live;
+  useEffect(() => {
+    if (tabId == null || !scan || restricted) return;
+    if (!proposalOn && !proposalSent.current) return;
+    proposalSent.current = proposalOn;
+    void sendProposal(tabId, proposalOn && model ? proposalCss(model.resolved) : '');
+  }, [tabId, scan, restricted, proposalOn, model, session.generation]);
+
   // The specimen, over the page: built from the scan and the links, sent
   // whenever they change while it is up, and again after a reload.
   const specimenSpec = useMemo(() => (scan && specimenOn ? buildSpecimenSpec(scan, model?.links ?? {}) : null), [scan, specimenOn, model?.links]);
@@ -577,6 +592,7 @@ export default function App() {
             varOverrides={varOverrides}
             colorEdits={colorEdits}
             hostname={hostname}
+            local={changeSet.local}
             specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
             onConfigChange={setConfig}
             onResetAll={resetAll}

@@ -18,6 +18,8 @@ import { CritiqueSection } from './system/CritiqueSection';
 import { TypeStyles } from './system/TypeStyles';
 import { ExportSheet } from './system/ExportSheet';
 import { ColourSection, rampsOnPage } from './system/ColourSection';
+import { GenerateCard } from './system/GenerateCard';
+import { isThin } from '@/studio/generate';
 
 type SectionKey = 'colour' | 'type' | 'space' | 'tokens' | 'critique' | 'tokenFile';
 
@@ -46,6 +48,7 @@ export function SystemTab({
   varOverrides,
   colorEdits,
   hostname,
+  local,
   specimenHtml,
   onConfigChange,
   onResetAll,
@@ -66,6 +69,8 @@ export function SystemTab({
   varOverrides: Record<string, string>;
   colorEdits: Record<string, string>;
   hostname: string;
+  /** The page is served from this machine, so a write to the paired project is about it. */
+  local: boolean;
   /** The specimen as a page, read off the page while it is showing; for Export. */
   specimenHtml?: () => Promise<string | null>;
   onConfigChange: (config: BrandConfig | null) => void;
@@ -85,7 +90,10 @@ export function SystemTab({
   const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour', 'type', 'space', 'tokens']));
   const [exporting, setExporting] = useState(false);
   const { brand, resolved, dirty } = model;
-  const { tokenFile, styleLocks, darkVarOverrides } = useSession();
+  const { tokenFile, styleLocks, darkVarOverrides, proposal } = useSession();
+  // Open on its own for a page with too little to show; a door otherwise.
+  const [generating, setGenerating] = useState(() => isThin(scan));
+  const showGenerate = generating || proposal !== null;
   const styles = scan.typeStyles ?? [];
   // Against the page as read, not as edited: the edit is your answer to it.
   const review = useMemo(() => critique(scan, model.seeded), [scan, model.seeded]);
@@ -171,6 +179,14 @@ export function SystemTab({
           </button>
         )}
         <button
+          onClick={() => setGenerating((v) => !v)}
+          aria-pressed={showGenerate}
+          className={`btn btn-sm shrink-0 ${showGenerate ? 'btn-accent' : 'btn-secondary'}`}
+          title="Generate a system for this page from seeds, a ratio and a grid, previewed on the page and written into the project"
+        >
+          Generate
+        </button>
+        <button
           onClick={() => setExporting((v) => !v)}
           aria-pressed={exporting}
           className={`btn btn-sm shrink-0 ${exporting ? 'btn-accent' : 'btn-secondary'}`}
@@ -179,6 +195,8 @@ export function SystemTab({
           Export
         </button>
       </div>
+
+      {showGenerate && <GenerateCard scan={scan} model={model} local={local} onClose={() => setGenerating(false)} />}
 
       {exporting && (
         <ExportSheet resolved={resolved} slug={resolved.config.meta.slug || hostname} specimen={specimenHtml} onClose={() => setExporting(false)} />

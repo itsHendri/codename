@@ -18,11 +18,12 @@
  * finds several, the brief says how many rather than choosing.
  */
 
-import type { Definition } from '@/shared/protocol';
+import type { CreatedFile, Definition } from '@/shared/protocol';
 import { describeKeyframes, namesIn } from './animation';
 import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
+import type { Adoption } from './generate';
 import type { Override } from './reskin';
 import { stackIdOf, typeStyleDeclarations, type ElementChange } from './changes';
 import { describeForm } from './typeStyleMatch';
@@ -147,6 +148,11 @@ export interface ChangeSet {
   unreadable: string[];
   /** Tokens the person locked: keep their definitions as they are, whatever else follows. */
   locked?: string[];
+  /**
+   * A system generated for a page that had none: the tokens file (added by
+   * the bridge, or attached), and which literal becomes which token.
+   */
+  adoption?: { file?: CreatedFile; rows: Adoption[] };
 }
 
 /** Collapse a log into one edit per selector and property, in first-touched order. */
@@ -224,6 +230,8 @@ export function buildChangeSet(
     /** Values set by hand on the page's dark side. */
     darkOverrides?: Override[];
   } = {},
+  /** The generated system's plan for the page's literals, while a proposal stands. */
+  adoption?: ChangeSet['adoption'],
 ): ChangeSet {
   const propByName = new Map(scan.customProps.map((p) => [p.name, p]));
 
@@ -277,13 +285,16 @@ export function buildChangeSet(
     local: isLocal(scan.url),
     tokens,
     ...(darkTokens.length ? { darkTokens } : {}),
-    colors,
+    // A literal the plan turns into a token is not a hardcoded colour to
+    // change in place; it is that line of the plan.
+    colors: adoption?.rows.length ? colors.filter((c) => !adoption.rows.some((a) => a.literal === c.from.toUpperCase())) : colors,
     system,
     elements: withTokenHints(summariseElements(elements), scan),
     comments,
     unreadable: scan.unreadableSheets,
     ...(locked.length ? { locked } : {}),
     ...(repo.project ? { project: repo.project } : {}),
+    ...(adoption?.rows.length ? { adoption } : {}),
   };
 }
 
@@ -317,7 +328,8 @@ export function isEmpty(set: ChangeSet): boolean {
     set.colors.length === 0 &&
     set.system.length === 0 &&
     set.elements.length === 0 &&
-    set.comments.length === 0
+    set.comments.length === 0 &&
+    (set.adoption?.rows.length ?? 0) === 0
   );
 }
 
@@ -478,6 +490,24 @@ export function toPrompt(set: ChangeSet): string {
       lines.push(`- \`${t.name}\`: \`${t.from}\` → \`${t.to}\`${t.uses ? `  (${t.uses} ${t.uses === 1 ? 'usage' : 'usages'})` : ''}${fresh}`);
       const position = describeDefinitions(t);
       if (position) lines.push(`  - ${position}`);
+    }
+    lines.push('');
+  }
+
+  if (set.adoption?.rows.length) {
+    const { file, rows } = set.adoption;
+    lines.push(`## Adopt tokens — ${rows.length} ${rows.length === 1 ? 'literal' : 'literals'}`);
+    lines.push('');
+    lines.push(
+      file
+        ? `This page had no tokens, so a system was generated for it and written to \`${file.file}\`${file.importedFrom ? `, imported from \`${file.importedFrom}\` on line ${file.line}` : ' (not yet imported: add the import to the entry stylesheet)'}. The page reads it after a reload.`
+        : 'This page had no tokens, so a system was generated for it. The stylesheet is tokens.css from `get_design_system`: add it to the project and import it from the entry stylesheet first.',
+    );
+    lines.push('');
+    lines.push('Then replace each literal with the token that now holds it, everywhere the stylesheets paint it. A near match is marked; whether it was meant to be the same colour is your call.');
+    lines.push('');
+    for (const a of rows) {
+      lines.push(`- \`${a.literal}\` → \`${a.token}\`  (${a.exact ? '' : 'near, '}${a.uses} ${a.uses === 1 ? 'occurrence' : 'occurrences'})`);
     }
     lines.push('');
   }

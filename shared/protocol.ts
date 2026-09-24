@@ -162,6 +162,11 @@ export interface SessionState {
    * write the bridge is ever allowed.
    */
   bridgeMayWrite?: boolean;
+  /**
+   * The user's consent for the bridge to add one tokens stylesheet to the
+   * project and import it from the entry. Off until they say so, per project.
+   */
+  bridgeMayCreate?: boolean;
   /** Tokens the person locked: keep as is, whatever a brief touches. */
   locks: string[];
   /** The standing rules, rendered by the panel, for the agent to read before it asks for anything. */
@@ -271,6 +276,14 @@ export type PanelRequest =
    * scope holds agrees and still says what it said when it was read.
    */
   | { method: 'write_tokens'; edits: TokenEdit[] }
+  /** The stylesheet the app loads first, where an import of a new tokens file belongs; null when none is found. */
+  | { method: 'entry_stylesheet' }
+  /**
+   * Add a tokens stylesheet to the project and import it from the entry.
+   * Refused unless the person turned the project's create switch on, unless
+   * the file is new, and unless the entry exists.
+   */
+  | { method: 'create_tokens_file'; path: string; content: string; importInto?: string }
   /**
    * Make changes: run a coding agent in the bridge's folder on this brief.
    * The brief and the person's answer travel with the request rather than
@@ -280,6 +293,20 @@ export type PanelRequest =
   | { method: 'cancel_run' }
   /** The agents again, asked afresh: after the person signed one in, say. */
   | { method: 'list_agents' };
+
+/** The stylesheet the app loads first, and how the bridge found it. */
+export interface EntryStylesheet {
+  file: string;
+  via: 'link' | 'import' | 'next' | 'astro' | 'conventional';
+}
+
+/** A tokens file the bridge added, and where it imported it from. */
+export interface CreatedFile {
+  file: string;
+  importedFrom?: string;
+  /** The line in `importedFrom` the import went on. */
+  line?: number;
+}
 
 export interface AppliedDefinition {
   name: string;

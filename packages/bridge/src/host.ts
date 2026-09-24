@@ -10,7 +10,8 @@
 import { randomUUID } from 'node:crypto';
 import type { spawn } from 'node:child_process';
 import { PROTOCOL_VERSION } from '../../../shared/protocol';
-import type { AgentInfo, AppliedDefinition, PanelRequest, RunSnapshot, SessionState, WriteResult } from '../../../shared/protocol';
+import type { AgentInfo, AppliedDefinition, CreatedFile, PanelRequest, RunSnapshot, SessionState, WriteResult } from '../../../shared/protocol';
+import { createTokensFile, entryStylesheet } from './create';
 import { findAgents, realSyncExec, type Found, type SyncExec } from './agents';
 import { applyDefinition, findDefinitions } from './definitions';
 import { writeTokens } from './writer';
@@ -182,7 +183,17 @@ export async function startBridge(opts: HostOptions): Promise<Host> {
     if (request.method === 'run_agent') return runs.start(sessionId, request);
     if (request.method === 'cancel_run') return runs.cancel();
     if (request.method === 'list_agents') return runs.refresh();
+    if (request.method === 'entry_stylesheet') return entryStylesheet(cwd);
     const state: SessionState | null = sessions.get(sessionId).state;
+    if (request.method === 'create_tokens_file') {
+      // Its own consent: adding a file to a project is a different thing
+      // from changing a value in one, and is asked for on its own.
+      if (!state?.bridgeMayCreate) throw new Error('this project has not been allowed to take a tokens stylesheet from the panel');
+      if (!state.tab?.local) throw new Error('the page is not served from this machine, so nothing read from it is written to this project');
+      const created: CreatedFile = createTokensFile(cwd, request);
+      log(`created ${created.file}${created.importedFrom ? `, imported from ${created.importedFrom}:${created.line}` : ''}`);
+      return created;
+    }
     if (!state?.bridgeMayWrite) throw new Error('this project has not been allowed to take edits from the panel');
     // The consent is kept per project, so it is still on when the same tab
     // has moved to a deployed site; a value read there is not this folder's.

@@ -133,6 +133,19 @@ has been allowed.
     W3C DTCG format, each to download or copy, or both as a ZIP, and
     `specimen.html` while Styles is showing (below). Your agent reads the
     first two with `get_design_system`.
+  - **Generate**, a button beside Export, and open on its own for a page with
+    under three colour variables and no type styles: a system for a page
+    that has none. Seed, neutral, families, body size, ratio, grid, radius
+    and shadows are prefilled from the page (its brand red, its body size,
+    the ratio its sizes are nearest), never from a preset; generating
+    previews the ramps on the live page — literals remapped onto the steps,
+    the new names defined in a proposal sheet — and lists which literal
+    becomes which token. With a bridge paired and the page served from the
+    project, **Write src/tokens.css** adds the one file and one import line
+    (after the entry stylesheet's own imports; a Tailwind `@theme` inside it
+    is read by Tailwind), under its own per-project switch; otherwise the
+    file downloads. Replacing the literals is the agent's, from the brief's
+    **Adopt tokens** section, because each one is a judgement.
 - **Styles**, on the bar — the page's own styles page, drawn over the page in
   its own document: every type style the scan found on a real element in its
   own form (an `<h1>` for `h1 {}`, a `.lede` for `.lede {}`, a `.text-xl` for
@@ -390,9 +403,9 @@ same question with `find_definition`.
 An agent in a chat has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
 spacing, near-duplicate colours, type strays — as facts with numbers),
-`get_design_system` (the extracted system as files — `brand.md`,
-`tokens.css`, `tokens.json`, `SKILL.md`, `DESIGN_SYSTEM.md` — so it can write
-its own design context into your repository and refresh it after a rescan),
+`get_design_system` (the system as files — `tokens.css` and `tokens.json`
+— so it can write its own design context into your repository and refresh
+it after a rescan),
 `get_selection`, `get_comments` with `set_status` and `reply`,
 `check_tokens` (the page against a token file, named by a path in your project
 for the bridge to read, or passed as text),
@@ -401,8 +414,9 @@ file, line, value, selector, media conditions, and whether it sits at the
 root of the cascade, under a media query or in a scoped selector),
 `write_tokens` (the same scope-aware writes the Write button makes, under the
 same switch: light values into the root, dark values into the dark blocks,
-nothing inserted) and `apply_definition` (one value into one root
-definition),
+nothing inserted), `apply_definition` (one value into one root
+definition) and `create_tokens_file` (a new tokens stylesheet, imported
+from the entry the bridge finds, under its own switch),
 `get_screenshot` (with a `viewport` — one of the bar's presets, or `reset` —
 the page is framed at that width first — the window does not move — so the agent can review a change at every width; with
 a `selector`, the capture is cropped to that element),
@@ -537,13 +551,17 @@ npm run harness:scripts
   the semantic layer solved by measuring APCA against real fills, and
   `resolveTokens()`. `studio/export/` turns that one serialization into
   `tokens.css`, DTCG JSON, a style guide page and an agent skill.
-- `studio/seedFromScan.ts` — the bridge from a `ScanResult` to a `BrandConfig`.
+- `studio/seedFromScan.ts` — the bridge from a `ScanResult` to a `BrandConfig`;
+  `studio/generate.ts` the inputs read from it, the config generated from
+  them, and which literal becomes which token.
   `studio/reskin.ts` decides what a seed change does to the page;
   `studio/commit.ts` describes a change for an agent; `studio/changes.ts`,
   `selector.ts`, `measure.ts`, `tokenMatch.ts` and `edits.ts` are the pure
   halves of element editing and persistence.
 - `packages/bridge/` — `codename-bridge`, the companion process.
   `shared/protocol.ts` is the one contract between it and the panel.
+  `writer.ts` replaces token values in place; `create.ts` adds a tokens
+  stylesheet and one import line, and nothing else.
 - Permissions stay minimal: `activeTab`, `tabs`, `scripting`, `sidePanel`,
   `storage`. Broad host access is optional and requested per-site at the moment
   it is needed.
