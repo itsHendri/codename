@@ -54,11 +54,12 @@ export interface Override {
   from: string;
   to: string;
   /**
-   * How the value was matched. `exact` and `family` are colour; `grid` is a
-   * spacing or radius step; `scale` is a size on the type ladder; `manual` is
-   * a value a person typed for this very variable.
+   * How the value was matched. `link` is an explicit link from the variable
+   * to a ramp step; `exact` and `family` are colour matched by value; `grid`
+   * is a spacing or radius step; `scale` is a size on the type ladder;
+   * `manual` is a value a person typed for this very variable.
    */
-  reason: 'exact' | 'family' | 'grid' | 'scale' | 'manual';
+  reason: 'link' | 'exact' | 'family' | 'grid' | 'scale' | 'manual';
 }
 
 /**
@@ -68,6 +69,22 @@ export interface Override {
  */
 export function manualOverrides(vars: Record<string, string>, customProps: CustomPropInfo[]): Override[] {
   const known = new Map(customProps.map((p) => [p.name, p.value.trim()]));
+  const out: Override[] = [];
+  for (const [name, to] of Object.entries(vars)) {
+    const from = known.get(name);
+    if (from === undefined || from === to.trim()) continue;
+    out.push({ name, from, to: to.trim(), reason: 'manual' });
+  }
+  return out;
+}
+
+/**
+ * Dark-side values set by hand. The `from` is what the page's own dark
+ * definition says, so a value equal to it is no change; a variable with no
+ * dark definition can still be given one, and the brief says it is new.
+ */
+export function manualDarkOverrides(vars: Record<string, string>, customProps: CustomPropInfo[]): Override[] {
+  const known = new Map(customProps.map((p) => [p.name, (p.dark ?? p.value).trim()]));
   const out: Override[] = [];
   for (const [name, to] of Object.entries(vars)) {
     const from = known.get(name);

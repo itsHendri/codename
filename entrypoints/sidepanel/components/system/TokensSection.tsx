@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { ColorInfo, CustomPropInfo, PropDefinition, ScanResult } from '@/shared/types';
-import type { Mode } from '@/studio/engine/types';
+import type { CustomPropInfo, PropDefinition, ScanResult } from '@/shared/types';
+import type { Mode, ResolvedTokens, ScaleRole, Step } from '@/studio/engine/types';
+import { SCALE_ROLES, STEPS } from '@/studio/engine/types';
+import type { ColourLink, ColourLinks } from '@/studio/systemMap';
+import { Select } from '../inspect/fields';
+import { TokenGlyph } from '../inspect/TokenPill';
 import type { Override } from '@/studio/reskin';
 import { widthLabel } from '@/studio/siteMode';
 import { groupCustomProps, type VarKind } from '@/studio/varGroups';
@@ -48,11 +52,17 @@ export function TokensSection({
   colorMap,
   mode,
   varOverrides,
+  darkVarOverrides = {},
   colorEdits,
   locks = [],
+  links = {},
+  ambiguous = [],
+  resolved,
   onVar,
+  onDark,
   onColor,
   onLock,
+  onLink,
 }: {
   scan: Pick<ScanResult, 'customProps' | 'colors'>;
   /** What the engine would set each variable to, by name. */
@@ -62,12 +72,21 @@ export function TokensSection({
   /** In dark, the engine's colour moves are the preview, and the chip says so. */
   mode: Mode;
   varOverrides: Record<string, string>;
+  /** Values set by hand on the page's dark side. */
+  darkVarOverrides?: Record<string, string>;
   colorEdits: Record<string, string>;
   /** Variables to keep as they are: nothing moves them, and the brief says so. */
   locks?: string[];
+  /** Which ramp step each colour variable is on. */
+  links?: ColourLinks;
+  /** Variables two ramps could claim: the chip asks. */
+  ambiguous?: string[];
+  resolved?: ResolvedTokens;
   onVar: (name: string, value: string | null) => void;
+  onDark?: (name: string, value: string | null) => void;
   onColor: (hex: string, value: string | null) => void;
   onLock?: (name: string, locked: boolean) => void;
+  onLink?: (name: string, link: ColourLink | null | undefined) => void;
 }) {
   const [showAll, setShowAll] = useState<Set<VarKind>>(new Set());
   const [query, setQuery] = useState('');
@@ -154,9 +173,15 @@ export function TokensSection({
                   mode={mode}
                   engine={byEngine.get(prop.name)}
                   manual={varOverrides[prop.name]}
+                  manualDark={darkVarOverrides[prop.name]}
                   locked={locks.includes(prop.name)}
+                  link={links[prop.name]}
+                  ambiguous={ambiguous.includes(prop.name)}
+                  resolved={resolved}
                   onChange={(v) => onVar(prop.name, v)}
+                  onDark={onDark && kind === 'colour' ? (v) => onDark(prop.name, v) : undefined}
                   onLock={onLock ? (v) => onLock(prop.name, v) : undefined}
+                  onLink={onLink && kind === 'colour' ? (l) => onLink(prop.name, l) : undefined}
                 />
               ))}
             </div>
@@ -200,29 +225,45 @@ function VarRow({
   mode,
   engine,
   manual,
+  manualDark,
   locked,
+  link,
+  ambiguous,
+  resolved,
   onChange,
+  onDark,
   onLock,
+  onLink,
 }: {
   kind: VarKind;
   prop: CustomPropInfo;
   mode: Mode;
   engine: Override | undefined;
   manual: string | undefined;
+  manualDark?: string;
   locked: boolean;
+  link?: ColourLink | null;
+  ambiguous?: boolean;
+  resolved?: ResolvedTokens;
   onChange: (value: string | null) => void;
+  onDark?: (value: string | null) => void;
   onLock?: (locked: boolean) => void;
+  onLink?: (link: ColourLink | null | undefined) => void;
 }) {
   // A typed value, else what a seed or scale made of it, else what the page says — unless it is locked.
   const value = locked ? prop.value.trim() : (manual ?? engine?.to ?? prop.value.trim());
   const changed = value !== prop.value.trim();
   const source = prop.source?.split('/').pop();
+  const [linking, setLinking] = useState(false);
+  // The dark side: what the page defines there, or the value set by hand.
+  const darkValue = manualDark ?? prop.dark;
+  const showDark = kind === 'colour' && !!onDark && (!!prop.dark || !!manualDark);
 
   // What else there is to know, shown under the name only when there is
   // something: most variables are a name and a value, one row, as Figma's
   // variables table and Webflow's are.
   const widths = Object.entries(prop.atWidth ?? {});
-  const meta = !!prop.dark || !!prop.onlyAt || widths.length > 0 || (!locked && (!!manual || !!engine));
+  const meta = !!prop.onlyAt || widths.length > 0 || (!locked && (!!manual || !!engine)) || (kind === 'colour' && !!onLink) || (!!prop.dark && !showDark);
 
   return (
     <div
@@ -262,7 +303,7 @@ function VarRow({
         </div>
         {meta && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
-            {prop.dark && (
+            {prop.dark && !showDark && (
               <span
                 className="flex shrink-0 items-center gap-1 font-mono text-2xs text-ink-muted"
                 title={`Under the page's dark mode: ${prop.dark}`}
@@ -270,6 +311,9 @@ function VarRow({
                 {kind === 'colour' && <Swatch colour={prop.dark} />}
                 dark
               </span>
+            )}
+            {kind === 'colour' && onLink && (
+              <LinkChip link={link} ambiguous={!!ambiguous} resolved={resolved} open={linking} onOpen={() => setLinking((v) => !v)} onLink={(l) => { onLink(l); setLinking(false); }} />
             )}
             {prop.onlyAt && (
               <span
@@ -315,9 +359,84 @@ function VarRow({
           <span className="truncate">{value}</span>
         </span>
       ) : (
-        <Editor kind={kind} value={value} changed={changed} name={prop.name} onChange={onChange} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Editor kind={kind} value={value} changed={changed} name={prop.name} onChange={onChange} />
+          {/* The dark side, beside the light one, as Figma's mode columns and v0's pairs. */}
+          {showDark && darkValue && (
+            <div className="flex items-center gap-1" title={manualDark ? `Dark side, set by hand; the page says ${prop.dark ?? 'nothing'}` : "The page's own dark value"}>
+              <span className="w-6 shrink-0 text-2xs text-ink-muted">dark</span>
+              <span className="min-w-0 flex-1">
+                <ColorField value={darkValue} ariaLabel={`${prop.name} dark value`} onChange={(v) => onDark!(v)} />
+              </span>
+              {manualDark && (
+                <button onClick={() => onDark!(null)} className="shrink-0 text-ink-muted hover:text-ink" aria-label={`Take back the dark value of ${prop.name}`} title={`Set by hand; was ${prop.dark ?? 'unset'}. Click to take it back.`}>
+                  <UndoIcon className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Which ramp step this variable is on. "primary 600" when linked, "link…"
+ * when two ramps could claim it, "no ramp" when it sits on none; open it
+ * to choose a role and a step, or to unlink on purpose. A stored decision
+ * beats inference, and forgetting it lets inference speak again.
+ */
+function LinkChip({
+  link,
+  ambiguous,
+  resolved,
+  open,
+  onOpen,
+  onLink,
+}: {
+  link: ColourLink | null | undefined;
+  ambiguous: boolean;
+  resolved?: ResolvedTokens;
+  open: boolean;
+  onOpen: () => void;
+  onLink: (link: ColourLink | null | undefined) => void;
+}) {
+  const [role, setRole] = useState<ScaleRole>(link?.role ?? 'primary');
+  const [step, setStep] = useState<Step>(link?.step ?? 500);
+  const label = link ? `${link.role} ${link.step}` : ambiguous ? 'link…' : link === null ? 'no ramp' : 'not on a ramp';
+  const hex = link && resolved ? resolved.scales[link.role].steps.light[link.step].hex : null;
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-1">
+      <button
+        onClick={onOpen}
+        aria-expanded={open}
+        aria-label={`Link of this variable: ${label}`}
+        title={link ? `On the ${link.role} ramp at ${link.step}: it follows that ramp's seed. Click to change.` : ambiguous ? 'Two ramps could claim this value; say which, or neither.' : 'Not on a ramp: a seed change leaves it alone. Click to link it.'}
+        className={`flex h-4 shrink-0 items-center gap-1 rounded-[4px] px-1.5 font-mono text-2xs leading-4 ${ambiguous && !link ? 'bg-warn-soft text-warn-ink' : link ? 'bg-accent-soft text-accent' : 'bg-surface-field text-ink-muted'}`}
+      >
+        {hex && <span className="swatch h-2 w-2 rounded-[2px]" style={{ background: hex }} />}
+        {link && <TokenGlyph className="h-1.5 w-1.5" />}
+        {label}
+      </button>
+      {open && (
+        <span className="flex items-center gap-1">
+          <Select value={role} options={SCALE_ROLES} ariaLabel="Ramp" onChange={(r) => setRole(r)} className="h-5 text-2xs" />
+          <Select value={String(step)} options={STEPS.map(String) as readonly string[]} ariaLabel="Step" onChange={(v) => setStep(Number(v) as Step)} className="h-5 w-14 text-2xs" />
+          <button onClick={() => onLink({ role, step })} className="btn btn-sm btn-secondary">
+            Link
+          </button>
+          <button onClick={() => onLink(null)} className="btn btn-sm btn-ghost" title="Keep it off every ramp, on purpose">
+            Unlink
+          </button>
+          {link !== undefined && (
+            <button onClick={() => onLink(undefined)} className="btn btn-sm btn-ghost" title="Forget the decision and let inference decide again">
+              Forget
+            </button>
+          )}
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -27,6 +27,7 @@ import { isLocal } from '@/studio/commit';
 import { emptyLog, type ChangeLog } from '@/studio/changes';
 import { normaliseCondition } from '@/studio/conditions';
 import { applyEdits, diffEdits, editsKey, type BrandEdits } from '@/studio/edits';
+import type { ColourLink, ColourLinks } from '@/studio/systemMap';
 import { loadEdits, saveEdits } from '@/studio/storage';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
 
@@ -74,6 +75,10 @@ export interface TabSession {
   rail: boolean;
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
+  /** The page's own variables set by hand on its dark side: name → value. */
+  darkVarOverrides: Record<string, string>;
+  /** Page variables linked to a ramp step by hand, or unlinked on purpose (null). Inferred links are not stored. */
+  links: ColourLinks;
   /** Observed colours set by hand: old hex (upper case) → new hex. */
   colorEdits: Record<string, string>;
   /** Page variables to keep as they are, whatever else moves. Per site, like the edits. */
@@ -151,6 +156,8 @@ const EMPTY: TabSession = {
   activeTab: 'style',
   rail: true,
   varOverrides: {},
+  darkVarOverrides: {},
+  links: {},
   colorEdits: {},
   locks: [],
   styleLocks: [],
@@ -301,6 +308,8 @@ export async function loadSession(id: number, url: string): Promise<void> {
         agentLog: stored.agentLog ?? [],
         locks: stored.locks ?? [],
         styleLocks: stored.styleLocks ?? [],
+        darkVarOverrides: stored.darkVarOverrides ?? {},
+        links: stored.links ?? {},
         // The tree and the assets moved into the rail; a session left on
         // either of those tabs opens on the selection now.
         activeTab: migrateTab(stored.activeTab),
@@ -589,6 +598,8 @@ async function reloadScope(url: string): Promise<void> {
     colorEdits: edits?.colors ?? {},
     locks: edits?.locks ?? [],
     styleLocks: edits?.styleLocks ?? [],
+    darkVarOverrides: edits?.darkVars ?? {},
+    links: edits?.links ?? {},
     ...allowed,
   });
 }
@@ -601,17 +612,26 @@ async function reloadScope(url: string): Promise<void> {
 export async function setScan(scan: ScanResult) {
   const edits = await loadEdits(keyFor(scan.url), originOf(scan.url)).catch(() => null);
   const config = edits ? applyEdits(seedBrandFromScan(scan), edits) : null;
-  updateSession({ scan, config, varOverrides: edits?.vars ?? {}, colorEdits: edits?.colors ?? {}, locks: edits?.locks ?? [], styleLocks: edits?.styleLocks ?? [] });
+  updateSession({
+    scan,
+    config,
+    varOverrides: edits?.vars ?? {},
+    darkVarOverrides: edits?.darkVars ?? {},
+    links: edits?.links ?? {},
+    colorEdits: edits?.colors ?? {},
+    locks: edits?.locks ?? [],
+    styleLocks: edits?.styleLocks ?? [],
+  });
 }
 
 /** Everything decided against this site, as the store keeps it. */
 function currentEdits(): { key: string; edits: BrandEdits } | null {
-  const { scan, config, varOverrides, colorEdits, locks, styleLocks } = state;
+  const { scan, config, varOverrides, darkVarOverrides, links, colorEdits, locks, styleLocks } = state;
   if (!scan) return null;
   const seeded = seedBrandFromScan(scan);
   return {
     key: keyFor(scan.url),
-    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, colors: colorEdits, locks, styleLocks },
+    edits: { ...diffEdits(seeded, config ?? seeded), vars: varOverrides, darkVars: darkVarOverrides, links, colors: colorEdits, locks, styleLocks },
   };
 }
 
@@ -672,6 +692,31 @@ export function setLock(name: string, locked: boolean) {
     if (!locked) return { locks };
     const { [name]: _dropped, ...varOverrides } = s.varOverrides;
     return { locks, varOverrides };
+  });
+  scheduleSaveEdits();
+}
+
+/** Set a variable's value on the page's dark side, or take that back with null. */
+export function setDarkVarOverride(name: string, to: string | null) {
+  updateSession((s) => {
+    const next = { ...s.darkVarOverrides };
+    if (to === null) delete next[name];
+    else next[name] = to;
+    return { darkVarOverrides: next };
+  });
+  scheduleSaveEdits();
+}
+
+/**
+ * Link a variable to a ramp step, unlink it on purpose (null), or forget the
+ * decision (undefined) so inference speaks again.
+ */
+export function setLink(name: string, link: ColourLink | null | undefined) {
+  updateSession((s) => {
+    const next = { ...s.links };
+    if (link === undefined) delete next[name];
+    else next[name] = link;
+    return { links: next };
   });
   scheduleSaveEdits();
 }

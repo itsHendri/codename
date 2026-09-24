@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
-import type { BrandConfig, Mode } from '@/studio/engine/types';
+import type { BrandConfig, Mode, ScaleRole, Step } from '@/studio/engine/types';
+import type { ColourLink } from '@/studio/systemMap';
 import { regrid } from '@/studio/edits';
 import { critique } from '@/studio/critique';
 import { driftReport } from '@/studio/tokenFile';
@@ -16,8 +17,9 @@ import { SpaceSection } from './system/SpaceSection';
 import { CritiqueSection } from './system/CritiqueSection';
 import { TypeStyles } from './system/TypeStyles';
 import { ExportSheet } from './system/ExportSheet';
+import { ColourSection, rampsOnPage } from './system/ColourSection';
 
-type SectionKey = 'type' | 'space' | 'tokens' | 'critique' | 'tokenFile';
+type SectionKey = 'colour' | 'type' | 'space' | 'tokens' | 'critique' | 'tokenFile';
 
 /**
  * The system this page runs on, as one surface: its type styles and the
@@ -47,7 +49,9 @@ export function SystemTab({
   onConfigChange,
   onResetAll,
   onVar,
+  onDark,
   onColor,
+  onLink,
   locks,
   onLock,
 }: {
@@ -65,16 +69,20 @@ export function SystemTab({
   /** Every override, including element edits, back to what the page reads. */
   onResetAll: () => void;
   onVar: (name: string, value: string | null) => void;
+  /** A value set by hand on the page's dark side. */
+  onDark: (name: string, value: string | null) => void;
   onColor: (hex: string, value: string | null) => void;
+  /** Link a variable to a ramp step, unlink it (null), or forget the decision (undefined). */
+  onLink: (name: string, link: ColourLink | null | undefined) => void;
   locks: string[];
   onLock: (name: string, locked: boolean) => void;
 }) {
   // All open but the audits. A collapsed section with a summary reads as a
   // fact rather than a door, which is how the editable type ladder went unnoticed.
-  const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['type', 'space', 'tokens']));
+  const [open, setOpen] = useState<Set<SectionKey>>(new Set<SectionKey>(['colour', 'type', 'space', 'tokens']));
   const [exporting, setExporting] = useState(false);
   const { brand, resolved, dirty } = model;
-  const { tokenFile, styleLocks } = useSession();
+  const { tokenFile, styleLocks, darkVarOverrides } = useSession();
   const styles = scan.typeStyles ?? [];
   // Against the page as read, not as edited: the edit is your answer to it.
   const review = useMemo(() => critique(scan, model.seeded), [scan, model.seeded]);
@@ -95,6 +103,29 @@ export function SystemTab({
     (basePx: number) => patch({ radius: { ...brand.radius, basePx, concentric: basePx > 0 } }),
     [brand, patch],
   );
+  const setSeed = useCallback(
+    (role: ScaleRole, seed: string) =>
+      patch({ color: { ...brand.color, scales: brand.color.scales.map((s) => (s.role === role ? { ...s, seed } : s)) } }),
+    [brand, patch],
+  );
+  const setPin = useCallback(
+    (role: ScaleRole, step: Step, hex: string | null) =>
+      patch({
+        color: {
+          ...brand.color,
+          scales: brand.color.scales.map((s) => {
+            if (s.role !== role) return s;
+            const light = { ...s.overrides?.light };
+            if (hex) light[step] = hex;
+            else delete light[step];
+            return { ...s, overrides: { ...s.overrides, light } };
+          }),
+        },
+      }),
+    [brand, patch],
+  );
+  const ramps = rampsOnPage(brand, model.links, scan.customProps);
+  const linked = Object.values(model.links).filter(Boolean).length;
 
   const manualVars = Object.keys(varOverrides).length;
   const manualColours = Object.keys(colorEdits).length;
@@ -149,6 +180,15 @@ export function SystemTab({
       {exporting && <ExportSheet resolved={resolved} slug={resolved.config.meta.slug || hostname} onClose={() => setExporting(false)} />}
 
       <Section
+        title="Colour"
+        summary={`${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`}
+        open={open.has('colour')}
+        onToggle={() => toggle('colour')}
+      >
+        <ColourSection brand={brand} resolved={resolved} mode={mode} links={model.links} props={scan.customProps} onSeed={setSeed} onPin={setPin} />
+      </Section>
+
+      <Section
         title="Type"
         summary={`${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`}
         open={open.has('type')}
@@ -188,11 +228,17 @@ export function SystemTab({
           colorMap={model.paint.colorMap}
           mode={mode}
           varOverrides={varOverrides}
+          darkVarOverrides={darkVarOverrides}
           colorEdits={colorEdits}
           locks={locks}
+          links={model.links}
+          ambiguous={model.ambiguous}
+          resolved={resolved}
           onVar={onVar}
+          onDark={onDark}
           onColor={onColor}
           onLock={onLock}
+          onLink={onLink}
         />
       </Section>
 

@@ -78,6 +78,11 @@ has been allowed.
 - **System** — what this page runs on, editable, and live on the page as
   you type. Only what the page really defines appears, under the names it
   gave things; nothing here is a vocabulary invented for it.
+  - **Colour** — one ramp strip per ramp the page's colours are on: the
+    seed, eleven steps in the mode being shown, a mark on every step a page
+    variable sits on, and a **pin** to hold a step at an exact colour
+    whatever the seed does. Move a seed and every variable linked to that
+    ramp follows, step for step; the tokens queue for the bridge to write.
   - **Type** — the families the page renders, and its **type styles** as one
     table, in whatever form the project writes them: a Tailwind v4
     `--text-*` token with its siblings, a class like `.h1`, one variable per
@@ -102,7 +107,12 @@ has been allowed.
     defines again under a width media query wears a chip (`≤700`) with that
     value; the edit leaves it alone and the brief says so. Type a value and
     the page repaints; the token queues for the bridge to write, or the
-    brief gets one line. **Lock** a variable and nothing moves it. Below the
+    brief gets one line. A colour variable also shows its **dark side** —
+    the page's own dark value, editable; a value set there is painted while
+    the page is shown dark and queues for the dark definitions — and a
+    **link chip** saying which ramp step it is on ("primary 700", or "link…"
+    when two ramps could claim it), which you can change, unlink on purpose,
+    or hand back to inference. **Lock** a variable and nothing moves it. Below the
     variables, **Literals**: colours the page paints that no variable holds.
     On a page with no variables this is the handle: setting one rewrites the
     rules that hold the literal.

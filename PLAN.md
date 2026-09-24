@@ -357,6 +357,35 @@ is that companion growing up.
   rule rewrite). `get_design_system` and `codename://design-system/*` serve
   the two files. Next, W43b: colour ramps and the semantic table with
   explicit links from page variables to engine roles.
+- **W43b, 24 September 2026 — ramps, the dark side, and links.** The
+  re-skin used to match a page variable to a ramp step by value alone, and
+  nothing showed or changed it. Now the link is explicit
+  (`studio/systemMap.ts`): inferred once per reading, a variable within a
+  hair of one step is on it; the page's one red seeds both primary and
+  danger, so an exact tie goes to the brand ramp; two different ramps
+  claiming a value is an ambiguity the chip asks about rather than a guess;
+  a stored decision — a link, a null for "no ramp, on purpose" — beats
+  inference and is kept with the edits (`BrandEdits.links`). A linked
+  variable follows its step wherever the seed goes (`linkedOverrides`, the
+  new `link` reason); the unlinked fall back to value matching, so nothing
+  repaints less than it did. **Colour** is the first section of System:
+  one ramp strip per role that has a linked variable or a seed the page
+  paints (`rampsOnPage`), with the seed field, the eleven steps in the mode
+  shown, a glyph on each step a variable sits on, APCA against white and
+  black in the title, and a **pin** — a step held to an exact colour
+  whatever the seed does (`ScaleConfig.overrides.light`, persisted as
+  `BrandEdits.pins`; Radix and tints.dev's "the seed lands exactly",
+  extended to any step). Tokens rows gain the **dark side** (Figma's mode
+  columns, v0's pairs): a second colour field with the page's own dark
+  value, editable; a hand value is `darkVarOverrides`, painted only while
+  the page is shown dark, kept as `BrandEdits.darkVars`, and carried as
+  `ChangeSet.darkTokens` — a "Token changes on the dark side" section in
+  the brief aimed at the dark definitions (with "no dark definition yet;
+  add one" where the page has none), and a Dark side section on Changes
+  whose Write sends `mode: 'dark'` to W40's writer, which lands it in both
+  spellings of the dark side. The **link chip** on a colour row reads
+  "primary 700", "link…" or "no ramp"; open it to pick a role and a step,
+  unlink on purpose, or forget the decision.
 
 ## Live re-skin
 

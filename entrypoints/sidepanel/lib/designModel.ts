@@ -9,9 +9,10 @@ import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ResolvedTokens } from '@/studio/engine/types';
 import { resolveTokens } from '@/studio/engine/resolve';
 import { seedBrandFromScan } from '@/studio/seedFromScan';
-import { buildColorMap, buildLengthMap, buildLengthReskin, buildReskin, hexOf, manualOverrides, mergeOverrides, type Override } from '@/studio/reskin';
+import { buildColorMap, buildLengthMap, buildLengthReskin, buildReskin, hexOf, manualDarkOverrides, manualOverrides, mergeOverrides, type Override } from '@/studio/reskin';
 import { isLengthMapEmpty, type LengthMap } from '@/studio/reskinRules';
 import { diffSystem, type SystemChange } from '@/studio/systemDiff';
+import { inferColourLinks, linkedOverrides, mergeLinks, type ColourLinks } from '@/studio/systemMap';
 import { applyReskin, type ReskinResult } from './messaging';
 
 export interface Paint {
@@ -36,10 +37,16 @@ export interface DesignModel {
   paint: Paint;
   /** What goes to the agent: the decisions, in light. A preview is not a decision. */
   handoff: Paint;
+  /** Decisions about the page's dark side: values set by hand there. */
+  handoffDark: Override[];
   /** Lengths the page's rules should move, keyed by property. */
   lengthMap: LengthMap | null;
   /** Scale decisions, which may have no variable behind them at all. */
   system: SystemChange[];
+  /** Which ramp step each colour variable is on: stored decisions over inferred ones. */
+  links: ColourLinks;
+  /** Variables two ramps could claim, left unlinked until someone says. */
+  ambiguous: string[];
 }
 
 const prune = (map: Record<string, string>) =>
@@ -52,6 +59,8 @@ export function useDesignModel(
   varOverrides: Record<string, string>,
   colorEdits: Record<string, string>,
   locks: string[] = [],
+  darkVarOverrides: Record<string, string> = {},
+  storedLinks: ColourLinks = {},
 ): DesignModel | null {
   // The reading of the page changes only when the page is read again; a
   // colour picker firing per frame must not re-derive it, or resolve the
@@ -59,16 +68,23 @@ export function useDesignModel(
   const seed = useMemo(() => {
     if (!scan) return null;
     const seeded = seedBrandFromScan(scan);
-    return { seeded, baseline: resolveTokens(seeded) };
+    const baseline = resolveTokens(seeded);
+    // Inferred once per reading: which ramp step each variable is on.
+    const inferred = inferColourLinks(scan.customProps, baseline);
+    return { seeded, baseline, inferred };
   }, [scan]);
 
   return useMemo(() => {
     if (!scan || !seed) return null;
-    const { seeded, baseline } = seed;
+    const { seeded, baseline, inferred } = seed;
     const brand = config ?? seeded;
     const resolved = config ? resolveTokens(brand) : baseline;
     const edited = config !== null;
     const manual = manualOverrides(varOverrides, scan.customProps);
+    const manualDark = manualDarkOverrides(darkVarOverrides, scan.customProps);
+    const links = mergeLinks(inferred.links, storedLinks);
+    // A linked variable follows its step; the rest are matched by value as before.
+    const unlinked = scan.customProps.filter((p) => !links[p.name]);
     const colours = prune(colorEdits);
     // A locked variable is one the person said to keep: no seed, scale or
     // hand value moves it, in the preview or in the brief — and neither does
@@ -86,11 +102,13 @@ export function useDesignModel(
         mergeOverrides(
           withSystem
             ? [
-                ...buildReskin(scan.customProps, baseline, resolved, target),
+                ...linkedOverrides(links, scan.customProps, baseline, resolved, target),
+                ...buildReskin(unlinked, baseline, resolved, target),
                 ...buildLengthReskin(scan.customProps, baseline, resolved, scan.rootFontSize),
               ]
             : [],
-          manual,
+          // In dark, a value set by hand on the dark side is what shows.
+          target === 'dark' ? [...manual, ...manualDark] : manual,
         ),
       ),
       colorMap: withoutLocked({ ...(withSystem ? buildColorMap(scan.colors, baseline, resolved, target) : {}), ...colours }),
@@ -106,13 +124,16 @@ export function useDesignModel(
       resolved,
       baseline,
       edited,
-      dirty: edited || manual.length > 0 || Object.keys(colours).length > 0,
+      dirty: edited || manual.length > 0 || manualDark.length > 0 || Object.keys(colours).length > 0,
       paint,
       handoff,
+      handoffDark: unlocked(manualDark),
       lengthMap: isLengthMapEmpty(lengthMap) ? null : lengthMap,
       system: edited ? diffSystem(seeded, brand) : [],
+      links,
+      ambiguous: inferred.ambiguous.filter((n) => !(n in storedLinks)),
     };
-  }, [scan, seed, config, mode, varOverrides, colorEdits, locks]);
+  }, [scan, seed, config, mode, varOverrides, colorEdits, locks, darkVarOverrides, storedLinks]);
 }
 
 /**
