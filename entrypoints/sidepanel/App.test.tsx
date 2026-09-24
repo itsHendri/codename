@@ -1159,10 +1159,11 @@ describe('what the inspector read as authored', () => {
   it('says "is --ink" for a colour whose declaration names the variable, and "matches" otherwise', async () => {
     await act(async () => stub.emit({ type: 'element-selected', data: element({ authored }) }));
     await tick();
-    const chips = Array.from(host.querySelectorAll('button')).map((b) => b.textContent ?? '');
-    expect(chips.some((c) => c.replace(/\s+/g, ' ') === 'is --ink')).toBe(true);
+    const chips = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent ?? '').replace(/\s+/g, ' '));
+    // A certain read is a pill, not a chip: "is --ink", with its use count.
+    expect(chips.some((c) => c.startsWith('is --ink'))).toBe(true);
     // The fill is #E7E4DB, which --paper holds, but nothing was read about it.
-    expect(chips.some((c) => c.replace(/\s+/g, ' ') === 'matches --paper')).toBe(true);
+    expect(chips.some((c) => c === 'matches --paper')).toBe(true);
   });
 
   it('falls back to "matches" when the read was not certain', async () => {
@@ -1172,6 +1173,66 @@ describe('what the inspector read as authored', () => {
     const chips = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent ?? '').replace(/\s+/g, ' '));
     expect(chips).not.toContain('is --ink');
     expect(chips).toContain('matches --ink');
+  });
+});
+
+describe('what the selection is on', () => {
+  const inkOnBody = { color: { value: 'var(--ink)', token: '--ink', rule: { selector: 'body', groups: [] }, important: false, certain: true, inherited: true } };
+  const buttons = () => Array.from(host.querySelectorAll('button'));
+  const byLabel = (label: string) => buttons().find((b) => b.getAttribute('aria-label') === label) ?? null;
+
+  it('shows the type style the selection is on and switches it as one edit', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ authored: { 'font-size': { value: '28px', rule: { selector: 'h1', groups: [] }, important: false, certain: true } } }) }));
+    await tick();
+    const row = byLabel('Type style');
+    expect(row?.textContent?.replace(/\s+/g, ' ')).toContain('is H1 · h1 28/34');
+    await click(row);
+    await click(byLabel('Use style lede'));
+    await tick();
+    const entries = getSession().log.entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ property: 'type-style', from: 'h1', to: 'lede', typeStyle: { selectorOrUtility: '.lede' } });
+    // The page previews every field the style sets.
+    const sent = stub.sent.find((m) => m.type === 'elements-set') as { rules?: { property: string; value: string }[] } | undefined;
+    expect(sent?.rules?.map((r) => [r.property, r.value])).toEqual([
+      ['font-size', '17px'],
+      ['line-height', '26px'],
+    ]);
+  });
+
+  it('swap, edit globally and detach land as the right kind of change', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ authored: inkOnBody }) }));
+    await tick();
+    const pill = byLabel('Token --ink');
+    expect(pill?.textContent?.replace(/\s+/g, ' ')).toContain('is --ink');
+    await click(pill);
+    // Swap: this element goes on another variable.
+    await click(byLabel('Use --mark'));
+    await tick();
+    expect(getSession().log.entries[0]).toMatchObject({ property: 'color', to: 'var(--mark)', token: '--mark' });
+
+    // Edit globally: the variable itself, for every use.
+    await act(async () => stub.emit({ type: 'element-selected', data: element({ authored: inkOnBody }) }));
+    await tick();
+    await click(byLabel('Token --ink'));
+    await click(buttons().find((b) => b.textContent?.startsWith('Edit globally')) ?? null);
+    const field = host.querySelector('input[aria-label="--ink value"]') as HTMLInputElement | null;
+    expect(field).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(field, '#222222');
+      field!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await tick();
+    expect(getSession().varOverrides['--ink']).toBe('#222222');
+
+    // Detach: the literal stays, and the brief says it was on purpose. The
+    // pill is still open from Edit globally; open it only if it closed.
+    if (byLabel('Token --ink')?.getAttribute('aria-expanded') !== 'true') await click(byLabel('Token --ink'));
+    await click(buttons().find((b) => b.textContent === 'Detach') ?? null);
+    await tick();
+    const last = getSession().log.entries[getSession().log.entries.length - 1];
+    expect(last).toMatchObject({ property: 'color', to: '#15171B', detached: '--ink' });
   });
 });
 

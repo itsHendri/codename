@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ElementProps, ScanResult } from '@/shared/types';
 import type { Mode, ResolvedTokens } from '@/studio/engine/types';
 import { contrastBadge } from '../lib/color';
@@ -15,6 +15,9 @@ import { CommentComposer } from './inspect/Comments';
 import { PageStyles } from './inspect/PageStyles';
 import { LayerIcon } from './inspect/LayerIcon';
 import { Empty } from './States';
+import { setVarOverride } from '../lib/session';
+import { ColorField } from './inspect/ColorField';
+import type { CustomPropInfo } from '@/shared/types';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -49,6 +52,11 @@ export function StyleTab({
   onOpenVariables: () => void;
 }) {
   const el = ctl.element;
+  // A variable the person chose to edit from a pill: its own field, above
+  // the properties, until it is closed. The edit is the same one Variables
+  // makes — the page repaints, the token queues for a write.
+  const [editing, setEditing] = useState<CustomPropInfo | null>(null);
+  useEffect(() => setEditing(null), [el?.selector]);
 
   // What this log has written for the selection in the state being edited,
   // so a size mode can be read back from the panel's own words rather than
@@ -110,6 +118,22 @@ export function StyleTab({
       <Scope element={el} ctl={ctl} />
       <ConditionDetail ctl={ctl} />
       <Contrast element={el} />
+      {editing && (
+        <div className="flex flex-col gap-1 rounded-control bg-surface-panel p-2 shadow-[inset_0_0_0_1px_var(--line-subtle)]" aria-label={`Edit ${editing.name} globally`}>
+          <div className="flex items-center gap-2 text-2xs text-ink-muted">
+            <code className="min-w-0 flex-1 truncate text-xs text-ink">{editing.name}</code>
+            {editing.uses != null && <span>{editing.uses} uses</span>}
+            <button onClick={() => setEditing(null)} className="btn btn-sm btn-ghost" aria-label={`Done editing ${editing.name}`}>
+              Done
+            </button>
+          </div>
+          <ColorField
+            value={(scan?.customProps.find((p) => p.name === editing.name) ?? editing).value}
+            ariaLabel={`${editing.name} value`}
+            onChange={(v) => setVarOverride(editing.name, v)}
+          />
+        </div>
+      )}
       <PropertyPanel
         element={el}
         scan={scan ?? NO_SCAN}
@@ -120,6 +144,7 @@ export function StyleTab({
         onPlay={ctl.playCondition}
         playable={ctl.condition?.kind === 'state'}
         written={written}
+        onEditToken={setEditing}
       />
       <SelectionColours ctl={ctl} scan={scan ?? NO_SCAN} resolved={resolved} mode={mode} />
       <Note element={el} scope={ctl.scope} onAdd={ctl.addComment} />

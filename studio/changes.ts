@@ -9,8 +9,30 @@
  * like edits, not frames.
  */
 
+import type { TypeStyle } from '@/shared/types';
 import { conditionKey, type MaybeCondition } from './conditions';
 import type { ComponentOrigin } from './framework';
+
+/** The properties a type style sets, and the field each comes from. */
+export const TYPE_STYLE_FIELDS: [property: string, field: keyof TypeStyle['fields']][] = [
+  ['font-size', 'size'],
+  ['line-height', 'lineHeight'],
+  ['letter-spacing', 'tracking'],
+  ['font-weight', 'weight'],
+  ['font-family', 'family'],
+];
+
+/** The declarations a type style amounts to, as the page would paint them. */
+export function typeStyleDeclarations(style: TypeStyle): [property: string, value: string][] {
+  const out: [string, string][] = [];
+  for (const [property, field] of TYPE_STYLE_FIELDS) {
+    const f = style.fields[field];
+    if (!f) continue;
+    if (f.token) out.push([property, `var(${f.token})`]);
+    else if (f.literal) out.push([property, f.literal]);
+  }
+  return out;
+}
 
 /** Where an element was put: inside `parent`, before `before`, or last when null. */
 export interface MoveSpec {
@@ -42,6 +64,14 @@ export interface ElementChange {
   to: string;
   /** The token whose value was chosen, so the brief can say so. */
   token?: string;
+  /**
+   * The variable this element was on before the person wrote a literal in
+   * its place on purpose. The brief says so, and does not offer the variable
+   * back as a hint.
+   */
+  detached?: string;
+  /** For 'type-style': the style chosen, whole, so the page can paint it and the brief describe it. */
+  typeStyle?: TypeStyle;
   /** The component the dev build says rendered this, when it says. */
   component?: ComponentOrigin;
   status: 'pending' | 'applied' | 'reverted';
@@ -105,7 +135,14 @@ export function commit(
     )
       continue;
     // Keep the original `from`: undoing a scrub returns to where it started.
-    const merged: ElementChange = { ...e, to: change.to, token: change.token, at: new Date(now).toISOString() };
+    const merged: ElementChange = {
+      ...e,
+      to: change.to,
+      token: change.token,
+      detached: change.detached,
+      typeStyle: change.typeStyle,
+      at: new Date(now).toISOString(),
+    };
     return { entries: [...live.slice(0, i), merged, ...live.slice(i + 1)], cursor: live.length };
   }
   const entry: ElementChange = {
@@ -188,14 +225,21 @@ export function toWraps(log: ChangeLog): { id: string; members: string[] }[] {
  */
 export function toRules(log: ChangeLog): Rule[] {
   const byKey = new Map<string, Rule>();
-  for (const e of active(log)) {
-    if (e.property === 'text' || e.property === 'move' || e.property === 'wrap') continue;
-    byKey.set(`${e.selector} ${e.property} ${conditionKey(e.condition)}`, {
+  const set = (e: ElementChange, property: string, value: string) =>
+    byKey.set(`${e.selector} ${property} ${conditionKey(e.condition)}`, {
       selector: e.selector,
-      property: e.property,
-      value: e.to,
+      property,
+      value,
       ...(e.condition ? { condition: e.condition } : {}),
     });
+  for (const e of active(log)) {
+    if (e.property === 'text' || e.property === 'move' || e.property === 'wrap') continue;
+    // A type style is one decision that paints several properties.
+    if (e.property === 'type-style') {
+      if (e.typeStyle) for (const [property, value] of typeStyleDeclarations(e.typeStyle)) set(e, property, value);
+      continue;
+    }
+    set(e, e.property, e.to);
   }
   return Array.from(byKey.values());
 }

@@ -24,7 +24,9 @@ import type { ScanResult } from '@/shared/types';
 import { describeOrigin, type ComponentOrigin } from './framework';
 import { buildValueIndex, tokenHolding } from './tokenMatch';
 import type { Override } from './reskin';
-import { stackIdOf, type ElementChange } from './changes';
+import { stackIdOf, typeStyleDeclarations, type ElementChange } from './changes';
+import { describeForm } from './typeStyleMatch';
+import type { TypeStyle } from '@/shared/types';
 import { cascadeOrder, conditionKey, describe as describeCondition, describeLong, type MaybeCondition } from './conditions';
 import type { SystemChange } from './systemDiff';
 
@@ -105,6 +107,10 @@ export interface ElementEdit {
    * wrote the literal anyway. The agent is told, and decides.
    */
   couldBe?: string;
+  /** The variable the element was taken off on purpose; the literal is meant. */
+  detached?: string;
+  /** For 'type-style': the style chosen, so the brief can say how the project writes it. */
+  typeStyle?: TypeStyle;
 }
 
 /** A note the user pinned, in the form the agent works from. */
@@ -148,6 +154,8 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
     if (prev) {
       prev.to = e.to;
       prev.token = e.token;
+      prev.detached = e.detached;
+      prev.typeStyle = e.typeStyle;
     } else {
       byKey.set(key, {
         selector: e.selector,
@@ -158,6 +166,8 @@ export function summariseElements(entries: ElementChange[]): ElementEdit[] {
         from: e.from,
         to: e.to,
         token: e.token,
+        ...(e.detached ? { detached: e.detached } : {}),
+        ...(e.typeStyle ? { typeStyle: e.typeStyle } : {}),
         ...(e.component ? { component: e.component } : {}),
         ...(e.wrap ? { wrap: e.wrap } : {}),
       });
@@ -277,7 +287,7 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
   const index = buildValueIndex({ customProps: scan.customProps, rootFontSize: scan.rootFontSize });
   const rootFontSize = scan.rootFontSize ?? 16;
   return edits.map((e) => {
-    if (e.token || e.property === 'text' || e.property === 'move' || e.property === 'wrap') return e;
+    if (e.token || e.detached || e.property === 'text' || e.property === 'move' || e.property === 'wrap' || e.property === 'type-style') return e;
     // The index holds each variable's base value. Under the page's dark mode
     // or inside a width query the same name may hold something else, and
     // naming it would be a wrong fact rather than a helpful one — so nothing
@@ -336,6 +346,21 @@ const asksForMotion = (e: ElementEdit): boolean => {
   // Taking a transition away is the opposite of the thing being warned about.
   return to !== 'none' && to !== '' && !/^(all\s+)?0s\b/.test(to);
 };
+
+/**
+ * What putting an element on a type style means in this project's terms:
+ * the utility, the class or the variables to use, or — for a style that is
+ * a tag rule — the declarations to carry over, since the tag itself stays.
+ */
+function describeTypeStyleChange(style: TypeStyle, selector: string): string {
+  const decls = typeStyleDeclarations(style)
+    .map(([p, v]) => `${p}: ${v}`)
+    .join('; ');
+  if (style.form === 'tag') {
+    return `give it the declarations of ${describeForm(style)} (${decls}) — the element keeps its own tag; a class that holds them is the cleaner home`;
+  }
+  return `put it on ${describeForm(style)} instead (${decls}); keep the tag`;
+}
 
 /**
  * Where a token is defined, in one line, or nothing.
@@ -533,7 +558,17 @@ export function toPrompt(set: ChangeSet): string {
               ? `${indent}- text: ${JSON.stringify(e.from)} → ${JSON.stringify(e.to)}`
               : e.property === 'move'
                 ? `${indent}- move it: it was ${e.from}; put it ${e.to}. This is a change to the markup's order, not a style.`
-                : `${indent}- \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${e.token ? ` (the token \`${e.token}\`)` : e.couldBe ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant` : ''}`,
+                : e.property === 'type-style' && e.typeStyle
+                  ? `${indent}- type style: \`${e.from || 'none'}\` → \`${e.to}\` — ${describeTypeStyleChange(e.typeStyle, first.selector)}`
+                  : `${indent}- \`${e.property}\`: \`${e.from}\` → \`${e.to}\`${
+                      e.token
+                        ? ` (the token \`${e.token}\`)`
+                        : e.detached
+                          ? ` — taken off \`${e.detached}\` on purpose; write the literal, not the variable`
+                          : e.couldBe
+                            ? ` — this page defines \`${e.couldBe}\` with that value; use it unless the literal was meant`
+                            : ''
+                    }`,
           );
         }
       }

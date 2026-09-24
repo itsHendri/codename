@@ -1,10 +1,22 @@
+import type { TypeStyle } from '@/shared/types';
 import type { ReactNode } from 'react';
 import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { cellOf, valuesFor, type Cell } from '@/studio/alignGrid';
 import { NumberField } from './NumberField';
 import { ChevronIcon } from '../icons';
 
-export type Change = (property: string, to: string, token?: string) => void;
+/**
+ * One edit from the panel: a property, its new value, the token it was
+ * chosen from — and, when it matters, that the person detached a variable
+ * on purpose, or chose a whole type style, or what the value was before
+ * where the element cannot say (a style has no computed value).
+ */
+export interface ChangeOptions {
+  detached?: string;
+  typeStyle?: TypeStyle;
+  from?: string;
+}
+export type Change = (property: string, to: string, token?: string, opts?: ChangeOptions) => void;
 
 /**
  * A group of properties with a head that stays put while the column scrolls,
