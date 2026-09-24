@@ -199,7 +199,13 @@ export function SystemTab({
       {showGenerate && <GenerateCard scan={scan} model={model} local={local} onClose={() => setGenerating(false)} />}
 
       {exporting && (
-        <ExportSheet resolved={resolved} slug={resolved.config.meta.slug || hostname} specimen={specimenHtml} onClose={() => setExporting(false)} />
+        <ExportSheet
+          resolved={resolved}
+          slug={resolved.config.meta.slug || hostname}
+          page={{ site: scan.url, scannedAt: scan.scannedAt, typeStyles: styles, links: model.links, critique: review }}
+          specimen={specimenHtml}
+          onClose={() => setExporting(false)}
+        />
       )}
 
       <Section

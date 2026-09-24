@@ -6,6 +6,7 @@
 
 import type { ResolvedTokens } from "../engine/types"
 import { toTokensCss } from "./css"
+import { toDesignMd, type PageContext } from "./designMd"
 import { toDtcgJson } from "./dtcg"
 
 export interface ExportFile {
@@ -29,12 +30,17 @@ export function referencedAssets(resolved: ResolvedTokens): string[] {
 }
 
 /**
- * The two files the system is: the CSS a project runs on (what the bridge
- * writes into it) and the W3C DTCG JSON a design tool reads. DESIGN.md, the
- * agent-readable twin, joins them in W46; the specimen page in W44.
+ * The three files the system is: DESIGN.md for an agent to read, the CSS a
+ * project runs on (what the bridge writes into it) and the W3C DTCG JSON a
+ * design tool reads. The specimen page is saved from the page itself.
  */
-export function buildExport(resolved: ResolvedTokens): ExportFile[] {
+export function buildExport(resolved: ResolvedTokens, page: PageContext = {}): ExportFile[] {
     return [
+        {
+            path: "DESIGN.md",
+            content: toDesignMd(resolved, page),
+            note: "For an agent: the tokens as frontmatter, then how the page uses them. Google's open DESIGN.md format.",
+        },
         {
             path: "tokens.css",
             content: toTokensCss(resolved),

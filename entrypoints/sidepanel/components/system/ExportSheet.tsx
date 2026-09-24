@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ResolvedTokens } from '@/studio/engine/types';
 import { buildExport } from '@/studio/export/bundle';
 import { download, downloadBundle } from '@/studio/download';
+import type { PageContext } from '@/studio/export/designMd';
 
 /**
  * The system as files, from inside System rather than a tab of its own: the
@@ -12,16 +13,19 @@ import { download, downloadBundle } from '@/studio/download';
 export function ExportSheet({
   resolved,
   slug,
+  page,
   specimen,
   onClose,
 }: {
   resolved: ResolvedTokens;
   slug: string;
+  /** What the page said, for DESIGN.md: its type styles, its linked variables, the critique. */
+  page?: PageContext;
   /** The specimen as a page, when it is up on the page to be read. */
   specimen?: () => Promise<string | null>;
   onClose: () => void;
 }) {
-  const files = useMemo(() => buildExport(resolved), [resolved]);
+  const files = useMemo(() => buildExport(resolved, page), [resolved, page]);
   const [copied, setCopied] = useState<string | null>(null);
   const [specimenNote, setSpecimenNote] = useState<string | null>(null);
   const saveSpecimen = async () => {

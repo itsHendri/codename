@@ -127,12 +127,16 @@ has been allowed.
     has drifted from the token of the same name, colours the page paints that
     no token holds, and tokens nothing on this page reaches. Your agent asks
     for the same comparison with `check_tokens`.
-  - **Export**, a button at the top: the system as files — `tokens.css`
-    (custom properties, light and dark, with a Tailwind v4 `@theme` block;
-    the same file the bridge writes into a project) and `tokens.json` in
-    W3C DTCG format, each to download or copy, or both as a ZIP, and
-    `specimen.html` while Styles is showing (below). Your agent reads the
-    first two with `get_design_system`.
+  - **Export**, a button at the top: the system as files — `DESIGN.md`
+    (Google's open DESIGN.md format: the tokens as YAML frontmatter, then
+    Overview, Colors, Typography, Layout, Elevation, Shapes, Components and
+    Do's and Don'ts written from this page — its type-style forms, which of
+    its variables sit on which ramp step, what the critique measured; the
+    one file meant for an agent), `tokens.css` (custom properties, light and
+    dark, with a Tailwind v4 `@theme` block; the same file the bridge writes
+    into a project) and `tokens.json` in W3C DTCG format, each to download
+    or copy, or all as a ZIP, and `specimen.html` while Styles is showing
+    (below). Your agent reads the three with `get_design_system`.
   - **Generate**, a button beside Export, and open on its own for a page with
     under three colour variables and no type styles: a system for a page
     that has none. Seed, neutral, families, body size, ratio, grid, radius
@@ -403,8 +407,8 @@ same question with `find_definition`.
 An agent in a chat has `pairing_code`, `get_changes`, a blocking `watch` it can loop on,
 `critique` (what a designer would flag on the page — contrast, off-grid
 spacing, near-duplicate colours, type strays — as facts with numbers),
-`get_design_system` (the system as files — `tokens.css` and `tokens.json`
-— so it can write its own design context into your repository and refresh
+`get_design_system` (the system as files — `DESIGN.md`, `tokens.css` and
+`tokens.json` — so it can write its own design context into your repository and refresh
 it after a rescan),
 `get_selection`, `get_comments` with `set_status` and `reply`,
 `check_tokens` (the page against a token file, named by a path in your project
@@ -441,7 +445,7 @@ your back.
 The rules reach the agent before it asks: the bridge sends them as its MCP
 instructions, serves them as the `codename://rules` resource (with the tokens
 you locked on the current page), and serves the design files as
-`codename://design-system/brand.md` and friends, so a client that loads
+`codename://design-system/DESIGN.md` and friends, so a client that loads
 resources has the context without a tool call. Everything the agent does
 through the bridge — previews, pointers, captures, comment moves — is listed
 under **Agent activity** on the Changes tab; history, not changes, so Reset
@@ -550,7 +554,7 @@ npm run harness:scripts
 - `studio/engine/` — pure functions, no DOM, no React: OKLCH scale generation,
   the semantic layer solved by measuring APCA against real fills, and
   `resolveTokens()`. `studio/export/` turns that one serialization into
-  `tokens.css`, DTCG JSON, a style guide page and an agent skill.
+  DESIGN.md, `tokens.css` and DTCG JSON.
 - `studio/seedFromScan.ts` — the bridge from a `ScanResult` to a `BrandConfig`;
   `studio/generate.ts` the inputs read from it, the config generated from
   them, and which literal becomes which token.
