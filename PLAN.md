@@ -481,7 +481,12 @@ is that companion growing up.
   `color-scheme: dark`), the switch lights that side, and the other side
   asks for it — dark previewed on a light page, light forced on a page that
   is dark on its own. Clicking the page's own side takes a preview off;
-  neither is a decision, and neither enters the brief.
+  neither is a decision, and neither enters the brief. The assets grid
+  loses its own light/dark switch for the same reason: the rail is in the
+  page, so the tiles take the side the bar shows as their ground and the
+  page's computed body colour as `currentColor` (`RailCommand.rail.scheme`,
+  `RailState.ink`, re-read after the page has repainted), and a themed
+  icon shows as the page shows it.
 
 ## Live re-skin
 

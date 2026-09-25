@@ -37,7 +37,13 @@ export default defineContentScript({
 export const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)));
 
 function activate() {
-  const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH });
+  const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH, scheme: 'light', ink: '' });
+  // What the page paints text in: read now, and again once a Light / Dark
+  // switch has had its moment to repaint the page.
+  const readInk = () => {
+    const ink = document.body ? getComputedStyle(document.body).color : '';
+    if (ink !== store.get().ink) store.set({ ink });
+  };
   const host = document.createElement(RAIL_TAG);
   // The shadow is the edge: a light rail on a light page would otherwise run into it.
   // It starts under the bar, which spans the whole tab as Framer's does: the
@@ -96,7 +102,9 @@ function activate() {
     if (msg?.type !== 'rail') return false;
     switch (msg.cmd) {
       case 'rail':
-        store.set({ on: !!msg.on, ...(msg.theme ? { theme: msg.theme } : {}) });
+        store.set({ on: !!msg.on, ...(msg.theme ? { theme: msg.theme } : {}), ...(msg.scheme ? { scheme: msg.scheme } : {}) });
+        readInk();
+        window.setTimeout(readInk, 600);
         break;
       case 'assets':
         store.set({ svgs: msg.svgs ?? [] });

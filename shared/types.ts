@@ -470,8 +470,8 @@ export type SpecimenCommand =
   | { cmd: 'off' };
 
 export type RailCommand =
-  /** Show or hide the rail. `theme` is the panel's palette. */
-  | { cmd: 'rail'; on: boolean; theme?: OverlayTheme }
+  /** Show or hide the rail. `theme` is the panel's palette; `scheme` the side the page is showing, for the assets. */
+  | { cmd: 'rail'; on: boolean; theme?: OverlayTheme; scheme?: 'light' | 'dark' }
   /** The page's SVGs, from the scan, for the Assets tab. */
   | { cmd: 'assets'; svgs: SvgAsset[] }
   | { cmd: 'off' };

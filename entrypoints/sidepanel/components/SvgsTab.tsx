@@ -39,12 +39,13 @@ const sizeOf = (bytes?: number) => (bytes == null ? null : bytes < 1024 ? `${byt
  * preview each, and under it the name, where it came from and its size.
  * No filter tabs — there are rarely enough assets to need them, and "where
  * it came from" reads better as a line under each than as a sub-nav.
- * Previews sit on a light or a dark ground, the person's choice: a black
- * icon disappears on dark and a white one on light, and a page has both.
+ * Previews follow the page: the ground is the side the bar shows, light or
+ * dark, and `currentColor` is the page's own ink there, so an icon that is
+ * themed shows as the page shows it and one that is not shows as it would
+ * on that side. No switch of its own: the bar's Light / Dark is the switch.
  */
-export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
+export function SvgsTab({ svgs, scheme = 'light', ink }: { svgs: SvgAsset[]; scheme?: 'light' | 'dark'; ink?: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [ground, setGround] = useState<'light' | 'dark'>('light');
   const [zipping, setZipping] = useState(false);
   const [zipNote, setZipNote] = useState<string | null>(null);
 
@@ -120,26 +121,13 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex h-control items-center gap-2">
           <span className="shrink-0 text-xs font-medium text-ink">
             {svgs.length} {svgs.length === 1 ? 'SVG' : 'SVGs'}
           </span>
-          <div role="radiogroup" aria-label="Preview on" className="ml-auto flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
-            {(['light', 'dark'] as const).map((g) => (
-              <button
-                key={g}
-                role="radio"
-                aria-checked={ground === g}
-                onClick={() => setGround(g)}
-                title={`Preview on ${g}`}
-                className={`rounded-[4px] px-1.5 text-xs capitalize ${
-                  ground === g ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
+          <span className="ml-auto text-2xs text-ink-muted" title="The ground and the ink follow the Light / Dark switch on the bar">
+            as the page shows them
+          </span>
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
@@ -148,7 +136,8 @@ export function SvgsTab({ svgs }: { svgs: SvgAsset[] }) {
               key={asset.id}
               asset={asset}
               name={names.get(asset.id) ?? asset.id}
-              ground={ground}
+              scheme={scheme}
+              ink={ink}
               selected={selected.has(asset.id)}
               onToggle={() => toggle(asset.id)}
             />
@@ -194,13 +183,15 @@ async function downloadOne(asset: SvgAsset, name: string) {
 function SvgTile({
   asset,
   name,
-  ground,
+  scheme,
+  ink,
   selected,
   onToggle,
 }: {
   asset: SvgAsset;
   name: string;
-  ground: 'light' | 'dark';
+  scheme: 'light' | 'dark';
+  ink?: string;
   selected: boolean;
   onToggle: () => void;
 }) {
@@ -228,8 +219,10 @@ function SvgTile({
           }
         }}
         title={asset.url ?? `${SOURCE[asset.source]} SVG`}
+        // The page's ink, so `currentColor` in the artwork is what it is on the page.
+        style={ink ? { color: ink } : undefined}
         className={`relative flex aspect-square cursor-pointer items-center justify-center p-3 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
-          ground === 'dark' ? 'checkerboard-dark' : 'checkerboard'
+          scheme === 'dark' ? 'checkerboard-dark' : 'checkerboard'
         }`}
       >
         <span

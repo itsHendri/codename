@@ -429,6 +429,8 @@ export default function App() {
   const agentMatched = session.agentPreview?.matched ?? null;
   const railOn = session.rail;
   const specimenOn = session.specimen;
+  // The side the page is showing, for the rail's assets to sit on.
+  const shownScheme = look.scheme ?? 'light';
   const lightForced = session.lightForced;
   useEffect(() => {
     if (tabId != null && scan && !restricted) void attachBar(tabId, lookRef.current);
@@ -458,8 +460,8 @@ export default function App() {
   // thing on the page. Its Assets tab is fed from the scan.
   useEffect(() => {
     if (tabId == null || !scan || restricted) return;
-    void sendRail(tabId, { cmd: 'rail', on: railOn, theme });
-  }, [tabId, scan, restricted, theme, railOn, session.generation]);
+    void sendRail(tabId, { cmd: 'rail', on: railOn, theme, scheme: shownScheme });
+  }, [tabId, scan, restricted, theme, railOn, shownScheme, session.generation]);
   const svgs = scan?.svgs ?? null;
   useEffect(() => {
     if (tabId == null || !svgs || restricted) return;

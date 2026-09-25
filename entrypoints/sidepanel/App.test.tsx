@@ -871,6 +871,8 @@ describe('the Light / Dark switch', () => {
     expect(lastSiteMode()).toBe('dark');
     expect(getSession().mode).toBe('dark');
     expect(barScheme()).toBe('dark');
+    // The rail's assets sit on the side the page is showing.
+    expect(stub.sent.filter((m) => m.type === 'rail' && m.cmd === 'rail').at(-1)).toMatchObject({ scheme: 'dark' });
     await act(async () => stub.emit({ type: 'mode-changed', mode: 'light' }));
     await tick(120);
     // Light is this page's own side: nothing forced, nothing previewed.
