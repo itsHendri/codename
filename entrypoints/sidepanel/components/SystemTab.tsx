@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScanResult } from '@/shared/types';
 import type { BrandConfig, Mode, ScaleRole, Step } from '@/studio/engine/types';
 import type { ColourLink } from '@/studio/systemMap';
@@ -49,6 +49,8 @@ export function SystemTab({
   colorEdits,
   hostname,
   local,
+  open: openAction,
+  onOpened,
   specimenHtml,
   onConfigChange,
   onResetAll,
@@ -71,6 +73,9 @@ export function SystemTab({
   hostname: string;
   /** The page is served from this machine, so a write to the paired project is about it. */
   local: boolean;
+  /** An action asked for elsewhere (the rail's DSM column): open it, then say so. */
+  open?: 'generate' | 'export' | null;
+  onOpened?: () => void;
   /** The specimen as a page, read off the page while it is showing; for Export. */
   specimenHtml?: () => Promise<string | null>;
   onConfigChange: (config: BrandConfig | null) => void;
@@ -94,6 +99,12 @@ export function SystemTab({
   // Open on its own for a page with too little to show; a door otherwise.
   const [generating, setGenerating] = useState(() => isThin(scan));
   const showGenerate = generating || proposal !== null;
+  useEffect(() => {
+    if (!openAction) return;
+    if (openAction === 'generate') setGenerating(true);
+    else setExporting(true);
+    onOpened?.();
+  }, [openAction, onOpened]);
   const styles = scan.typeStyles ?? [];
   // Against the page as read, not as edited: the edit is your answer to it.
   const review = useMemo(() => critique(scan, model.seeded), [scan, model.seeded]);

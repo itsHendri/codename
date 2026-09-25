@@ -493,12 +493,24 @@ is that companion growing up.
   chosen; System moves to that strip and opens a full environment, the
   Design System Manager, in which the System editor and the specimen are
   one thing (W50); a sample selected there edits in Style (W51). This
-  first step is the strip (`entrypoints/rail/SideStrip.tsx`, 60px, icon
+  first step is the strip (`entrypoints/rail/SideStrip.tsx`, 64px, icon
   over a small label, a vertical tablist): the column beside it shows the
   section, headed by its name at the bar's height; the same section again
   folds the column and leaves the strip, remembered per browser
   (`RailState.column`); the page moves by the strip alone when folded.
   Layers on the bar still hides the rail altogether.
+- **W50, 25 September 2026 — the Design System Manager.** System is a
+  section on the strip. Choosing it opens the DSM: the specimen over the
+  page (the styles page drawn from the page's own rules), the rail's
+  column an outline of it (`outlineOf(spec)` sent as `RailCommand.rail.dsm`;
+  one row a section with its count, a jump to each; the page's components
+  counted off the page; Generate and Export, which the panel carries out on
+  `dsm-action`; Back to the page), and the panel turned to System as the
+  editor. Styles on the bar is the same switch. The session has no cross-
+  instance sync, so the editor stays the panel's one mount rather than a
+  second frame docked left; the environment is the three columns pointing
+  at one thing. Next, W51: a sample picked in the specimen edits in Style
+  and lights its row in the outline.
 
 ## Live re-skin
 

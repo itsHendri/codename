@@ -470,14 +470,27 @@ export type SpecimenCommand =
   | { cmd: 'off' };
 
 export type RailCommand =
-  /** Show or hide the rail. `theme` is the panel's palette; `scheme` the side the page is showing, for the assets. */
-  | { cmd: 'rail'; on: boolean; theme?: OverlayTheme; scheme?: 'light' | 'dark' }
+  /**
+   * Show or hide the rail. `theme` is the panel's palette; `scheme` the side
+   * the page is showing, for the assets; `dsm` the outline of the styles page
+   * while the Design System Manager is open, null when it is not.
+   */
+  | { cmd: 'rail'; on: boolean; theme?: OverlayTheme; scheme?: 'light' | 'dark'; dsm?: DsmOutline | null }
   /** The page's SVGs, from the scan, for the Assets tab. */
   | { cmd: 'assets'; svgs: SvgAsset[] }
   | { cmd: 'off' };
 
+/** What the styles page holds, section by section, for the rail's column while the DSM is open. */
+export interface DsmOutline {
+  sections: { key: string; title: string; count: string }[];
+}
+
 export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
+  /** System on the rail's strip: open the Design System Manager, or close it. */
+  | { type: 'dsm-toggled'; on: boolean }
+  /** An action in the DSM's column that the panel carries out. */
+  | { type: 'dsm-action'; action: 'generate' | 'export' }
   /** The chip on the bar: take the agent's preview off the page. */
   | { type: 'agent-clear' }
   | { type: 'element-selected'; data: ElementProps | null }

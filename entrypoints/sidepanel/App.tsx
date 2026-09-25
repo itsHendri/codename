@@ -17,7 +17,7 @@ import {
   setSiteMode,
   type BarLook,
 } from './lib/messaging';
-import { buildSpecimenSpec } from '@/studio/specimen/spec';
+import { buildSpecimenSpec, outlineOf } from '@/studio/specimen/spec';
 import {
   flushSession,
   getSession,
@@ -104,6 +104,8 @@ export default function App() {
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
   const [focusedComment, setFocusedComment] = useState<string | null>(null);
+  // An action asked for in the rail's DSM column, for System to open.
+  const [systemOpen, setSystemOpen] = useState<'generate' | 'export' | null>(null);
   const scanLike = useMemo(
     () => scan ?? { url: tabUrl, cssText: '', customProps: [], unreadableSheets: [] },
     [scan, tabUrl],
@@ -363,8 +365,19 @@ export default function App() {
       } else if (msg?.type === 'rail-toggled') {
         // Layers on the bar, or Alt+L: the session is the truth, the bar echoes it.
         updateSession({ rail: Boolean((msg as { on?: boolean }).on) });
-      } else if (msg?.type === 'specimen-toggled') {
-        updateSession({ specimen: Boolean((msg as { on?: boolean }).on), pinned: null, also: [] });
+      } else if (msg?.type === 'specimen-toggled' || msg?.type === 'dsm-toggled') {
+        // Styles on the bar or System on the rail's strip: the same
+        // environment, the Design System Manager — the styles page over the
+        // page, its outline in the rail, the editor here.
+        const on = Boolean((msg as { on?: boolean }).on);
+        updateSession({ specimen: on, pinned: null, also: [] });
+        if (on) setActive('system');
+      } else if (msg?.type === 'dsm-action') {
+        const action = (msg as { action?: string }).action;
+        if (action === 'generate' || action === 'export') {
+          setActive('system');
+          setSystemOpen(action);
+        }
       } else if (msg?.type === 'rail-move') {
         // A drag in the rail is an element edit, filed here with the rest.
         const m = msg as unknown as { node: LayerNode; parent: LayerNode; before: LayerNode | null; wasIn: LayerNode; wasBefore: LayerNode | null };
@@ -450,6 +463,7 @@ export default function App() {
   // The specimen, over the page: built from the scan and the links, sent
   // whenever they change while it is up, and again after a reload.
   const specimenSpec = useMemo(() => (scan && specimenOn ? buildSpecimenSpec(scan, model?.links ?? {}) : null), [scan, specimenOn, model?.links]);
+  const dsmOutline = useMemo(() => (specimenSpec ? { sections: outlineOf(specimenSpec) } : null), [specimenSpec]);
   useEffect(() => {
     if (tabId == null || !scan || restricted) return;
     void sendSpecimen(tabId, specimenSpec ? { cmd: 'specimen', on: true, spec: specimenSpec, theme } : { cmd: 'specimen', on: false });
@@ -460,8 +474,8 @@ export default function App() {
   // thing on the page. Its Assets tab is fed from the scan.
   useEffect(() => {
     if (tabId == null || !scan || restricted) return;
-    void sendRail(tabId, { cmd: 'rail', on: railOn, theme, scheme: shownScheme });
-  }, [tabId, scan, restricted, theme, railOn, shownScheme, session.generation]);
+    void sendRail(tabId, { cmd: 'rail', on: railOn, theme, scheme: shownScheme, dsm: dsmOutline });
+  }, [tabId, scan, restricted, theme, railOn, shownScheme, dsmOutline, session.generation]);
   const svgs = scan?.svgs ?? null;
   useEffect(() => {
     if (tabId == null || !svgs || restricted) return;
@@ -598,6 +612,8 @@ export default function App() {
             colorEdits={colorEdits}
             hostname={hostname}
             local={changeSet.local}
+            open={systemOpen}
+            onOpened={() => setSystemOpen(null)}
             specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
             onConfigChange={setConfig}
             onResetAll={resetAll}

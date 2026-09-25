@@ -9,7 +9,7 @@ export interface StripItem<K extends string> {
 }
 
 /** The strip's width in the page, for the rail's host and the push it makes. */
-export const STRIP_WIDTH = 60;
+export const STRIP_WIDTH = 64;
 
 /**
  * The rail's far-left strip: one icon over a small label per section, the
