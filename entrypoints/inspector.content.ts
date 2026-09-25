@@ -269,12 +269,9 @@ function activate() {
       <div class="side right">
       <button class="reset hidden" title="Take back every override — variables, colours, scale, element edits, the agent's preview — the dark preview, the viewport preset and the selection. Notes stay.">Reset<span></span></button>
       <div class="agent hidden" title="Your agent is previewing a stylesheet on this page; the dashed outlines are what it reaches. A preview, not a change: it never enters the brief."><i></i>Agent preview<span></span><button title="Take the agent's preview off the page" aria-label="Take the agent's preview off the page"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg></button></div>
-      <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="Preview the page in the system's light or dark values">
+      <div class="modes scheme" role="radiogroup" aria-label="Colour scheme" title="The side the page is showing. Click the other to see it there">
         <button class="mode light" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg><span class="label">Light</span>
-        </button>
-        <button class="mode system" role="radio" aria-checked="false" title="As the system prefers">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor" stroke="none"/></svg><span class="label">Auto</span>
         </button>
         <button class="mode dark" role="radio" aria-checked="false">
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a6.5 6.5 0 1 0 5 10.2A6 6 0 0 1 9.5 1.5z"/></svg><span class="label">Dark</span>
@@ -327,7 +324,6 @@ function activate() {
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
   const barAgent = bar.querySelector<HTMLElement>('.agent')!;
   const barDark = bar.querySelector<HTMLButtonElement>('.mode.dark')!;
-  const barSystem = bar.querySelector<HTMLButtonElement>('.mode.system')!;
   const hint = shadow.querySelector<HTMLElement>('.hint')!;
   const composer = shadow.querySelector<HTMLElement>('.composer')!;
   const menu = shadow.querySelector<HTMLElement>('.menu')!;
@@ -352,7 +348,7 @@ function activate() {
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   /** Which side of the page's theme is forced; neither is the page as it stands. */
-  let barScheme: 'light' | 'dark' | 'system' = 'system';
+  let barScheme: 'light' | 'dark' = 'light';
   /** How many overrides the panel holds; the bar only shows Reset when there are some. */
   let resettable = 0;
   /** What the connected agent is previewing, for the chip; null when nothing. */
@@ -1618,9 +1614,6 @@ function activate() {
     barLight.setAttribute('aria-checked', String(barScheme === 'light'));
     barDark.classList.toggle('on', barScheme === 'dark');
     barDark.setAttribute('aria-checked', String(barScheme === 'dark'));
-    // The middle is a position of its own, drawn like the other two.
-    barSystem.classList.toggle('on', barScheme === 'system');
-    barSystem.setAttribute('aria-checked', String(barScheme === 'system'));
     // A resized or zoomed viewport is an override too, and only the bar knows about it.
     barReset.classList.toggle('hidden', resettable === 0 && !frame);
     barReset.querySelector('span')!.textContent = resettable > 0 ? String(resettable) : '';
@@ -1888,8 +1881,8 @@ function activate() {
     send({ type: 'specimen-toggled', on: specimenOn });
   });
   barComment.addEventListener('click', () => toggleMode('comment'));
-  /** The lit side again is "as the system": a switch with a middle. */
-  const setScheme = (scheme: 'light' | 'dark' | 'system') => {
+  /** The lit side is the one the page is showing; the other side asks the panel for it. */
+  const setScheme = (scheme: 'light' | 'dark') => {
     if (scheme === barScheme) return;
     barScheme = scheme;
     renderBar();
@@ -1902,7 +1895,6 @@ function activate() {
     send({ type: 'agent-clear' });
   });
   barReset.addEventListener('click', () => {
-    barScheme = 'system';
     resettable = 0;
     agent = null;
     const viewport = frame !== null;
@@ -1915,9 +1907,8 @@ function activate() {
       `<b>Reset</b> — every override and the dark preview are gone${viewport ? ', and the page is back at the window\'s size' : ''}; the page is reading as itself again. Notes stay.`,
     );
   });
-  barLight.addEventListener('click', () => setScheme(barScheme === 'light' ? 'system' : 'light'));
-  barDark.addEventListener('click', () => setScheme(barScheme === 'dark' ? 'system' : 'dark'));
-  barSystem.addEventListener('click', () => setScheme('system'));
+  barLight.addEventListener('click', () => setScheme('light'));
+  barDark.addEventListener('click', () => setScheme('dark'));
   // The window's own size is what the bar shows when there is no frame.
   addEventListener('resize', () => barOn && !frame && renderBar());
 
@@ -2061,7 +2052,6 @@ function activate() {
       { id: 'window', label: 'Window size', also: 'frame off reset viewport', kind: 'Frame', run: () => void resetViewport() },
       { id: 'light', label: 'Light', also: 'scheme theme', kind: 'Page', run: click(barLight) },
       { id: 'dark', label: 'Dark', also: 'scheme theme', kind: 'Page', run: click(barDark) },
-      { id: 'system', label: 'As the system prefers', also: 'scheme theme auto', kind: 'Page', run: click(barSystem) },
       { id: 'reset', label: 'Reset every change', also: 'revert undo all', kind: 'Page', run: click(barReset) },
       { id: 'shortcuts', label: 'Keyboard shortcuts', also: 'keys help', keys: 'Shift+?', kind: 'Help', run: toggleSheet },
     ];

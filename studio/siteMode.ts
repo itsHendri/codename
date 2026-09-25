@@ -121,3 +121,42 @@ export function widthLabel(query: string): string {
   if (m) return `${m[1] === 'max' ? '≤' : '≥'}${m[2]}`;
   return query;
 }
+
+/* ---------------- which side the page is showing ---------------- */
+
+/** What the page looks like right now, for the bar's Light / Dark switch. */
+export interface SchemeSignals {
+  /** The system prefers dark. */
+  prefersDark: boolean;
+  /** The page has `prefers-color-scheme: dark` rules of its own. */
+  hasDarkRules: boolean;
+  /** A dark hook (`html.dark`, `[data-theme="dark"]`) is set on the root or body right now. */
+  hookOn: boolean;
+  /** The root's computed `color-scheme`. */
+  colorScheme: string;
+}
+
+/** Root or body attributes a site's own theme script sets for dark. */
+const HOOK_ATTR = /^data-(theme|mode|color-mode|color-scheme|bs-theme|appearance|scheme)$/;
+const HOOK_CLASS = /^(dark|dark-mode|theme-dark|mode-dark)$/;
+
+export function hookIsOn(els: (Element | null)[]): boolean {
+  return els.some((el) => {
+    if (!el) return false;
+    if (Array.from(el.classList).some((c) => HOOK_CLASS.test(c))) return true;
+    return Array.from(el.attributes).some((a) => HOOK_ATTR.test(a.name) && a.value.trim().toLowerCase() === 'dark');
+  });
+}
+
+/**
+ * The side the page is on as the person sees it: dark when its own script
+ * has switched it there, or when it follows the system and the system is
+ * dark, or when it says so outright in `color-scheme`. A page with no dark
+ * side is light whatever the system prefers.
+ */
+export function pageScheme(signals: SchemeSignals): Scheme {
+  if (signals.hookOn) return 'dark';
+  if (signals.prefersDark && signals.hasDarkRules) return 'dark';
+  if (signals.colorScheme.trim().toLowerCase() === 'dark') return 'dark';
+  return 'light';
+}

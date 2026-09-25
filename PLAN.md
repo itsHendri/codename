@@ -469,6 +469,19 @@ is that companion growing up.
   Reset lets go of the edits once the change is in. `Agent.terminal` is
   absent for a custom command, and `AgentInfo.terminal` tells the panel.
   The current headless path is unchanged.
+- **W48, 25 September 2026 — the empty Style tab, and a switch with no
+  middle.** Under "Nothing selected" the Style tab used to append a summary
+  of what the scan read (Figma's local styles when nothing is picked); with
+  System one tab over it was a weaker, read-only copy that read as a
+  selection, so it is gone: the empty state is the icon, the title, the two
+  ways to pick, Show layers when the rail is folded, and one quiet line to
+  System. The bar's scheme switch loses **Auto**: the scan now says which
+  side the page is on (`scan.scheme` from `pageScheme`: a dark hook set on
+  the root or body, or dark media rules while the system prefers dark, or
+  `color-scheme: dark`), the switch lights that side, and the other side
+  asks for it — dark previewed on a light page, light forced on a page that
+  is dark on its own. Clicking the page's own side takes a preview off;
+  neither is a decision, and neither enters the brief.
 
 ## Live re-skin
 

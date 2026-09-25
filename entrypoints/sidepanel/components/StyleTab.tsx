@@ -6,13 +6,12 @@ import type { InspectController, Scope } from '../lib/inspect';
 import { conditionKey, describe as describeCondition, STATES, type MaybeCondition } from '@/studio/conditions';
 import { active } from '@/studio/changes';
 import type { CommentTarget } from '@/studio/annotations';
-import { CheckIcon, CloseIcon, CopyIcon, PlusIcon, RulerIcon } from './icons';
+import { CheckIcon, CloseIcon, CopyIcon, PlusIcon, RulerIcon, InspectIcon } from './icons';
 import { describeOrigin } from '@/studio/framework';
 import { Breadcrumb } from './inspect/Breadcrumb';
 import { PropertyPanel } from './inspect/PropertyPanel';
 import { SelectionColours } from './inspect/SelectionColours';
 import { CommentComposer } from './inspect/Comments';
-import { PageStyles } from './inspect/PageStyles';
 import { LayerIcon } from './inspect/LayerIcon';
 import { Empty } from './States';
 import { setVarOverride } from '../lib/session';
@@ -87,23 +86,30 @@ export function StyleTab({
     return () => observer.disconnect();
   }, [el !== null]);
 
+  // Nothing picked: say so, and how to pick. The page's own styles are not
+  // shown here — a summary of them under "Nothing selected" read as a
+  // selection, and System is the page's styles, one tab over.
   if (!el) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-        <Empty size="inline" title="Nothing selected">
-          Click anything on the page, or pick a row in <b className="font-medium text-ink-secondary">Layers</b> beside it.
+        <Empty
+          icon={<InspectIcon className="h-6 w-6" />}
+          title="Nothing selected"
+          action={
+            !rail ? (
+              <button onClick={onShowRail} className="btn btn-secondary">
+                Show layers
+              </button>
+            ) : undefined
+          }
+        >
+          Click anything on the page, or pick a row in <b className="font-medium text-ink-secondary">Layers</b> beside it.{' '}
           <b className="font-medium text-ink-secondary">Preview</b> on the bar lets you use the page instead.
         </Empty>
-        {!rail && (
-          <button
-            onClick={onShowRail}
-            className="btn btn-secondary self-start"
-          >
-            Show layers
-          </button>
-        )}
+        <button onClick={onOpenSystem} className="self-center text-2xs text-ink-muted hover:text-accent">
+          Looking for the page's colours and type? Open System
+        </button>
         {error && <p className="text-xs text-warn-ink">{error}</p>}
-        {scan && <PageStyles scan={scan} onOpenSystem={onOpenSystem} />}
       </div>
     );
   }
