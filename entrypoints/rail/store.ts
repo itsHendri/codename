@@ -7,6 +7,10 @@ export interface RailState {
   theme: OverlayTheme;
   svgs: SvgAsset[];
   width: number;
+  /** The side the page is showing, so the assets sit on the ground the page gives them. */
+  scheme: 'light' | 'dark';
+  /** The page's own text colour right now: what `currentColor` is in an asset on the page. */
+  ink: string;
 }
 
 export interface RailStore {

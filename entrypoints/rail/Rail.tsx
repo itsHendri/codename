@@ -172,7 +172,7 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
             />
           </>
         ) : state.svgs.length || tree.layers.length ? (
-          <SvgsTab svgs={state.svgs} />
+          <SvgsTab svgs={state.svgs} scheme={state.scheme} ink={state.ink} />
         ) : (
           <p className="text-xs text-ink-muted">Read the page first — the panel's Scan button.</p>
         )}

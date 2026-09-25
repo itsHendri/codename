@@ -189,8 +189,10 @@ has been allowed.
   a few named presets; a transform editor in Effects that takes the computed
   matrix apart into move, turn, skew and scale.
 - **Assets** (in the rail) — every SVG on the page (inline, `<img>`, CSS
-  backgrounds, sprite `<use>`, favicons), previewed with copy, per-file
-  download and ZIP export.
+  backgrounds, sprite `<use>`, favicons), previewed as the page shows them:
+  the ground and the ink follow the bar's Light / Dark, so a themed icon
+  flips with the page and an unthemed one shows as it would on that side.
+  Copy, per-file download and ZIP export.
 While the panel is open on a site, a bar sits across the top of the page,
 the same height as the panel's tab strip and wearing the panel's palette, so
 the two read as one tool. It pushes the page down rather than floating over

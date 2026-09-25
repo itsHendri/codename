@@ -166,6 +166,12 @@ function activate() {
       .bar .mode svg { width: 13px; height: 13px; }
       .bar .mode:hover { color: ${d.cardInk}; }
       .bar .mode.on { background: ${d.thumb}; color: ${d.cardInk}; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+      /* The Light / Dark switch: two words with room, the lit one underlined rather than raised. */
+      .bar .scheme { gap: 4px; padding: 0; background: transparent; }
+      .bar .scheme .mode { position: relative; height: 24px; padding: 0 10px; gap: 6px; }
+      .bar .scheme .mode:hover { background: ${d.field}; }
+      .bar .scheme .mode.on { background: transparent; box-shadow: none; }
+      .bar .scheme .mode.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 1px; height: 2px; border-radius: 1px; background: ${d.cardInk}; }
       /* Alone rather than in a group, so it wears the track itself. */
       .bar .side > .mode.layers { height: 24px; background: ${d.field}; }
       .bar .side > .mode.layers:hover { background: ${d.fieldHover}; }
