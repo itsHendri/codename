@@ -1,5 +1,5 @@
 import type { OverlayTheme } from '@/shared/theme';
-import type { SvgAsset } from '@/shared/types';
+import type { DsmOutline, SvgAsset } from '@/shared/types';
 
 /** What the rail shows, set by the panel's messages and read by React. */
 export interface RailState {
@@ -14,6 +14,8 @@ export interface RailState {
   scheme: 'light' | 'dark';
   /** The page's own text colour right now: what `currentColor` is in an asset on the page. */
   ink: string;
+  /** The styles page's outline while the Design System Manager is open; null when it is not. */
+  dsm: DsmOutline | null;
 }
 
 export interface RailStore {

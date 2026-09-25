@@ -58,6 +58,26 @@ afterEach(async () => {
 });
 
 describe('the panel', () => {
+  it('opens the Design System Manager from the rail: the styles page over the page, its outline in the rail, System here', async () => {
+    const rails = () => stub.sent.filter((m) => m.type === 'rail' && m.cmd === 'rail');
+    expect(rails().at(-1)).toMatchObject({ dsm: null });
+    await act(async () => stub.emit({ type: 'dsm-toggled', on: true }));
+    await tick(120);
+    expect(getSession().specimen).toBe(true);
+    expect(activeTab()).toBe('system');
+    const dsm = (rails().at(-1) as { dsm: { sections: { key: string; count: string }[] } }).dsm;
+    expect(dsm.sections.map((s) => s.key)).toContain('type');
+    expect(dsm.sections.find((s) => s.key === 'colour')?.count).toMatch(/variables$/);
+    // An action in the rail's column opens it in the panel.
+    await act(async () => stub.emit({ type: 'dsm-action', action: 'export' }));
+    await tick(120);
+    expect(host.querySelector('[aria-label="Export"]')).not.toBeNull();
+    await act(async () => stub.emit({ type: 'dsm-toggled', on: false }));
+    await tick(120);
+    expect(getSession().specimen).toBe(false);
+    expect(rails().at(-1)).toMatchObject({ dsm: null });
+  });
+
   it('opens on Style with the three tabs in order and the page read', () => {
     expect(tabs()).toEqual(['style', 'system', 'changes']);
     expect(activeTab()).toBe('style');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '@/shared/types';
-import { buildSpecimenSpec } from './spec';
+import { buildSpecimenSpec, outlineOf } from './spec';
 
 const scan = {
   url: 'http://localhost:5173/',
@@ -70,5 +70,10 @@ describe('buildSpecimenSpec', () => {
     expect(bare.type).toEqual([]);
     expect(bare.colours).toEqual([]);
     expect(bare.space).toEqual([]);
+  });
+  it('outlines the sections it will draw, with counts, and only those', () => {
+    const spec = buildSpecimenSpec(scan);
+    expect(outlineOf(spec).map((s) => `${s.key}: ${s.count}`)).toEqual(['type: 2 styles', 'colour: 2 variables', 'pairs: 2 pairs', 'literals: 1 colour', 'space: 2 steps', 'radius: 2 values', 'elevation: 1 shadow']);
+    expect(outlineOf({ ...spec, shadows: [], type: [] }).map((s) => s.key)).not.toContain('elevation');
   });
 });

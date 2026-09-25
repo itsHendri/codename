@@ -7,7 +7,7 @@
  * in by the script, since only the page has them.
  */
 
-import type { ColorInfo, CustomPropInfo, ScanResult, TypeStyle } from '@/shared/types';
+import type { ColorInfo, CustomPropInfo, DsmOutline, ScanResult, TypeStyle } from '@/shared/types';
 import { typeStyleDeclarations } from '../changes';
 import { hexOf, lengthKind } from '../reskin';
 import type { ColourLinks } from '../systemMap';
@@ -97,4 +97,18 @@ export function buildSpecimenSpec(scan: ScanResult, links: ColourLinks = {}): Sp
     .slice(0, 6);
 
   return { site: scan.url, type, colours, literals, pairs, space, radii, shadows };
+}
+
+/** The sections the styles page will draw, with their counts, for the rail's outline of it. */
+export function outlineOf(spec: SpecimenSpec): DsmOutline['sections'] {
+  const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+  const out: DsmOutline['sections'] = [];
+  if (spec.type.length) out.push({ key: 'type', title: 'Type', count: n(spec.type.length, 'style') });
+  if (spec.colours.length) out.push({ key: 'colour', title: 'Colour', count: n(spec.colours.length, 'variable') });
+  if (spec.pairs.length) out.push({ key: 'pairs', title: 'Pairs', count: n(spec.pairs.length, 'pair') });
+  if (spec.literals.length) out.push({ key: 'literals', title: 'Literals', count: n(spec.literals.length, 'colour') });
+  if (spec.space.length) out.push({ key: 'space', title: 'Space', count: n(spec.space.length, 'step') });
+  if (spec.radii.length) out.push({ key: 'radius', title: 'Radius', count: n(spec.radii.length, 'value') });
+  if (spec.shadows.length) out.push({ key: 'elevation', title: 'Elevation', count: n(spec.shadows.length, 'shadow') });
+  return out;
 }

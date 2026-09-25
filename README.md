@@ -18,7 +18,7 @@ design tool keeps its tree: a strip of sections down its far edge, as
 Figma's, and a column beside it showing the one chosen — the same section
 again folds the column and leaves the strip. The panel on the right is
 Style · System · Changes. Both are drawn in the page under the bar, each
-pushing the page in by its own width (drag the rail's edge, 200 to 420px;
+pushing the page in by its own width (drag the rail's edge, 210 to 420px;
 the panel's, 320 to 520px). **Layers** on the bar, or **Alt+L**, hides the
 rail altogether. The
 panel is the extension's own page in a frame, so it has everything the side
@@ -153,6 +153,12 @@ has been allowed.
     is read by Tailwind), under its own per-project switch; otherwise the
     file downloads. Replacing the literals is the agent's, from the brief's
     **Adopt tokens** section, because each one is a judgement.
+- **System** on the rail's strip, or **Styles** on the bar — the Design
+  System Manager: the page's own styles page drawn over the page (below),
+  its outline in the rail's column with a jump to each section, Generate
+  and Export beside it, and the System editor in the panel; click a sample
+  and the panel turns to Style for it. **Back to the page**, or System
+  again, brings the page back.
 - **Styles**, on the bar — the page's own styles page, drawn over the page in
   its own document: every type style the scan found on a real element in its
   own form (an `<h1>` for `h1 {}`, a `.lede` for `.lede {}`, a `.text-xl` for

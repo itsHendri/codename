@@ -70,7 +70,8 @@ export function renderSpecimen(spec: SpecimenSpec, doc: Document, opts: RenderOp
   const section = (title: string, count: string): HTMLElement => {
     const s = doc.createElement('section');
     s.setAttribute('data-codename-section', title.toLowerCase());
-    s.style.cssText = 'display:flex;flex-direction:column;gap:12px';
+    // Room for the bar when the rail's outline scrolls a section into view.
+    s.style.cssText = 'display:flex;flex-direction:column;gap:12px;scroll-margin-top:56px';
     s.append(label(title, count));
     return s;
   };

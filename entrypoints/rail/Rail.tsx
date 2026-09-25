@@ -4,13 +4,14 @@ import { pagesOf } from '@/studio/pages';
 import { callInspector } from '@/shared/inpage';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
-import { ComponentsIcon, ImageIcon, LayersIcon, PagesIcon, RefreshIcon } from '@/entrypoints/sidepanel/components/icons';
+import { ComponentsIcon, DesignIcon, ImageIcon, LayersIcon, PagesIcon, RefreshIcon } from '@/entrypoints/sidepanel/components/icons';
+import { DsmColumn } from './DsmColumn';
 import { ComponentsTab } from './ComponentsTab';
 import { SideStrip } from './SideStrip';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
-type RailTab = 'pages' | 'layers' | 'components' | 'assets';
+type RailTab = 'pages' | 'layers' | 'components' | 'assets' | 'system';
 
 /** Tell the panel something that belongs in its change log. */
 const tell = (msg: unknown) => {
@@ -36,7 +37,22 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
   const state = useSyncExternalStore(store.subscribe, store.get);
   const [tab, setTab] = useState<RailTab>('layers');
   const column = state.column;
+  // System is the Design System Manager: the panel opens it (the styles page
+  // over the page, System in the panel) and this column shows its outline.
+  const dsmOn = state.dsm !== null;
+  useEffect(() => {
+    if (dsmOn) setTab('system');
+    else setTab((t) => (t === 'system' ? 'layers' : t));
+  }, [dsmOn]);
   const choose = (key: RailTab) => {
+    if (key === 'system') {
+      if (dsmOn && tab === 'system' && column) tell({ type: 'dsm-toggled', on: false });
+      else {
+        tell({ type: 'dsm-toggled', on: true });
+        if (!column) onColumn(true);
+      }
+      return;
+    }
     if (key === tab) onColumn(!column);
     else {
       setTab(key);
@@ -118,9 +134,10 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
     { key: 'layers' as const, label: 'Layers', Icon: LayersIcon },
     { key: 'components' as const, label: 'Components', Icon: ComponentsIcon },
     { key: 'assets' as const, label: 'Assets', Icon: ImageIcon },
+    { key: 'system' as const, label: 'System', title: 'Design System Manager', Icon: DesignIcon },
   ];
 
-  const heading = tabs.find((t) => t.key === tab)?.label ?? '';
+  const heading = tab === 'system' ? 'Design System Manager' : (tabs.find((t) => t.key === tab)?.label ?? '');
 
   return (
     <div className="rail relative flex h-full border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
@@ -129,7 +146,9 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
         <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-2.5">
           {/* The section's name, the height of the bar, so the three pieces of chrome read as one. */}
           <div className="-mx-2.5 -mt-2.5 flex h-10 shrink-0 items-center border-b border-line px-3 text-xs font-medium text-ink">{heading}</div>
-        {tab === 'pages' ? (
+        {tab === 'system' ? (
+          <DsmColumn outline={state.dsm ?? { sections: [] }} />
+        ) : tab === 'pages' ? (
           <>
             <div className="flex shrink-0 items-center justify-between gap-2 text-2xs text-ink-muted">
               <span>
