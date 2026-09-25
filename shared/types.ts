@@ -482,7 +482,13 @@ export type RailCommand =
 
 /** What the styles page holds, section by section, for the rail's column while the DSM is open. */
 export interface DsmOutline {
-  sections: { key: string; title: string; count: string }[];
+  sections: {
+    key: string;
+    title: string;
+    count: string;
+    /** The samples inside, where they can be picked: `key` is what the sample stands for (`data-codename-for`). */
+    items?: { key: string; label: string; hint?: string }[];
+  }[];
 }
 
 export type RuntimeMessage =

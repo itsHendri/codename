@@ -75,5 +75,10 @@ describe('buildSpecimenSpec', () => {
     const spec = buildSpecimenSpec(scan);
     expect(outlineOf(spec).map((s) => `${s.key}: ${s.count}`)).toEqual(['type: 2 styles', 'colour: 2 variables', 'pairs: 2 pairs', 'literals: 1 colour', 'space: 2 steps', 'radius: 2 values', 'elevation: 1 shadow']);
     expect(outlineOf({ ...spec, shadows: [], type: [] }).map((s) => s.key)).not.toContain('elevation');
+    // The type styles are the samples a person can pick, keyed by what each stands for.
+    expect(outlineOf(spec)[0]?.items).toEqual([
+      { key: 'h1', label: 'h1' },
+      { key: 'text-xl', label: 'xl' },
+    ]);
   });
 });
