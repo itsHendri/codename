@@ -17,6 +17,7 @@ import { attachDefinitions } from '@/studio/scan/definitions';
 import { detectTypeStyles } from '@/studio/scan/typeStyles';
 import { countFocusOutlineRemoved } from '@/studio/a11y';
 import { withSourceMedia } from '@/studio/pageFrame';
+import { hookIsOn, pageScheme } from '@/studio/siteMode';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -74,6 +75,13 @@ async function scanPage(): Promise<ScanResult> {
     stats: { elementsSampled: sampled.count, styleSheets: pageSheets().length },
     a11y: { ...sampled.a11y, focusOutlineRemoved: countFocusOutlineRemoved(css.text) },
     typeStyles,
+    // Which side the page is showing right now, for the bar's Light / Dark.
+    scheme: pageScheme({
+      prefersDark: matchMedia('(prefers-color-scheme: dark)').matches,
+      hasDarkRules: /prefers-color-scheme\s*:\s*dark/i.test(css.text),
+      hookOn: hookIsOn([document.documentElement, document.body]),
+      colorScheme: getComputedStyle(document.documentElement).colorScheme,
+    }),
   };
 }
 

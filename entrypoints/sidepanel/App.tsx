@@ -99,7 +99,7 @@ export default function App() {
   const previewMode = mode === 'dark' && darkVia === 'mirror' ? 'dark' : 'light';
   // What the bar across the page wears and which way its switch sits. A ref,
   // because the tab-sync callback must not be recreated for a theme change.
-  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail, scheme: 'system' });
+  const lookRef = useRef<BarLook>({ theme, mode, resettable: 0, rail: session.rail, scheme: 'light' });
   const model = useDesignModel(scan, config, previewMode, varOverrides, colorEdits, locks, darkVarOverrides, links);
   const reskin = useLiveReskin(tabId, live, model, session.generation);
   const bridge = useBridge();
@@ -175,7 +175,8 @@ export default function App() {
     agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
     rail: session.rail,
     specimen: session.specimen,
-    scheme: mode === 'dark' ? 'dark' : session.lightForced ? 'light' : 'system',
+    // The side the page is showing: a preview when one is on, else its own.
+    scheme: mode === 'dark' ? 'dark' : session.lightForced ? 'light' : (scan?.scheme ?? 'light'),
   };
   lookRef.current = look;
 
@@ -377,16 +378,18 @@ export default function App() {
       } else if (msg?.type === 'reset-all') {
         resetAll();
       } else if (msg?.type === 'mode-changed') {
-        // The bar's Light/Dark switch; the session is the truth it echoes.
-        // Light is forced, not "as the system": a page that is dark because
-        // the system is shows its light side.
+        // The bar's Light / Dark switch, which shows the side the page is on.
+        // Asking for the page's own side takes a preview off; asking for the
+        // other side puts one on: dark previewed on a light page, light
+        // forced on a page that is dark on its own.
         const m = (msg as { mode?: string }).mode;
+        const own = getSession().scan?.scheme ?? 'light';
         if (m === 'dark') {
-          setMode('dark');
+          setMode(own === 'dark' ? 'light' : 'dark');
           updateSession({ lightForced: false });
-        } else if (m === 'light' || m === 'system') {
+        } else if (m === 'light') {
           setMode('light');
-          updateSession({ lightForced: m === 'light' });
+          updateSession({ lightForced: own === 'dark' });
         }
       } else if (msg?.type === 'note-created') {
         // Written on the page, in the composer that opened where you pointed.

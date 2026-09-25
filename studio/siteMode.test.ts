@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, widthLabel, widthOfMedia, withoutDarkQuery } from './siteMode';
+import { hookFromSelector, hookKey, isDarkMedia, isLightOnly, widthLabel, widthOfMedia, withoutDarkQuery, pageScheme } from './siteMode';
 
 describe('withoutDarkQuery', () => {
   it('drops the dark query and keeps what it was joined with', () => {
@@ -83,5 +83,19 @@ describe('a negated media query', () => {
   it('still reads the ordinary ones', () => {
     expect(widthOfMedia('screen and (max-width: 700px)')).toBe('(max-width: 700px)');
     expect(widthOfMedia('(max-width: 700px)')).toBe('(max-width: 700px)');
+  });
+});
+
+describe('pageScheme', () => {
+  const base = { prefersDark: false, hasDarkRules: false, hookOn: false, colorScheme: 'normal' };
+  it('is dark when the page has switched itself there, or follows a dark system, or says so', () => {
+    expect(pageScheme({ ...base, hookOn: true })).toBe('dark');
+    expect(pageScheme({ ...base, prefersDark: true, hasDarkRules: true })).toBe('dark');
+    expect(pageScheme({ ...base, colorScheme: 'dark' })).toBe('dark');
+  });
+  it('is light when the page has no dark side, whatever the system prefers', () => {
+    expect(pageScheme({ ...base, prefersDark: true })).toBe('light');
+    expect(pageScheme({ ...base, hasDarkRules: true })).toBe('light');
+    expect(pageScheme({ ...base, colorScheme: 'light dark' })).toBe('light');
   });
 });

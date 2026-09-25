@@ -110,8 +110,8 @@ export interface BarLook {
   rail?: boolean;
   /** Whether the specimen is showing, for the bar's Styles switch. */
   specimen?: boolean;
-  /** Which side of the page's theme is forced, for the Light/Dark switch. */
-  scheme?: 'light' | 'dark' | 'system';
+  /** Which side the page is showing, forced or its own, for the Light / Dark switch. */
+  scheme?: 'light' | 'dark';
 }
 
 /**
@@ -150,7 +150,7 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     agent: look.agent ?? null,
     rail: look.rail ?? true,
     specimen: look.specimen ?? false,
-    scheme: look.scheme ?? 'system',
+    scheme: look.scheme ?? 'light',
   });
 }
 

@@ -62,9 +62,12 @@ describe('the panel', () => {
     expect(tabs()).toEqual(['style', 'system', 'changes']);
     expect(activeTab()).toBe('style');
     expect(host.querySelector('footer')?.textContent).toContain('6 colors');
-    // Nothing picked yet: the tree is in the rail, not here.
+    // Nothing picked yet: the tree is in the rail, not here, and the page's
+    // styles are in System, not under the empty state.
     expect(text()).toContain('Nothing selected');
     expect(text()).not.toContain('Show layers');
+    expect(text()).not.toContain('Edit in System');
+    expect(text()).toContain('Open System');
   });
 
   it('shows the rail beside the page, feeds it the assets, and folds it when the bar says so', async () => {
@@ -792,12 +795,12 @@ describe('the Style column', () => {
 });
 
 describe('the Style tab with nothing picked', () => {
-  it('shows what the page is made of, and opens System from it', async () => {
-    expect(text()).toContain('Colours');
-    expect(text()).toContain('--ink');
-    expect(text()).toContain('Inter');
-    expect(text()).toContain('radius');
-    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '--mark') ?? null);
+  it('is an empty state that points to the page, the rail and System, not a summary of the page', async () => {
+    expect(text()).toContain('Nothing selected');
+    expect(text()).toContain('pick a row in Layers beside it. Preview');
+    expect(text()).not.toContain('--ink');
+    expect(text()).not.toContain('Inter');
+    await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.endsWith('Open System')) ?? null);
     await tick();
     expect(activeTab()).toBe('system');
   });
@@ -857,20 +860,46 @@ describe('motion, second half', () => {
   });
 });
 
-describe('the Light/Dark switch with a middle', () => {
+describe('the Light / Dark switch', () => {
   const lastSiteMode = () => stub.sent.filter((m) => m.type === 'site-mode').at(-1)?.mode;
-  it('forces light, forces dark, and puts the system back', async () => {
-    await act(async () => stub.emit({ type: 'mode-changed', mode: 'light' }));
-    await tick(120);
-    expect(lastSiteMode()).toBe('light');
-    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ scheme: 'light' });
-    await act(async () => stub.emit({ type: 'mode-changed', mode: 'system' }));
-    await tick(120);
-    expect(lastSiteMode()).toBe('system');
+  const barScheme = () => stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)?.scheme;
+
+  it('lights the side a light page is on, previews dark on the other, and takes the preview off again', async () => {
+    expect(barScheme()).toBe('light');
     await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
     await tick(120);
     expect(lastSiteMode()).toBe('dark');
+    expect(getSession().mode).toBe('dark');
+    expect(barScheme()).toBe('dark');
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'light' }));
+    await tick(120);
+    // Light is this page's own side: nothing forced, nothing previewed.
+    expect(getSession().mode).toBe('light');
     expect(getSession().lightForced).toBe(false);
+    expect(lastSiteMode()).toBe('system');
+    expect(barScheme()).toBe('light');
+  });
+
+  it('lights Dark for a page that is dark on its own, forces light on the other, and lets go again', async () => {
+    await act(async () => stub.emit({ type: 'scan-result', data: { ...forfontsake, scheme: 'dark' } }));
+    await tick(120);
+    expect(barScheme()).toBe('dark');
+    // Its own side: no preview, so nothing to reset.
+    expect(getSession().mode).toBe('light');
+    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ resettable: 0 });
+
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'light' }));
+    await tick(120);
+    expect(getSession().lightForced).toBe(true);
+    expect(lastSiteMode()).toBe('light');
+    expect(barScheme()).toBe('light');
+
+    await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
+    await tick(120);
+    expect(getSession().lightForced).toBe(false);
+    expect(getSession().mode).toBe('light');
+    expect(lastSiteMode()).toBe('system');
+    expect(barScheme()).toBe('dark');
   });
 });
 

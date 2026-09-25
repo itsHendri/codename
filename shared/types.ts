@@ -238,6 +238,8 @@ export interface ScanResult {
   a11y?: A11yUsage;
   /** The type styles the page's stylesheets define, in whatever form they take. Absent in an older scan. */
   typeStyles?: TypeStyle[];
+  /** Which side the page was showing when it was read: its own dark hook or media, or light. Absent in an older scan. */
+  scheme?: 'light' | 'dark';
 }
 
 /** One element, read from the page: enough to show, edit and describe it. */
@@ -405,7 +407,7 @@ export type InspectorCommand =
       /** Whether the specimen is showing over the page, so the bar's Styles switch sits right. */
       specimen?: boolean;
       /** Which side of the page's theme is forced, or neither: how the Light/Dark switch sits. */
-      scheme?: 'light' | 'dark' | 'system';
+      scheme?: 'light' | 'dark';
     }
   /** The agent says "look here": scroll to it, light it up for a moment, show the note. */
   | { cmd: 'point'; selector: string; note?: string }
@@ -490,7 +492,7 @@ export type RuntimeMessage =
   /** The frame this tab was left in, if any. */
   | { type: 'frame-state' }
   /** The bar's Light/Dark switch: a side forced, or `system` for neither. */
-  | { type: 'mode-changed'; mode: Mode | 'system' }
+  | { type: 'mode-changed'; mode: Mode }
   /** A value changed on the edit card that sits on the selected element. */
   | { type: 'element-edit'; property: string; to: string }
   /** "More in panel" on that card. */

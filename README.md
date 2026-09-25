@@ -179,9 +179,11 @@ has been allowed.
   them, a region in page coordinates, or a quoted run of text — and carries a
   numbered pin on the page. Hold **View original** to see the page without any of it. The
   actions to copy, send or download the brief live at the bottom.
-- **Light / Dark** on the bar forces one side of the page's own theme —
-  its scheme media rules hoisted, its theme hook set or taken off — whatever
-  the system prefers; the lit side again is the system's choice.
+- **Light / Dark** on the bar lights the side the page is showing — its own
+  dark hook or media when the system is dark, else light — and the other
+  side asks for it: dark previewed on a light page, light forced on a page
+  that is dark on its own (its scheme media rules hoisted, its theme hook
+  set or taken off). Clicking the page's own side takes the preview off.
 - **Motion** — a transition editor with Play, and an animation editor with
   Framer's Appear, Loop and Scroll triggers over the page's own keyframes or
   a few named presets; a transform editor in Effects that takes the computed
