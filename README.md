@@ -14,10 +14,13 @@ button opens Chrome's side panel instead, to say so.
 ## The rail, and the three tabs
 
 Layers and Assets stand in the page, in a **rail** on its left, where a
-design tool keeps its tree; the panel on the right is Style · System ·
-Changes. Both are drawn in the page under the bar, each pushing the
-page in by its own width (drag the rail's edge, 180 to 420px; the panel's,
-320 to 520px). **Layers** on the bar, or **Alt+L**, folds the rail. The
+design tool keeps its tree: a strip of sections down its far edge, as
+Figma's, and a column beside it showing the one chosen — the same section
+again folds the column and leaves the strip. The panel on the right is
+Style · System · Changes. Both are drawn in the page under the bar, each
+pushing the page in by its own width (drag the rail's edge, 200 to 420px;
+the panel's, 320 to 520px). **Layers** on the bar, or **Alt+L**, hides the
+rail altogether. The
 panel is the extension's own page in a frame, so it has everything the side
 panel had; a navigation redraws it once the new page loads, where the site
 has been allowed.
