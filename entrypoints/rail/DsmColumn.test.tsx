@@ -8,6 +8,7 @@ import { DsmColumn, isOn } from './DsmColumn';
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const outline = {
+  view: 'specimen' as const,
   sections: [
     { key: 'type', title: 'Type', count: '2 styles', items: [{ key: 'h1', label: 'h1' }, { key: '.lede', label: 'lede' }] },
     { key: 'colour', title: 'Colour', count: '3 variables' },
@@ -57,6 +58,18 @@ describe('the DSM column', () => {
     const h1 = Array.from(host.querySelectorAll('button')).find((b) => b.title === 'Select the h1 sample')!;
     await act(async () => h1.click());
     expect(handled.at(-1)).toEqual({ cmd: 'select', selector: 'codename-specimen [data-codename-for="h1"]' });
+  });
+
+  it('offers the two views and, in the tokens view, asks the panel to scroll to a section', async () => {
+    await act(async () => root.render(<DsmColumn outline={{ view: 'tokens', sections: [{ key: 'colour', title: 'Colour', count: '2 ramps' }] }} />));
+    expect(host.querySelector('[role=radio][aria-checked="true"]')?.textContent).toBe('Tokens');
+    expect(host.textContent).not.toContain('Components');
+    const colour = Array.from(host.querySelectorAll('button')).find((b) => b.title === 'Scroll to Colour')!;
+    await act(async () => colour.click());
+    expect(sent.at(-1)).toEqual({ type: 'dsm-jump', key: 'colour' });
+    const spec = Array.from(host.querySelectorAll('[role=radio]')).find((b) => b.textContent === 'Specimen') as HTMLButtonElement;
+    await act(async () => spec.click());
+    expect(sent.at(-1)).toEqual({ type: 'dsm-view', view: 'specimen' });
   });
 
   it('asks the panel for Generate, Export and the way back', async () => {

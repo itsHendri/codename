@@ -49,6 +49,7 @@ export function SystemTab({
   colorEdits,
   hostname,
   local,
+  wide = false,
   open: openAction,
   onOpened,
   specimenHtml,
@@ -73,6 +74,8 @@ export function SystemTab({
   hostname: string;
   /** The page is served from this machine, so a write to the paired project is about it. */
   local: boolean;
+  /** Over the canvas, in the Design System Manager: two columns, room for the tables. */
+  wide?: boolean;
   /** An action asked for elsewhere (the rail's DSM column): open it, then say so. */
   open?: 'generate' | 'export' | null;
   onOpened?: () => void;
@@ -174,7 +177,7 @@ export function SystemTab({
           : `${reskin.vars} ${reskin.vars === 1 ? 'variable' : 'variables'} · ${reskin.rules} ${reskin.rules === 1 ? 'rule' : 'rules'} live on the page`;
 
   return (
-    <div className="relative flex flex-col">
+    <div className={`relative flex flex-col ${wide ? 'mx-auto w-full max-w-[1200px]' : ''}`}>
       <div className={`flex items-center gap-2 border-b px-3 py-2 text-xs ${live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'}`}>
         {/* Announced: an edit elsewhere changes this line, and a screen reader should hear it. */}
         <span role="status" className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
@@ -219,7 +222,12 @@ export function SystemTab({
         />
       )}
 
+      {wide ? (
+        // Two columns: colour, space and the audits on the left; the long tables on the right.
+        <div className="grid grid-cols-2 items-start gap-x-6">
+          <div className="min-w-0">
       <Section
+        id="dsm-colour"
         title="Colour"
         summary={`${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`}
         open={open.has('colour')}
@@ -229,6 +237,38 @@ export function SystemTab({
       </Section>
 
       <Section
+        id="dsm-space"
+        title="Space & shape"
+        summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx}${rulesLive ? ' · live on page' : ''}`}
+        open={open.has('space')}
+        onToggle={() => toggle('space')}
+      >
+        <SpaceSection scan={scan} config={brand} resolved={resolved} onSpacingBase={setSpacingBase} onRadiusBase={setRadiusBase} />
+      </Section>
+
+      <Section
+        id="dsm-critique"
+        title="Critique"
+        summary={warnings ? `${warnings} to look at` : review.summary}
+        open={open.has('critique')}
+        onToggle={() => toggle('critique')}
+      >
+        <CritiqueSection critique={review} />
+      </Section>
+
+      <Section
+        id="dsm-tokenFile"
+        title="Token file"
+        summary={tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'compare with a file'}
+        open={open.has('tokenFile')}
+        onToggle={() => toggle('tokenFile')}
+      >
+        <TokenFileSection report={drift} />
+      </Section>
+          </div>
+          <div className="min-w-0 border-l border-line-subtle pl-6">
+      <Section
+        id="dsm-type"
         title="Type"
         summary={`${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`}
         open={open.has('type')}
@@ -248,6 +288,68 @@ export function SystemTab({
       </Section>
 
       <Section
+        id="dsm-tokens"
+        title="Tokens"
+        summary={`${scan.customProps.length} on this page${manualVars ? ` · ${manualVars} set by hand` : ''}${manualColours ? ` · ${manualColours} literals by hand` : ''}`}
+        open={open.has('tokens')}
+        onToggle={() => toggle('tokens')}
+      >
+        <TokensSection
+          scan={scan}
+          engine={model.paint.overrides}
+          colorMap={model.paint.colorMap}
+          mode={mode}
+          varOverrides={varOverrides}
+          darkVarOverrides={darkVarOverrides}
+          colorEdits={colorEdits}
+          locks={locks}
+          links={model.links}
+          ambiguous={model.ambiguous}
+          resolved={resolved}
+          onVar={onVar}
+          onDark={onDark}
+          onColor={onColor}
+          onLock={onLock}
+          onLink={onLink}
+        />
+      </Section>
+
+          </div>
+        </div>
+      ) : (
+        <>
+      <Section
+        id="dsm-colour"
+        title="Colour"
+        summary={`${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`}
+        open={open.has('colour')}
+        onToggle={() => toggle('colour')}
+      >
+        <ColourSection brand={brand} resolved={resolved} mode={mode} links={model.links} props={scan.customProps} onSeed={setSeed} onPin={setPin} />
+      </Section>
+
+      <Section
+        id="dsm-type"
+        title="Type"
+        summary={`${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`}
+        open={open.has('type')}
+        onToggle={() => toggle('type')}
+      >
+        <TypeStyles
+          scan={scan}
+          styles={styles}
+          varOverrides={varOverrides}
+          locks={locks}
+          styleLocks={styleLocks}
+          log={ctl.log}
+          onVar={onVar}
+          onStyleLock={setStyleLock}
+          changeMany={ctl.changeMany}
+        />
+      </Section>
+
+      <Section
+        id="dsm-space"
         title="Space & shape"
         summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx}${rulesLive ? ' · live on page' : ''}`}
         open={open.has('space')}
@@ -257,6 +359,7 @@ export function SystemTab({
       </Section>
 
       <Section
+        id="dsm-tokens"
         title="Tokens"
         summary={`${scan.customProps.length} on this page${manualVars ? ` · ${manualVars} set by hand` : ''}${manualColours ? ` · ${manualColours} literals by hand` : ''}`}
         open={open.has('tokens')}
@@ -283,6 +386,7 @@ export function SystemTab({
       </Section>
 
       <Section
+        id="dsm-critique"
         title="Critique"
         summary={warnings ? `${warnings} to look at` : review.summary}
         open={open.has('critique')}
@@ -292,6 +396,7 @@ export function SystemTab({
       </Section>
 
       <Section
+        id="dsm-tokenFile"
         title="Token file"
         summary={tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'compare with a file'}
         open={open.has('tokenFile')}
@@ -299,6 +404,8 @@ export function SystemTab({
       >
         <TokenFileSection report={drift} />
       </Section>
+        </>
+      )}
     </div>
   );
 }

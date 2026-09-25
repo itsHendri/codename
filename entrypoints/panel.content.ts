@@ -42,6 +42,9 @@ export default defineContentScript({
 function activate() {
   let width = PANEL_DEFAULT;
   let on = false;
+  // Over the canvas: from the rail's edge to the window's, for the Design
+  // System Manager's editor. The page under it is not being looked at.
+  let expanded = false;
   let frame: HTMLIFrameElement | null = null;
 
   const host = document.createElement(PANEL_TAG);
@@ -64,7 +67,15 @@ function activate() {
   const push = createRootPush('right');
 
   const apply = () => {
-    host.style.width = `${width}px`;
+    if (expanded) {
+      host.style.left = 'var(--codename-rail, 0px)';
+      host.style.width = 'auto';
+      edge.style.display = 'none';
+    } else {
+      host.style.left = '';
+      host.style.width = `${width}px`;
+      edge.style.display = '';
+    }
     host.style.display = on ? 'block' : 'none';
     if (on) push.set(width);
     else push.clear();
@@ -165,6 +176,10 @@ function activate() {
     if (msg.cmd === 'panel') {
       if (msg.on) void show();
       else hide();
+    }
+    if (msg.cmd === 'expand') {
+      expanded = !!msg.on;
+      apply();
     }
     sendResponse({ ok: true, on, width });
     return true;

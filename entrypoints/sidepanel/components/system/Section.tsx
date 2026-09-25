@@ -7,12 +7,15 @@ import { ChevronIcon } from '../icons';
  * opening it.
  */
 export function Section({
+  id,
   title,
   summary,
   open,
   onToggle,
   children,
 }: {
+  /** For the DSM's outline to scroll to. */
+  id?: string;
   title: string;
   summary?: ReactNode;
   open: boolean;
@@ -20,7 +23,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="border-t border-line-subtle first:border-t-0">
+    <div id={id} className="scroll-mt-2 border-t border-line-subtle first:border-t-0">
       {/* The Style column's group head, so the two tabs read as one tool. */}
       <button
         onClick={onToggle}

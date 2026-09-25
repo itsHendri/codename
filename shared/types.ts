@@ -404,8 +404,6 @@ export type InspectorCommand =
       agent?: AgentPresence | null;
       /** Whether the layers rail is showing, so the bar's toggle sits right. */
       rail?: boolean;
-      /** Whether the specimen is showing over the page, so the bar's Styles switch sits right. */
-      specimen?: boolean;
       /** Which side of the page's theme is forced, or neither: how the Light/Dark switch sits. */
       scheme?: 'light' | 'dark';
     }
@@ -482,6 +480,8 @@ export type RailCommand =
 
 /** What the styles page holds, section by section, for the rail's column while the DSM is open. */
 export interface DsmOutline {
+  /** Which the canvas shows: the editor's tables, or the styles page drawn over the page. */
+  view: 'tokens' | 'specimen';
   sections: {
     key: string;
     title: string;
@@ -495,6 +495,10 @@ export type RuntimeMessage =
   | { type: 'scan-result'; data: ScanResult }
   /** System on the rail's strip: open the Design System Manager, or close it. */
   | { type: 'dsm-toggled'; on: boolean }
+  /** The DSM's view: the editor over the canvas, or the styles page in the page. */
+  | { type: 'dsm-view'; view: 'tokens' | 'specimen' }
+  /** A section chosen in the DSM's outline, for the editor to scroll to. */
+  | { type: 'dsm-jump'; key: string }
   /** An action in the DSM's column that the panel carries out. */
   | { type: 'dsm-action'; action: 'generate' | 'export' }
   /** The chip on the bar: take the agent's preview off the page. */
@@ -521,7 +525,6 @@ export type RuntimeMessage =
   /** Layers on the bar, or Alt+L: show or hide the rail. */
   | { type: 'rail-toggled'; on: boolean }
   /** Styles on the bar: show the specimen over the page, or the page again. */
-  | { type: 'specimen-toggled'; on: boolean }
   /** A row dragged in the rail: an element edit, so it lands in the log like any other. */
   | {
       type: 'rail-move';

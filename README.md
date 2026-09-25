@@ -11,13 +11,14 @@ frames its canvas: a **bar** across the top, a **rail** on the left, the
 again to put the page back. On pages Chrome keeps extensions out of, the
 button opens Chrome's side panel instead, to say so.
 
-## The rail, and the three tabs
+## The rail, the panel, and the Design System Manager
 
 Layers and Assets stand in the page, in a **rail** on its left, where a
 design tool keeps its tree: a strip of sections down its far edge, as
 Figma's, and a column beside it showing the one chosen — the same section
 again folds the column and leaves the strip. The panel on the right is
-Style · System · Changes. Both are drawn in the page under the bar, each
+Style · Changes; the system lives in the Design System Manager, which
+**System** on the strip lays over the canvas. Both are drawn in the page under the bar, each
 pushing the page in by its own width (drag the rail's edge, 210 to 420px;
 the panel's, 320 to 520px). **Layers** on the bar, or **Alt+L**, hides the
 rail altogether. The
@@ -153,15 +154,19 @@ has been allowed.
     is read by Tailwind), under its own per-project switch; otherwise the
     file downloads. Replacing the literals is the agent's, from the brief's
     **Adopt tokens** section, because each one is a judgement.
-- **System** on the rail's strip, or **Styles** on the bar — the Design
-  System Manager: the page's own styles page drawn over the page (below),
-  its outline in the rail's column with a jump to each section and the
-  type and component samples listed under theirs — the one selected on the
-  page is lit, and one picked here is selected on the page — Generate and
-  Export beside it, and the System editor in the panel; select a sample
-  and the panel turns to Style for it. **Back to the page**, or System
-  again, brings the page back.
-- **Styles**, on the bar — the page's own styles page, drawn over the page in
+- **System** on the rail's strip — the Design System Manager, a room of its
+  own over the canvas, as Figma's variables view is. Two views, switched in
+  its head or in the rail: **Tokens** lays the panel from the rail's edge to
+  the window's with the system as tables in two columns — Colour, Space and
+  the audits on the left, Type and Tokens on the right — and the rail's
+  column an outline of those sections with a jump to each; **Specimen**
+  puts the panel back in its column and draws the page's own styles page
+  over the page (below), the outline then listing its sections and the
+  type and component samples under theirs — the one selected on the page
+  is lit, and one picked here is selected on the page, and the panel turns
+  to Style for it. Generate and Export sit in the head and the rail's
+  column. Close, or System again, brings the page back.
+- **Specimen**, the DSM's second view — the page's own styles page, drawn over the page in
   its own document: every type style the scan found on a real element in its
   own form (an `<h1>` for `h1 {}`, a `.lede` for `.lede {}`, a `.text-xl` for
   a Tailwind size), each colour variable painted through the variable itself,
@@ -173,8 +178,8 @@ has been allowed.
   the rule the page uses: the specimen `h1` reads as `h1`, a button inside the
   cloned card as `div.card button.btn` ×2. Only the labels are Codename's, in
   closed shadow roots no page rule reaches and no scan reads. The page is
-  hidden under it by one stylesheet and comes back untouched when Styles is
-  clicked again. Nothing here is invented: a page with no shadows has no
+  hidden under it by one stylesheet and comes back untouched when the DSM
+  closes. Nothing here is invented: a page with no shadows has no
   Elevation row, and a page with no type styles has no Type section.
   The **Light / Dark** switch on the bar shows the page's own dark mode where
   it has one — its `prefers-color-scheme: dark` rules are re-emitted without
@@ -594,7 +599,7 @@ npm run harness:scripts
 
 ## Status
 
-Working: extraction, the three-tab panel on its own dark design system, live
+Working: extraction, the two-tab panel and the Design System Manager on its own dark design system, live
 re-skin, element selection and editing with a changes list, notes, the
 hand-off brief, the local bridge with its MCP tools, and the exports. See
 `PLAN.md` for what is next and what was deliberately left out.

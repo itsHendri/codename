@@ -147,7 +147,7 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
           {/* The section's name, the height of the bar, so the three pieces of chrome read as one. */}
           <div className="-mx-2.5 -mt-2.5 flex h-10 shrink-0 items-center border-b border-line px-3 text-xs font-medium text-ink">{heading}</div>
         {tab === 'system' ? (
-          <DsmColumn outline={state.dsm ?? { sections: [] }} />
+          <DsmColumn outline={state.dsm ?? { view: 'tokens', sections: [] }} />
         ) : tab === 'pages' ? (
           <>
             <div className="flex shrink-0 items-center justify-between gap-2 text-2xs text-ink-muted">
