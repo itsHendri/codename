@@ -4,9 +4,9 @@ import { pagesOf } from '@/studio/pages';
 import { callInspector } from '@/shared/inpage';
 import { LayersTree } from '@/entrypoints/sidepanel/components/inspect/LayersTree';
 import { SvgsTab } from '@/entrypoints/sidepanel/components/SvgsTab';
-import { TabStrip } from '@/entrypoints/sidepanel/components/TabStrip';
 import { ComponentsIcon, ImageIcon, LayersIcon, PagesIcon, RefreshIcon } from '@/entrypoints/sidepanel/components/icons';
 import { ComponentsTab } from './ComponentsTab';
+import { SideStrip } from './SideStrip';
 import type { RailStore } from './store';
 import { useRailLayers } from './useRailLayers';
 
@@ -24,17 +24,28 @@ const tell = (msg: unknown) => {
 /**
  * The page as a tree and as a set of assets, docked to its left edge.
  *
- * The tree is the same component the panel drew; only where it stands has
- * changed. Picking a row asks the inspector in the same page; a drag or the
- * eye on a row is an element edit, so it goes to the panel and lands in the
- * log there, with undo and the brief, as an edit from the edit card does.
+ * A strip of sections on the far left, the way Figma and Weave lay out the
+ * left of the canvas, and a column beside it showing the one chosen; the
+ * same section again folds the column and leaves the strip. The tree is
+ * the same component the panel drew; only where it stands has changed.
+ * Picking a row asks the inspector in the same page; a drag or the eye on
+ * a row is an element edit, so it goes to the panel and lands in the log
+ * there, with undo and the brief, as an edit from the edit card does.
  */
-export function Rail({ store, onResize }: { store: RailStore; onResize: (width: number) => void }) {
+export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize: (width: number) => void; onColumn: (open: boolean) => void }) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const [tab, setTab] = useState<RailTab>('layers');
+  const column = state.column;
+  const choose = (key: RailTab) => {
+    if (key === tab) onColumn(!column);
+    else {
+      setTab(key);
+      if (!column) onColumn(true);
+    }
+  };
   // The tree is read while the rail shows Layers or Components (its
   // repeating styles come from it); Pages and Assets do not need it walked.
-  const tree = useRailLayers(state.on && (tab === 'layers' || tab === 'components'));
+  const tree = useRailLayers(state.on && column && (tab === 'layers' || tab === 'components'));
   // The site's pages, as this page links to them: read when the tab opens
   // and on its refresh button, the way Framer's list is a thing you look at
   // rather than something that ticks.
@@ -109,11 +120,15 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
     { key: 'assets' as const, label: 'Assets', Icon: ImageIcon },
   ];
 
+  const heading = tabs.find((t) => t.key === tab)?.label ?? '';
+
   return (
-    <div className="rail relative flex h-full flex-col border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
-      {/* The same strip the panel wears, the height of the bar: three pieces of chrome that read as one. */}
-      <TabStrip tabs={tabs} active={tab} onSelect={setTab} ariaLabel="Rail" idPrefix="rail-tab" fit />
-      <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
+    <div className="rail relative flex h-full border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
+      <SideStrip items={tabs} active={tab} open={column} onSelect={choose} ariaLabel="Rail" idPrefix="rail-tab" />
+      {column && (
+        <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-2.5">
+          {/* The section's name, the height of the bar, so the three pieces of chrome read as one. */}
+          <div className="-mx-2.5 -mt-2.5 flex h-10 shrink-0 items-center border-b border-line px-3 text-xs font-medium text-ink">{heading}</div>
         {tab === 'pages' ? (
           <>
             <div className="flex shrink-0 items-center justify-between gap-2 text-2xs text-ink-muted">
@@ -176,7 +191,9 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
         ) : (
           <p className="text-xs text-ink-muted">Read the page first — the panel's Scan button.</p>
         )}
-      </div>
+        </div>
+      )}
+      {column && (
       <div
         role="separator"
         aria-orientation="vertical"
@@ -190,6 +207,7 @@ export function Rail({ store, onResize }: { store: RailStore; onResize: (width: 
       >
         <span className="absolute inset-y-0 left-1 w-px bg-transparent group-hover:bg-accent group-focus-visible:bg-accent" />
       </div>
+      )}
     </div>
   );
 }

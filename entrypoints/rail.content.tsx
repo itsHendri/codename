@@ -19,12 +19,14 @@ import { BAR_HEIGHT } from '@/shared/theme';
 import { createRootPush } from '@/studio/pushRoot';
 import { refitFrame } from '@/studio/pageFrame';
 import { Rail } from './rail/Rail';
+import { STRIP_WIDTH } from './rail/SideStrip';
 import { createStore } from './rail/store';
 
 export const DEFAULT_WIDTH = 240;
-export const MIN_WIDTH = 180;
+export const MIN_WIDTH = 200;
 export const MAX_WIDTH = 420;
 const WIDTH_KEY = 'railWidth';
+const COLUMN_KEY = 'railColumn';
 
 export default defineContentScript({
   registration: 'runtime',
@@ -37,7 +39,7 @@ export default defineContentScript({
 export const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)));
 
 function activate() {
-  const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH, scheme: 'light', ink: '' });
+  const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH, column: true, scheme: 'light', ink: '' });
   // What the page paints text in: read now, and again once a Light / Dark
   // switch has had its moment to repaint the page.
   const readInk = () => {
@@ -62,11 +64,13 @@ function activate() {
   // device frame on the page fits the room that is left.
   const push = createRootPush('left');
   const apply = () => {
-    const { on, width, theme } = store.get();
+    const { on, width, column, theme } = store.get();
     host.dataset.theme = theme;
-    host.style.width = `${width}px`;
+    // The strip alone when the column is folded; the page moves by the same.
+    const shown = column ? width : STRIP_WIDTH;
+    host.style.width = `${shown}px`;
     host.style.display = on ? 'block' : 'none';
-    if (on) push.set(width);
+    if (on) push.set(shown);
     else push.clear();
     refitFrame();
   };
@@ -84,15 +88,22 @@ function activate() {
     }, 300);
   };
   chrome.storage.local
-    .get(WIDTH_KEY)
+    .get([WIDTH_KEY, COLUMN_KEY])
     .then((got) => {
       const w = Number(got[WIDTH_KEY]);
       if (Number.isFinite(w) && w > 0) store.set({ width: clampWidth(w) });
+      if (got[COLUMN_KEY] === false) store.set({ column: false });
     })
     .catch(() => {});
+  // Folding the column is this browser's convenience too.
+  const setColumn = (column: boolean) => {
+    if (column === store.get().column) return;
+    store.set({ column });
+    chrome.storage.local.set({ [COLUMN_KEY]: column }).catch(() => {});
+  };
 
   const root = createRoot(mount);
-  root.render(<Rail store={store} onResize={setWidth} />);
+  root.render(<Rail store={store} onResize={setWidth} onColumn={setColumn} />);
 
   const onMessage = (
     msg: { type?: string } & Partial<RailCommand>,

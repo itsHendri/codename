@@ -487,6 +487,18 @@ is that companion growing up.
   page's computed body colour as `currentColor` (`RailCommand.rail.scheme`,
   `RailState.ink`, re-read after the page has repainted), and a themed
   icon shows as the page shows it.
+- **W49, 25 September 2026 — the rail's strip.** Hendri's direction: the
+  rail should work as Figma's and Weave's left side — a strip of sections
+  on the far left, and a column whose content is whatever the strip has
+  chosen; System moves to that strip and opens a full environment, the
+  Design System Manager, in which the System editor and the specimen are
+  one thing (W50); a sample selected there edits in Style (W51). This
+  first step is the strip (`entrypoints/rail/SideStrip.tsx`, 60px, icon
+  over a small label, a vertical tablist): the column beside it shows the
+  section, headed by its name at the bar's height; the same section again
+  folds the column and leaves the strip, remembered per browser
+  (`RailState.column`); the page moves by the strip alone when folded.
+  Layers on the bar still hides the rail altogether.
 
 ## Live re-skin
 
