@@ -155,8 +155,10 @@ has been allowed.
     **Adopt tokens** section, because each one is a judgement.
 - **System** on the rail's strip, or **Styles** on the bar — the Design
   System Manager: the page's own styles page drawn over the page (below),
-  its outline in the rail's column with a jump to each section, Generate
-  and Export beside it, and the System editor in the panel; click a sample
+  its outline in the rail's column with a jump to each section and the
+  type and component samples listed under theirs — the one selected on the
+  page is lit, and one picked here is selected on the page — Generate and
+  Export beside it, and the System editor in the panel; select a sample
   and the panel turns to Style for it. **Back to the page**, or System
   again, brings the page back.
 - **Styles**, on the bar — the page's own styles page, drawn over the page in

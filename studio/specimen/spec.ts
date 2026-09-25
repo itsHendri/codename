@@ -103,7 +103,9 @@ export function buildSpecimenSpec(scan: ScanResult, links: ColourLinks = {}): Sp
 export function outlineOf(spec: SpecimenSpec): DsmOutline['sections'] {
   const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
   const out: DsmOutline['sections'] = [];
-  if (spec.type.length) out.push({ key: 'type', title: 'Type', count: n(spec.type.length, 'style') });
+  if (spec.type.length) {
+    out.push({ key: 'type', title: 'Type', count: n(spec.type.length, 'style'), items: spec.type.map((t) => ({ key: t.selectorOrUtility, label: t.name })) });
+  }
   if (spec.colours.length) out.push({ key: 'colour', title: 'Colour', count: n(spec.colours.length, 'variable') });
   if (spec.pairs.length) out.push({ key: 'pairs', title: 'Pairs', count: n(spec.pairs.length, 'pair') });
   if (spec.literals.length) out.push({ key: 'literals', title: 'Literals', count: n(spec.literals.length, 'colour') });

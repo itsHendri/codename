@@ -509,8 +509,16 @@ is that companion growing up.
   editor. Styles on the bar is the same switch. The session has no cross-
   instance sync, so the editor stays the panel's one mount rather than a
   second frame docked left; the environment is the three columns pointing
-  at one thing. Next, W51: a sample picked in the specimen edits in Style
-  and lights its row in the outline.
+  at one thing.
+- **W51, 25 September 2026 — selection inside the DSM.** The outline's
+  Type and Components sections list their samples (`DsmOutline.sections[].
+  items`, keyed by what each stands for — the `data-codename-for` the
+  inspector reads a sample as); the rail hears the page's selection on the
+  same in-page event the tree does and lights the item it is (or is
+  inside, for a child of a cloned component), scrolling it into view; a
+  click on an item asks the inspector for that sample, the same selection
+  a click on the page makes, so the panel turns to Style for it. The
+  outline and the page point at each other.
 
 ## Live re-skin
 
