@@ -21,7 +21,7 @@ import {
 import { buildSpecimenSpec, outlineOf } from '@/studio/specimen/spec';
 import { critique } from '@/studio/critique';
 import { rampsOnPage } from './components/system/ColourSection';
-import type { DsmOutline } from '@/shared/types';
+import { DSM_SECTIONS, type DsmOutline, type DsmSection } from '@/shared/types';
 import {
   flushSession,
   getSession,
@@ -51,7 +51,7 @@ import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import { ChangesIcon, CloseIcon, DesignIcon, InspectIcon } from './components/icons';
+import { ChangesIcon, InspectIcon } from './components/icons';
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
 import { StyleTab } from './components/StyleTab';
@@ -381,7 +381,9 @@ export default function App() {
         const view = (msg as { view?: string }).view;
         if (view === 'tokens' || view === 'specimen') updateSession({ dsmView: view, pinned: null, also: [] });
       } else if (msg?.type === 'dsm-jump') {
-        document.getElementById(`dsm-${String((msg as { key?: string }).key ?? '')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // A section chosen in the rail's outline: the editor shows that one.
+        const key = (msg as { key?: string }).key;
+        if (DSM_SECTIONS.includes(key as DsmSection)) updateSession({ dsmSection: key as DsmSection });
       } else if (msg?.type === 'dsm-action') {
         const action = (msg as { action?: string }).action;
         if (action === 'generate' || action === 'export') setSystemOpen(action);
@@ -487,16 +489,17 @@ export default function App() {
     const warnings = review?.findings.filter((f) => f.level !== 'note').length ?? 0;
     return {
       view: 'tokens',
+      current: session.dsmSection,
       sections: [
         { key: 'colour', title: 'Colour', count: `${ramps} ${ramps === 1 ? 'ramp' : 'ramps'}` },
         { key: 'type', title: 'Type', count: `${styles} ${styles === 1 ? 'style' : 'styles'}` },
         { key: 'space', title: 'Space & shape', count: `${model.brand.spacing.basePx}px grid` },
         { key: 'tokens', title: 'Tokens', count: `${scan.customProps.length} on this page` },
         { key: 'critique', title: 'Critique', count: warnings ? `${warnings} to look at` : 'nothing to flag' },
-        { key: 'tokenFile', title: 'Token file', count: session.tokenFile ? session.tokenFile.name : 'compare with a file' },
+        { key: 'tokenFile', title: 'Token file', count: session.tokenFile ? session.tokenFile.name : 'none yet' },
       ],
     };
-  }, [dsmOn, specimenSpec, scan, model, review, session.tokenFile]);
+  }, [dsmOn, specimenSpec, scan, model, review, session.tokenFile, session.dsmSection]);
 
   // The panel over the canvas while the editor is what the DSM shows.
   const expandedSent = useRef(false);
@@ -634,6 +637,12 @@ export default function App() {
           hostname={hostname}
           local={changeSet.local}
           wide
+          dsmView={session.dsmView}
+          onView={(v) => updateSession({ dsmView: v, pinned: null, also: [] })}
+          section={session.dsmSection}
+          onSection={(k) => updateSession({ dsmSection: k })}
+          onClose={() => updateSession({ dsm: false })}
+          queued={pendingCount}
           open={systemOpen}
           onOpened={() => setSystemOpen(null)}
           specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
@@ -678,39 +687,8 @@ export default function App() {
         embeddedTab() !== null ? 'border-l border-l-[color:var(--ink-faint)]' : ''
       }`}
     >
-      {expanded ? (
-        // Over the canvas: the Design System Manager's own head, the height of the bar.
-        <header className="flex h-10 shrink-0 items-center gap-3 border-b border-line px-3" aria-label="Design System Manager">
-          <DesignIcon className="h-4 w-4 text-ink-muted" />
-          <span className="text-xs font-medium text-ink">Design System Manager</span>
-          <div role="radiogroup" aria-label="View" className="ml-2 flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
-            {(['tokens', 'specimen'] as const).map((v) => (
-              <button
-                key={v}
-                role="radio"
-                aria-checked={session.dsmView === v}
-                onClick={() => updateSession({ dsmView: v, pinned: null, also: [] })}
-                className={`rounded-[4px] px-2 text-xs ${session.dsmView === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
-                title={v === 'tokens' ? 'The system as tables: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
-              >
-                {v === 'tokens' ? 'Tokens' : 'Specimen'}
-              </button>
-            ))}
-          </div>
-          <span className="ml-auto text-2xs text-ink-muted">
-            {pendingCount ? `${pendingCount} ${pendingCount === 1 ? 'change' : 'changes'} queued` : ''}
-          </span>
-          <button
-            onClick={() => updateSession({ dsm: false })}
-            className="flex h-control w-6 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink"
-            aria-label="Back to the page"
-            title="Close the Design System Manager and show the page again"
-          >
-            <CloseIcon className="h-3.5 w-3.5" />
-          </button>
-        </header>
-      ) : (
-        // h-10 is BAR_HEIGHT: the same strip as the bar across the page.
+      {/* Over the canvas the Design System Manager draws its own head; here, h-10 is BAR_HEIGHT, the bar's own strip. */}
+      {!expanded && (
         <TabStrip
           tabs={TABS.map((t) => (t.key === 'changes' ? { ...t, badge: pendingCount } : t))}
           active={active}

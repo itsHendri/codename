@@ -19,7 +19,7 @@ Figma's, and a column beside it showing the one chosen — the same section
 again folds the column and leaves the strip. The panel on the right is
 Style · Changes; the system lives in the Design System Manager, which
 **System** on the strip lays over the canvas. Both are drawn in the page under the bar, each
-pushing the page in by its own width (drag the rail's edge, 210 to 420px;
+pushing the page in by its own width (drag the rail's edge, 220 to 420px;
 the panel's, 320 to 520px). **Layers** on the bar, or **Alt+L**, hides the
 rail altogether. The
 panel is the extension's own page in a frame, so it has everything the side
@@ -157,9 +157,11 @@ has been allowed.
 - **System** on the rail's strip — the Design System Manager, a room of its
   own over the canvas, as Figma's variables view is. Two views, switched in
   its head or in the rail: **Tokens** lays the panel from the rail's edge to
-  the window's with the system as tables in two columns — Colour, Space and
-  the audits on the left, Type and Tokens on the right — and the rail's
-  column an outline of those sections with a jump to each; **Specimen**
+  the window's, one head with everything that acts on the system (the view,
+  the section, the status, Reset all, Generate, Export, Back to the page)
+  and one section at a time at full width — Colour, Type, Space & shape,
+  Tokens, Critique, Token file — chosen in the rail's outline, which lights
+  the one showing, or in the head; Esc closes it; **Specimen**
   puts the panel back in its column and draws the page's own styles page
   over the page (below), the outline then listing its sections and the
   type and component samples under theirs — the one selected on the page

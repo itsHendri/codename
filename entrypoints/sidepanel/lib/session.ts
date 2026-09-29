@@ -11,7 +11,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
-import type { AgentPresence, PinnedElement, ScanResult } from '@/shared/types';
+import type { AgentPresence, PinnedElement, ScanResult, DsmSection } from '@/shared/types';
 import type { CreatedFile,
   Comment,
   CommentStatus,
@@ -82,6 +82,8 @@ export interface TabSession {
   dsm: boolean;
   /** Which the DSM shows: the editor's tables, or the specimen drawn from the page's own rules. */
   dsmView: 'tokens' | 'specimen';
+  /** The editor's section over the canvas, one at a time, chosen from the rail's outline or the head. */
+  dsmSection: DsmSection;
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
   /** The page's own variables set by hand on its dark side: name → value. */
@@ -170,6 +172,7 @@ const EMPTY: TabSession = {
   rail: true,
   dsm: false,
   dsmView: 'tokens',
+  dsmSection: 'colour',
   varOverrides: {},
   darkVarOverrides: {},
   links: {},

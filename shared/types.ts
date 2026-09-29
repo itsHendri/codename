@@ -479,9 +479,15 @@ export type RailCommand =
   | { cmd: 'off' };
 
 /** What the styles page holds, section by section, for the rail's column while the DSM is open. */
+/** The editor's sections, one shown at a time over the canvas. */
+export type DsmSection = 'colour' | 'type' | 'space' | 'tokens' | 'critique' | 'tokenFile';
+export const DSM_SECTIONS: readonly DsmSection[] = ['colour', 'type', 'space', 'tokens', 'critique', 'tokenFile'];
+
 export interface DsmOutline {
   /** Which the canvas shows: the editor's tables, or the styles page drawn over the page. */
   view: 'tokens' | 'specimen';
+  /** In the tokens view, the section the editor is showing. */
+  current?: DsmSection;
   sections: {
     key: string;
     title: string;

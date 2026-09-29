@@ -40,9 +40,15 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
   // System is the Design System Manager: the panel opens it (the styles page
   // over the page, System in the panel) and this column shows its outline.
   const dsmOn = state.dsm !== null;
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (dsmOn) setTab('system');
-    else setTab((t) => (t === 'system' ? 'layers' : t));
+    else {
+      setTab((t) => (t === 'system' ? 'layers' : t));
+      // The room closed from inside: focus was in the panel, which is gone
+      // from over the canvas, so it comes back to the door.
+      if (!document.activeElement || document.activeElement === document.body) root.current?.querySelector<HTMLElement>('#rail-tab-system')?.focus();
+    }
   }, [dsmOn]);
   const choose = (key: RailTab) => {
     if (key === 'system') {
@@ -140,7 +146,7 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
   const heading = tab === 'system' ? 'Design System Manager' : (tabs.find((t) => t.key === tab)?.label ?? '');
 
   return (
-    <div className="rail relative flex h-full border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
+    <div ref={root} className="rail relative flex h-full border-r border-r-[color:var(--ink-faint)]" onKeyDown={onKey}>
       <SideStrip items={tabs} active={tab} open={column} onSelect={choose} ariaLabel="Rail" idPrefix="rail-tab" />
       {column && (
         <div role="tabpanel" aria-labelledby={`rail-tab-${tab}`} className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-2.5">

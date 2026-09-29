@@ -63,6 +63,8 @@ function activate() {
   edge.style.cssText = 'position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:1;touch-action:none';
   host.appendChild(edge);
   document.documentElement.appendChild(host);
+  // Over the canvas and back is a move, not a cut — unless motion is not wanted.
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) host.style.transition = 'left 160ms cubic-bezier(0.2, 0, 0, 1), width 160ms cubic-bezier(0.2, 0, 0, 1)';
 
   const push = createRootPush('right');
 

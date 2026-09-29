@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ScanResult } from '@/shared/types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DSM_SECTIONS, type DsmSection, type ScanResult } from '@/shared/types';
+import { CloseIcon, DesignIcon } from './icons';
 import type { BrandConfig, Mode, ScaleRole, Step } from '@/studio/engine/types';
 import type { ColourLink } from '@/studio/systemMap';
 import { regrid } from '@/studio/edits';
@@ -50,6 +51,12 @@ export function SystemTab({
   hostname,
   local,
   wide = false,
+  dsmView = 'tokens',
+  onView,
+  section = 'colour',
+  onSection,
+  onClose,
+  queued = 0,
   open: openAction,
   onOpened,
   specimenHtml,
@@ -74,8 +81,15 @@ export function SystemTab({
   hostname: string;
   /** The page is served from this machine, so a write to the paired project is about it. */
   local: boolean;
-  /** Over the canvas, in the Design System Manager: two columns, room for the tables. */
+  /** Over the canvas, in the Design System Manager: its own head, one section at a time at full width. */
   wide?: boolean;
+  dsmView?: 'tokens' | 'specimen';
+  onView?: (view: 'tokens' | 'specimen') => void;
+  section?: DsmSection;
+  onSection?: (section: DsmSection) => void;
+  onClose?: () => void;
+  /** Changes queued for the project, for the head. */
+  queued?: number;
   /** An action asked for elsewhere (the rail's DSM column): open it, then say so. */
   open?: 'generate' | 'export' | null;
   onOpened?: () => void;
@@ -102,6 +116,11 @@ export function SystemTab({
   // Open on its own for a page with too little to show; a door otherwise.
   const [generating, setGenerating] = useState(() => isThin(scan));
   const showGenerate = generating || proposal !== null;
+  // Over the canvas, the room is entered: focus lands on its name.
+  const titleRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (wide) titleRef.current?.focus();
+  }, [wide]);
   useEffect(() => {
     if (!openAction) return;
     if (openAction === 'generate') setGenerating(true);
@@ -176,42 +195,103 @@ export function SystemTab({
           ? 'this page holds none of this where it can be repainted — it goes in the brief'
           : `${reskin.vars} ${reskin.vars === 1 ? 'variable' : 'variables'} · ${reskin.rules} ${reskin.rules === 1 ? 'rule' : 'rules'} live on the page`;
 
-  return (
-    <div className={`relative flex flex-col ${wide ? 'mx-auto w-full max-w-[1200px]' : ''}`}>
-      <div className={`flex items-center gap-2 border-b px-3 py-2 text-xs ${live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'}`}>
-        {/* Announced: an edit elsewhere changes this line, and a screen reader should hear it. */}
-        <span role="status" className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
-          {status}
-        </span>
-        {(dirty || mode === 'dark') && (
-          <button
-            onClick={onResetAll}
-            className="btn btn-sm btn-accent shrink-0"
-            title="Take back every override — variables, colours, scale, element edits — the dark preview and the viewport preset. Notes stay. Also on the bar."
-          >
-            Reset all
-          </button>
-        )}
-        <button
-          onClick={() => setGenerating((v) => !v)}
-          aria-pressed={showGenerate}
-          className={`btn btn-sm shrink-0 ${showGenerate ? 'btn-accent' : 'btn-secondary'}`}
-          title="Generate a system for this page from seeds, a ratio and a grid, previewed on the page and written into the project"
-        >
-          Generate
-        </button>
-        <button
-          onClick={() => setExporting((v) => !v)}
-          aria-pressed={exporting}
-          className={`btn btn-sm shrink-0 ${exporting ? 'btn-accent' : 'btn-secondary'}`}
-          title="The system as files: tokens.css, tokens.json, a ZIP"
-        >
-          Export
-        </button>
-      </div>
+  const sections: { key: DsmSection; title: string; summary: string; body: React.ReactNode }[] = [
+    {
+      key: 'colour',
+      title: 'Colour',
+      summary: `${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`,
+      body: <ColourSection brand={brand} resolved={resolved} mode={mode} links={model.links} props={scan.customProps} onSeed={setSeed} onPin={setPin} />,
+    },
+    {
+      key: 'type',
+      title: 'Type',
+      summary: `${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`,
+      body: (
+        <TypeStyles
+          scan={scan}
+          styles={styles}
+          varOverrides={varOverrides}
+          locks={locks}
+          styleLocks={styleLocks}
+          log={ctl.log}
+          onVar={onVar}
+          onStyleLock={setStyleLock}
+          changeMany={ctl.changeMany}
+        />
+      ),
+    },
+    {
+      key: 'space',
+      title: 'Space & shape',
+      summary: `${brand.spacing.basePx}px grid · r${brand.radius.basePx}${rulesLive ? ' · live on page' : ''}`,
+      body: <SpaceSection scan={scan} config={brand} resolved={resolved} onSpacingBase={setSpacingBase} onRadiusBase={setRadiusBase} />,
+    },
+    {
+      key: 'tokens',
+      title: 'Tokens',
+      summary: `${scan.customProps.length} on this page${manualVars ? ` · ${manualVars} set by hand` : ''}${manualColours ? ` · ${manualColours} literals by hand` : ''}`,
+      body: (
+        <TokensSection
+          scan={scan}
+          engine={model.paint.overrides}
+          colorMap={model.paint.colorMap}
+          mode={mode}
+          varOverrides={varOverrides}
+          darkVarOverrides={darkVarOverrides}
+          colorEdits={colorEdits}
+          locks={locks}
+          links={model.links}
+          ambiguous={model.ambiguous}
+          resolved={resolved}
+          onVar={onVar}
+          onDark={onDark}
+          onColor={onColor}
+          onLock={onLock}
+          onLink={onLink}
+        />
+      ),
+    },
+    { key: 'critique', title: 'Critique', summary: warnings ? `${warnings} to look at` : review.summary, body: <CritiqueSection critique={review} /> },
+    {
+      key: 'tokenFile',
+      title: 'Token file',
+      summary: tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'compare with a file',
+      body: <TokenFileSection report={drift} />,
+    },
+  ];
 
+  const generate = (
+    <button
+      onClick={() => setGenerating((v) => !v)}
+      aria-pressed={showGenerate}
+      className={`${wide ? 'btn' : 'btn btn-sm'} shrink-0 ${showGenerate ? 'btn-accent' : 'btn-secondary'}`}
+      title="Generate a system for this page from seeds, a ratio and a grid, previewed on the page and written into the project"
+    >
+      Generate
+    </button>
+  );
+  const exportBtn = (
+    <button
+      onClick={() => setExporting((v) => !v)}
+      aria-pressed={exporting}
+      className={`${wide ? 'btn' : 'btn btn-sm'} shrink-0 ${exporting ? 'btn-accent' : 'btn-secondary'}`}
+      title="The system as files: DESIGN.md, tokens.css, tokens.json, a ZIP"
+    >
+      Export
+    </button>
+  );
+  const reset = (dirty || mode === 'dark') && (
+    <button
+      onClick={onResetAll}
+      className={`${wide ? 'btn' : 'btn btn-sm'} btn-accent shrink-0`}
+      title="Take back every override — variables, colours, scale, element edits — the dark preview and the viewport preset. Notes stay. Also on the bar."
+    >
+      Reset all
+    </button>
+  );
+  const sheets = (
+    <>
       {showGenerate && <GenerateCard scan={scan} model={model} local={local} onClose={() => setGenerating(false)} />}
-
       {exporting && (
         <ExportSheet
           resolved={resolved}
@@ -221,191 +301,104 @@ export function SystemTab({
           onClose={() => setExporting(false)}
         />
       )}
+    </>
+  );
 
-      {wide ? (
-        // Two columns: colour, space and the audits on the left; the long tables on the right.
-        <div className="grid grid-cols-2 items-start gap-x-6">
-          <div className="min-w-0">
-      <Section
-        id="dsm-colour"
-        title="Colour"
-        summary={`${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`}
-        open={open.has('colour')}
-        onToggle={() => toggle('colour')}
+  if (wide) {
+    // Over the canvas: one head with everything that acts on the system, and
+    // one section at a time at full width, chosen in the rail's outline or
+    // here. Escape is the way out, as it is for any room.
+    const current = sections.find((x) => x.key === section) ?? sections[0]!;
+    return (
+      <div
+        className="flex min-h-full flex-col"
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' || (e.target as HTMLElement).tagName === 'SELECT') return;
+          e.preventDefault();
+          onClose?.();
+        }}
       >
-        <ColourSection brand={brand} resolved={resolved} mode={mode} links={model.links} props={scan.customProps} onSeed={setSeed} onPin={setPin} />
-      </Section>
-
-      <Section
-        id="dsm-space"
-        title="Space & shape"
-        summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx}${rulesLive ? ' · live on page' : ''}`}
-        open={open.has('space')}
-        onToggle={() => toggle('space')}
-      >
-        <SpaceSection scan={scan} config={brand} resolved={resolved} onSpacingBase={setSpacingBase} onRadiusBase={setRadiusBase} />
-      </Section>
-
-      <Section
-        id="dsm-critique"
-        title="Critique"
-        summary={warnings ? `${warnings} to look at` : review.summary}
-        open={open.has('critique')}
-        onToggle={() => toggle('critique')}
-      >
-        <CritiqueSection critique={review} />
-      </Section>
-
-      <Section
-        id="dsm-tokenFile"
-        title="Token file"
-        summary={tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'compare with a file'}
-        open={open.has('tokenFile')}
-        onToggle={() => toggle('tokenFile')}
-      >
-        <TokenFileSection report={drift} />
-      </Section>
+        <header
+          aria-label="Design System Manager"
+          className={`sticky top-0 z-20 flex h-10 shrink-0 items-center gap-2 border-b px-3 ${live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line bg-surface-app'}`}
+        >
+          <DesignIcon className="h-4 w-4 shrink-0 text-ink-muted" />
+          <span ref={titleRef} tabIndex={-1} className="shrink-0 text-xs font-medium text-ink outline-none">
+            Design System Manager
+          </span>
+          <span className="flex-1 md:hidden" />
+          <div role="radiogroup" aria-label="View" className="ml-1 flex h-7 shrink-0 gap-0.5 rounded-control bg-surface-field p-0.5">
+            {(['tokens', 'specimen'] as const).map((v) => (
+              <button
+                key={v}
+                role="radio"
+                aria-checked={dsmView === v}
+                onClick={() => onView?.(v)}
+                className={`rounded-[4px] px-2 text-xs ${dsmView === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
+                title={v === 'tokens' ? 'The system as tables: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
+              >
+                {v === 'tokens' ? 'Tokens' : 'Specimen'}
+              </button>
+            ))}
           </div>
-          <div className="min-w-0 border-l border-line-subtle pl-6">
-      <Section
-        id="dsm-type"
-        title="Type"
-        summary={`${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`}
-        open={open.has('type')}
-        onToggle={() => toggle('type')}
-      >
-        <TypeStyles
-          scan={scan}
-          styles={styles}
-          varOverrides={varOverrides}
-          locks={locks}
-          styleLocks={styleLocks}
-          log={ctl.log}
-          onVar={onVar}
-          onStyleLock={setStyleLock}
-          changeMany={ctl.changeMany}
-        />
-      </Section>
-
-      <Section
-        id="dsm-tokens"
-        title="Tokens"
-        summary={`${scan.customProps.length} on this page${manualVars ? ` · ${manualVars} set by hand` : ''}${manualColours ? ` · ${manualColours} literals by hand` : ''}`}
-        open={open.has('tokens')}
-        onToggle={() => toggle('tokens')}
-      >
-        <TokensSection
-          scan={scan}
-          engine={model.paint.overrides}
-          colorMap={model.paint.colorMap}
-          mode={mode}
-          varOverrides={varOverrides}
-          darkVarOverrides={darkVarOverrides}
-          colorEdits={colorEdits}
-          locks={locks}
-          links={model.links}
-          ambiguous={model.ambiguous}
-          resolved={resolved}
-          onVar={onVar}
-          onDark={onDark}
-          onColor={onColor}
-          onLock={onLock}
-          onLink={onLink}
-        />
-      </Section>
-
+          <select
+            value={section}
+            onChange={(e) => onSection?.(e.target.value as DsmSection)}
+            aria-label="Section"
+            className="field field-select h-control shrink-0 text-xs"
+            title="Which section to show; the rail's outline lists them too"
+          >
+            {sections.map((x) => (
+              <option key={x.key} value={x.key}>
+                {x.title}
+              </option>
+            ))}
+          </select>
+          {/* Announced: an edit elsewhere changes this line, and a screen reader should hear it. */}
+          {/* The status has the room left over; on a narrow canvas the title attribute still carries it. */}
+          <span role="status" className={`hidden min-w-0 flex-1 truncate text-2xs md:block ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
+            {status}
+            {queued ? ` · ${queued} ${queued === 1 ? 'change' : 'changes'} queued` : ''}
+          </span>
+          {reset}
+          {generate}
+          {exportBtn}
+          <button onClick={onClose} className="btn btn-ghost shrink-0" title="Close the Design System Manager and show the page again (Esc)">
+            Back to the page
+            <CloseIcon className="ml-1 h-3 w-3" />
+          </button>
+        </header>
+        {sheets}
+        <div className="mx-auto w-full max-w-[1200px] px-4 pt-3 pb-6">
+          <div className="flex items-baseline gap-2 pb-3">
+            <h2 className="text-[13px] font-semibold text-ink">{current.title}</h2>
+            <span className="min-w-0 truncate text-2xs text-ink-muted">{current.summary}</span>
           </div>
+          {current.body}
         </div>
-      ) : (
-        <>
-      <Section
-        id="dsm-colour"
-        title="Colour"
-        summary={`${ramps.length} ${ramps.length === 1 ? 'ramp' : 'ramps'} · ${linked} linked${model.ambiguous.length ? ` · ${model.ambiguous.length} to decide` : ''}`}
-        open={open.has('colour')}
-        onToggle={() => toggle('colour')}
-      >
-        <ColourSection brand={brand} resolved={resolved} mode={mode} links={model.links} props={scan.customProps} onSeed={setSeed} onPin={setPin} />
-      </Section>
+      </div>
+    );
+  }
 
-      <Section
-        id="dsm-type"
-        title="Type"
-        summary={`${styles.length} ${styles.length === 1 ? 'style' : 'styles'} · ${scan.fontUsage[0]?.family ?? 'no font read'}`}
-        open={open.has('type')}
-        onToggle={() => toggle('type')}
-      >
-        <TypeStyles
-          scan={scan}
-          styles={styles}
-          varOverrides={varOverrides}
-          locks={locks}
-          styleLocks={styleLocks}
-          log={ctl.log}
-          onVar={onVar}
-          onStyleLock={setStyleLock}
-          changeMany={ctl.changeMany}
-        />
-      </Section>
+  return (
+    <div className="relative flex flex-col">
+      <div className={`flex items-center gap-2 border-b px-3 py-2 text-xs ${live && dirty ? 'border-accent/40 bg-accent-soft' : 'border-line-subtle'}`}>
+        {/* Announced: an edit elsewhere changes this line, and a screen reader should hear it. */}
+        <span role="status" className={`min-w-0 flex-1 truncate ${live && dirty ? 'text-accent' : 'text-ink-muted'}`} title={status}>
+          {status}
+        </span>
+        {reset}
+        {generate}
+        {exportBtn}
+      </div>
 
-      <Section
-        id="dsm-space"
-        title="Space & shape"
-        summary={`${brand.spacing.basePx}px grid · r${brand.radius.basePx}${rulesLive ? ' · live on page' : ''}`}
-        open={open.has('space')}
-        onToggle={() => toggle('space')}
-      >
-        <SpaceSection scan={scan} config={brand} resolved={resolved} onSpacingBase={setSpacingBase} onRadiusBase={setRadiusBase} />
-      </Section>
+      {sheets}
 
-      <Section
-        id="dsm-tokens"
-        title="Tokens"
-        summary={`${scan.customProps.length} on this page${manualVars ? ` · ${manualVars} set by hand` : ''}${manualColours ? ` · ${manualColours} literals by hand` : ''}`}
-        open={open.has('tokens')}
-        onToggle={() => toggle('tokens')}
-      >
-        <TokensSection
-          scan={scan}
-          engine={model.paint.overrides}
-          colorMap={model.paint.colorMap}
-          mode={mode}
-          varOverrides={varOverrides}
-          darkVarOverrides={darkVarOverrides}
-          colorEdits={colorEdits}
-          locks={locks}
-          links={model.links}
-          ambiguous={model.ambiguous}
-          resolved={resolved}
-          onVar={onVar}
-          onDark={onDark}
-          onColor={onColor}
-          onLock={onLock}
-          onLink={onLink}
-        />
-      </Section>
-
-      <Section
-        id="dsm-critique"
-        title="Critique"
-        summary={warnings ? `${warnings} to look at` : review.summary}
-        open={open.has('critique')}
-        onToggle={() => toggle('critique')}
-      >
-        <CritiqueSection critique={review} />
-      </Section>
-
-      <Section
-        id="dsm-tokenFile"
-        title="Token file"
-        summary={tokenFile ? `${tokenFile.name}${drift ? ` · ${drift.summary}` : ''}` : 'compare with a file'}
-        open={open.has('tokenFile')}
-        onToggle={() => toggle('tokenFile')}
-      >
-        <TokenFileSection report={drift} />
-      </Section>
-        </>
-      )}
+      {sections.map((x) => (
+        <Section key={x.key} id={`dsm-${x.key}`} title={x.title} summary={x.summary} open={open.has(x.key)} onToggle={() => toggle(x.key)}>
+          {x.body}
+        </Section>
+      ))}
     </div>
   );
 }

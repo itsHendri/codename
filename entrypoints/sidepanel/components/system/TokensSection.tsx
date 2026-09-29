@@ -286,7 +286,7 @@ function VarRow({
               onClick={() => onLock(!locked)}
               aria-pressed={locked}
               aria-label={locked ? `Unlock ${prop.name}` : `Lock ${prop.name}`}
-              className={`ml-auto h-4 shrink-0 rounded-[4px] px-1.5 text-2xs leading-4 focus-visible:opacity-100 ${
+              className={`ml-auto h-5 shrink-0 rounded-[4px] px-1.5 text-2xs leading-5 focus-visible:opacity-100 ${
                 locked
                   ? 'bg-accent-soft text-accent'
                   : 'text-ink-muted opacity-0 group-hover:opacity-100 hover:bg-surface-field hover:text-ink'
@@ -336,14 +336,14 @@ function VarRow({
             {locked ? null : manual ? (
               <button
                 onClick={() => onChange(null)}
-                className="flex h-4 shrink-0 items-center gap-1 rounded-[4px] bg-accent-soft px-1.5 text-2xs leading-4 text-accent hover:bg-accent-soft/70"
+                className="flex h-5 shrink-0 items-center gap-1 rounded-[4px] bg-accent-soft px-1.5 text-2xs leading-5 text-accent hover:bg-accent-soft/70"
                 title={`Set by hand; was ${prop.value}. Click to take it back.`}
               >
                 by hand <UndoIcon className="h-2.5 w-2.5" />
               </button>
             ) : engine ? (
               <span
-                className="h-4 shrink-0 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-4 text-ink-muted"
+                className="h-5 shrink-0 rounded-[4px] bg-surface-field px-1.5 text-2xs leading-5 text-ink-muted"
                 title={`Moved by the ${movedBy(engine, mode)}; was ${prop.value}`}
               >
                 {movedBy(engine, mode)}
@@ -413,7 +413,7 @@ function LinkChip({
         aria-expanded={open}
         aria-label={`Link of this variable: ${label}`}
         title={link ? `On the ${link.role} ramp at ${link.step}: it follows that ramp's seed. Click to change.` : ambiguous ? 'Two ramps could claim this value; say which, or neither.' : 'Not on a ramp: a seed change leaves it alone. Click to link it.'}
-        className={`flex h-4 shrink-0 items-center gap-1 rounded-[4px] px-1.5 font-mono text-2xs leading-4 ${ambiguous && !link ? 'bg-warn-soft text-warn-ink' : link ? 'bg-accent-soft text-accent' : 'bg-surface-field text-ink-muted'}`}
+        className={`flex h-5 shrink-0 items-center gap-1 rounded-[4px] px-1.5 font-mono text-2xs leading-5 ${ambiguous && !link ? 'bg-warn-soft text-warn-ink' : link ? 'bg-accent-soft text-accent' : 'bg-surface-field text-ink-muted'}`}
       >
         {hex && <span className="swatch h-2 w-2 rounded-[2px]" style={{ background: hex }} />}
         {link && <TokenGlyph className="h-1.5 w-1.5" />}

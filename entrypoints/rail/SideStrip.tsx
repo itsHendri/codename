@@ -9,7 +9,7 @@ export interface StripItem<K extends string> {
 }
 
 /** The strip's width in the page, for the rail's host and the push it makes. */
-export const STRIP_WIDTH = 64;
+export const STRIP_WIDTH = 68;
 
 /**
  * The rail's far-left strip: one icon over a small label per section, the
@@ -71,7 +71,7 @@ export function SideStrip<K extends string>({
             tabIndex={active === key ? 0 : -1}
             onClick={() => onSelect(key)}
             title={title ?? label}
-            className={`flex h-11 flex-col items-center justify-center gap-0.5 rounded-control text-[9px] leading-none ${
+            className={`flex h-11 flex-col items-center justify-center gap-0.5 rounded-control text-2xs leading-none tracking-tight ${
               on ? 'bg-surface-control font-medium text-ink' : 'text-ink-muted hover:bg-surface-control/60 hover:text-ink'
             }`}
           >
