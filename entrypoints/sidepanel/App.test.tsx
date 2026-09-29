@@ -41,6 +41,16 @@ const activeTab = () => host.querySelector('[role=tab][aria-selected="true"]')?.
 // The badge by name, not as the first span: the active tab's underline is a span too.
 const badge = () => host.querySelector('#tab-changes [data-badge]')?.textContent ?? '0';
 const click = (el: Element | null) => act(() => el?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+/** System on the rail's strip: the Design System Manager over the canvas, with the editor in it. */
+const openDsm = async () => {
+  await act(async () => stub.emit({ type: 'dsm-toggled', on: true }));
+  await tick(60);
+};
+/** Back to the page: the tabs, and the Changes badge, are there again. */
+const closeDsm = async () => {
+  await act(async () => stub.emit({ type: 'dsm-toggled', on: false }));
+  await tick(60);
+};
 
 beforeEach(async () => {
   stub = installChrome();
@@ -58,28 +68,42 @@ afterEach(async () => {
 });
 
 describe('the panel', () => {
-  it('opens the Design System Manager from the rail: the styles page over the page, its outline in the rail, System here', async () => {
+  it('opens the Design System Manager from the rail: the editor over the canvas, its outline in the rail, the specimen as its other view', async () => {
     const rails = () => stub.sent.filter((m) => m.type === 'rail' && m.cmd === 'rail');
+    const expands = () => stub.sent.filter((m) => m.type === 'panel' && m.cmd === 'expand');
     expect(rails().at(-1)).toMatchObject({ dsm: null });
-    await act(async () => stub.emit({ type: 'dsm-toggled', on: true }));
-    await tick(120);
-    expect(getSession().specimen).toBe(true);
-    expect(activeTab()).toBe('system');
-    const dsm = (rails().at(-1) as { dsm: { sections: { key: string; count: string }[] } }).dsm;
-    expect(dsm.sections.map((s) => s.key)).toContain('type');
-    expect(dsm.sections.find((s) => s.key === 'colour')?.count).toMatch(/variables$/);
-    // An action in the rail's column opens it in the panel.
+    await openDsm();
+    expect(getSession().dsm).toBe(true);
+    // The panel's own head replaces the tabs, with the editor under it.
+    expect(host.querySelector('[aria-label="Design System Manager"]')).not.toBeNull();
+    expect(host.querySelector('[role=tablist][aria-label="Panel"]')).toBeNull();
+    expect(text()).toContain('Colour');
+    expect(text()).toContain('Tokens');
+    const dsm = (rails().at(-1) as { dsm: { view: string; sections: { key: string; count: string }[] } }).dsm;
+    expect(dsm.view).toBe('tokens');
+    expect(dsm.sections.map((s) => s.key)).toEqual(['colour', 'type', 'space', 'tokens', 'critique', 'tokenFile']);
+    // An action in the rail's column opens it in the editor.
     await act(async () => stub.emit({ type: 'dsm-action', action: 'export' }));
     await tick(120);
     expect(host.querySelector('[aria-label="Export"]')).not.toBeNull();
+    // The other view: the styles page in the page, the outline of it in the rail, the panel a column again.
+    await act(async () => stub.emit({ type: 'dsm-view', view: 'specimen' }));
+    await tick(120);
+    const spec = (rails().at(-1) as { dsm: { view: string; sections: { key: string; items?: unknown[] }[] } }).dsm;
+    expect(spec.view).toBe('specimen');
+    expect(spec.sections.find((s) => s.key === 'type')?.items?.length).toBeGreaterThan(0);
+    expect(host.querySelector('[role=tablist][aria-label="Panel"]')).not.toBeNull();
     await act(async () => stub.emit({ type: 'dsm-toggled', on: false }));
     await tick(120);
-    expect(getSession().specimen).toBe(false);
+    expect(getSession().dsm).toBe(false);
     expect(rails().at(-1)).toMatchObject({ dsm: null });
+    await act(async () => updateSession({ dsmView: 'tokens' }));
+    // Not embedded in a page here, so the panel was never asked to lie over the canvas.
+    expect(expands()).toEqual([]);
   });
 
   it('opens on Style with the three tabs in order and the page read', () => {
-    expect(tabs()).toEqual(['style', 'system', 'changes']);
+    expect(tabs()).toEqual(['style', 'changes']);
     expect(activeTab()).toBe('style');
     expect(host.querySelector('footer')?.textContent).toContain('6 colors');
     // Nothing picked yet: the tree is in the rail, not here, and the page's
@@ -112,32 +136,30 @@ describe('the panel', () => {
     expect(rails().filter((m) => m.cmd === 'rail').at(-1)).toMatchObject({ on: true });
   });
 
-  it('shows the specimen over the page when the bar says Styles, and the page again when it says so twice', async () => {
+  it('shows the specimen over the page as the DSM\'s second view, and the page again when the DSM closes', async () => {
     const specimens = () => stub.sent.filter((m) => m.type === 'specimen');
-    // Nothing up until asked: the page is its own.
     expect(specimens().filter((m) => m.on === true)).toEqual([]);
-    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ specimen: false });
-
-    await act(async () => stub.emit({ type: 'specimen-toggled', on: true }));
+    await openDsm();
+    // The editor first: nothing drawn over the page.
+    expect(specimens().filter((m) => m.on === true)).toEqual([]);
+    await act(async () => stub.emit({ type: 'dsm-view', view: 'specimen' }));
     await tick(120);
-    expect(getSession().specimen).toBe(true);
-    const up = specimens().at(-1) as { on: boolean; spec: { type: unknown[]; colours: { name: string }[] }; theme: string };
+    const up = specimens().at(-1) as { on: boolean; spec: { colours: { name: string }[] }; theme: string };
     expect(up).toMatchObject({ cmd: 'specimen', on: true, theme: 'dark' });
-    // Built from the page's own reading: its variables, its type styles.
     expect(up.spec.colours.map((c) => c.name)).toContain('--ink');
-    expect(stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'bar').at(-1)).toMatchObject({ specimen: true });
-
-    await act(async () => stub.emit({ type: 'specimen-toggled', on: false }));
+    // Closing the DSM takes the specimen off; the view is remembered.
+    await act(async () => stub.emit({ type: 'dsm-toggled', on: false }));
     await tick(120);
-    expect(getSession().specimen).toBe(false);
     expect(specimens().at(-1)).toMatchObject({ cmd: 'specimen', on: false });
+    expect(getSession().dsmView).toBe('specimen');
+    await act(async () => updateSession({ dsmView: 'tokens' }));
   });
 
   it('offers Generate on a page with no system, previews the proposal on the page, and hands the adoption to the brief', async () => {
     const thin = { ...forfontsake, customProps: [], typeStyles: [], colors: forfontsake.colors.map((c) => ({ ...c, varNames: [] })) };
     await act(async () => stub.emit({ type: 'scan-result', data: thin }));
     await tick(60);
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     const card = () => host.querySelector('[data-testid=generate]');
     expect(card()?.textContent).toContain('This page defines 0 variables and 0 type styles');
     // Nothing on the page until asked.
@@ -156,12 +178,13 @@ describe('the panel', () => {
     expect(card()?.textContent).toContain('Download tokens.css');
     expect(card()?.textContent).toContain('Pair a bridge');
 
+    await closeDsm();
     await click(host.querySelector('#tab-changes'));
     await tick();
     expect(text()).toContain('Adopt tokens');
 
     // Discard takes the sheet out with the proposal.
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     const discard = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Discard') ?? null;
     await click(discard);
     await tick(120);
@@ -205,12 +228,12 @@ describe('the panel', () => {
     await act(async () => chrome.storage.session.set({ 'session:1': { ...getSession(), activeTab: 'export' } }));
     await act(async () => loadSession(1, 'http://localhost:5173/'));
     await tick();
-    expect(getSession().activeTab).toBe('system');
+    expect(getSession().activeTab).toBe('style');
   });
 
   it('shows a selection on Style, and an edit from the page reaches the badge', async () => {
-    await click(host.querySelector('#tab-system'));
-    expect(activeTab()).toBe('system');
+    await openDsm();
+    expect(getSession().dsm).toBe(true);
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));
     await tick();
     expect(activeTab()).toBe('style');
@@ -226,7 +249,7 @@ describe('the panel', () => {
   });
 
   it('previews dark without putting it in the brief, and Reset takes it back', async () => {
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     expect(text()).toContain('read from this page');
     await act(async () => stub.emit({ type: 'mode-changed', mode: 'dark' }));
     await tick(120);
@@ -284,7 +307,7 @@ describe('the panel', () => {
   });
 
   it('locks a page variable so nothing moves it', async () => {
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     expect(host.querySelector('input[aria-label="--mark value"]')).not.toBeNull();
     await click(host.querySelector('button[aria-label="Lock --mark"]'));
     await tick(60);
@@ -308,7 +331,7 @@ describe('the panel', () => {
   });
 
   it('lets a page variable be set by hand and lists it as a change', async () => {
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     const input = Array.from(host.querySelectorAll<HTMLInputElement>('input[aria-label="--mark value"]')).find((i) => i.type !== 'color')!;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
     await act(async () => {
@@ -316,8 +339,9 @@ describe('the panel', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await tick(120);
-    expect(badge()).toBe('1');
     expect(text()).toContain('by hand');
+    await closeDsm();
+    expect(badge()).toBe('1');
     const painted = stub.sent.filter((m) => m.type === 'reskin-apply').at(-1)?.overrides as { name: string; to: string }[];
     expect(painted).toEqual([{ name: '--mark', from: '#be3a22', to: '#1C7F5C', reason: 'manual' }]);
   });
@@ -822,7 +846,7 @@ describe('the Style tab with nothing picked', () => {
     expect(text()).not.toContain('Inter');
     await click(Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.endsWith('Open System')) ?? null);
     await tick();
-    expect(activeTab()).toBe('system');
+    expect(getSession().dsm).toBe(true);
   });
 });
 
@@ -1289,7 +1313,7 @@ describe('Make changes', () => {
 
 describe('the dark side and the ramps', () => {
   it('queues a dark value set by hand on its own side of the brief, and paints it only in dark', async () => {
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     const input = Array.from(host.querySelectorAll<HTMLInputElement>('input[aria-label="--mark dark value"]')).find((i) => i.type !== 'color')!;
     expect(input.value).toBe('#e0603f');
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -1299,6 +1323,7 @@ describe('the dark side and the ramps', () => {
     });
     await tick(120);
     expect(getSession().darkVarOverrides).toEqual({ '--mark': '#ff7a5c' });
+    await closeDsm();
     expect(badge()).toBe('1');
     // Light stays as it was: nothing painted for the light side.
     const light = stub.sent.filter((m) => m.type === 'reskin-apply').at(-1)?.overrides as { name: string }[] | undefined;
@@ -1309,7 +1334,7 @@ describe('the dark side and the ramps', () => {
   });
 
   it('shows which ramp step a variable is on, and lets it be changed', async () => {
-    await click(host.querySelector('#tab-system'));
+    await openDsm();
     const chip = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.startsWith('Link of this variable') && b.closest('[title^="--mark"]') !== null || b.getAttribute('aria-label') === 'Link of this variable: primary 700') ?? null;
     expect(chip?.getAttribute('aria-label')).toBe('Link of this variable: primary 700');
     await click(chip);

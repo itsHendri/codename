@@ -11,6 +11,7 @@ import {
   runScan,
   sendInspector,
   sendRail,
+  expandPanel,
   sendSpecimen,
   setProposal as sendProposal,
   specimenHtml,
@@ -18,6 +19,9 @@ import {
   type BarLook,
 } from './lib/messaging';
 import { buildSpecimenSpec, outlineOf } from '@/studio/specimen/spec';
+import { critique } from '@/studio/critique';
+import { rampsOnPage } from './components/system/ColourSection';
+import type { DsmOutline } from '@/shared/types';
 import {
   flushSession,
   getSession,
@@ -47,7 +51,7 @@ import type { CommentTarget } from '@/studio/annotations';
 import { pendingNotes } from './lib/comments';
 import { BridgeDot } from './components/BridgeMenu';
 import { useDesignModel, useLiveReskin } from './lib/designModel';
-import { ChangesIcon, DesignIcon, InspectIcon } from './components/icons';
+import { ChangesIcon, CloseIcon, DesignIcon, InspectIcon } from './components/icons';
 import { useTheme } from './lib/theme';
 import { AppMenu } from './components/AppMenu';
 import { StyleTab } from './components/StyleTab';
@@ -57,18 +61,18 @@ import { SystemTab } from './components/SystemTab';
 import type { LayerNode } from '@/studio/layers';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
 
-type TabKey = 'style' | 'system' | 'changes';
+type TabKey = 'style' | 'changes';
 
 /**
- * Three tabs, in the order you use them: the styles of what you picked, the
- * system the page runs on (with its exports inside), and last, what you have
- * changed, which is where the hand-off lives. The layers and the assets are
- * not here: they stand in the page, in the rail on its left, where a design
- * tool keeps its tree. Resize is not a view either; it sits on the bar.
+ * Two tabs: the styles of what you picked, and what you have changed, which
+ * is where the hand-off lives. The system the page runs on is the Design
+ * System Manager, opened from the rail's strip, which lays this panel over
+ * the canvas. The layers and the assets are not here either: they stand in
+ * the page, in the rail on its left, where a design tool keeps its tree.
+ * Resize is not a view; it sits on the bar.
  */
 const TABS: { key: TabKey; label: string; Icon: typeof InspectIcon }[] = [
   { key: 'style', label: 'Style', Icon: InspectIcon },
-  { key: 'system', label: 'System', Icon: DesignIcon },
   { key: 'changes', label: 'Changes', Icon: ChangesIcon },
 ];
 
@@ -176,7 +180,6 @@ export default function App() {
     darkVia,
     agent: session.agentPreview ? { rules: session.agentPreview.rules, matched: session.agentPreview.matched } : null,
     rail: session.rail,
-    specimen: session.specimen,
     // The side the page is showing: a preview when one is on, else its own.
     scheme: mode === 'dark' ? 'dark' : session.lightForced ? 'light' : (scan?.scheme ?? 'light'),
   };
@@ -333,7 +336,13 @@ export default function App() {
         setScanError(msg.error ?? 'Scan failed');
       } else if (msg?.type === 'element-selected') {
         setPinned((msg.data as ElementProps | null) ?? null);
-        if (msg.data) setActive('style');
+        if (msg.data) {
+          setActive('style');
+          // Picked from the rail while the editor lies over the canvas: the
+          // page is what was asked for, so the editor gets out of its way.
+          const { dsm, dsmView } = getSession();
+          if (dsm && dsmView === 'tokens') updateSession({ dsm: false });
+        }
       } else if (msg?.type === 'selection-also') {
         // Shift-clicked on the page: the rest of a multi-selection.
         const list = (msg as { data?: unknown }).data;
@@ -365,19 +374,17 @@ export default function App() {
       } else if (msg?.type === 'rail-toggled') {
         // Layers on the bar, or Alt+L: the session is the truth, the bar echoes it.
         updateSession({ rail: Boolean((msg as { on?: boolean }).on) });
-      } else if (msg?.type === 'specimen-toggled' || msg?.type === 'dsm-toggled') {
-        // Styles on the bar or System on the rail's strip: the same
-        // environment, the Design System Manager — the styles page over the
-        // page, its outline in the rail, the editor here.
-        const on = Boolean((msg as { on?: boolean }).on);
-        updateSession({ specimen: on, pinned: null, also: [] });
-        if (on) setActive('system');
+      } else if (msg?.type === 'dsm-toggled') {
+        // System on the rail's strip: the Design System Manager, open or closed.
+        updateSession({ dsm: Boolean((msg as { on?: boolean }).on), pinned: null, also: [] });
+      } else if (msg?.type === 'dsm-view') {
+        const view = (msg as { view?: string }).view;
+        if (view === 'tokens' || view === 'specimen') updateSession({ dsmView: view, pinned: null, also: [] });
+      } else if (msg?.type === 'dsm-jump') {
+        document.getElementById(`dsm-${String((msg as { key?: string }).key ?? '')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else if (msg?.type === 'dsm-action') {
         const action = (msg as { action?: string }).action;
-        if (action === 'generate' || action === 'export') {
-          setActive('system');
-          setSystemOpen(action);
-        }
+        if (action === 'generate' || action === 'export') setSystemOpen(action);
       } else if (msg?.type === 'rail-move') {
         // A drag in the rail is an element edit, filed here with the rest.
         const m = msg as unknown as { node: LayerNode; parent: LayerNode; before: LayerNode | null; wasIn: LayerNode; wasBefore: LayerNode | null };
@@ -441,7 +448,12 @@ export default function App() {
   const agentRules = session.agentPreview?.rules ?? null;
   const agentMatched = session.agentPreview?.matched ?? null;
   const railOn = session.rail;
-  const specimenOn = session.specimen;
+  // The Design System Manager: the editor over the canvas (this panel,
+  // expanded from the rail's edge to the window's), or the styles page
+  // drawn in the page with this panel back in its column.
+  const dsmOn = session.dsm;
+  const specimenOn = dsmOn && session.dsmView === 'specimen';
+  const expanded = dsmOn && session.dsmView === 'tokens';
   // The side the page is showing, for the rail's assets to sit on.
   const shownScheme = look.scheme ?? 'light';
   const lightForced = session.lightForced;
@@ -463,7 +475,37 @@ export default function App() {
   // The specimen, over the page: built from the scan and the links, sent
   // whenever they change while it is up, and again after a reload.
   const specimenSpec = useMemo(() => (scan && specimenOn ? buildSpecimenSpec(scan, model?.links ?? {}) : null), [scan, specimenOn, model?.links]);
-  const dsmOutline = useMemo(() => (specimenSpec ? { sections: outlineOf(specimenSpec) } : null), [specimenSpec]);
+  // What the rail's column lists while the DSM is open: the editor's
+  // sections with their counts, or the styles page's sections and samples.
+  const review = useMemo(() => (scan && model ? critique(scan, model.seeded) : null), [scan, model]);
+  const dsmOutline = useMemo<DsmOutline | null>(() => {
+    if (!dsmOn) return null;
+    if (specimenSpec) return { view: 'specimen', sections: outlineOf(specimenSpec) };
+    if (!scan || !model) return { view: 'tokens', sections: [] };
+    const ramps = rampsOnPage(model.brand, model.links, scan.customProps).length;
+    const styles = scan.typeStyles?.length ?? 0;
+    const warnings = review?.findings.filter((f) => f.level !== 'note').length ?? 0;
+    return {
+      view: 'tokens',
+      sections: [
+        { key: 'colour', title: 'Colour', count: `${ramps} ${ramps === 1 ? 'ramp' : 'ramps'}` },
+        { key: 'type', title: 'Type', count: `${styles} ${styles === 1 ? 'style' : 'styles'}` },
+        { key: 'space', title: 'Space & shape', count: `${model.brand.spacing.basePx}px grid` },
+        { key: 'tokens', title: 'Tokens', count: `${scan.customProps.length} on this page` },
+        { key: 'critique', title: 'Critique', count: warnings ? `${warnings} to look at` : 'nothing to flag' },
+        { key: 'tokenFile', title: 'Token file', count: session.tokenFile ? session.tokenFile.name : 'compare with a file' },
+      ],
+    };
+  }, [dsmOn, specimenSpec, scan, model, review, session.tokenFile]);
+
+  // The panel over the canvas while the editor is what the DSM shows.
+  const expandedSent = useRef(false);
+  useEffect(() => {
+    if (tabId == null || embeddedTab() === null) return;
+    if (!expanded && !expandedSent.current) return;
+    expandedSent.current = expanded;
+    void expandPanel(tabId, expanded);
+  }, [tabId, expanded, session.generation]);
   useEffect(() => {
     if (tabId == null || !scan || restricted) return;
     void sendSpecimen(tabId, specimenSpec ? { cmd: 'specimen', on: true, spec: specimenSpec, theme } : { cmd: 'specimen', on: false });
@@ -568,15 +610,43 @@ export default function App() {
     }
   })();
 
-  // Selecting, editing and noting all work before a scan; the rest reads it.
-  const needsScan = active === 'system';
+  // Selecting, editing and noting all work before a scan; the system reads it.
   let content: React.ReactNode;
-  if (restricted && needsScan) {
-    content = <RestrictedState url={tabUrl} onOpenLayers={() => setActive('style')} />;
-  } else if (scanning && needsScan) {
-    content = <ScanningState />;
-  } else if (!scan && needsScan) {
-    content = <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />;
+  if (expanded) {
+    content =
+      restricted ? (
+        <RestrictedState url={tabUrl} onOpenLayers={() => updateSession({ dsm: false })} />
+      ) : scanning ? (
+        <ScanningState />
+      ) : !scan ? (
+        <EmptyState onScan={handleScan} error={scanError} needsAccess={needsAccess} />
+      ) : (
+        <SystemTab
+          scan={scan}
+          model={model!}
+          ctl={ctl}
+          mode={mode}
+          live={live}
+          reskin={reskin}
+          darkVia={darkVia}
+          varOverrides={varOverrides}
+          colorEdits={colorEdits}
+          hostname={hostname}
+          local={changeSet.local}
+          wide
+          open={systemOpen}
+          onOpened={() => setSystemOpen(null)}
+          specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
+          onConfigChange={setConfig}
+          onResetAll={resetAll}
+          onVar={setVarOverride}
+          onDark={setDarkVarOverride}
+          onColor={setColorEdit}
+          onLink={setLink}
+          locks={locks}
+          onLock={setLock}
+        />
+      );
   } else {
     switch (active) {
       case 'style':
@@ -589,41 +659,13 @@ export default function App() {
             mode={mode}
             rail={railOn}
             onShowRail={() => updateSession({ rail: true })}
-            onOpenSystem={() => setActive('system')}
+            onOpenSystem={() => updateSession({ dsm: true, dsmView: 'tokens' })}
           />
         );
         break;
       case 'changes':
         content = (
           <ChangesTab set={changeSet} ctl={ctl} />
-        );
-        break;
-      case 'system':
-        content = (
-          <SystemTab
-            scan={scan!}
-            model={model!}
-            ctl={ctl}
-            mode={mode}
-            live={live}
-            reskin={reskin}
-            darkVia={darkVia}
-            varOverrides={varOverrides}
-            colorEdits={colorEdits}
-            hostname={hostname}
-            local={changeSet.local}
-            open={systemOpen}
-            onOpened={() => setSystemOpen(null)}
-            specimenHtml={() => (tabIdRef.current != null ? specimenHtml(tabIdRef.current) : Promise.resolve(null))}
-            onConfigChange={setConfig}
-            onResetAll={resetAll}
-            onVar={setVarOverride}
-            onDark={setDarkVarOverride}
-            onColor={setColorEdit}
-            onLink={setLink}
-            locks={locks}
-            onLock={setLock}
-          />
         );
         break;
     }
@@ -636,15 +678,48 @@ export default function App() {
         embeddedTab() !== null ? 'border-l border-l-[color:var(--ink-faint)]' : ''
       }`}
     >
-      {/* h-10 is BAR_HEIGHT: the same strip as the bar across the page. */}
-      <TabStrip
-        tabs={TABS.map((t) => (t.key === 'changes' ? { ...t, badge: pendingCount } : t))}
-        active={active}
-        onSelect={setActive}
-        ariaLabel="Panel"
-      />
+      {expanded ? (
+        // Over the canvas: the Design System Manager's own head, the height of the bar.
+        <header className="flex h-10 shrink-0 items-center gap-3 border-b border-line px-3" aria-label="Design System Manager">
+          <DesignIcon className="h-4 w-4 text-ink-muted" />
+          <span className="text-xs font-medium text-ink">Design System Manager</span>
+          <div role="radiogroup" aria-label="View" className="ml-2 flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
+            {(['tokens', 'specimen'] as const).map((v) => (
+              <button
+                key={v}
+                role="radio"
+                aria-checked={session.dsmView === v}
+                onClick={() => updateSession({ dsmView: v, pinned: null, also: [] })}
+                className={`rounded-[4px] px-2 text-xs ${session.dsmView === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
+                title={v === 'tokens' ? 'The system as tables: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
+              >
+                {v === 'tokens' ? 'Tokens' : 'Specimen'}
+              </button>
+            ))}
+          </div>
+          <span className="ml-auto text-2xs text-ink-muted">
+            {pendingCount ? `${pendingCount} ${pendingCount === 1 ? 'change' : 'changes'} queued` : ''}
+          </span>
+          <button
+            onClick={() => updateSession({ dsm: false })}
+            className="flex h-control w-6 items-center justify-center rounded-control text-ink-muted hover:bg-surface-field hover:text-ink"
+            aria-label="Back to the page"
+            title="Close the Design System Manager and show the page again"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
+        </header>
+      ) : (
+        // h-10 is BAR_HEIGHT: the same strip as the bar across the page.
+        <TabStrip
+          tabs={TABS.map((t) => (t.key === 'changes' ? { ...t, badge: pendingCount } : t))}
+          active={active}
+          onSelect={setActive}
+          ariaLabel="Panel"
+        />
+      )}
 
-      <main id="panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="relative flex-1 overflow-y-auto">
+      <main id="panel" role={expanded ? undefined : 'tabpanel'} aria-labelledby={expanded ? undefined : `tab-${active}`} className="relative flex-1 overflow-y-auto">
         {content}
       </main>
 

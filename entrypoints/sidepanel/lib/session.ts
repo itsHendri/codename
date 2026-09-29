@@ -78,8 +78,10 @@ export interface TabSession {
   activeTab: string;
   /** Whether the layers rail is showing in the page. On until someone folds it. */
   rail: boolean;
-  /** Whether the specimen — the page's own styles page — is showing over the page. */
-  specimen: boolean;
+  /** Whether the Design System Manager is open: the editor over the canvas, or the styles page in the page. */
+  dsm: boolean;
+  /** Which the DSM shows: the editor's tables, or the specimen drawn from the page's own rules. */
+  dsmView: 'tokens' | 'specimen';
   /** The page's own variables set by hand: name → value. */
   varOverrides: Record<string, string>;
   /** The page's own variables set by hand on its dark side: name → value. */
@@ -166,7 +168,8 @@ const EMPTY: TabSession = {
   live: true,
   activeTab: 'style',
   rail: true,
-  specimen: false,
+  dsm: false,
+  dsmView: 'tokens',
   varOverrides: {},
   darkVarOverrides: {},
   links: {},
@@ -197,8 +200,9 @@ const EMPTY: TabSession = {
 
 /** Tabs the panel no longer has, mapped to where their work went. */
 function migrateTab(tab: string | undefined): string {
-  if (!tab || tab === 'layers' || tab === 'assets') return 'style';
-  if (tab === 'variables' || tab === 'export') return 'system';
+  // Layers and Assets went to the rail; Variables, Export and then System
+  // went to the Design System Manager, which is opened from the rail's strip.
+  if (!tab || tab === 'layers' || tab === 'assets' || tab === 'variables' || tab === 'export' || tab === 'system') return 'style';
   return tab;
 }
 

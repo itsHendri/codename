@@ -55,8 +55,10 @@ export function DsmColumn({ outline }: { outline: DsmOutline }) {
     list.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [selected]);
 
+  const specimen = outline.view === 'specimen';
   const jump = (key: string) => {
-    document.querySelector(`${SPECIMEN_TAG} [data-codename-section="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (specimen) document.querySelector(`${SPECIMEN_TAG} [data-codename-section="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else tell({ type: 'dsm-jump', key });
   };
   const pick = (key: string) => {
     void callInspector({ cmd: 'select', selector: `${SPECIMEN_TAG} [${SPECIMEN_FOR}="${key.replace(/"/g, '\\"')}"]` });
@@ -64,13 +66,29 @@ export function DsmColumn({ outline }: { outline: DsmOutline }) {
 
   const rows = [
     ...outline.sections,
-    ...(components.length ? [{ key: 'components', title: 'Components', count: `${components.length} ${components.length === 1 ? 'pattern' : 'patterns'}`, items: components }] : []),
+    ...(specimen && components.length ? [{ key: 'components', title: 'Components', count: `${components.length} ${components.length === 1 ? 'pattern' : 'patterns'}`, items: components }] : []),
   ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div role="radiogroup" aria-label="View" className="flex h-control gap-0.5 rounded-control bg-surface-field p-0.5">
+        {(['tokens', 'specimen'] as const).map((v) => (
+          <button
+            key={v}
+            role="radio"
+            aria-checked={outline.view === v}
+            onClick={() => tell({ type: 'dsm-view', view: v })}
+            className={`flex-1 rounded-[4px] px-1.5 text-xs ${outline.view === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
+            title={v === 'tokens' ? 'The system as tables over the canvas: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
+          >
+            {v === 'tokens' ? 'Tokens' : 'Specimen'}
+          </button>
+        ))}
+      </div>
       <p className="text-2xs text-ink-muted">
-        The page's own styles page, drawn from its rules over the page. Edit the system in the panel; pick a sample to edit that one.
+        {specimen
+          ? "The page's own styles page, drawn from its rules over the page. Pick a sample to edit that one in Style."
+          : 'The system this page runs on, as tables over the canvas. Every edit repaints the page and queues for the project.'}
       </p>
       <ul ref={list} aria-label="Sections" className="m-0 -mx-1 flex min-h-0 list-none flex-col overflow-y-auto p-0">
         {rows.map((r) => (

@@ -250,9 +250,6 @@ function activate() {
       <button class="mode layers" role="switch" aria-checked="false" aria-label="Left panel" title="Show or hide the left panel — pages, layers, components, assets (Alt+L)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect class="pane" x="2.7" y="3.2" width="3.3" height="9.6" rx="0.6" stroke="none"/><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M6.5 2.5v11"/></svg>
       </button>
-      <button class="mode specimen" role="switch" aria-checked="false" aria-label="Styles" title="Styles — the page's own styles page over it: its type, colours, spacing and components, drawn from its own rules. Click again for the page">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M3 12.5 6.5 3l3.5 9.5M4.3 9h4.4"/><rect x="11" y="3" width="3" height="3" rx="0.6"/><rect x="11" y="7" width="3" height="3" rx="0.6"/><rect x="11" y="11" width="3" height="3" rx="0.6"/></svg><span class="label">Styles</span>
-      </button>
       <div class="modes" role="group" aria-label="Mode">
         <button class="mode preview" role="switch" aria-checked="false" title="Preview — use the page as a visitor would: links, buttons, scrolling. P, or click again to go back to selecting">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3.5v9l7.5-4.5z"/></svg><span class="label">Preview</span>
@@ -324,7 +321,6 @@ function activate() {
   const barScale = bar.querySelector<HTMLElement>('.scale')!;
   const barPreview = bar.querySelector<HTMLButtonElement>('.mode.preview')!;
   const barLayers = bar.querySelector<HTMLButtonElement>('.mode.layers')!;
-  const barSpecimen = bar.querySelector<HTMLButtonElement>('.mode.specimen')!;
   const barComment = bar.querySelector<HTMLButtonElement>('.mode.comment')!;
   const barLight = bar.querySelector<HTMLButtonElement>('.mode.light')!;
   const barReset = bar.querySelector<HTMLButtonElement>('.reset')!;
@@ -350,7 +346,6 @@ function activate() {
   // Whether the rail is showing. The panel is the truth; the bar echoes it,
   // and asks for the change rather than making it.
   let railOn = false;
-  let specimenOn = false;
   let noteOn = false;
   /** Which way the bar's Light/Dark switch sits; the panel owns the truth. */
   /** Which side of the page's theme is forced; neither is the page as it stands. */
@@ -1612,8 +1607,6 @@ function activate() {
     barPreview.setAttribute('aria-checked', String(previewing));
     barLayers.classList.toggle('on', railOn);
     barLayers.setAttribute('aria-checked', String(railOn));
-    barSpecimen.classList.toggle('on', specimenOn);
-    barSpecimen.setAttribute('aria-checked', String(specimenOn));
     barComment.classList.toggle('on', noteOn);
     barComment.setAttribute('aria-checked', String(noteOn));
     barLight.classList.toggle('on', barScheme === 'light');
@@ -1876,15 +1869,6 @@ function activate() {
   barLayers.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleRail();
-  });
-  /** Show the specimen over the page, or the page again: the bar flips at once and asks the panel, which holds the answer. */
-  barSpecimen.addEventListener('click', (e) => {
-    e.stopPropagation();
-    specimenOn = !specimenOn;
-    renderBar();
-    // The selection was of the page or of the specimen; either way it is going.
-    select(null);
-    send({ type: 'specimen-toggled', on: specimenOn });
   });
   barComment.addEventListener('click', () => toggleMode('comment'));
   /** The lit side is the one the page is showing; the other side asks the panel for it. */
@@ -2444,7 +2428,6 @@ function activate() {
       case 'bar':
         if (msg.theme) applyBarTheme(msg.theme);
         if (typeof msg.rail === 'boolean') railOn = msg.rail;
-        if (typeof msg.specimen === 'boolean') specimenOn = msg.specimen;
         if (msg.scheme) barScheme = msg.scheme;
         if (typeof msg.resettable === 'number') resettable = msg.resettable;
         if (msg.agent !== undefined) agent = msg.agent;

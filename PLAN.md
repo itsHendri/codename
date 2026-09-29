@@ -519,6 +519,25 @@ is that companion growing up.
   click on an item asks the inspector for that sample, the same selection
   a click on the page makes, so the panel turns to Style for it. The
   outline and the page point at each other.
+- **W52, 25 September 2026 — the DSM over the canvas.** Hendri, on the
+  first cut: Styles on the bar duplicates System on the strip; the editor
+  belongs on the system page, not in the right rail; "I want a bigger
+  canvas to adjust the system", as Figma's variables view. So the panel's
+  System tab is gone (tabs are Style · Changes; `migrateTab` sends
+  `system` to `style`), the bar's Styles switch is gone, and the DSM has
+  two views (`session.dsm`, `session.dsmView`): **Tokens** asks the panel's
+  content script to lie over the canvas (`expand`: `left` at
+  `--codename-rail`, which the rail now publishes on `html`, to the
+  window's right edge) and the panel draws its own head — title, the view
+  switch, the queued count, Close — over the System editor laid out wide
+  (`SystemTab wide`: two columns, Colour/Space/Critique/Token file left,
+  Type/Tokens right, each section with an id the rail's `dsm-jump` scrolls
+  to); **Specimen** puts the panel back in its column and draws the styles
+  page in the page as before. The rail's column carries the same view
+  switch, the outline of whichever view is up (`DsmOutline.view`), Generate,
+  Export and Back. Picking a layer while the editor is over the canvas
+  closes it: the page was asked for. No second panel instance: the session
+  has no cross-instance sync, and expanding the one frame needs none.
 
 ## Live re-skin
 

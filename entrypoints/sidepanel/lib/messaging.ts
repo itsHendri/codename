@@ -81,6 +81,11 @@ export function sendRail<T = unknown>(tabId: number, command: RailCommand): Prom
   return sendOrInject<T>(tabId, 'content-scripts/rail.js', { type: 'rail', ...command });
 }
 
+/** The panel over the canvas — the Design System Manager's editor — or back to its column. */
+export function expandPanel(tabId: number, on: boolean): Promise<{ ok: boolean } | null> {
+  return sendOrInject(tabId, 'content-scripts/panel.js', { type: 'panel', cmd: 'expand', on });
+}
+
 /** Talk to the specimen script: the styles page over the page, or the page again. */
 export function sendSpecimen<T = unknown>(tabId: number, command: SpecimenCommand): Promise<T | null> {
   return sendOrInject<T>(tabId, 'content-scripts/specimen.js', { type: 'specimen', ...command });
@@ -108,8 +113,6 @@ export interface BarLook {
   agent?: AgentPresence | null;
   /** Whether the rail is showing, for the bar's Layers toggle. */
   rail?: boolean;
-  /** Whether the specimen is showing, for the bar's Styles switch. */
-  specimen?: boolean;
   /** Which side the page is showing, forced or its own, for the Light / Dark switch. */
   scheme?: 'light' | 'dark';
 }
@@ -149,7 +152,6 @@ export function setBarLook(tabId: number, look: BarLook): Promise<unknown> {
     darkVia: look.darkVia ?? null,
     agent: look.agent ?? null,
     rail: look.rail ?? true,
-    specimen: look.specimen ?? false,
     scheme: look.scheme ?? 'light',
   });
 }

@@ -72,6 +72,8 @@ function activate() {
     host.style.display = on ? 'block' : 'none';
     if (on) push.set(shown);
     else push.clear();
+    // Where the rail ends, for the panel when it lies over the canvas.
+    document.documentElement.style.setProperty('--codename-rail', `${on ? shown : 0}px`);
     refitFrame();
   };
   store.subscribe(apply);
@@ -143,6 +145,7 @@ function activate() {
   function deactivate() {
     root.unmount();
     push.clear();
+    document.documentElement.style.removeProperty('--codename-rail');
     chrome.runtime.onMessage.removeListener(onMessage);
     chrome.runtime.onConnect.removeListener(onConnect);
     host.remove();
