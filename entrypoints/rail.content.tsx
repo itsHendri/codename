@@ -23,7 +23,7 @@ import { STRIP_WIDTH } from './rail/SideStrip';
 import { createStore } from './rail/store';
 
 export const DEFAULT_WIDTH = 240;
-export const MIN_WIDTH = 210;
+export const MIN_WIDTH = 220;
 export const MAX_WIDTH = 420;
 const WIDTH_KEY = 'railWidth';
 const COLUMN_KEY = 'railColumn';

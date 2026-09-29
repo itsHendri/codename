@@ -137,7 +137,7 @@ export function TypeStyles({
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs text-ink">{f.family}</span>
                 <span className="text-2xs text-ink-muted">{f.roles.join(' · ')}</span>
-                <span className="h-4 shrink-0 rounded-[4px] bg-surface-thumb px-1.5 text-2xs leading-4 text-ink-muted">{SERVICE_LABELS[face?.service ?? 'system']}</span>
+                <span className="h-5 shrink-0 rounded-[4px] bg-surface-thumb px-1.5 text-2xs leading-5 text-ink-muted">{SERVICE_LABELS[face?.service ?? 'system']}</span>
               </div>
             );
           })}
@@ -230,7 +230,7 @@ export function TypeStyles({
                   onClick={() => onStyleLock(styleKey(s), !locked)}
                   aria-pressed={locked}
                   aria-label={locked ? `Unlock style ${s.name}` : `Lock style ${s.name}`}
-                  className={`h-4 rounded-[4px] px-1 text-2xs leading-4 ${locked ? 'bg-accent-soft text-accent' : 'text-ink-faint hover:bg-surface-field hover:text-ink'}`}
+                  className={`h-5 rounded-[4px] px-1.5 text-2xs leading-5 ${locked ? 'bg-accent-soft text-accent' : 'text-ink-faint hover:bg-surface-field hover:text-ink'}`}
                   title={locked ? 'Locked: a scale change leaves this style alone. Click to unlock.' : 'Lock this style so a scale change leaves it alone.'}
                 >
                   {locked ? 'locked' : 'lock'}

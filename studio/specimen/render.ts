@@ -104,7 +104,7 @@ export function renderSpecimen(spec: SpecimenSpec, doc: Document, opts: RenderOp
       const cell = doc.createElement('div');
       cell.style.cssText = 'display:flex;flex-direction:column;gap:4px;width:88px';
       const sw = doc.createElement('div');
-      sw.style.cssText = `height:44px;border-radius:6px;background:var(${c.name});box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08)`;
+      sw.style.cssText = `height:44px;border-radius:6px;background:var(${c.name});box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent)`;
       sw.title = `${c.name}: ${c.value}${c.dark ? ` · dark ${c.dark}` : ''}`;
       cell.append(sw, label(c.name.replace(/^--/, ''), c.link ?? c.scope));
       r.append(cell);
@@ -118,7 +118,7 @@ export function renderSpecimen(spec: SpecimenSpec, doc: Document, opts: RenderOp
     const r = row();
     for (const p of spec.pairs) {
       const tile = doc.createElement('div');
-      tile.style.cssText = `display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:6px;background:${p.bg};color:${p.fg};min-width:120px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08)`;
+      tile.style.cssText = `display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:6px;background:${p.bg};color:${p.fg};min-width:120px;box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent)`;
       const big = doc.createElement('div');
       big.style.cssText = 'font-size:20px;line-height:1.2';
       big.textContent = 'Aa';
@@ -139,7 +139,7 @@ export function renderSpecimen(spec: SpecimenSpec, doc: Document, opts: RenderOp
       const cell = doc.createElement('div');
       cell.style.cssText = 'display:flex;flex-direction:column;gap:4px;width:88px';
       const sw = doc.createElement('div');
-      sw.style.cssText = `height:32px;border-radius:6px;background:${c.hex};box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08)`;
+      sw.style.cssText = `height:32px;border-radius:6px;background:${c.hex};box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent)`;
       cell.append(sw, label(c.hex, `${c.usage.join(' · ')} ×${c.count}`));
       r.append(cell);
     }

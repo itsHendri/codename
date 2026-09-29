@@ -95,8 +95,11 @@ export function DsmColumn({ outline }: { outline: DsmOutline }) {
           <li key={r.key} className="flex flex-col">
             <button
               onClick={() => jump(r.key)}
-              className="flex h-6 w-full items-center gap-2 rounded-[5px] px-1.5 text-left text-xs font-medium text-ink hover:bg-surface-field"
-              title={`Scroll to ${r.title}`}
+              aria-current={!specimen && outline.current === r.key ? 'true' : undefined}
+              className={`flex h-6 w-full items-center gap-2 rounded-[5px] px-1.5 text-left text-xs font-medium ${
+                !specimen && outline.current === r.key ? 'bg-accent-soft text-ink' : 'text-ink hover:bg-surface-field'
+              }`}
+              title={specimen ? `Scroll to ${r.title}` : `Show ${r.title}`}
             >
               <span className="min-w-0 flex-1 truncate">{r.title}</span>
               <span className="shrink-0 text-2xs font-normal tabular-nums text-ink-muted">{r.count}</span>
@@ -129,7 +132,7 @@ export function DsmColumn({ outline }: { outline: DsmOutline }) {
       </ul>
       <div className="flex flex-col gap-1.5">
         <button onClick={() => tell({ type: 'dsm-action', action: 'generate' })} className="btn btn-secondary" title="Generate a system for this page from seeds, a ratio and a grid, in the panel">
-          Generate a system
+          Generate
         </button>
         <button onClick={() => tell({ type: 'dsm-action', action: 'export' })} className="btn btn-secondary" title="DESIGN.md, tokens.css, tokens.json and this page as a file, in the panel">
           Export

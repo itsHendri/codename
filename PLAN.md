@@ -538,6 +538,22 @@ is that companion growing up.
   Export and Back. Picking a layer while the editor is over the canvas
   closes it: the page was asked for. No second panel instance: the session
   has no cross-instance sync, and expanding the one frame needs none.
+- **W53, 29 September 2026 — the DSM after its audit.** A UI audit of the
+  canvas found the two-column editor clipping under 900px, two rows of
+  chrome with Generate and Export twice, controls under the 24px floor and
+  9px strip labels, no focus move or Escape, swatches lost on light
+  surfaces, columns split by section rather than height. Now: one head
+  inside the editor (title, the view switch, a section select, the status
+  and queued count, Reset all, Generate, Export, Back to the page), and one
+  section at a time at full width (`session.dsmSection`; the rail's
+  outline chooses it through `dsm-jump` and lights it through
+  `DsmOutline.current`) — Figma's one-collection view — so nothing clips
+  and nothing is blank; focus lands on the head's name on open and returns
+  to the strip's System on close, Escape closes; the view switches and the
+  head's buttons are 24px, chips and locks 20px, the strip's labels the
+  10px token at 68px; the specimen's swatch edges are 24% of the page's
+  own ink, so they show on either ground; the panel host moves over the
+  canvas in 160ms unless motion is not wanted.
 
 ## Live re-skin
 

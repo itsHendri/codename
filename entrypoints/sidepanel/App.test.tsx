@@ -42,8 +42,10 @@ const activeTab = () => host.querySelector('[role=tab][aria-selected="true"]')?.
 const badge = () => host.querySelector('#tab-changes [data-badge]')?.textContent ?? '0';
 const click = (el: Element | null) => act(() => el?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 /** System on the rail's strip: the Design System Manager over the canvas, with the editor in it. */
-const openDsm = async () => {
+const openDsm = async (section: 'colour' | 'type' | 'space' | 'tokens' | 'critique' | 'tokenFile' = 'tokens') => {
   await act(async () => stub.emit({ type: 'dsm-toggled', on: true }));
+  // One section shows at a time; most tests look at the tokens.
+  await act(async () => updateSession({ dsmSection: section }));
   await tick(60);
 };
 /** Back to the page: the tabs, and the Changes badge, are there again. */
@@ -72,7 +74,7 @@ describe('the panel', () => {
     const rails = () => stub.sent.filter((m) => m.type === 'rail' && m.cmd === 'rail');
     const expands = () => stub.sent.filter((m) => m.type === 'panel' && m.cmd === 'expand');
     expect(rails().at(-1)).toMatchObject({ dsm: null });
-    await openDsm();
+    await openDsm('colour');
     expect(getSession().dsm).toBe(true);
     // The panel's own head replaces the tabs, with the editor under it.
     expect(host.querySelector('[aria-label="Design System Manager"]')).not.toBeNull();
@@ -82,6 +84,17 @@ describe('the panel', () => {
     const dsm = (rails().at(-1) as { dsm: { view: string; sections: { key: string; count: string }[] } }).dsm;
     expect(dsm.view).toBe('tokens');
     expect(dsm.sections.map((s) => s.key)).toEqual(['colour', 'type', 'space', 'tokens', 'critique', 'tokenFile']);
+    // One section at a time: the outline's choice is the editor's, and the head says which.
+    expect(dsm.sections.length).toBe(6);
+    expect((rails().at(-1) as { dsm: { current: string } }).dsm.current).toBe('colour');
+    await act(async () => stub.emit({ type: 'dsm-jump', key: 'tokens' }));
+    await tick(60);
+    expect(getSession().dsmSection).toBe('tokens');
+    expect((rails().at(-1) as { dsm: { current: string } }).dsm.current).toBe('tokens');
+    expect((host.querySelector('select[aria-label="Section"]') as HTMLSelectElement).value).toBe('tokens');
+    expect(host.querySelector('h2')?.textContent).toBe('Tokens');
+    // The room is entered: focus lands on its name.
+    expect(document.activeElement?.textContent).toBe('Design System Manager');
     // An action in the rail's column opens it in the editor.
     await act(async () => stub.emit({ type: 'dsm-action', action: 'export' }));
     await tick(120);
@@ -97,9 +110,15 @@ describe('the panel', () => {
     await tick(120);
     expect(getSession().dsm).toBe(false);
     expect(rails().at(-1)).toMatchObject({ dsm: null });
-    await act(async () => updateSession({ dsmView: 'tokens' }));
+    await act(async () => updateSession({ dsmView: 'tokens', dsmSection: 'colour' }));
     // Not embedded in a page here, so the panel was never asked to lie over the canvas.
     expect(expands()).toEqual([]);
+    // Escape, from inside the room, is the way out.
+    await openDsm();
+    const head = host.querySelector('[aria-label="Design System Manager"]')!;
+    await act(async () => void head.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await tick(60);
+    expect(getSession().dsm).toBe(false);
   });
 
   it('opens on Style with the three tabs in order and the page read', () => {
