@@ -10,6 +10,7 @@
  */
 
 import type { AgentPresence, ElementProps, InspectorCommand, TokenLengths } from '@/shared/types';
+import { addInpageFont, INPAGE_FONT } from '@/shared/inpageFont';
 import { BAR_HEIGHT, OVERLAY, type OverlayTheme } from '@/shared/theme';
 import { RAIL_TAG, SELECTED_EVENT, SPECIMEN_FOR, SPECIMEN_LABEL_TAG, SPECIMEN_MATCHES, SPECIMEN_TAG, throughRail } from '@/shared/inpage';
 import { createRootPush } from '@/studio/pushRoot';
@@ -93,7 +94,8 @@ function activate() {
     thumb: 'var(--cn-thumb)',
   };
   const c = d;
-  const font = "'Geist', ui-sans-serif, system-ui, sans-serif";
+  addInpageFont();
+  const font = INPAGE_FONT;
   const mono = 'ui-monospace, Menlo, monospace';
   // A select's chevron, in ink-muted, which is the same grey in both themes.
   const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E")`;

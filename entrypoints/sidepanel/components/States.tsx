@@ -69,7 +69,7 @@ export function EmptyState({
         title={needsAccess ? 'Codename needs access to this site' : 'Nothing read yet'}
         action={
           <>
-            <button onClick={onScan} className="btn btn-lg btn-primary">
+            <button onClick={onScan} className="btn btn-lg btn-accent-fill">
               {needsAccess ? 'Allow and read the page' : 'Read this page'}
             </button>
             {error && <p className="max-w-64 text-xs text-warn-ink">{error}</p>}

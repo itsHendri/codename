@@ -41,10 +41,13 @@ export default defineConfig({
     /**
      * The panel's own page, so the panel can be drawn in a page as an iframe
      * (W33). The one file a page can reach; everything it loads comes from
-     * the extension's own origin and needs no listing. The cost: a page can
-     * tell Codename is installed by asking for this file.
+     * the extension's own origin and needs no listing. Inter is listed too,
+     * so the rail and the bar can add it to the page's font set (W54). The
+     * cost: a page can tell Codename is installed by asking for these files.
      */
-    web_accessible_resources: [{ resources: ['sidepanel.html'], matches: ['<all_urls>'] }],
+    web_accessible_resources: [
+      { resources: ['sidepanel.html', 'fonts/InterVariable-latin.woff2', 'fonts/InterVariable-latin-ext.woff2'], matches: ['<all_urls>'] },
+    ],
     /**
      * Preview, Comment and the rail, from the keyboard. Alt rather than Cmd so
      * they never collide with the page's own shortcuts or Chrome's; the user

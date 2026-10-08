@@ -32,31 +32,40 @@
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
 
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Codename Inter', 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Five steps for a 360px panel. Tailwind's own xs/sm/base are re-pointed
-     so the scale is the only one in play. */
+  /* Nudge's scale (W54): 12px for every control, label and title, 10px for
+     the small print. Tailwind's own xs/sm/base are re-pointed so the scale
+     is the only one in play; xs and sm are both 12 now, sm kept so the
+     names in use still resolve. */
   --text-2xs: 10px;
   --text-2xs--line-height: 13px;
-  --text-xs: 11px;
-  --text-xs--line-height: 14px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
   --text-sm: 12px;
   --text-sm--line-height: 16px;
   --text-base: 13px;
-  --text-base--line-height: 17px;
+  --text-base--line-height: 18px;
   --text-lg: 15px;
   --text-lg--line-height: 20px;
 
-  /* One height grid for every control in the bar, the rail and the panel:
-     24px for a field, a button or a segmented group, 20px for the small
+  /* One height grid for every control in the rail and the panel, Nudge's:
+     32px for a field, a button or a segmented group, 24px for the compact
      ones that sit inside a row (chips, row actions). `h-control`,
      `h-control-sm`, and the same names for min-h and w. */
-  --spacing-control: 24px;
-  --spacing-control-sm: 20px;
+  --spacing-control: 32px;
+  --spacing-control-sm: 24px;
 
-  --radius-control: 6px;
+  --radius-control: 8px;
+  --radius-segment: 6px;
   --radius-card: 8px;
+  --radius-popup: 8px;
+
+  /* A raised white thing on the well (a segment's thumb, the primary
+     button, a token chip), and a popup floating over the panel. */
+  --shadow-control: inset 0 -2px 0 rgb(0 0 0 / 0.03), 0 0 0 0.5px rgb(0 0 0 / 0.25);
+  --shadow-popup: 0 0 0 1px rgb(0 0 0 / 0.05), 0 4px 16px rgb(0 0 0 / 0.1);
 
   /* Ship Studio: fast 0.1s, default 0.15s, slow 0.3s. */
   --default-transition-duration: 150ms;
@@ -77,8 +86,8 @@
 }
 
 /*
- * The field: a filled 24px control with no border, as Framer, Figma and
- * Rive draw theirs. Hover lifts the fill; focus draws a 1px accent edge.
+ * The field: a filled 32px well with no border, as Nudge, Framer and Figma
+ * draw theirs. Hover deepens the well; focus draws a 2px accent ring inside.
  * Put it on an input, a select, or a wrapper holding a bare input (focus
  * then shows through `:focus-within`).
  */
@@ -94,16 +103,15 @@
   }
   &:focus-visible,
   &:focus-within {
-    outline: 1px solid var(--accent);
-    outline-offset: -1px;
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
 }
 
 /* A value the field will not take: said by the fill, not by a dialog. */
 @utility field-invalid {
   background-color: var(--warn-soft);
-  outline: 1px solid var(--warn);
-  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px var(--warn);
   &:hover {
     background-color: var(--warn-soft);
   }
@@ -113,11 +121,11 @@
    which is the same grey in both themes. */
 @utility field-select {
   appearance: none;
-  padding-left: 7px;
-  padding-right: 20px;
+  padding-left: 8px;
+  padding-right: 24px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23767676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4l2.5 2.5L7.5 4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 5px center;
+  background-position: right 8px center;
   background-size: 10px 10px;
   cursor: pointer;
   & option,
@@ -128,11 +136,12 @@
 }
 
 /*
- * Buttons: one shape at two heights. `btn` is 24px, `btn-sm` 20px for the
- * actions that sit inside a row, `btn-lg` 32px for the one thing a screen
- * is for. Primary is the one accent fill on a screen; secondary is a
- * filled neutral; ghost is text until hovered; accent is the tinted one
- * for an action that belongs to the tool rather than the page.
+ * Buttons, Nudge's: `btn` is 32px, `btn-sm` 24px for the actions that sit
+ * inside a row, `btn-lg` 40px for the one thing a screen is for. Primary is
+ * a raised white button; `btn-accent-fill` is the one accent fill a screen
+ * may have (Make changes); secondary is the well; ghost is text until
+ * hovered; accent is the tinted one for an action that belongs to the tool
+ * rather than the page.
  */
 @utility btn {
   display: inline-flex;
@@ -140,7 +149,7 @@
   justify-content: center;
   gap: 6px;
   height: var(--spacing-control);
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: var(--radius-control);
   font-size: var(--text-xs);
   line-height: 1;
@@ -157,11 +166,20 @@
   padding: 0 8px;
 }
 @utility btn-lg {
-  height: 32px;
+  height: 40px;
   padding: 0 16px;
   font-size: var(--text-sm);
 }
 @utility btn-primary {
+  background-color: var(--surface-thumb);
+  color: var(--ink);
+  box-shadow: var(--shadow-control);
+  &:hover:not(:disabled) {
+    background-color: var(--surface-raised);
+    box-shadow: var(--shadow-control), 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+}
+@utility btn-accent-fill {
   background-color: var(--accent);
   color: var(--accent-ink);
   &:hover:not(:disabled) {
@@ -189,6 +207,76 @@
   &:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--accent) 22%, var(--accent-soft));
   }
+}
+
+/*
+ * A section of the Style column, Nudge's: 8px above and below, 8px between
+ * rows, a hairline under it. Its title is 12px semibold, tightened, 32px
+ * tall so a + or − beside it sits on the control grid.
+ */
+@utility section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+@utility section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--spacing-control);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+/* A label over its field: 12px secondary ink, 4px above the control. */
+@utility field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+  line-height: 15px;
+  color: var(--ink-secondary);
+}
+
+/* A segmented group: the well as a track, 2px in, a white thumb for "on". */
+@utility segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  min-height: var(--spacing-control);
+  border-radius: var(--radius-control);
+  background-color: var(--surface-field);
+}
+@utility segment {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border-radius: var(--radius-segment);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  &:hover {
+    color: var(--ink);
+  }
+  &[aria-checked='true'],
+  &[aria-pressed='true'],
+  &[aria-selected='true'] {
+    background-color: var(--surface-thumb);
+    color: var(--ink);
+    box-shadow: var(--shadow-control);
+  }
+}
+
+/* A popup over the panel: a listbox, a menu, a picker. */
+@utility popup {
+  border-radius: var(--radius-popup);
+  background-color: var(--surface-panel);
+  color: var(--ink);
+  box-shadow: var(--shadow-popup);
 }
 
 /* A small head inside a section: sentence case, never shouted. */

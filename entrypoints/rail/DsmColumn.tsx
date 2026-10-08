@@ -78,7 +78,7 @@ export function DsmColumn({ outline }: { outline: DsmOutline }) {
             role="radio"
             aria-checked={outline.view === v}
             onClick={() => tell({ type: 'dsm-view', view: v })}
-            className={`flex-1 rounded-[4px] px-1.5 text-xs ${outline.view === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
+            className={`flex-1 rounded-segment px-1.5 text-xs ${outline.view === v ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]' : 'text-ink-muted hover:text-ink'}`}
             title={v === 'tokens' ? 'The system as tables over the canvas: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
           >
             {v === 'tokens' ? 'Tokens' : 'Specimen'}

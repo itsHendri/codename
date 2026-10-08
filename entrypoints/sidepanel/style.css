@@ -1,33 +1,40 @@
 /*
  * The panel's own design system.
  *
- * The palette, the type sizes and the spacing rhythm are Ship Studio's, used
- * under its MIT licence:
+ * Since W54 the look is Nudge's, used under its MIT licence:
  *
- *   Copyright (c) 2026 Julian Galluzzo and Ship Studio contributors
- *   https://github.com/ship-studio/ship-studio
+ *   Copyright (c) 2026 Charles Smart
+ *   https://github.com/charlessmart/nudge-ui
  *
- * Token names stay ours — `ink` rather than `text`, `line` rather than
- * `border` — so utilities read `text-ink-muted` and `border-line` instead of
- * `text-text-muted`. The neutrals, the sizes and the rhythm are theirs; the
- * accent is Codename's own, taken from their blue ramp rather than the green,
- * so the panel does not read as a Ship Studio clone.
+ * Inter at 12px, 32px controls on a 5% well with no border, 8px corners,
+ * labels above their fields, sections divided by a hairline. Nudge is light
+ * only; the dark side is ours, mirrored from its values. Token names stay
+ * ours (`ink`, `line`), so utilities read `text-ink-muted`. Before W54 the
+ * palette and rhythm were Ship Studio's (MIT, Julian Galluzzo and
+ * contributors); THIRD_PARTY_NOTICES.md keeps both notices.
  *
- * What this costs, stated plainly because the panel audits other people's
- * contrast: this palette does not meet the APCA thresholds Codename holds
- * scanned sites to. Primary text lands near Lc 65 where body copy wants 75,
- * and muted text near Lc 28 where the panel's own floor was 45. That was a
- * deliberate choice to match Ship Studio, and theme.test.ts records the real
- * numbers rather than asserting a standard the palette does not meet.
+ * theme.test.ts records the contrast the palette reaches and holds the ink
+ * ladder in order.
  */
 
 @import 'tailwindcss';
 
+/* Inter, under its own family name so a page's Inter can never stand in. */
 @font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-family: 'Codename Inter';
+  src: url('/fonts/InterVariable-latin.woff2') format('woff2');
   font-weight: 100 900;
   font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Codename Inter';
+  src: url('/fonts/InterVariable-latin-ext.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
   font-family: 'Geist Mono';

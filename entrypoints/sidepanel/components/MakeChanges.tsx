@@ -121,7 +121,7 @@ export function MakeChanges({ empty, local }: { empty: boolean; local: boolean }
           onClick={press}
           disabled={disabled}
           title={running ? `Stop ${run?.agentName}` : agent ? `Run ${agent.name} on these changes in ${project?.name ?? 'the project'}` : note}
-          className={`btn btn-lg flex-1 ${running ? 'btn-secondary' : 'btn-primary'}`}
+          className={`btn btn-lg flex-1 ${running ? 'btn-secondary' : 'btn-accent-fill'}`}
         >
           {running ? 'Working… · Cancel' : starting ? 'Starting…' : 'Make changes'}
         </button>

@@ -279,9 +279,9 @@ function Scope({ element: el, ctl }: { element: ElementProps; ctl: InspectContro
                 role="radio"
                 aria-checked={ctl.scope === scope}
                 onClick={() => ctl.setScope(scope)}
-                className={`rounded-[4px] px-2 text-xs ${
+                className={`rounded-segment px-2 text-xs ${
                   ctl.scope === scope
-                    ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]'
+                    ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]'
                     : 'text-ink-muted hover:text-ink'
                 }`}
               >
@@ -338,10 +338,10 @@ function ConditionChips({ ctl }: { ctl: InspectController }) {
       aria-checked={active}
       onClick={onClick}
       title={title}
-      className={`min-w-0 flex-1 truncate rounded-[4px] px-1 text-xs capitalize ${
+      className={`min-w-0 flex-1 truncate rounded-segment px-1 text-xs capitalize ${
         active
           ? label === 'default'
-            ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]'
+            ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]'
             : 'bg-accent-soft text-accent'
           : 'text-ink-muted hover:text-ink'
       }`}
