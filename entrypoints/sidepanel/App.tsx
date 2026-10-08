@@ -425,8 +425,11 @@ export default function App() {
         setFocusedComment((msg as { id?: string }).id ?? null);
         setActive('changes');
       } else if (msg?.type === 'inspector-shortcut') {
-        // Cmd+Z pressed on the page while an element is selected.
-        if ((msg as { action?: string }).action === 'redo') ctlRef.current.redo();
+        // Cmd+Z pressed on the page while an element is selected, or \ held
+        // to see the page without the edits.
+        const action = (msg as { action?: string }).action;
+        if (action === 'peek' || action === 'unpeek') ctlRef.current.viewOriginal(action === 'peek');
+        else if (action === 'redo') ctlRef.current.redo();
         else ctlRef.current.undo();
       }
     };

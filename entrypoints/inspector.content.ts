@@ -2165,13 +2165,24 @@ function activate() {
     sheet.classList.remove('hidden');
   };
 
+  // Hold \ to see the page without your edits (Nudge's "hold to view
+  // original"): the panel stops painting the log while the key is down.
+  let peeking = false;
+  const peek = (on: boolean) => {
+    if (peeking === on) return;
+    peeking = on;
+    send({ type: 'inspector-shortcut', action: on ? 'peek' : 'unpeek' });
+  };
+
   const onKeyUp = (e: KeyboardEvent) => {
     if (e.key === 'Alt' && altHeld) {
       altHeld = false;
       drawMeasure();
     }
+    if (e.key === '\\') peek(false);
   };
   const onBlurWindow = () => {
+    peek(false);
     if (!altHeld) return;
     altHeld = false;
     drawMeasure();
@@ -2192,6 +2203,11 @@ function activate() {
       e.preventDefault();
       if (cmdkOpen()) closeCmdk();
       else openCmdk();
+      return;
+    }
+    if (barOn && e.key === '\\' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      peek(true);
       return;
     }
     if (barOn && e.key === '?' && !e.metaKey && !e.ctrlKey) {
