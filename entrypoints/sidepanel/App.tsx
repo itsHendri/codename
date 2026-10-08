@@ -60,6 +60,7 @@ import { ChangesTab } from './components/ChangesTab';
 import { SystemTab } from './components/SystemTab';
 import type { LayerNode } from '@/studio/layers';
 import { EmptyState, RestrictedState, ScanningState } from './components/States';
+import { PopupLayer } from './components/inspect/popupLayer';
 
 type TabKey = 'style' | 'changes';
 
@@ -81,6 +82,7 @@ const styleValues = (props: ElementProps): StyleValues =>
   Object.fromEntries(STYLE_PROPS.map((p) => [p, readValue(props, p)])) as StyleValues;
 
 export default function App() {
+  const [popupLayer, setPopupLayer] = useState<HTMLDivElement | null>(null);
   // The session remembers the tab, so closing and reopening the panel does
   // not send you back to Layers every time.
   const session = useSession();
@@ -681,6 +683,7 @@ export default function App() {
   }
 
   return (
+    <PopupLayer.Provider value={popupLayer}>
     <div
       className={`flex h-screen flex-col text-base ${
         // Drawn in the page, the panel has an edge where it meets the page, as the rail does.
@@ -730,6 +733,8 @@ export default function App() {
           {scanning ? 'Reading…' : scan ? 'Rescan' : needsAccess ? 'Allow' : 'Scan'}
         </button>
       </footer>
+      <div ref={setPopupLayer} />
     </div>
+    </PopupLayer.Provider>
   );
 }

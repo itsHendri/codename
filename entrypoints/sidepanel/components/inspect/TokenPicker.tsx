@@ -3,6 +3,7 @@ import type { CustomPropInfo } from '@/shared/types';
 import { filterTokens, paintedValue, rankTokens } from '@/studio/tokenPicker';
 import type { MatchKind } from '@/studio/tokenMatch';
 import { hexOf } from '@/studio/reskin';
+import { IconCheck } from '@tabler/icons-react';
 
 /** How many ramp steps show before the rest fold away. */
 const PRIMITIVES_FIRST = 12;
@@ -48,40 +49,41 @@ export function TokenPicker({
           aria-label={`Use ${p.name}`}
           aria-pressed={chosen}
           title={`${p.name}: ${p.value}${p.resolved && p.resolved !== p.value ? ` → ${p.resolved}` : ''}`}
-          className={`flex h-6 w-full items-center gap-2 rounded-control px-1 text-left text-xs ${chosen ? 'bg-accent-soft text-accent' : 'hover:bg-surface-field'}`}
+          className="flex min-h-[34px] w-full items-center gap-2 rounded-[4px] px-2 text-left text-xs text-ink hover:bg-surface-field"
         >
           {hex ? (
-            <span className="swatch h-3.5 w-3.5 shrink-0 rounded-[3px]" style={{ background: hex }} />
+            <span className="swatch h-4 w-4 shrink-0 rounded-[4px]" style={{ background: hex }} />
           ) : (
-            <span className="h-3.5 w-3.5 shrink-0 rounded-[3px] bg-surface-field font-mono text-[9px] leading-[14px] text-ink-muted" aria-hidden>
+            <span className="h-4 w-4 shrink-0 rounded-[4px] bg-surface-field text-center text-[9px] leading-4 text-ink-muted" aria-hidden>
               {value.replace(/[^\d.]/g, '').slice(0, 3)}
             </span>
           )}
-          <span className="min-w-0 flex-1 truncate font-mono">{p.name}</span>
-          {p.uses != null && <span className="shrink-0 text-2xs text-ink-muted">×{p.uses}</span>}
+          <span className="min-w-0 flex-1 truncate">{p.name}</span>
+          <span className="max-w-[40%] shrink truncate text-ink-muted">{hex ?? value}</span>
+          {chosen && <IconCheck className="h-4 w-4 shrink-0" stroke={1.5} aria-hidden />}
         </button>
       </li>
     );
   };
   const group = (title: string, list: CustomPropInfo[], after?: React.ReactNode) =>
     list.length > 0 && (
-      <div className="flex flex-col gap-0.5">
-        <div className="px-1 text-2xs text-ink-muted">{title}</div>
-        <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{list.map(row)}</ul>
+      <div className="flex flex-col">
+        <div className="px-2 pb-1 pt-1.5 text-2xs font-medium text-ink-muted">{title}</div>
+        <ul className="m-0 flex list-none flex-col p-0">{list.map(row)}</ul>
         {after}
       </div>
     );
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-control bg-surface-panel p-1.5 shadow-[inset_0_0_0_1px_var(--line-subtle)]" role="listbox" aria-label="Page variables">
+    <div className="flex max-h-[320px] flex-col gap-1 overflow-y-auto" role="listbox" aria-label="Page variables">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search variables"
+        placeholder="Search tokens…"
         aria-label="Search variables"
-        className="field h-6 w-full px-1.5 text-xs"
+        className="field w-full shrink-0 px-2 text-xs"
       />
-      {empty && <div className="px-1 py-1 text-2xs text-ink-muted">No variable of this kind{query ? ' matches' : ' on this page'}.</div>}
+      {empty && <div className="px-2 py-1.5 text-2xs text-ink-muted">No variable of this kind{query ? ' matches' : ' on this page'}.</div>}
       {group('Semantic', ranked.semantic)}
       {group('Other', ranked.other)}
       {group(

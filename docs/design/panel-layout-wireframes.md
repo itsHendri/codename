@@ -166,7 +166,8 @@ Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
 ## Cross-cutting rules
 
 - Every number field: type, Enter commits, Escape puts the draft back,
-  arrows nudge, ⇧ ×10, ⌥ ×0.1, drag the grip to scrub.
+  arrows nudge by 1, ⇧ by 8 (rem by ⅛ and 1), drag the leading icon to scrub
+  (pointer locked, one step per 16px, ⇧ one step of 8 per 8px) — Nudge's rules, W54.
 - Nothing is derived from a stylesheet URL; no authored value is guessed.
 - The bar, the rail and the panel wear one palette (`shared/tokens.css`)
   and one utility set (`shared/theme.css`).

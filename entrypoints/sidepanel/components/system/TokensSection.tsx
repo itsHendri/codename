@@ -4,7 +4,7 @@ import type { Mode, ResolvedTokens, ScaleRole, Step } from '@/studio/engine/type
 import { SCALE_ROLES, STEPS } from '@/studio/engine/types';
 import type { ColourLink, ColourLinks } from '@/studio/systemMap';
 import { Select } from '../inspect/fields';
-import { TokenGlyph } from '../inspect/TokenPill';
+import { TokenGlyph } from '../inspect/TokenChip';
 import type { Override } from '@/studio/reskin';
 import { widthLabel } from '@/studio/siteMode';
 import { groupCustomProps, type VarKind } from '@/studio/varGroups';
@@ -421,8 +421,8 @@ function LinkChip({
       </button>
       {open && (
         <span className="flex items-center gap-1">
-          <Select value={role} options={SCALE_ROLES} ariaLabel="Ramp" onChange={(r) => setRole(r)} className="h-5 text-2xs" />
-          <Select value={String(step)} options={STEPS.map(String) as readonly string[]} ariaLabel="Step" onChange={(v) => setStep(Number(v) as Step)} className="h-5 w-14 text-2xs" />
+          <Select value={role} options={SCALE_ROLES} ariaLabel="Ramp" onChange={(r) => setRole(r)} className="h-6 min-h-0 text-2xs" />
+          <Select value={String(step)} options={STEPS.map(String) as readonly string[]} ariaLabel="Step" onChange={(v) => setStep(Number(v) as Step)} className="h-6 min-h-0 w-16 text-2xs" />
           <button onClick={() => onLink({ role, step })} className="btn btn-sm btn-secondary">
             Link
           </button>
