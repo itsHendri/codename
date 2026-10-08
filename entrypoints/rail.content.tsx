@@ -16,6 +16,7 @@ import css from './rail/rail.css?inline';
 import type { RailCommand } from '@/shared/types';
 import { RAIL_TAG } from '@/shared/inpage';
 import { BAR_HEIGHT } from '@/shared/theme';
+import { addInpageFont } from '@/shared/inpageFont';
 import { createRootPush } from '@/studio/pushRoot';
 import { refitFrame } from '@/studio/pageFrame';
 import { Rail } from './rail/Rail';
@@ -39,6 +40,7 @@ export default defineContentScript({
 export const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)));
 
 function activate() {
+  addInpageFont();
   const store = createStore({ on: false, theme: 'dark', svgs: [], width: DEFAULT_WIDTH, column: true, scheme: 'light', ink: '', dsm: null });
   // What the page paints text in: read now, and again once a Light / Dark
   // switch has had its moment to repaint the page.

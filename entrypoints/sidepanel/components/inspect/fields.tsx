@@ -179,7 +179,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={`flex h-control gap-0.5 rounded-control bg-surface-field p-0.5 ${className}`}
+      className={`segmented ${className}`}
     >
       {options.map((o) => {
         const on = value === o || (o === 'left' && value === 'start');
@@ -190,11 +190,7 @@ export function Segmented<T extends string>({
             aria-checked={on}
             onClick={() => onChange(o)}
             title={titles?.[o]}
-            className={`min-w-0 flex-auto truncate rounded-[4px] px-1 capitalize ${dense ? 'text-2xs' : 'text-xs'} ${
-              on
-                ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]'
-                : 'text-ink-muted hover:text-ink'
-            }`}
+            className={`segment truncate px-1 capitalize ${dense ? 'text-2xs' : ''}`}
           >
             {labels?.[o] ?? o}
           </button>
@@ -236,8 +232,8 @@ export function AlignGrid({
             aria-label={name(c)}
             title={name(c)}
             onClick={() => onChange(valuesFor(c, direction))}
-            className={`flex h-5 w-6 items-center justify-center rounded-[4px] ${
-              on ? 'bg-surface-thumb shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'hover:bg-surface-field-hover'
+            className={`flex h-5 w-6 items-center justify-center rounded-segment ${
+              on ? 'bg-surface-thumb shadow-[var(--shadow-control)]' : 'hover:bg-surface-field-hover'
             }`}
           >
             <span className={`block rounded-full ${on ? 'h-2 w-2 bg-accent' : 'h-1 w-1 bg-ink-faint'}`} />

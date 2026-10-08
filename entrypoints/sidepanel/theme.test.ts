@@ -4,11 +4,11 @@ import { apca, LC_THRESHOLD } from '@/studio/engine/contrast';
 import { OVERLAY } from '@/shared/theme';
 
 /**
- * The panel's palette is Ship Studio's, adopted deliberately, and it does not
- * meet the APCA thresholds Codename holds scanned sites to.
+ * The panel's palette was Ship Studio's until W54 and is Nudge's since; its
+ * labels sit below the APCA thresholds Codename holds scanned sites to.
  *
- * So this file stopped asserting a standard the palette does not reach and
- * started recording what it actually achieves. The numbers below are a pin: if
+ * So this file records what the palette achieves rather than asserting a
+ * standard its labels do not reach. The numbers below are a pin: if
  * someone edits a token, the measurement moves and this fails, which is the
  * regression guard that matters. The one hard rule kept is the ladder — each
  * ink level must stay dimmer than the one above it, or the hierarchy the
@@ -69,17 +69,18 @@ describe.each(Object.entries(themes))('%s theme', (name, t) => {
 });
 
 /**
- * What the adopted palette actually measures, on the panel's own surface.
- * Body copy wants Lc 75 and the panel's previous floor for small text was 45;
- * neither is met here, and that is the cost of matching Ship Studio.
+ * What the palette measures on the panel's own surface, both sides. Since
+ * W54 (Nudge's values) primary text clears body copy's Lc 75 on both;
+ * secondary and muted are labels, and sit below it by design.
  */
 it('records the contrast this palette actually achieves', () => {
-  const t = themes.dark;
-  expect({
+  const measure = (t: Record<string, string>) => ({
     ink: lc(t.ink!, t['surface-panel']!),
     secondary: lc(t['ink-secondary']!, t['surface-panel']!),
     muted: lc(t['ink-muted']!, t['surface-panel']!),
     faint: lc(t['ink-faint']!, t['surface-panel']!),
-  }).toEqual({ ink: 65, secondary: 45, muted: 29, faint: 12 });
+  });
+  expect(measure(themes.dark)).toEqual({ ink: 91, secondary: 55, muted: 36, faint: 16 });
+  expect(measure(themes.light)).toEqual({ ink: 103, secondary: 75, muted: 71, faint: 51 });
   expect(LC_THRESHOLD.body).toBe(75);
 });

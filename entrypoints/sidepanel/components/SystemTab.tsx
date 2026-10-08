@@ -334,7 +334,7 @@ export function SystemTab({
                 role="radio"
                 aria-checked={dsmView === v}
                 onClick={() => onView?.(v)}
-                className={`rounded-[4px] px-2 text-xs ${dsmView === v ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'}`}
+                className={`rounded-segment px-2 text-xs ${dsmView === v ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]' : 'text-ink-muted hover:text-ink'}`}
                 title={v === 'tokens' ? 'The system as tables: colour, type, space, tokens' : "The page's own styles page, drawn over the page from its rules"}
               >
                 {v === 'tokens' ? 'Tokens' : 'Specimen'}

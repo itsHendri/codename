@@ -81,8 +81,8 @@ export function AppMenu({ children, compact = false }: { children?: React.ReactN
                 role="radio"
                 aria-checked={pref === t.key}
                 onClick={() => setPref(t.key)}
-                className={`flex-1 rounded-[4px] px-2 text-xs ${
-                  pref === t.key ? 'bg-surface-thumb text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]' : 'text-ink-muted hover:text-ink'
+                className={`flex-1 rounded-segment px-2 text-xs ${
+                  pref === t.key ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]' : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {t.label}
