@@ -126,7 +126,7 @@ Revised the same afternoon, after the System research (plan in `~/.claude/plans/
 
 ## Status, 8 October 2026
 
-Everything in the order of work above is built and merged (PRs #30–#38, 24 September), plus the rounds that followed from using it (#39–#45, 25–29 September). Main is at 8fcbd8d; 1223 tests, bridge 241.
+Everything in the order of work above is built and merged (PRs #30–#38, 24 September), plus the rounds that followed from using it (#39–#45, 25–29 September). Main was at 8fcbd8d (1223 tests, bridge 241) before W54, below.
 
 **What exists now, in the order a person meets it**
 
@@ -143,6 +143,16 @@ Everything in the order of work above is built and merged (PRs #30–#38, 24 Sep
 - Export is one action inside the DSM, DESIGN.md is the only agent-facing document, brand.md and the skill bundle are gone.
 - The System editor stays in the panel's one React mount (the panel frame expands) rather than a second frame docked left, because the session has no cross-instance sync.
 
+**W54, 8 October 2026: the panel in Nudge's clothes** (PRs #47–#50, merged; 1245 tests)
+
+Hendri found Nudge UI (github.com/charlessmart/nudge-ui, MIT): a dev-dependency inspector with the same idea (select on the live app, preview through one managed stylesheet, a token-level prompt for an agent) whose panel he preferred. Its look and a handful of control behaviours were taken, the architecture was not; the notice is in `THIRD_PARTY_NOTICES.md`. Enhance Labs (enhancelabs.ai) was researched alongside it: a hosted, closed, Figma-like canvas fed by rrweb captures, against both the live-page and the local-bridge rules; nothing was adopted.
+
+- **Foundation (#47):** Nudge's palette on the light side, dark mirrored; Inter replaces Geist (bundled as `Codename Inter`, added to the page's font set for the rail and the bar); 12px text, 32px borderless wells, 8px corners, an inset focus ring; a raised white primary with `btn-accent-fill` kept for Make changes. Primary text now clears Lc 75 on both sides.
+- **Controls (#48):** number fields led by an icon that is the scrub handle (pointer lock, one step per 16px; arrows 1, Shift 8, `studio/inspect/nudgeValue.ts`); Base UI listboxes in place of native selects; the variable a value is on drawn as a white chip inside the field (Edit globally, Detach, swap behind it); colour opacity as a %.
+- **Style column (#49):** Nudge's order (Layout · Spacing · Appearance · Text · Colour · Background · Border · Box shadow · Effects · Motion · Content), labels above fields two to a row, 20px gutters. **Empty properties fold to + / −**, reversing W28's "all open": a section folds only when the page computes nothing for it and the log has written nothing (`studio/inspect/presence.ts`); + puts a visible start on background, border and shadow, − writes each set property back to its nothing. Paired padding and margin fields replace the box diagram; the shortcuts list sits under the empty state.
+- **Changes (#50):** rows read `prop before → after` with the new value in accent and a revert mark; **hold `\` on the page** to see it without the edits.
+- **Departures from Nudge, on purpose:** Text shows on every element; weight and italic stay apart (font-style is not read yet); the size-mode segment stays visible, since that is how the fail-closed reading stays honest.
+
 **Not done, in the order to take them**
 
 1. Use it on forfontsake: the Type section with 49 styles at full width, the outline's keys on Tailwind utilities, a keyboard pass on the DSM's open and close (the focus return to the strip is the one part the harness could not exercise), Generate on a fresh Vite scaffold.
@@ -150,5 +160,6 @@ Everything in the order of work above is built and merged (PRs #30–#38, 24 Sep
 3. Two soft spots: the page's side is read once at scan, so a site's own theme toggle leaves the bar stale until a rescan; the assets' ink is read from the body, so a page that paints text colour on a wrapper gives the tiles the wrong ink.
 4. Deferred from the start: the React 19 source ladder (file and line on click), the optional one-line plugin, the vue-inspector v6 fix, the signed companion and store listing.
 5. Gemini CLI has not been run against a real install; its stream-json fields are read under every spelling for that reason.
+6. W54 in real Chrome: the pointer-locked scrub (the harness cannot lock, so only the fallback drag was exercised; if Chrome's "Press Esc" bubble grates, the lock is one line to drop), and Inter in the rail and the bar on a page whose CSP refuses extension fonts (it should fall back to the system face).
 
 **How to verify without the extension**: `.harness/` (gitignored) — `preview_start harness` on :5320; `/?theme=dark&wide=1` plus `chrome.__emit({type:'dsm-toggled',on:true})` shows the DSM at canvas width; `page.html` drives the content scripts (`__cmd`, `__msg`), with `spechelper.js` bundled by esbuild for the specimen's spec; `npm run harness:scripts` after any content-script change. Details in PLAN.md and the memory notes.
