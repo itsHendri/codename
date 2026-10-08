@@ -96,21 +96,37 @@ reorder.
 
 ### The Style column
 
-Groups in the order the three tools agree on, all open, heads sticky:
+**Since W54, Nudge's order and look** (github.com/charlessmart/nudge-ui,
+MIT). Sections are divided by a hairline, labels sit above their fields two
+to a row, and nothing is sticky but the selection strip:
 
-1. **Position** — static / relative / absolute / fixed / sticky; insets and
-   z-index once positioned.
-2. **Size** — W and H, each with **Fixed · Fill · Fit · Rel**; min/max
-   behind **+ Add** until one is set; overflow.
-3. **Layout** — Block · Stack · Grid · Inline; direction and wrap; the 3×3
-   align grid plus a Distribute select; row and column gap; and, for a
-   flex child, grow / shrink / order, basis and align-self.
-4. **Spacing** — the box diagram, every number a field; a link control
-   (each / pairs / all) says how far an edit reaches.
-5. Colour · 6. **Type** — the family field offers the fonts the page loads,
-   the weight is a named list that says which weights are not loaded for
-   that family · 7. Border · 8. Effects, with a slider beside opacity ·
-   9. Motion · 10. Text.
+1. **Layout** — W and H, each with **Fixed · Fill · Fit · Rel** beside it;
+   a ⛶ toggle in the head for min and max; Display and Position as
+   listboxes; insets and z-index once positioned; Overflow. For a stack or
+   grid: the 3×3 align grid (Nudge's dots and bars), direction as arrows,
+   wrap, Distribute (Keep grouped · Spread between · around · evenly), gaps.
+   For a flex child: grow, shrink, basis, align-self, order.
+2. **Spacing** — Padding and Margin, each as two paired fields (across,
+   down) with a toggle to four sides. The box diagram is gone; the handles
+   on the page are the visual way in.
+3. **Appearance** — Opacity (as %) and Corner radius, with a toggle to each
+   corner in the head.
+4. **Text** — type style, family (a well with the page's fonts behind the
+   chevron), weight, size · line height · tracking, align as icons.
+5. **Colour** — the text colour.
+6. **Background · 7. Border · 8. Box shadow · 9. Effects · 10. Motion** —
+   each folds to its title and a **+** when the element has none of it.
+11. **Content** — the element's own text.
+
+**+ and − (W54, reversing W28's "all open").** A section folds only when
+the computed value is that property's "nothing" *and* this log has written
+nothing to it (`studio/inspect/presence.ts`), so the page decides what is
+open and a fold never hides a set value. **+** on Background, Border or Box
+shadow puts on a visible start (white; 1px solid; 0 4 12 at 10% black) as
+one ordinary edit; on Padding, Margin, Effects and Motion it only opens the
+fields. **−** writes each set property back to its "nothing" (`padding: 0`,
+`border-style: none`, `transition: none`…), an edit like any other in the
+brief.
 
 **Size modes fail closed.** A computed width is always a pixel count and
 says nothing about what the author wrote, so a mode lights only when the
@@ -122,46 +138,41 @@ raw value stands. Writing is exact: Fixed pins the rendered px, Fill is
 the parent's content box in %. Fill along a main axis is one declaration
 (`flex: 1 1 0%`), so the brief carries one line.
 
-## The visual system (W28)
+## The visual system (W54, Nudge's)
 
-Chosen from five directions drawn from Framer, Figma, Webflow, Rive and
-Jitter on Mobbin: **A · Framer rows**. Section 8 of the HTML is the mock.
+W54 replaced W28's Framer rows with Nudge UI's measurements, after Hendri
+compared the two and asked to clone Nudge. Values are in `shared/theme.css`
+and `shared/tokens.css`; the notice is in `THIRD_PARTY_NOTICES.md`.
 
-- **One palette.** The bar, the rail and the panel read `shared/tokens.css`;
-  the bar and the overlays read the same values through `OVERLAY`
-  (`shared/theme.ts`), which `theme.test.ts` pins token by token. The bar
-  sits on `surface-app` with a `line` edge, as the rail's strip does. The
-  selection, its size label and the marks follow the panel's theme.
-- **One height.** `h-control` 24px for a field, a button or a segmented
-  group; `h-control-sm` 20px for a chip or an action inside a row;
-  `btn-lg` 32px for the one thing a screen is for.
-- **Fields are fills.** `field`, `field-select`, `field-invalid` in
-  `shared/theme.css`: no border, a lighter fill on hover, a 1px accent edge
-  on focus, a warn fill when a value will not take. A number field's letter
-  sits inside it and is the scrub handle.
-- **Accent is spent sparingly.** "On" in a segmented group is a neutral
-  raised pill (`surface-thumb`). Accent marks the selection (outline, rail
-  row, its icon), focus, a held state (hover, dark, a width), and the one
-  primary button on a screen.
-- **Tabs** are a filled rectangle for the active one, no underline (W29):
-  two marks for one state was one too many.
-- **Variables are one row each (W29):** name and use count on the left, the
-  value field on the right at a fixed 9rem; dark, width and by-hand tags go on
-  a small line under the name only when there are any; the lock shows on
-  hover, or always once locked, and a locked variable shows its held value
-  instead of a field.
-- **Labels.** One 56px column, sentence case, 11px ink-muted. Group and
-  section heads: 11px medium ink, 30px, full-width hairline, a chevron on
-  the right. Subheads: `subhead`, 10px medium ink-muted, never capitals.
-- **Sticky.** The strip holding the selection and its state sticks at the
-  top of the Style column; the group heads stick under it (`--style-top`).
-- **Tags** are 16px fills with a 4px radius, not outlined pills. **Callouts**
-  are fills. **Empty states** are `Empty` (`components/States.tsx`) at two
-  sizes. **Icons** are SVG; no text glyph stands in for one.
-- **Type scale** stays 10 · 11 · 12 · 13 · 15px, now with a job each: 10 for
-  tags, captions and subheads; 11 for every control and label; 12 for a
-  card's title and a large button; 13 the body default; 15 unused in the
-  chrome.
+- **One palette.** Light is Nudge's (panel `#f5f5f4`, a 5% black well flattened
+  to `#e9e9e8`, ink `#242424`, accent `#0096ff`); dark mirrors it. The bar and
+  the overlays read the same values through `OVERLAY`, pinned by
+  `theme.test.ts`, which also records the contrast (primary text clears Lc 75
+  on both sides).
+- **Inter at 12px** for every control, label and title; 10px for small
+  print. Bundled as `Codename Inter` and added to the page's font set for the
+  rail and the bar (`shared/inpageFont.ts`).
+- **One height.** `h-control` 32px for a field, a button or a segmented
+  group; `h-control-sm` 24px for a chip or an action in a row; `btn-lg` 40px.
+- **Fields are wells.** No border, a deeper well on hover, an inset 2px accent
+  ring on focus. A field leads with an icon (Tabler, 16px at 1.5) that is its
+  scrub handle; the drag locks the pointer, one step per 16px.
+- **A token is the value.** When the declaration names a variable, a white
+  chip inside the well replaces the value (`TokenChip`); "matches" stays a
+  chip under the field.
+- **Popups, not native selects.** `Listbox` (Base UI Select) and the token
+  picker open a white card under the field: 34px rows, a tick on the chosen
+  one, a search row when the list is long.
+- **Buttons.** Primary is a raised white button; the one accent fill on a
+  screen is `btn-accent-fill` (Make changes).
+- **Accent is spent sparingly.** "On" in a segmented group is the raised
+  white thumb. Accent marks the selection, focus, a held state and the one
+  accent-filled action.
+- **Sections.** `section` / `section-title`: 12px semibold titles, 8px
+  rhythm, a hairline under each, a + / − or toggle on the right. Labels
+  (`field-label`) sit above their fields. Gutters are 20px.
+- **Tabs** are a filled rectangle for the active one, no underline (W29).
+- **Tags, callouts, empty states, icons** as W28 had them, at the new sizes.
 
 ## Cross-cutting rules
 

@@ -779,18 +779,48 @@ describe('the Style column', () => {
     await tick();
   };
 
-  it('lays the groups out in a design tool\'s order, all open', async () => {
+  // A listbox: open it, then pick the option by its words.
+  // Base UI opens on the press and picks on the release, so play the whole gesture.
+  const press = (el: Element | null) =>
+    act(async () => {
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+        const Ctor = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+        el?.dispatchEvent(new Ctor(type, { bubbles: true, cancelable: true, button: 0, pointerType: 'mouse' } as PointerEventInit));
+      }
+    });
+  const choose = async (label: string, option: string) => {
+    await press(host.querySelector(`[aria-label="${label}"]`));
+    await tick(60);
+    await press(Array.from(host.querySelectorAll('[role=option]')).find((o) => o.textContent?.trim() === option) ?? null);
+    await tick(120);
+  };
+
+  it("lays the sections out in Nudge's order, folding what the element does not have", async () => {
     await selectHeading();
-    const heads = Array.from(host.querySelectorAll('section > button[aria-expanded]')).map((b) => b.textContent?.replace('▶', ''));
-    expect(heads).toEqual(['Position', 'Size', 'Layout', 'Spacing', 'Colour', 'Type', 'Border', 'Effects', 'Motion', 'Text']);
-    expect(host.querySelectorAll('section > button[aria-expanded="false"]')).toHaveLength(0);
+    const heads = Array.from(host.querySelectorAll('section[aria-label] > .section-title h3')).map((h) => h.textContent);
+    expect(heads).toEqual(['Layout', 'Spacing', 'Appearance', 'Text', 'Colour', 'Background', 'Border', 'Box shadow', 'Effects', 'Motion', 'Content']);
+    // The heading has padding and a fill of its own; no margin, border, shadow, effects or motion.
+    const adds = Array.from(host.querySelectorAll('button[aria-label^="Add "]')).map((b) => b.getAttribute('aria-label'));
+    expect(adds).toEqual(['Add margin', 'Add border', 'Add shadow', 'Add effects', 'Add motion']);
+    expect(host.querySelector('[aria-label="Remove padding"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Remove background"]')).not.toBeNull();
+  });
+
+  it('adds a border with a visible start, and takes it away again', async () => {
+    await selectHeading();
+    await click(host.querySelector('[aria-label="Add border"]'));
+    await tick(120);
+    expect(lastRules().map((r) => `${r.property}:${r.value}`).sort()).toEqual(['border-style:solid', 'border-width:1px']);
+    expect(host.querySelector('[aria-label="Border style"]')).not.toBeNull();
+    await click(host.querySelector('[aria-label="Remove border"]'));
+    await tick(120);
+    expect(lastRules().find((r) => r.property === 'border-style')?.value).toBe('none');
   });
 
   it('positions the box and opens the insets once it is positioned', async () => {
     await selectHeading();
     expect(host.querySelector('[aria-label="Top"]')).toBeNull();
-    await click(radio('Position', 'absolute'));
-    await tick(120);
+    await choose('Position', 'Absolute');
     expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'position', value: 'absolute' }]);
     await selectHeading({ position: { type: 'absolute', top: '0px', right: 'auto', bottom: 'auto', left: '0px', zIndex: '2' } });
     expect(host.querySelector('[aria-label="Top"]')).not.toBeNull();
@@ -835,8 +865,8 @@ describe('the Style column', () => {
     expect(badge()).toBe('2');
   });
 
-  it('edits spacing in the diagram, reaching the sides the link says', async () => {
-    await selectHeading();
+  it('edits padding across and down, or one side once the sides are split', async () => {
+    await selectHeading({ box: { ...element().box, paddingTop: '8px', paddingRight: '8px', paddingBottom: '8px', paddingLeft: '8px' } });
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
     const type = async (label: string, value: string) => {
       const input = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
@@ -847,13 +877,15 @@ describe('the Style column', () => {
       });
       await tick(120);
     };
-    await type('Padding top', '12');
-    expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'padding-top', value: '12' }]);
-    await click(radio('Sides an edit reaches', 'all'));
-    await type('Padding left', '20');
-    expect(lastRules().filter((r) => r.property.startsWith('padding')).map((r) => `${r.property}:${r.value}`).sort()).toEqual(
-      ['padding-bottom:20', 'padding-left:20', 'padding-right:20', 'padding-top:20'],
-    );
+    await type('Padding across', '12');
+    expect(lastRules().filter((r) => r.property.startsWith('padding')).map((r) => `${r.property}:${r.value}`).sort()).toEqual([
+      'padding-left:12',
+      'padding-right:12',
+    ]);
+    expect(host.querySelector('[aria-label="Padding top"]')).toBeNull();
+    await click(host.querySelector('[aria-label="Padding: each side"]'));
+    await type('Padding top', '20');
+    expect(lastRules().find((r) => r.property === 'padding-top')?.value).toBe('20');
   });
 });
 
@@ -892,6 +924,8 @@ describe('motion, second half', () => {
   it('makes an appear trigger one declaration over a preset, and a scroll trigger adds the timeline', async () => {
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));
     await tick();
+    // Nothing moves on the heading yet, so Motion is folded to its +.
+    await click(host.querySelector('[aria-label="Add motion"]'));
     await click(radio('Trigger', 'appear'));
     await tick(120);
     expect(lastRules()).toEqual([{ selector: 'h1#title', property: 'animation', value: 'codename-fade-in 600ms ease-out 0s 1 normal both' }]);

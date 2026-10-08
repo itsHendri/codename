@@ -17,6 +17,8 @@ import { Empty } from './States';
 import { setVarOverride } from '../lib/session';
 import { ColorField } from './inspect/ColorField';
 import type { CustomPropInfo } from '@/shared/types';
+import { IconChevronDown } from '@tabler/icons-react';
+import { shortcutSheet } from '@/studio/inspect/commands';
 
 /** Selection works before a scan; without one there are simply no token chips. */
 const NO_SCAN = { customProps: [], rootFontSize: 16 };
@@ -91,7 +93,7 @@ export function StyleTab({
   // selection, and System is the page's styles, one tab over.
   if (!el) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-3 p-3">
+      <div className="flex h-full min-h-0 flex-col gap-3 px-5 py-3">
         <Empty
           icon={<InspectIcon className="h-6 w-6" />}
           title="Nothing selected"
@@ -110,14 +112,15 @@ export function StyleTab({
           Looking for the page's colours and type? Open System
         </button>
         {error && <p className="text-xs text-warn-ink">{error}</p>}
+        <Shortcuts />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3" style={{ '--style-top': `${topHeight}px` } as CSSProperties}>
+    <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 pb-7 pt-3" style={{ '--style-top': `${topHeight}px` } as CSSProperties}>
       <Breadcrumb items={el.breadcrumb} onSelect={ctl.ancestor} />
-      <div ref={top} className="sticky top-0 z-20 -mx-3 flex flex-col gap-1.5 bg-surface-app px-3 py-1.5">
+      <div ref={top} className="sticky top-0 z-20 -mx-5 flex flex-col gap-2 border-b border-line bg-surface-app px-5 pb-2 pt-1.5">
         <Selection element={el} ctl={ctl} />
         <ConditionChips ctl={ctl} />
       </div>
@@ -174,7 +177,7 @@ function Note({
     ? { kind: 'element', selector: element.intent.selector, matches: element.intent.matches }
     : { kind: 'element', selector: element.selector, matches: element.matches };
   return (
-    <div className="-mx-3 border-t border-line-subtle px-3 pt-3">
+    <div className="pt-3">
       {open ? (
         <CommentComposer
           target={target}
@@ -338,7 +341,7 @@ function ConditionChips({ ctl }: { ctl: InspectController }) {
       aria-checked={active}
       onClick={onClick}
       title={title}
-      className={`min-w-0 flex-1 truncate rounded-segment px-1 text-xs capitalize ${
+      className={`min-w-0 flex-auto truncate rounded-segment px-1 text-xs capitalize ${
         active
           ? label === 'default'
             ? 'bg-surface-thumb text-ink shadow-[var(--shadow-control)]'
@@ -366,7 +369,7 @@ function ConditionChips({ ctl }: { ctl: InspectController }) {
             ? 'This page declares no width queries, so these are the bar\'s device presets'
             : "The widths this page's own stylesheets are written against"
         }
-        className={`field-select min-w-0 flex-1 rounded-[4px] text-xs ${
+        className={`field-select w-[68px] min-w-0 flex-none rounded-segment pl-1.5 text-xs ${
           current?.kind === 'width' ? 'bg-accent-soft text-accent' : 'bg-transparent text-ink-muted hover:text-ink'
         }`}
       >
@@ -446,6 +449,42 @@ function Contrast({ element }: { element: ElementProps }) {
           {badge.label}
         </span>
       </span>
+    </div>
+  );
+}
+
+/**
+ * The keys, under the empty state, as Nudge keeps them: the same sheet
+ * Shift+? draws on the page, folded until asked for.
+ */
+function Shortcuts() {
+  const [open, setOpen] = useState(false);
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  return (
+    <div className="mt-2 border-t border-line pt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex h-control w-full items-center justify-between text-xs font-semibold text-ink-secondary hover:text-ink"
+      >
+        Keyboard shortcuts
+        <IconChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} stroke={1.5} aria-hidden />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-3 pt-1">
+          {shortcutSheet(mac).map((g) => (
+            <div key={g.title} className="flex flex-col gap-1.5">
+              <span className="subhead">{g.title}</span>
+              {g.items.map((i) => (
+                <div key={i.keys + i.what} className="flex items-center justify-between gap-2 text-xs text-ink-secondary">
+                  <span className="min-w-0 truncate">{i.what}</span>
+                  <kbd className="shrink-0 rounded-[4px] bg-surface-field px-1.5 py-0.5 font-sans text-2xs text-ink shadow-[var(--shadow-control)]">{i.keys}</kbd>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

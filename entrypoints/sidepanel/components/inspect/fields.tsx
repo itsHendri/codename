@@ -4,7 +4,7 @@ import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { cellOf, valuesFor, type Cell } from '@/studio/alignGrid';
 import { NumberField } from './NumberField';
 import { Listbox } from './Listbox';
-import { ChevronIcon } from '../icons';
+import { IconMinus, IconPlus } from '@tabler/icons-react';
 
 /**
  * One edit from the panel: a property, its new value, the token it was
@@ -20,63 +20,79 @@ export interface ChangeOptions {
 export type Change = (property: string, to: string, token?: string, opts?: ChangeOptions) => void;
 
 /**
- * A group of properties with a head that stays put while the column scrolls,
- * and a summary of what it holds when folded. The head and its hairline run
- * the full width of the column, gutters included, as Framer's do; the head
- * sticks under whatever the column keeps above it (`--style-top`).
+ * A section of the Style column, Nudge's: a 12px semibold title with its
+ * action on the right (a + to add the property, a − to take it away, a
+ * toggle), the fields under it, a hairline under the lot. A section with
+ * nothing under it is the folded form: the title and its +.
  */
-export function Group({
-  title,
-  summary,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  summary: ReactNode;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
+export function Section({ title, action, children }: { title: string; action?: ReactNode; children?: ReactNode }) {
   return (
-    <section className="-mx-3 border-t border-line-subtle first:border-t-0">
-      <button
-        onClick={onToggle}
-        aria-expanded={open}
-        className="group sticky top-[var(--style-top,0px)] z-10 flex h-[30px] w-full items-center gap-2 bg-surface-app px-3 text-left text-xs font-medium text-ink"
-      >
-        {title}
-        {!open && (
-          <span className="min-w-0 flex-1 truncate text-right font-mono text-2xs font-normal text-ink-muted">{summary}</span>
-        )}
-        <ChevronIcon
-          className={`ml-auto h-3 w-3 shrink-0 text-ink-muted transition-transform group-hover:text-ink ${open ? 'rotate-90' : ''}`}
-        />
-      </button>
-      {open && <div className="flex flex-col gap-1.5 px-3 pb-3">{children}</div>}
+    <section className="section" aria-label={title}>
+      <div className="section-title">
+        <h3 className="m-0 text-xs font-semibold">{title}</h3>
+        {action && <div className="-mr-2 flex items-center">{action}</div>}
+      </div>
+      {children}
     </section>
   );
 }
 
-export function Chip({ color }: { color: string }) {
+/** A quiet 32px icon button in a section's head or at the end of a row. */
+export function IconButton({
+  label,
+  onClick,
+  pressed,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <span
-      className="inline-block h-3 w-3 rounded-sm swatch"
-      style={{ background: color }}
-      title={color}
-    />
+    <button
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      className={`flex h-control w-control shrink-0 items-center justify-center rounded-control [&>svg]:h-4 [&>svg]:w-4 ${
+        pressed ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-surface-field hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-export function SideLabel({ children }: { children: ReactNode }) {
-  return <span className="w-14 shrink-0 truncate text-xs leading-6 text-ink-muted first-letter:uppercase">{children}</span>;
+/** + to add a property the element does not have, − to take it away. */
+export function AddRemove({ what, present, onAdd, onRemove }: { what: string; present: boolean; onAdd: () => void; onRemove: () => void }) {
+  return present ? (
+    <IconButton label={`Remove ${what}`} onClick={onRemove}>
+      <IconMinus stroke={1.5} />
+    </IconButton>
+  ) : (
+    <IconButton label={`Add ${what}`} onClick={onAdd}>
+      <IconPlus stroke={1.5} />
+    </IconButton>
+  );
 }
 
-export function Labelled({ label, children }: { label: string; children: ReactNode }) {
+/** A label over its field, Nudge's: 12px secondary ink, 4px above. */
+export function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2">
-      <SideLabel>{label}</SideLabel>
+    <div className={`flex min-w-0 flex-col ${className}`}>
+      <span className="field-label">{label}</span>
       {children}
+    </div>
+  );
+}
+
+/** A sub-head inside a section ("Padding", "Flex child"), with an optional action. */
+export function SubHead({ label, action }: { label: string; action?: ReactNode }) {
+  return (
+    <div className="flex min-h-control items-center justify-between text-xs text-ink-secondary">
+      <span>{label}</span>
+      {action && <div className="-mr-2 flex items-center">{action}</div>}
     </div>
   );
 }
@@ -86,6 +102,7 @@ export function LengthField({
   prop,
   value,
   label,
+  icon,
   aria,
   compact = false,
   suggest,
@@ -94,6 +111,7 @@ export function LengthField({
   prop: string;
   value: string;
   label: string;
+  icon?: ReactNode;
   aria: string;
   compact?: boolean;
   suggest: (v: string, prop: string) => TokenSuggestion[];
@@ -102,7 +120,7 @@ export function LengthField({
   const match = suggest(value, prop).find((s) => s.source === 'page' && s.exact);
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <NumberField value={value} label={label || undefined} ariaLabel={aria} onChange={(v) => onChange(prop, v)} />
+      <NumberField value={value} label={label || undefined} icon={icon} property={prop} ariaLabel={aria} onChange={(v) => onChange(prop, v)} />
       {match && (
         <button
           onClick={() => onChange(prop, `var(${match.name})`, match.name)}
@@ -151,7 +169,8 @@ export function Segmented<T extends string>({
   options: readonly T[];
   ariaLabel: string;
   onChange: (v: T) => void;
-  labels?: Partial<Record<T, string>>;
+  /** A word, or an icon (then the title, or the option, is its name). */
+  labels?: Partial<Record<T, ReactNode>>;
   titles?: Partial<Record<T, string>>;
   className?: string;
 }) {
@@ -172,7 +191,8 @@ export function Segmented<T extends string>({
             aria-checked={on}
             onClick={() => onChange(o)}
             title={titles?.[o]}
-            className={`segment truncate px-1 capitalize ${dense ? 'text-2xs' : ''}`}
+            aria-label={typeof labels?.[o] === 'object' ? (titles?.[o] ?? o) : undefined}
+            className={`segment truncate px-1 capitalize ${dense ? 'text-2xs' : ''} [&>svg]:h-4 [&>svg]:w-4`}
           >
             {labels?.[o] ?? o}
           </button>
@@ -202,8 +222,11 @@ export function AlignGrid({
   const cells: Cell[] = [];
   for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) cells.push({ row, col });
   const name = (c: Cell) => `${['top', 'middle', 'bottom'][c.row]} ${['left', 'centre', 'right'][c.col]}`;
+  // Nudge's grid: a well of dots, the chosen cell drawn as three bars lined
+  // up the way the children sit.
+  const bars = (col: number) => (col === 0 ? 'items-start' : col === 1 ? 'items-center' : 'items-end');
   return (
-    <div role="radiogroup" aria-label="Align children" className="grid w-fit grid-cols-3 gap-0.5 rounded-control bg-surface-field p-1">
+    <div role="radiogroup" aria-label="Align children" className="grid h-[88px] w-[88px] shrink-0 grid-cols-3 grid-rows-3 rounded-control bg-surface-field p-1">
       {cells.map((c) => {
         const on = lit?.row === c.row && lit.col === c.col;
         return (
@@ -214,11 +237,17 @@ export function AlignGrid({
             aria-label={name(c)}
             title={name(c)}
             onClick={() => onChange(valuesFor(c, direction))}
-            className={`flex h-5 w-6 items-center justify-center rounded-segment ${
-              on ? 'bg-surface-thumb shadow-[var(--shadow-control)]' : 'hover:bg-surface-field-hover'
-            }`}
+            className="group flex items-center justify-center rounded-[4px] hover:bg-surface-field-hover"
           >
-            <span className={`block rounded-full ${on ? 'h-2 w-2 bg-accent' : 'h-1 w-1 bg-ink-faint'}`} />
+            {on ? (
+              <span className={`flex w-[14px] flex-col gap-[2px] ${bars(c.col)}`}>
+                <span className="block h-[2px] w-[10px] rounded-full bg-accent" />
+                <span className="block h-[2px] w-[14px] rounded-full bg-accent" />
+                <span className="block h-[2px] w-[8px] rounded-full bg-accent" />
+              </span>
+            ) : (
+              <span className="block h-[3px] w-[3px] rounded-full bg-ink-faint group-hover:bg-ink-muted" />
+            )}
           </button>
         );
       })}
