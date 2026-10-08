@@ -311,7 +311,12 @@ export interface ElementProps {
     letterSpacing: string;
     textAlign: string;
   };
-  color: { text: string; background: string; border: string };
+  /**
+   * `background` is what shows behind the element, its ancestors composited
+   * in; `fill` is the element's own computed background-color, which says
+   * whether it paints one at all (W54: an empty Background folds to +).
+   */
+  color: { text: string; background: string; border: string; fill?: string };
   radius: string;
   /** Each corner on its own, for the shapes one radius cannot say. */
   corners: { topLeft: string; topRight: string; bottomRight: string; bottomLeft: string };

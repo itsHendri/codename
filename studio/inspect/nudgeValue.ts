@@ -36,7 +36,7 @@ const isWeight = (p: string) => p === 'font-weight';
 const isLineHeight = (p: string) => p === 'line-height';
 const isOpacity = (p: string) => p === 'opacity';
 const nonNegative = (p: string) =>
-  /^(?:padding|(?:row|column)-gap|gap$|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius|border-width|width$|height$|min-|max-)/.test(p);
+  /^(?:padding|(?:row|column)-gap|gap$|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius|border-width|width$|height$|min-|max-|filter-blur)/.test(p);
 
 /** The size of one press for this property and unit, or the field's own step. */
 function stepOf(property: string, unit: string, large: boolean, fallback: number): number {

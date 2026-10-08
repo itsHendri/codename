@@ -107,6 +107,7 @@ export function readProps(el: Element, authored?: Record<string, AuthoredDecl>):
       text: fg ?? cs.color,
       background: bg,
       border: toHex(cs.borderTopColor) ?? cs.borderTopColor,
+      fill: cs.backgroundColor,
     },
     radius: cs.borderRadius,
     corners: {

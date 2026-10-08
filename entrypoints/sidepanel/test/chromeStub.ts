@@ -208,7 +208,7 @@ export const element = (over: Record<string, unknown> = {}) => ({
   },
   opacity: '1',
   type: { fontFamily: 'Inter', fontSize: '28px', fontWeight: '600', lineHeight: '34px', letterSpacing: 'normal', textAlign: 'start' },
-  color: { text: '#15171B', background: '#E7E4DB', border: '#CBC7BC' },
+  color: { text: '#15171B', background: '#E7E4DB', border: '#CBC7BC', fill: 'rgb(231, 228, 219)' },
   radius: '0px',
   corners: { topLeft: '0px', topRight: '0px', bottomRight: '0px', bottomLeft: '0px' },
   border: { width: '0px', style: 'none', color: '#CBC7BC' },
