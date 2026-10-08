@@ -104,3 +104,34 @@ export function selectionColours(samples: ColourSample[], perColour = 80) {
     .map(([hex, uses]) => ({ hex, uses: uses.slice(0, perColour) }))
     .sort((a, b) => b.uses.length - a.uses.length || a.hex.localeCompare(b.hex));
 }
+
+/**
+ * The opacity part of a colour the panel shows beside its swatch (Nudge's
+ * 44px % field): a whole percentage, or null for what has none to give (a
+ * var(), a keyword like `currentColor`).
+ */
+export function alphaPercent(value: string): number | null {
+  const v = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(v) || /^#[0-9a-f]{3}$/i.test(v)) return 100;
+  if (/^#[0-9a-f]{8}$/i.test(v)) return Math.round((parseInt(v.slice(7), 16) / 255) * 100);
+  const rgba = parseRgba(v);
+  return rgba ? Math.round(rgba.a * 100) : null;
+}
+
+/** The colour with its opacity set: `#15171B` at 50 → `#15171B80`; opaque drops the pair. */
+export function withAlpha(value: string, percent: number): string | null {
+  const v = value.trim();
+  const a = Math.min(100, Math.max(0, Math.round(percent)));
+  let hex: string | null = null;
+  if (/^#[0-9a-f]{6}$/i.test(v)) hex = v;
+  else if (/^#[0-9a-f]{8}$/i.test(v)) hex = v.slice(0, 7);
+  else if (/^#[0-9a-f]{3}$/i.test(v)) hex = `#${[...v.slice(1)].map((c) => c + c).join('')}`;
+  else {
+    const rgba = parseRgba(v);
+    if (rgba) hex = rgbToHexStr(rgba.r, rgba.g, rgba.b);
+  }
+  if (!hex) return null;
+  if (a === 100) return hex;
+  const pair = Math.round((a / 100) * 255).toString(16).padStart(2, '0');
+  return `${hex}${hex === hex.toUpperCase() ? pair.toUpperCase() : pair}`;
+}

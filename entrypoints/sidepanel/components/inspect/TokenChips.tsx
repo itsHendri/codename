@@ -29,7 +29,7 @@ export function TokenChips({
             key={s.name}
             onClick={() => onPick(s)}
             title={`${s.name}: ${s.value}`}
-            className={`h-5 max-w-full truncate rounded-control px-1.5 font-mono text-2xs ${
+            className={`h-6 max-w-full truncate rounded-segment px-2 text-2xs ${
               chosen
                 ? 'bg-accent-soft text-accent'
                 : 'bg-surface-field text-ink-secondary hover:bg-surface-field-hover hover:text-ink'

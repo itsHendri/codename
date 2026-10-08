@@ -21,8 +21,10 @@
     "harness:scripts": "npm run build && cp dist/chrome-mv3/content-scripts/*.js .harness/public/"
   },
   "dependencies": {
+    "@base-ui/react": "1.8.0",
     "@projectwallace/css-analyzer": "^9.9.3",
     "@projectwallace/css-design-tokens": "^0.11.11",
+    "@tabler/icons-react": "3.49.0",
     "apca-w3": "^0.1.9",
     "culori": "^4.0.2",
     "fflate": "^0.8.3",

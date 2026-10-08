@@ -6,7 +6,7 @@ import { apca } from '@/studio/engine/contrast';
 import { hexOf } from '@/studio/reskin';
 import { linkedBy, type ColourLinks } from '@/studio/systemMap';
 import { ColorField } from '../inspect/ColorField';
-import { TokenGlyph } from '../inspect/TokenPill';
+import { TokenGlyph } from '../inspect/TokenChip';
 
 /** Roles whose ramp belongs on the page: a page variable is on it, or its seed is one of the page's colours. */
 export function rampsOnPage(brand: BrandConfig, links: ColourLinks, props: CustomPropInfo[]): ScaleRole[] {

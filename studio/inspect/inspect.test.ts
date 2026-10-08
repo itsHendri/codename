@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex } from './colour';
+import { alphaPercent, compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex, withAlpha } from './colour';
 import { buildLayers, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
 import { dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from './geometry';
 import { readProps, roundedStyle } from './readProps';
@@ -226,5 +226,21 @@ describe('selection colours', () => {
       ['#BE3A22', ['.a color', '.c background-color']],
       ['#15171B', ['.b color']],
     ]);
+  });
+});
+
+describe('alphaPercent and withAlpha', () => {
+  it('reads the opacity of hex and rgb colours, and nothing from a var()', () => {
+    expect(alphaPercent('#15171B')).toBe(100);
+    expect(alphaPercent('#15171B80')).toBe(50);
+    expect(alphaPercent('rgba(0, 0, 0, 0.1)')).toBe(10);
+    expect(alphaPercent('var(--ink)')).toBeNull();
+  });
+
+  it('writes the opacity back as an eight-digit hex, and drops it at 100', () => {
+    expect(withAlpha('#15171B', 50)).toBe('#15171B80');
+    expect(withAlpha('#15171B80', 100)).toBe('#15171B');
+    expect(withAlpha('rgb(255, 0, 0)', 10)).toBe('#FF00001A');
+    expect(withAlpha('currentColor', 50)).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { TokenSuggestion } from '@/studio/tokenMatch';
 import { cellOf, valuesFor, type Cell } from '@/studio/alignGrid';
 import { NumberField } from './NumberField';
+import { Listbox } from './Listbox';
 import { ChevronIcon } from '../icons';
 
 /**
@@ -106,7 +107,7 @@ export function LengthField({
         <button
           onClick={() => onChange(prop, `var(${match.name})`, match.name)}
           title={`${match.authored ? 'is' : 'matches'} ${match.name}: ${match.value}`}
-          className="h-5 max-w-full truncate self-start rounded-control bg-surface-field px-1.5 font-mono text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
+          className="h-6 max-w-full truncate self-start rounded-segment bg-surface-field px-2 text-2xs text-ink-secondary hover:bg-surface-field-hover hover:text-ink"
         >
           {!compact && <span className="font-sans text-ink-muted">{match.authored ? 'is ' : 'matches '}</span>}
           {match.name}
@@ -116,38 +117,19 @@ export function LengthField({
   );
 }
 
-export function Select<T extends string>({
-  value,
-  options,
-  ariaLabel,
-  onChange,
-  labels,
-  className = '',
-}: {
+/** One of many: the Listbox (a popup, Nudge's), under the name the panel has always used. */
+export function Select<T extends string>(props: {
   value: string;
   options: readonly T[];
   ariaLabel: string;
   onChange: (v: T) => void;
   /** How an option reads, when the CSS word is not the designer's word. */
   labels?: Partial<Record<T, string>>;
+  notes?: Partial<Record<T, string>>;
+  icon?: ReactNode;
   className?: string;
 }) {
-  const known = options.includes(value as T);
-  return (
-    <select
-      value={known ? value : ''}
-      onChange={(e) => onChange(e.target.value as T)}
-      aria-label={ariaLabel}
-      className={`field field-select min-w-0 ${className}`}
-    >
-      {!known && <option value="">{value}</option>}
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {labels?.[o] ?? o}
-        </option>
-      ))}
-    </select>
-  );
+  return <Listbox {...props} />;
 }
 
 /**

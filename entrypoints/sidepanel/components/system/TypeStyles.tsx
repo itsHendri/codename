@@ -7,7 +7,7 @@ import { NAMED_RATIOS, nearestRatio, ratioName, scaleSize, stepsOf } from '@/stu
 import type { ManyEdit } from '../../lib/inspect';
 import { NumberField } from '../inspect/NumberField';
 import { Select } from '../inspect/fields';
-import { TokenGlyph } from '../inspect/TokenPill';
+import { TokenGlyph } from '../inspect/TokenChip';
 
 const FIELDS: { field: keyof TypeStyle['fields']; property: string; label: string; step?: number }[] = [
   { field: 'size', property: 'font-size', label: 'size' },
