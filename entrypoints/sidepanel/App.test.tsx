@@ -889,6 +889,25 @@ describe('the Style column', () => {
   });
 });
 
+describe('holding \\ on the page', () => {
+  it('takes the edits off the page while the key is down and puts them back on release', async () => {
+    await act(async () => stub.emit({ type: 'element-selected', data: element() }));
+    await tick();
+    await act(async () => stub.emit({ type: 'element-edit', property: 'color', to: '#ff0000' }));
+    await tick(120);
+    const rules = () => stub.sent.filter((m) => m.type === 'elements-set').at(-1)?.rules as unknown[];
+    expect(rules()).toHaveLength(1);
+    await act(async () => stub.emit({ type: 'inspector-shortcut', action: 'peek' }));
+    await tick(120);
+    expect(rules()).toEqual([]);
+    await act(async () => stub.emit({ type: 'inspector-shortcut', action: 'unpeek' }));
+    await tick(120);
+    expect(rules()).toHaveLength(1);
+    // A peek is not an edit: the log is as it was.
+    expect(getSession().log.entries).toHaveLength(1);
+  });
+});
+
 describe('the Style tab with nothing picked', () => {
   it('is an empty state that points to the page, the rail and System, not a summary of the page', async () => {
     expect(text()).toContain('Nothing selected');

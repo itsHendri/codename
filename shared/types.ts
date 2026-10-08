@@ -515,7 +515,7 @@ export type RuntimeMessage =
   /** The chip on the bar: take the agent's preview off the page. */
   | { type: 'agent-clear' }
   | { type: 'element-selected'; data: ElementProps | null }
-  | { type: 'inspector-shortcut'; action: 'undo' | 'redo' }
+  | { type: 'inspector-shortcut'; action: 'undo' | 'redo' | 'peek' | 'unpeek' }
   | { type: 'pin-clicked'; id: string }
   | { type: 'note-created'; target: CommentTarget; text: string }
   | { type: 'note-toggled'; active: boolean }

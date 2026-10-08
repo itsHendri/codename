@@ -53,6 +53,7 @@ export function shortcutSheet(mac: boolean): ShortcutGroup[] {
       title: 'Looking',
       items: [
         { keys: `Hold ${mac ? '⌥' : 'Alt'}`, what: 'Measure' },
+        { keys: 'Hold \\', what: 'See the page without your edits' },
         { keys: 'P', what: 'Preview' },
         { keys: 'C', what: 'Comment' },
         { keys: `${a}L`, what: 'Left panel' },
