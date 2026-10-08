@@ -123,3 +123,32 @@ Revised the same afternoon, after the System research (plan in `~/.claude/plans/
 - **"H1 → H2" means the type style,** not the tag. Tag changes stay with the agent.
 - **Generate writes into the project** (a tokens stylesheet; the import and literal adoption go to the agent).
 - **Export folds into System** as one action. DESIGN.md is the only agent-facing file; brand.md, SKILL.md, DESIGN_SYSTEM.md, the extractor tokens.json, brand.json and preview.html go. The specimen saves as HTML instead.
+
+## Status, 8 October 2026
+
+Everything in the order of work above is built and merged (PRs #30–#38, 24 September), plus the rounds that followed from using it (#39–#45, 25–29 September). Main is at 8fcbd8d; 1223 tests, bridge 241.
+
+**What exists now, in the order a person meets it**
+
+- The bar: Select · Preview · Comment; the frame presets; Reset; a two-position Light / Dark switch that lights the side the page is on (`scan.scheme`) and previews or forces the other. No Auto, no Styles button.
+- The rail: a 68px strip down the far left (Pages, Layers, Components, Assets, System) and a column that follows it; the same section again folds the column. Assets sit on the side the bar shows, in the page's own ink.
+- The panel: Style · Changes. Style with nothing selected is an empty state with one line to System. Changes holds Written (the bridge's verified token writes), Handed to the agent, Adopt tokens, and Make changes with Claude Code, Gemini CLI, Cursor, Codex or a custom command, plus "Or run it in a terminal".
+- The Design System Manager, from System on the strip: a room over the canvas with two views. **Tokens** lays the panel from the rail's edge to the window's under one head (view switch, section select, status, Reset all, Generate, Export, Back to the page) and shows one section at a time at full width — Colour ramps with links and pins, Type styles and scale, Space & shape, Tokens by scope with the dark side, Critique, Token file — chosen in the rail's outline or the head; Escape closes. **Specimen** draws the page's own styles page in the page from its own rules, with the outline listing its samples and two-way selection.
+- Generate: inputs read from the page, a proposal previewed through the re-skin and a proposal sheet, written by the bridge as one file and one import under its own consent, literals adopted by the agent from the brief.
+- Export: DESIGN.md (Google's open format, written from this page), tokens.css, tokens.json, specimen.html, ZIP; the same files through `get_design_system`.
+
+**Decisions that changed since the table above**
+
+- *Panel + Specimen, not a takeover* was reversed on 25 September once the specimen existed: a takeover made of the page's own styles page is still the product, and the editor needed the room. The DSM is the takeover; the right panel is two tabs. The reasoning is in PLAN.md under W49–W53.
+- Export is one action inside the DSM, DESIGN.md is the only agent-facing document, brand.md and the skill bundle are gone.
+- The System editor stays in the panel's one React mount (the panel frame expands) rather than a second frame docked left, because the session has no cross-instance sync.
+
+**Not done, in the order to take them**
+
+1. Use it on forfontsake: the Type section with 49 styles at full width, the outline's keys on Tailwind utilities, a keyboard pass on the DSM's open and close (the focus return to the strip is the one part the harness could not exercise), Generate on a fresh Vite scaffold.
+2. Publish `codename-bridge`: everything since 0.2.0 is unreleased — scope-aware writes, `create_tokens_file`, DESIGN.md in `get_design_system`, Gemini CLI, the terminal command. Needs Hendri's npm 2FA.
+3. Two soft spots: the page's side is read once at scan, so a site's own theme toggle leaves the bar stale until a rescan; the assets' ink is read from the body, so a page that paints text colour on a wrapper gives the tiles the wrong ink.
+4. Deferred from the start: the React 19 source ladder (file and line on click), the optional one-line plugin, the vue-inspector v6 fix, the signed companion and store listing.
+5. Gemini CLI has not been run against a real install; its stream-json fields are read under every spelling for that reason.
+
+**How to verify without the extension**: `.harness/` (gitignored) — `preview_start harness` on :5320; `/?theme=dark&wide=1` plus `chrome.__emit({type:'dsm-toggled',on:true})` shows the DSM at canvas width; `page.html` drives the content scripts (`__cmd`, `__msg`), with `spechelper.js` bundled by esbuild for the specimen's spec; `npm run harness:scripts` after any content-script change. Details in PLAN.md and the memory notes.
