@@ -61,6 +61,19 @@ reorder.
   the menu adds no capability, only reach. Alt+right-click keeps the
   browser's menu. The **edit card is gone**: Figma and Framer open nothing
   over the canvas on a selection, and the card repeated the panel beside it.
+- **Delete (W55).** Delete or Backspace on the page (bar up, Select on, no
+  modifier), Delete in the right-click menu and ⌘K, or Delete / Backspace on
+  a row in the rail: the selection, and the rest of a shift-click one, is
+  taken out of the page as a real DOM removal. Like a move it is
+  whole-state (`toRemovals` → the inspector's `removals`: everything taken
+  out is put back, then the list is taken out again, all found before any
+  goes), so undo, revert, View original and a reload need nothing special.
+  Each element is one `remove` entry, undone on its own. The brief says it
+  in words — take the element and everything inside it out of the markup,
+  only this instance if it comes from a list or a shared component — and
+  leaves out the deleted element's own style edits. A framework re-render
+  may put the element back; the delete is a preview here and lands in
+  source through the agent.
 - A row hovered in the rail peeks the same 1px outline on the page.
 - The hover card (font · text · fill · contrast · box) is gone: the edit
   card and the panel said the same things again.
@@ -209,11 +222,10 @@ and `shared/tokens.css`; the notice is in `THIRD_PARTY_NOTICES.md`.
 - **A label coloured when this log set its value** (Webflow's orange and
   blue). It would be honest, since it reads only the log, but it gives
   colour a new meaning, so it is a feature for its own round.
-- **Folding a group with nothing set to a "+" head** (Framer). W20's "all
-  open" stands.
-- Menu items that would be new capabilities: duplicate, delete, wrap in a
-  container, copy and paste styles. Each writes structure or copies values
-  the brief has no line for yet.
+- ~~Folding a group with nothing set to a "+" head~~ — built in W54 (see
+  the Style column).
+- Duplicate, as a menu item: it writes structure the brief has no line for
+  yet. (Wrap, copy and paste styles came in W39; delete in W55.)
 - A two-column panel for people who drag the side panel wide. Considered
   and set aside for the rail; nothing prevents it later.
 - Grid template editing, background images and gradients. (`transform` and

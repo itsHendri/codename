@@ -256,6 +256,18 @@ describe('element changes', () => {
     expect(prompt).toContain('positional selector');
   });
 
+  it('describes a delete in words, and leaves out the deleted element\'s own style edits', () => {
+    const edits: ElementChange[] = [
+      edit({ id: 'p1', selector: 'div.promo', property: 'padding-top' }),
+      edit({ id: 'r1', selector: 'div.promo', property: 'remove', from: 'div.promo "Sale ends Friday"', to: 'deleted' }),
+    ];
+    const prompt = toPrompt(buildChangeSet(scanOf(), [], {}, edits));
+    expect(prompt).toContain('- `div.promo`');
+    expect(prompt).toContain('delete it: take this element, and everything inside it, out of the markup. It reads div.promo "Sale ends Friday".');
+    expect(prompt).toContain('remove only this one');
+    expect(prompt).not.toContain('`padding-top`');
+  });
+
   it('renders a shorthand as one line, still no stylesheet', () => {
     const edits: ElementChange[] = [
       { id: 'e1', selector: '.btn', matches: 1, stable: true, property: 'padding', from: '8px 16px', to: '12px', status: 'applied', at: '2026-09-08T00:00:00.000Z' },

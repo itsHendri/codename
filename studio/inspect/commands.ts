@@ -45,6 +45,7 @@ export function shortcutSheet(mac: boolean): ShortcutGroup[] {
         { keys: `${m}${a}C`, what: 'Copy style' },
         { keys: `${m}${a}V`, what: 'Paste style' },
         { keys: 'Shift+A', what: 'Wrap in a stack' },
+        { keys: mac ? '⌫' : 'Delete', what: 'Delete' },
         { keys: `${m}Z`, what: 'Undo' },
         { keys: `${m}Shift+Z`, what: 'Redo' },
       ],

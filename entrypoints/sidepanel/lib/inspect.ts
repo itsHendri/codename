@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElementProps, SelectionColour, TypeStyle } from '@/shared/types';
+import type { ElementProps, RemoveNode, SelectionColour, TypeStyle } from '@/shared/types';
 import type { Comment, CommentStatus } from '@/shared/protocol';
 import type { CommentTarget } from '@/studio/annotations';
 import type { LayerNode } from '@/studio/layers';
@@ -22,6 +22,7 @@ import {
   revertAll as revertAllLog,
   stackSelector,
   toMoves,
+  toRemovals,
   toRules,
   toWraps,
   toTextEdits,
@@ -139,6 +140,8 @@ export interface InspectController {
   toggleHidden(node: LayerNode): void;
   /** Put a layer somewhere else, in `parent` before `before` or last — beside where it was, or in another box. */
   move(node: LayerNode, parent: LayerNode, before: LayerNode | null, wasIn: LayerNode, wasBefore: LayerNode | null): void;
+  /** Take elements out of the page: one entry each, undone like any edit. */
+  remove(nodes: RemoveNode[]): void;
 }
 
 /** How a row reads in a sentence: its label, and its text when it has some. */
@@ -322,6 +325,13 @@ export function useInspect(
   const moves = useMemo(() => (holding ? [] : toMoves(log)), [log, holding]);
   usePush(tabId, generation, JSON.stringify(moves), moves.length === 0, () => {
     void sendInspector(tabId!, { cmd: 'moves', moves });
+  });
+
+  // Deletes, pushed whole like the moves: the page puts back what it took
+  // out and takes out what the list names, so undo needs nothing special.
+  const removals = useMemo(() => (holding ? [] : toRemovals(log)), [log, holding]);
+  usePush(tabId, generation, JSON.stringify(removals), removals.length === 0, () => {
+    void sendInspector(tabId!, { cmd: 'removals', selectors: removals });
   });
 
   // Stacks are markup too: put in afresh from the log, after the moves.
@@ -627,6 +637,20 @@ export function useInspect(
           move: { parent: parent.selector, before: before?.selector ?? null },
         }),
       );
+    },
+    remove: (nodes) => {
+      // One entry per element, so each can be reverted on its own; an
+      // element already deleted is not deleted twice.
+      setLog((l) => {
+        const gone = new Set(toRemovals(l));
+        let next = l;
+        for (const n of nodes) {
+          if (gone.has(n.selector)) continue;
+          gone.add(n.selector);
+          next = commit(next, { selector: n.selector, matches: 1, stable: n.stable, property: 'remove', from: n.label, to: 'deleted' });
+        }
+        return next;
+      });
     },
     toggleHidden: (node) => {
       // Hiding is an element edit like any other, so it undoes, reverts and

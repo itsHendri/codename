@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { alphaPercent, compositeOverWhite, contrast, opaqueBackground, parseRgba, toHex, withAlpha } from './colour';
-import { buildLayers, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
+import { buildLayers, deleteLabel, find, findAll, layerLabel, MAX_LAYERS, neighbour, ownText } from './dom';
 import { dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from './geometry';
 import { readProps, roundedStyle } from './readProps';
 import { element } from '@/entrypoints/sidepanel/test/chromeStub';
@@ -242,5 +242,13 @@ describe('alphaPercent and withAlpha', () => {
     expect(withAlpha('#15171B80', 100)).toBe('#15171B');
     expect(withAlpha('rgb(255, 0, 0)', 10)).toBe('#FF00001A');
     expect(withAlpha('currentColor', 50)).toBeNull();
+  });
+});
+
+describe('deleteLabel', () => {
+  it('names the layer and the start of its text', () => {
+    document.body.innerHTML = '<div class="card"><h2>Pricing that scales with your team, and then some</h2></div><hr>';
+    expect(deleteLabel(document.querySelector('.card')!)).toBe('div.card "Pricing that scales with your t…"');
+    expect(deleteLabel(document.querySelector('hr')!)).toBe('hr');
   });
 });

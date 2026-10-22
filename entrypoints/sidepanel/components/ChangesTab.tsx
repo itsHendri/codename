@@ -44,11 +44,12 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
     }
     return [...names].filter((n) => n.startsWith('--')).sort();
   }, [set, locks]);
-  // A reorder shifts what `li:nth-of-type(2)` points at, so an edit made on
-  // a positional selector may now be on a different element than it was.
+  // A reorder or a delete shifts what `li:nth-of-type(2)` points at, so an
+  // edit made on a positional selector may now be on a different element.
   const shifted = useMemo(() => {
     const live = activeChanges(log);
-    return live.some((e) => e.property === 'move') && live.some((e) => e.property !== 'move' && !e.stable);
+    const structural = (p: string) => p === 'move' || p === 'remove';
+    return live.some((e) => structural(e.property)) && live.some((e) => !structural(e.property) && !e.stable);
   }, [log]);
 
   const flash = (what: string) => {
@@ -230,8 +231,8 @@ export function ChangesTab({ set, ctl }: { set: ChangeSet; ctl: InspectControlle
 
         {shifted && (
           <p className="rounded-control bg-warn-soft px-2.5 py-2 text-2xs text-warn-ink">
-            A reorder and an edit on a positional selector are both in force, so the edit may have
-            moved to a different element. Check the selection on the page before sending.
+            A reorder or a delete and an edit on a positional selector are both in force, so the edit
+            may have moved to a different element. Check the selection on the page before sending.
           </p>
         )}
 

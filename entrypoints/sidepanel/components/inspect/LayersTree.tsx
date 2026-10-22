@@ -46,6 +46,7 @@ export function LayersTree({
   onPeek,
   onToggleHidden,
   onMove,
+  onDelete,
   onRefresh,
   loading,
 }: {
@@ -56,6 +57,8 @@ export function LayersTree({
   onToggleHidden: (node: LayerNode) => void;
   /** Drop a row into `parent`, before `before` or last (`before` null); `wasIn`/`wasBefore` say where it came from. */
   onMove: (node: LayerNode, parent: LayerNode, before: LayerNode | null, wasIn: LayerNode, wasBefore: LayerNode | null) => void;
+  /** Delete or Backspace on a row: take that element out. */
+  onDelete?: (node: LayerNode) => void;
   onRefresh: () => void;
   loading: boolean;
 }) {
@@ -299,6 +302,7 @@ export function LayersTree({
    * The tree from the keyboard, as a file browser works: up and down move the
    * selection through the rows you can see, left folds and right unfolds the
    * row you are on, and Enter picks it again (useful after the page moved).
+   * Delete or Backspace takes the row's element out, as in a design tool.
    */
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!rows.length) return;
@@ -317,6 +321,9 @@ export function LayersTree({
     } else if (e.key === 'Enter' && current) {
       e.preventDefault();
       onSelect(current);
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && current && onDelete && current.tag !== 'body' && current.tag !== 'html') {
+      e.preventDefault();
+      onDelete(current);
     }
   };
 

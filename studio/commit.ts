@@ -310,7 +310,7 @@ function withTokenHints(edits: ElementEdit[], scan: ScanLike): ElementEdit[] {
   const index = buildValueIndex({ customProps: scan.customProps, rootFontSize: scan.rootFontSize });
   const rootFontSize = scan.rootFontSize ?? 16;
   return edits.map((e) => {
-    if (e.token || e.detached || e.property === 'text' || e.property === 'move' || e.property === 'wrap' || e.property === 'type-style') return e;
+    if (e.token || e.detached || e.property === 'text' || e.property === 'move' || e.property === 'wrap' || e.property === 'remove' || e.property === 'type-style') return e;
     // The index holds each variable's base value. Under the page's dark mode
     // or inside a width query the same name may hold something else, and
     // naming it would be a wrong fact rather than a helpful one — so nothing
@@ -592,6 +592,15 @@ export function toPrompt(set: ChangeSet): string {
         // Edits to a stack whose wrap was undone: nothing to make.
         continue;
       } else lines.push(`- \`${selector}\`${scope}${positional}`);
+      // A deleted element's own style edits no longer matter: the delete is the whole instruction.
+      const removed = edits.find((e) => e.property === 'remove');
+      if (removed) {
+        if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
+        lines.push(
+          `  - delete it: take this element, and everything inside it, out of the markup. It reads ${removed.from}. If it is rendered from a list or by a component used elsewhere, remove only this one. This is a change to the markup, not a style.`,
+        );
+        continue;
+      }
       // Where a dev build named the component, that is the file to open.
       if (first.component) lines.push(`  - rendered by ${describeOrigin(first.component)}`);
       // Grouped by state, default first, so the ordinary case reads exactly

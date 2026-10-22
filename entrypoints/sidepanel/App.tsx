@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { embeddedTab } from '@/shared/embed';
-import type { ElementProps, ScanResult } from '@/shared/types';
+import type { ElementProps, RemoveNode, ScanResult } from '@/shared/types';
 import {
   applyAgentPreview,
   attachBar,
@@ -395,6 +395,9 @@ export default function App() {
         ctlRef.current.move(m.node, m.parent, m.before, m.wasIn, m.wasBefore);
       } else if (msg?.type === 'rail-hide') {
         ctlRef.current.toggleHidden((msg as unknown as { node: LayerNode }).node);
+      } else if (msg?.type === 'remove') {
+        // Delete or Backspace on the page or in the rail: an element edit, filed with the rest.
+        ctlRef.current.remove((msg as unknown as { nodes: RemoveNode[] }).nodes ?? []);
       } else if (msg?.type === 'rail-scope') {
         ctlRef.current.setScope((msg as { scope?: string }).scope === 'all' ? 'all' : 'element');
       } else if (msg?.type === 'agent-clear') {

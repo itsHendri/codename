@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   revertAll,
   toMoves,
+  toRemovals,
   active,
   canRedo,
   canUndo,
@@ -129,6 +130,14 @@ describe('derived views', () => {
     expect(toRules(log)).toHaveLength(1);
     expect(toMoves(log)).toEqual([{ selector: 'article.card:nth-of-type(3)', parent: 'main', before: 'article.card:nth-of-type(1)' }]);
     expect(toMoves(undo(log))).toEqual([]);
+  });
+
+  it('keeps deletes out of the rules, lists them, and drops them on undo', () => {
+    let log = commit(emptyLog(), { ...base, to: '9px' }, 1000);
+    log = commit(log, { selector: 'div.promo', matches: 1, stable: true, property: 'remove', from: 'div.promo "Sale"', to: 'deleted' }, 2000);
+    expect(toRules(log)).toHaveLength(1);
+    expect(toRemovals(log)).toEqual(['div.promo']);
+    expect(toRemovals(undo(log))).toEqual([]);
   });
 
   it('carries a shorthand through to the page untouched', () => {
