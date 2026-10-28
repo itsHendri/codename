@@ -170,3 +170,14 @@ export function find(selector: string | undefined, doc: ParentNode = document): 
     return null;
   }
 }
+
+/**
+ * How a deleted element reads in a sentence, `div.card "Pricing that…"`:
+ * its layer name, and the start of its text when it has some. Taken before
+ * it goes, since a deleted element cannot be read again to say what it was.
+ */
+export function deleteLabel(el: Element): string {
+  const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const short = text.length > 32 ? `${text.slice(0, 31)}…` : text;
+  return short ? `${layerLabel(el)} "${short}"` : layerLabel(el);
+}

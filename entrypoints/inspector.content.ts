@@ -23,7 +23,7 @@ import { readProps } from '@/studio/inspect/readProps';
 import { authoredFor } from '@/studio/inspect/authored';
 import { isManagedSheet } from '@/shared/types';
 import { mediaMatches } from '@/studio/pageFrame';
-import { buildLayers, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
+import { buildLayers, deleteLabel, find, findAll, neighbour, rectOf } from '@/studio/inspect/dom';
 import { DRAG_MIN, dropIndex, dropZone, placeMenu, placeSizeLabel, regionFrom, takesChildren } from '@/studio/inspect/geometry';
 import { search, shortcutSheet } from '@/studio/inspect/commands';
 import { dragged, handlesFor, snap, stepsOf, written, type HandleKind } from '@/studio/inspect/handles';
@@ -1177,6 +1177,51 @@ function activate() {
     }
   };
 
+  /* ----- deletes: elements taken out of the page ----- */
+
+  /**
+   * Delete or Backspace, or Delete in a menu: the selection (and the rest of
+   * a shift-click one) taken out of the page. Declarative like a move: the
+   * page puts back every element it took out, in reverse, then takes out
+   * what the log names, all of them found before any goes so one delete
+   * cannot shift another's selector. A framework that owns this DOM may put
+   * them back on its next render; the delete is a preview here and a
+   * sentence in the brief, which is where it lands in source.
+   */
+  const removedFrom = new Map<Element, { parent: Node; next: Node | null }>();
+  const applyRemovals = (selectors: string[]) => {
+    for (const [el, origin] of Array.from(removedFrom).reverse()) {
+      if (!el.isConnected && origin.parent instanceof Element && origin.parent.isConnected) {
+        origin.parent.insertBefore(el, origin.next && origin.next.parentNode === origin.parent ? origin.next : null);
+      }
+    }
+    removedFrom.clear();
+    const els = selectors.map((sel) => find(sel)).filter((el): el is Element => !!el && !!el.parentNode);
+    for (const el of els) {
+      if (!el.parentNode) continue;
+      removedFrom.set(el, { parent: el.parentNode, next: el.nextSibling });
+      el.remove();
+    }
+    if (selected && !selected.isConnected) select(null);
+    else if (also.some((el) => !el.isConnected)) setAlso(also.filter((el) => el.isConnected));
+  };
+
+  const deleteSelection = () => {
+    const targets = [selected, ...also].filter(
+      (el): el is Element => !!el && el.isConnected && el !== document.body && el !== document.documentElement && !isOurs(el),
+    );
+    // An element inside another being deleted goes with it.
+    const outer = targets.filter((el) => !targets.some((t) => t !== el && t.contains(el)));
+    if (!outer.length) return;
+    send({
+      type: 'remove',
+      nodes: outer.map((el) => {
+        const { selector } = buildSelector(el);
+        return { selector, stable: !selector.includes('nth-of-type'), label: deleteLabel(el) };
+      }),
+    });
+  };
+
   /* ----- stacks: new boxes around a selection ----- */
 
   /**
@@ -1296,6 +1341,7 @@ function activate() {
     }
     // The rail's eye: a display edit in the log, undone the same way.
     item('Hide', () => send({ type: 'rail-hide', node: { selector: props.selector, stable: props.stable, display: props.box.display } }));
+    item('Delete', deleteSelection, isMac ? '⌫' : 'Delete', el === document.body || el === document.documentElement);
     item('Add a note…', () => {
       const sel = buildSelector(el);
       emitTarget({ kind: 'element', selector: sel.selector, matches: sel.matches }, rectOf(el));
@@ -2038,6 +2084,7 @@ function activate() {
       { id: 'copy-style', label: 'Copy style', keys: `${m}${a}C`, kind: 'Edit', run: copyStyle, needs: true },
       { id: 'paste-style', label: 'Paste style', keys: `${m}${a}V`, kind: 'Edit', run: pasteStyle, needs: true },
       { id: 'hide', label: 'Hide', also: 'display none', kind: 'Edit', run: () => selected && send({ type: 'rail-hide', node: (() => { const p = readProps(selected!); return { selector: p.selector, stable: p.stable, display: p.box.display }; })() }), needs: true },
+      { id: 'delete', label: 'Delete', also: 'remove erase', keys: isMac ? '⌫' : 'Delete', kind: 'Edit', run: deleteSelection, needs: true },
       { id: 'show-panel', label: 'Show in panel', also: 'style inspect', kind: 'View', run: () => send({ type: 'panel-focus' }), needs: true },
       { id: 'deselect', label: 'Deselect', keys: 'Esc', kind: 'Selection', run: () => select(null), needs: true },
       ...barKinds.map((b) => ({ id: `frame-${b.dataset.kind}`, label: `${b.getAttribute('aria-label')} frame`, also: 'device viewport breakpoint', kind: 'Frame', run: click(b) })),
@@ -2237,6 +2284,12 @@ function activate() {
       return;
     }
     if (!selected) return;
+    // Delete or Backspace, as in every design tool: take the selection out.
+    if (hoverOn && bare && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      deleteSelection();
+      return;
+    }
     // Shift+A, Figma's "add auto layout": wrap the selection in a stack.
     if (hoverOn && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.code === 'KeyA') {
       e.preventDefault();
@@ -2419,6 +2472,10 @@ function activate() {
       }
       case 'wraps':
         applyWraps(msg.wraps ?? []);
+        layout();
+        break;
+      case 'removals':
+        applyRemovals(msg.selectors ?? []);
         layout();
         break;
       case 'moves':

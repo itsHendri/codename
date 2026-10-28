@@ -889,6 +889,35 @@ describe('the Style column', () => {
   });
 });
 
+describe('deleting from the page or the rail', () => {
+  it('files one delete per element, takes them out of the page, and puts them back on undo', async () => {
+    const removals = () => stub.sent.filter((m) => m.type === 'inspector' && m.cmd === 'removals').at(-1)?.selectors;
+    await act(async () =>
+      stub.emit({
+        type: 'remove',
+        nodes: [
+          { selector: 'div.promo', stable: true, label: 'div.promo "Sale"' },
+          { selector: 'li:nth-of-type(2)', stable: false, label: 'li "Two"' },
+        ],
+      }),
+    );
+    await tick(120);
+    expect(getSession().log.entries.map((e) => [e.selector, e.property, e.from, e.to])).toEqual([
+      ['div.promo', 'remove', 'div.promo "Sale"', 'deleted'],
+      ['li:nth-of-type(2)', 'remove', 'li "Two"', 'deleted'],
+    ]);
+    expect(removals()).toEqual(['div.promo', 'li:nth-of-type(2)']);
+    // Deleting the same element again files nothing more.
+    await act(async () => stub.emit({ type: 'remove', nodes: [{ selector: 'div.promo', stable: true, label: 'div.promo' }] }));
+    await tick(120);
+    expect(getSession().log.entries).toHaveLength(2);
+    // Undo, from the page's Cmd+Z, puts the last one back.
+    await act(async () => stub.emit({ type: 'inspector-shortcut', action: 'undo' }));
+    await tick(120);
+    expect(removals()).toEqual(['div.promo']);
+  });
+});
+
 describe('holding \\ on the page', () => {
   it('takes the edits off the page while the key is down and puts them back on release', async () => {
     await act(async () => stub.emit({ type: 'element-selected', data: element() }));

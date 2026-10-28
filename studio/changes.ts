@@ -47,7 +47,7 @@ export interface ElementChange {
   matches: number;
   /** false when the selector leans on :nth-of-type and will break on reorder. */
   stable: boolean;
-  /** A CSS longhand, 'text' for an inline text edit, or 'move' for a reorder. */
+  /** A CSS longhand, 'text' for an inline text edit, 'move' for a reorder, 'remove' for a delete. */
   property: string;
   /**
    * The state this edit is about: hover, focus, active, dark or a width.
@@ -97,6 +97,7 @@ export const STATELESS = new Set([
   'text',
   'move',
   'wrap',
+  'remove',
   'transition',
   'transition-property',
   'transition-duration',
@@ -200,6 +201,18 @@ export function toMoves(log: ChangeLog): (MoveSpec & { selector: string })[] {
 }
 
 /**
+ * The elements deleted, oldest first. A delete is the element's, not one of
+ * its states', and it is whole-state like a move: the page puts back every
+ * element it took out and then takes out what this list names, so an undo
+ * or a reload needs nothing special.
+ */
+export function toRemovals(log: ChangeLog): string[] {
+  return active(log)
+    .filter((e) => e.property === 'remove')
+    .map((e) => e.selector);
+}
+
+/**
  * A stack Codename puts around elements (Framer's "Add Stack", Figma's auto
  * layout on a selection) is a new element with an id of its own, so every
  * later edit to it has a selector that says which one it is.
@@ -233,7 +246,7 @@ export function toRules(log: ChangeLog): Rule[] {
       ...(e.condition ? { condition: e.condition } : {}),
     });
   for (const e of active(log)) {
-    if (e.property === 'text' || e.property === 'move' || e.property === 'wrap') continue;
+    if (e.property === 'text' || e.property === 'move' || e.property === 'wrap' || e.property === 'remove') continue;
     // A type style is one decision that paints several properties.
     if (e.property === 'type-style') {
       if (e.typeStyle) for (const [property, value] of typeStyleDeclarations(e.typeStyle)) set(e, property, value);

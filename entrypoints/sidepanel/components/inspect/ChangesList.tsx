@@ -92,7 +92,7 @@ function ChangeRow({ change: c, undone, onRevert }: { change: ElementChange; und
         </span>
       )}
       <span className={`min-w-0 flex-1 truncate ${reverted ? 'text-ink-faint line-through' : ''}`} title={`${c.property}: ${c.from} → ${c.to}`}>
-        <span className="text-ink-secondary">{c.property}</span>{' '}
+        <span className="text-ink-secondary">{c.property === 'remove' ? 'delete' : c.property}</span>{' '}
         <span className="text-ink-muted">{c.from}</span> <span className="text-ink-faint">→</span>{' '}
         <span className={reverted ? '' : 'text-accent'}>{c.token ?? c.to}</span>
       </span>

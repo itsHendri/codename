@@ -204,6 +204,12 @@ export function Rail({ store, onResize, onColumn }: { store: RailStore; onResize
               onSelect={tree.select}
               onPeek={tree.peek}
               onToggleHidden={(node: LayerNode) => tell({ type: 'rail-hide', node })}
+              onDelete={(node: LayerNode) =>
+                tell({
+                  type: 'remove',
+                  nodes: [{ selector: node.selector, stable: node.stable, label: node.text ? `${node.label} "${node.text.slice(0, 32)}"` : node.label }],
+                })
+              }
               onMove={(node, parent, before, wasIn, wasBefore) =>
                 tell({ type: 'rail-move', node, parent, before, wasIn, wasBefore })
               }

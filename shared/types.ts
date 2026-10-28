@@ -393,6 +393,8 @@ export type InspectorCommand =
   | { cmd: 'text'; selector: string; text: string }
   /** Every reorder in force, oldest first; the page restores what it moved and applies these afresh. */
   | { cmd: 'moves'; moves: { selector: string; parent: string; before: string | null }[] }
+  /** Every delete in force; the page puts back what it took out and takes these out afresh. */
+  | { cmd: 'removals'; selectors: string[] }
   | { cmd: 'pins'; pins: Pin[] }
   /** Draw-a-box / click / shift-click to say what a note is about. */
   | { cmd: 'note'; on: boolean }
@@ -547,6 +549,8 @@ export type RuntimeMessage =
     }
   /** The eye on a rail row: hidden, or shown again. */
   | { type: 'rail-hide'; node: LayerNode }
+  /** Delete or Backspace on the page or in the rail, or Delete in a menu: take these out. */
+  | { type: 'remove'; nodes: RemoveNode[] }
   /** A component picked in the rail: the next edits are for every match. */
   | { type: 'rail-scope'; scope: 'element' | 'all' }
   | { type: 'fetch-text'; url: string };
@@ -591,3 +595,14 @@ export const DEVICE_PRESETS = [
   { name: 'Laptop L', width: 1440, height: 900, kind: 'laptop' },
   { name: 'Desktop', width: 1920, height: 1080, kind: 'desktop' },
 ] as const;
+
+/**
+ * An element to delete: its selector, whether that selector survives a
+ * reorder, and how it reads in a sentence (`<h1> "Grit"`), since a deleted
+ * element cannot be read again to say what it was.
+ */
+export interface RemoveNode {
+  selector: string;
+  stable: boolean;
+  label: string;
+}
